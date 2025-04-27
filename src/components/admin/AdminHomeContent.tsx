@@ -72,32 +72,76 @@ const AdminHomeContent: React.FC = () => {
   };
 
   // 添加新分类
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (newCategory.trim()) {
-      setHomeContent(prev => ({
-        ...prev,
-        featuredCategories: [...prev.featuredCategories, newCategory.trim()]
-      }));
-      setNewCategory('');
+      const updatedCategories = [...homeContent.featuredCategories, newCategory.trim()];
+      try {
+        const response = await fetchWithAuth('/homepage/featured-categories', {
+          method: 'PUT',
+          body: JSON.stringify({ featuredCategories: updatedCategories })
+        });
+
+        if (response.success) {
+          setHomeContent(prev => ({
+            ...prev,
+            featuredCategories: updatedCategories
+          }));
+          setNewCategory('');
+          setMessage({ type: 'success', text: '分类添加成功' });
+        } else {
+          setMessage({ type: 'error', text: response.error || '添加分类失败' });
+        }
+      } catch (err) {
+        setMessage({ type: 'error', text: '添加分类时发生错误' });
+      }
     }
   };
 
   // 删除分类
-  const handleRemoveCategory = (index: number) => {
-    setHomeContent(prev => ({
-      ...prev,
-      featuredCategories: prev.featuredCategories.filter((_, i) => i !== index)
-    }));
+  const handleRemoveCategory = async (index: number) => {
+    const updatedCategories = homeContent.featuredCategories.filter((_, i) => i !== index);
+    try {
+      const response = await fetchWithAuth('/homepage/featured-categories', {
+        method: 'PUT',
+        body: JSON.stringify({ featuredCategories: updatedCategories })
+      });
+
+      if (response.success) {
+        setHomeContent(prev => ({
+          ...prev,
+          featuredCategories: updatedCategories
+        }));
+        setMessage({ type: 'success', text: '分类删除成功' });
+      } else {
+        setMessage({ type: 'error', text: response.error || '删除分类失败' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: '删除分类时发生错误' });
+    }
   };
 
   // 更新分类
-  const handleUpdateCategory = (index: number, value: string) => {
+  const handleUpdateCategory = async (index: number, value: string) => {
     const updatedCategories = [...homeContent.featuredCategories];
     updatedCategories[index] = value;
-    setHomeContent(prev => ({
-      ...prev,
-      featuredCategories: updatedCategories
-    }));
+    try {
+      const response = await fetchWithAuth('/homepage/featured-categories', {
+        method: 'PUT',
+        body: JSON.stringify({ featuredCategories: updatedCategories })
+      });
+
+      if (response.success) {
+        setHomeContent(prev => ({
+          ...prev,
+          featuredCategories: updatedCategories
+        }));
+        setMessage({ type: 'success', text: '分类更新成功' });
+      } else {
+        setMessage({ type: 'error', text: response.error || '更新分类失败' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: '更新分类时发生错误' });
+    }
   };
 
   // 保存首页内容

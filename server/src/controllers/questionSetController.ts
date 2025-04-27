@@ -18,6 +18,9 @@ interface QuestionSetRow extends RowDataPacket {
   price: number | null;
   trialQuestions: number | null;
   questionCount?: number;
+  isFeatured: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface QuestionRow extends RowDataPacket {
@@ -226,7 +229,7 @@ function normalizeQuestionData(questions: any[]) {
  */
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
-    // 执行SQL查询
+    // 执行SQL查询，获取题库及其题目数量
     const [questionSets] = await db.execute<QuestionSetRow[]>(`
       SELECT 
         qs.id, 
@@ -237,6 +240,9 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         qs.isPaid, 
         qs.price, 
         qs.trialQuestions,
+        qs.isFeatured,
+        qs.createdAt,
+        qs.updatedAt,
         COUNT(q.id) AS questionCount
       FROM 
         question_sets qs
@@ -248,9 +254,25 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         qs.createdAt DESC
     `);
 
+    // 确保返回的数据格式正确
+    const formattedQuestionSets = questionSets.map(set => ({
+      id: set.id,
+      title: set.title,
+      description: set.description,
+      category: set.category,
+      icon: set.icon,
+      isPaid: set.isPaid,
+      price: set.price,
+      trialQuestions: set.trialQuestions,
+      isFeatured: set.isFeatured,
+      questionCount: set.questionCount,
+      createdAt: set.createdAt,
+      updatedAt: set.updatedAt
+    }));
+
     res.status(200).json({
       success: true,
-      data: questionSets
+      data: formattedQuestionSets
     });
   } catch (error: any) {
     console.error('获取题库列表失败:', error);

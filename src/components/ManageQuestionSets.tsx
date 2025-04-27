@@ -4,8 +4,10 @@ import { QuestionSet } from '../data/questionSets';
 import { Question } from '../data/questions';
 import AddQuestion from './AddQuestion';
 import axios from 'axios';
+import { useUser } from '../contexts/UserContext';
 
 const ManageQuestionSets: React.FC = () => {
+  const { isAdmin } = useUser();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,38 +18,32 @@ const ManageQuestionSets: React.FC = () => {
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
 
-  // 加载题库列表
+  // 加载题库数据
   useEffect(() => {
-    const fetchQuestionSets = async () => {
+    const loadQuestionSets = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await axios.get('/api/question-sets');
-        // 确保设置的数据是一个数组
-        if (Array.isArray(response.data)) {
+        const response = await fetchWithAuth<QuestionSet[]>('/question-sets');
+        if (response.success && response.data) {
           setQuestionSets(response.data);
-        } else if (response.data && typeof response.data === 'object' && response.data.data && Array.isArray(response.data.data)) {
-          // 如果响应格式是 { data: [...] }
-          setQuestionSets(response.data.data);
         } else {
-          // 如果不是数组，设置为空数组并记录错误
-          console.error('API返回的题库数据不是数组格式:', response.data);
-          setQuestionSets([]);
-          setError('题库数据格式不正确，请联系管理员');
+          setError(response.error || '加载题库失败');
         }
       } catch (err) {
-        console.error('获取题库列表失败:', err);
-        setError('无法加载题库列表，请稍后重试');
-        // 确保在错误情况下也设置为空数组
-        setQuestionSets([]);
+        setError('加载题库时发生错误');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchQuestionSets();
-  }, []);
+    if (isAdmin()) {
+      loadQuestionSets();
+      
+      // 设置定时刷新，每30秒更新一次题库数据
+      const intervalId = setInterval(loadQuestionSets, 30000);
+      return () => clearInterval(intervalId);
+    }
+  }, [isAdmin]);
 
   // 删除题库
   const handleDelete = async (id: string) => {
@@ -168,7 +164,6 @@ const ManageQuestionSets: React.FC = () => {
       );
     }
     
-    // 确保 questionSets 是数组并且不为空
     if (!questionSets || !Array.isArray(questionSets) || questionSets.length === 0) {
       return (
         <div className="bg-gray-50 p-8 text-center rounded">
@@ -177,49 +172,50 @@ const ManageQuestionSets: React.FC = () => {
         </div>
       );
     }
-    
+
     return (
-      <div className="grid gap-4">
-        {questionSets.map((set) => (
-          <div key={set.id} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">{set.icon}</span>
-                <div>
-                  <h3 className="font-medium text-gray-800">{set.title}</h3>
-                  <span className={`inline-block text-xs px-2 py-1 rounded-full mt-1 ${getCategoryColor(set.category)}`}>
-                    {set.category}
-                  </span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {questionSets.map(questionSet => (
+          <div 
+            key={questionSet.id}
+            className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <span className="text-2xl mr-3">{questionSet.icon || '📚'}</span>
+                  <h3 className="text-lg font-medium text-gray-900">{questionSet.title}</h3>
                 </div>
+                <span className={`px-2 py-1 text-xs rounded-full ${getCategoryColor(questionSet.category)}`}>
+                  {questionSet.category}
+                </span>
               </div>
+              
+              <p className="text-gray-600 mb-4">{questionSet.description}</p>
+              
+              <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                <span>题目数量: {questionSet.questionCount || 0}</span>
+                {questionSet.isPaid && (
+                  <span className="text-yellow-600">¥{questionSet.price}</span>
+                )}
+              </div>
+              
               <div className="flex space-x-2">
                 <button
-                  onClick={() => handleAddQuestion(set)}
-                  className="px-2 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                  onClick={() => {
+                    setCurrentQuestionSet(questionSet);
+                    setIsAddingQuestion(true);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   添加题目
                 </button>
                 <button
-                  onClick={() => handleDelete(set.id)}
-                  className="text-red-600 hover:text-red-800 text-sm"
+                  onClick={() => setCurrentQuestionSet(questionSet)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
                 >
-                  删除
+                  管理题目
                 </button>
-              </div>
-            </div>
-            
-            <div className="p-4">
-              <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                {set.description || <span className="text-gray-400 italic">无描述</span>}
-              </p>
-              
-              <div className="flex justify-between items-center mt-2 text-sm">
-                <div className="flex space-x-4">
-                  <span className="text-gray-500">题目数量: {Array.isArray(set.questions) ? set.questions.length : 0}</span>
-                  <span className="text-gray-500">
-                    {set.isPaid ? `付费: ${set.price}元` : '免费'}
-                  </span>
-                </div>
               </div>
             </div>
           </div>

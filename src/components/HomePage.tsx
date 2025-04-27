@@ -31,8 +31,6 @@ const defaultHomeContent: HomeContentData = {
 const HomePage: React.FC = () => {
   const { user, isAdmin, getRemainingAccessDays } = useUser();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
-  const [allQuestionSets, setAllQuestionSets] = useState<QuestionSet[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(false);
@@ -41,7 +39,6 @@ const HomePage: React.FC = () => {
     title: '在线题库练习系统',
     description: '选择以下任一题库开始练习，测试您的知识水平'
   });
-  // 使用完整的状态管理
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(false);
@@ -53,76 +50,48 @@ const HomePage: React.FC = () => {
         setLoading(true);
         setErrorMessage(null);
 
-        try {
-          // 获取首页设置
-          const settingsResponse = await axios.get('/api/homepage/content');
-          let contentData;
-          if (settingsResponse.data && settingsResponse.data.success && settingsResponse.data.data) {
-            // 获取首页设置
-            contentData = settingsResponse.data.data;
-            // 更新欢迎信息
-            setWelcomeData({
-              title: contentData.welcomeTitle || defaultHomeContent.welcomeTitle,
-              description: contentData.welcomeDescription || defaultHomeContent.welcomeDescription
-            });
-            // 更新整个首页内容
-            setHomeContent(contentData);
-          }
-          
-          // 获取所有题库列表
-          const quizResponse = await axios.get('/api/question-sets');
-          
-          // 处理不同的响应格式
-          if (quizResponse.data) {
-            let questionSetData: QuestionSet[] = [];
-            
-            if (quizResponse.data.success && quizResponse.data.data) {
-              // 格式: { success: true, data: [...] }
-              questionSetData = Array.isArray(quizResponse.data.data) ? quizResponse.data.data : [];
-            } else if (Array.isArray(quizResponse.data)) {
-              // 格式: 直接返回数组
-              questionSetData = quizResponse.data;
-            } else {
-              // 其他格式,尝试处理
-              console.log('题库数据格式:', quizResponse.data);
-            }
-            
-            setQuestionSets(questionSetData);
-            setAllQuestionSets(questionSetData);
-            
-            // 获取所有分类
-            try {
-              const categoriesResponse = await axios.get('/api/question-sets/categories');
-              if (categoriesResponse.data && categoriesResponse.data.success && Array.isArray(categoriesResponse.data.data)) {
-                setCategories(categoriesResponse.data.data);
-              } else {
-                // 如果API不可用，从题库数据中提取分类
-                const allCategories = [...new Set(questionSetData.map(set => set.category))];
-                setCategories(allCategories);
-              }
-            } catch (err) {
-              console.error('获取分类失败:', err);
-              // 如果API调用失败，从题库数据中提取分类
-              const allCategories = [...new Set(questionSetData.map(set => set.category))];
-              setCategories(allCategories);
-            }
-          }
-        } catch (err) {
-          console.error('获取数据失败:', err);
-          setErrorMessage('无法连接到服务器，请确保后端服务正在运行');
-          // 确保即使请求失败，questionSets也是一个空数组
-          setQuestionSets([]);
+        // 获取所有题库列表
+        const quizResponse = await axios.get('/api/question-sets');
+        if (quizResponse.data && quizResponse.data.success && quizResponse.data.data) {
+          setQuestionSets(quizResponse.data.data);
+        } else {
+          setErrorMessage('获取题库列表失败');
         }
-      } catch (err) {
-        console.error('加载过程发生错误:', err);
-        setErrorMessage('加载数据时发生错误，请稍后重试');
-        setQuestionSets([]);
+
+        // 获取首页设置
+        const settingsResponse = await axios.get('/api/homepage/content');
+        if (settingsResponse.data && settingsResponse.data.success && settingsResponse.data.data) {
+          const contentData = settingsResponse.data.data;
+          setWelcomeData({
+            title: contentData.welcomeTitle || defaultHomeContent.welcomeTitle,
+            description: contentData.welcomeDescription || defaultHomeContent.welcomeDescription
+          });
+          setHomeContent(contentData);
+        }
+
+        // 获取精选分类
+        const categoriesResponse = await axios.get('/api/homepage/featured-categories');
+        if (categoriesResponse.data && categoriesResponse.data.success && categoriesResponse.data.data) {
+          setHomeContent(prev => ({
+            ...prev,
+            featuredCategories: categoriesResponse.data.data
+          }));
+        }
+      } catch (error) {
+        console.error('获取数据失败:', error);
+        setErrorMessage('获取数据失败，请稍后重试');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+
+    // 设置定时刷新，每30秒更新一次题库数据
+    const intervalId = setInterval(fetchData, 30000);
+
+    // 组件卸载时清除定时器
+    return () => clearInterval(intervalId);
   }, []);
 
   // 切换分类
@@ -131,7 +100,10 @@ const HomePage: React.FC = () => {
     
     // 如果选择"全部"分类，直接显示所有题库
     if (category === 'all') {
-      setQuestionSets(allQuestionSets);
+      const response = await axios.get('/api/question-sets');
+      if (response.data && response.data.success && response.data.data) {
+        setQuestionSets(response.data.data);
+      }
       return;
     }
     
@@ -143,17 +115,15 @@ const HomePage: React.FC = () => {
       if (response.data && response.data.success && response.data.data) {
         setQuestionSets(response.data.data);
       } else {
-        // 回退到客户端过滤
-        setQuestionSets(allQuestionSets.filter(set => set.category === category));
+        setErrorMessage('获取分类题库失败');
       }
     } catch (err) {
       console.error(`获取分类 ${category} 的题库失败:`, err);
-      // 回退到客户端过滤
-      setQuestionSets(allQuestionSets.filter(set => set.category === category));
+      setErrorMessage('获取分类题库失败');
     } finally {
       setCategoryLoading(false);
     }
-  }, [allQuestionSets]);
+  }, []);
 
   // 获取剩余天数的文字描述
   const calculateRemainingDaysText = (days: number | null): string => {
@@ -170,6 +140,18 @@ const HomePage: React.FC = () => {
 
   // 获取要显示的题库
   const getFilteredQuestionSets = (): QuestionSet[] => {
+    if (!questionSets || questionSets.length === 0) {
+      return [];
+    }
+    
+    // 如果有精选分类，优先显示精选分类的题库
+    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+      return questionSets.filter(set => 
+        homeContent.featuredCategories.includes(set.category)
+      );
+    }
+    
+    // 否则显示所有题库
     return questionSets;
   };
 
@@ -297,7 +279,7 @@ const HomePage: React.FC = () => {
             >
               全部题库
             </button>
-            {categories.map(category => (
+            {homeContent.featuredCategories.map(category => (
               <button 
                 key={category}
                 onClick={() => handleCategoryChange(category)}
