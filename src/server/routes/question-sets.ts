@@ -9,10 +9,16 @@ router.get('/', (async (_req: Request, res: Response) => {
     const questionSets = await db.query(
       `SELECT * FROM question_sets ORDER BY title`
     );
-    res.json(questionSets);
+    res.json({
+      success: true,
+      data: questionSets
+    });
   } catch (error) {
     console.error('Error fetching question sets:', error);
-    res.status(500).json({ error: 'Failed to fetch question sets' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch question sets' 
+    });
   }
 }) as RequestHandler);
 
@@ -29,13 +35,22 @@ router.get('/:id', (async (req: Request, res: Response) => {
     const questionSet = questionSets.length > 0 ? questionSets[0] : null;
     
     if (!questionSet) {
-      return res.status(404).json({ error: 'Question set not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Question set not found' 
+      });
     }
     
-    res.json(questionSet);
+    res.json({
+      success: true,
+      data: questionSet
+    });
   } catch (error) {
     console.error(`Error fetching question set ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Failed to fetch question set' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch question set' 
+    });
   }
 }) as RequestHandler);
 
@@ -56,7 +71,10 @@ router.post('/', (async (req: Request, res: Response) => {
     
     // Validate required fields
     if (!id || !title || !category) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields' 
+      });
     }
     
     // Insert question set
@@ -100,10 +118,17 @@ router.post('/', (async (req: Request, res: Response) => {
       }
     }
     
-    res.status(201).json({ id, message: 'Question set created successfully' });
+    res.status(201).json({ 
+      success: true,
+      data: { id },
+      message: 'Question set created successfully' 
+    });
   } catch (error) {
     console.error('Error creating question set:', error);
-    res.status(500).json({ error: 'Failed to create question set' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create question set' 
+    });
   }
 }) as RequestHandler);
 
@@ -119,7 +144,10 @@ router.delete('/:id', (async (req: Request, res: Response) => {
     );
     
     if (questionSets.length === 0) {
-      return res.status(404).json({ error: 'Question set not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Question set not found' 
+      });
     }
     
     // Delete the question set (cascading delete will handle questions and options)
@@ -128,10 +156,16 @@ router.delete('/:id', (async (req: Request, res: Response) => {
       [id]
     );
     
-    res.json({ message: 'Question set deleted successfully' });
+    res.json({ 
+      success: true,
+      message: 'Question set deleted successfully' 
+    });
   } catch (error) {
     console.error(`Error deleting question set ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Failed to delete question set' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to delete question set' 
+    });
   }
 }) as RequestHandler);
 

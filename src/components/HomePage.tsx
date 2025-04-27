@@ -72,7 +72,23 @@ const HomePage: React.FC = () => {
           } else {
             // 如果没有精选题库，获取所有题库列表
             const quizResponse = await axios.get('/api/question-sets');
-            setQuestionSets(Array.isArray(quizResponse.data) ? quizResponse.data : []);
+            
+            // 处理不同的响应格式
+            if (quizResponse.data) {
+              if (quizResponse.data.success && quizResponse.data.data) {
+                // 格式: { success: true, data: [...] }
+                setQuestionSets(Array.isArray(quizResponse.data.data) ? quizResponse.data.data : []);
+              } else if (Array.isArray(quizResponse.data)) {
+                // 格式: 直接返回数组
+                setQuestionSets(quizResponse.data);
+              } else {
+                // 其他格式,尝试处理
+                console.log('题库数据格式:', quizResponse.data);
+                setQuestionSets([]);
+              }
+            } else {
+              setQuestionSets([]);
+            }
           }
         } catch (err) {
           console.error('获取数据失败:', err);
