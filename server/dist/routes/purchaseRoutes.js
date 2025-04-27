@@ -11,6 +11,6 @@ const router = express_1.default.Router();
 router.use(authMiddleware_1.protect);
 router.post('/', purchaseController_1.createPurchase);
 router.post('/complete', purchaseController_1.completePurchase);
-router.get('/', purchaseController_1.getUserPurchases);
-router.get('/check/:quizId', purchaseController_1.checkPurchaseAccess);
+router.get('/user', purchaseController_1.getUserPurchases);
+router.get('/check/:questionSetId', purchaseController_1.checkPurchaseAccess);
 exports.default = router;

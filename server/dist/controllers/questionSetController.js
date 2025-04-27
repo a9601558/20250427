@@ -235,6 +235,7 @@ exports.createQuestionSet = createQuestionSet;
  * @access  Admin
  */
 const updateQuestionSet = async (req, res) => {
+    var _a;
     const { id } = req.params;
     const { title, description, category, icon, isPaid, price, trialQuestions, questions, isFeatured, featuredCategory } = req.body;
     try {
@@ -243,10 +244,8 @@ const updateQuestionSet = async (req, res) => {
             // 查找题库
             const questionSet = await QuestionSet_1.default.findByPk(id);
             if (!questionSet) {
-                return res.status(404).json({
-                    success: false,
-                    message: '题库不存在'
-                });
+                // 不要在事务内返回响应，而是抛出错误
+                throw new Error('题库不存在');
             }
             // 更新题库基本信息
             await questionSet.update({
@@ -293,34 +292,70 @@ const updateQuestionSet = async (req, res) => {
                     }
                 }
             }
-            // 获取更新后的题库（包含问题和选项）
-            const updatedQuestionSet = await QuestionSet_1.default.findByPk(id, {
-                include: [
-                    {
-                        model: Question_1.default,
-                        as: 'questions',
-                        include: [{ model: Option_1.default, as: 'options' }]
-                    }
-                ],
-                transaction: t
-            });
-            return updatedQuestionSet;
+            // 获取更新后的题库ID - 不返回完整对象避免循环引用
+            return questionSet.id;
         });
-        if (!result) {
+        // 事务完成后，单独查询题库，避免循环引用
+        const updatedQuestionSet = await QuestionSet_1.default.findByPk(result, {
+            include: [
+                {
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{ model: Option_1.default, as: 'options' }]
+                }
+            ]
+        });
+        if (!updatedQuestionSet) {
             return res.status(404).json({
                 success: false,
                 message: '题库不存在'
             });
         }
-        res.status(200).json({
+        // 手动构建安全的响应对象，避免可能的循环引用
+        const safeResponse = {
+            id: updatedQuestionSet.id,
+            title: updatedQuestionSet.title,
+            description: updatedQuestionSet.description,
+            category: updatedQuestionSet.category,
+            icon: updatedQuestionSet.icon,
+            isPaid: updatedQuestionSet.isPaid,
+            price: updatedQuestionSet.price,
+            trialQuestions: updatedQuestionSet.trialQuestions,
+            isFeatured: updatedQuestionSet.isFeatured,
+            featuredCategory: updatedQuestionSet.featuredCategory,
+            questions: (_a = updatedQuestionSet.questions) === null || _a === void 0 ? void 0 : _a.map((q) => {
+                var _a;
+                return ({
+                    id: q.id,
+                    text: q.text,
+                    explanation: q.explanation,
+                    questionType: q.questionType,
+                    orderIndex: q.orderIndex,
+                    options: (_a = q.options) === null || _a === void 0 ? void 0 : _a.map((o) => ({
+                        id: o.id,
+                        text: o.text,
+                        isCorrect: o.isCorrect,
+                        optionIndex: o.optionIndex
+                    }))
+                });
+            })
+        };
+        return res.status(200).json({
             success: true,
             message: '题库更新成功',
-            data: result
+            data: safeResponse
         });
     }
     catch (error) {
+        // 如果是在事务中抛出的'题库不存在'错误，返回404
+        if (error.message === '题库不存在') {
+            return res.status(404).json({
+                success: false,
+                message: '题库不存在'
+            });
+        }
         console.error('更新题库失败:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: '更新题库失败',
             error: error.message

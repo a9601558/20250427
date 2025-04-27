@@ -10,10 +10,10 @@ const uuid_1 = require("uuid");
 // @access  Private
 const createPurchase = async (req, res) => {
     try {
-        const { quizId } = req.body;
+        const { questionSetId } = req.body;
         const userId = req.user.id;
-        // Validate the quiz ID
-        const questionSet = await models_1.QuestionSet.findByPk(quizId);
+        // Validate the question set ID
+        const questionSet = await models_1.QuestionSet.findByPk(questionSetId);
         if (!questionSet) {
             return res.status(404).json({
                 success: false,
@@ -39,7 +39,7 @@ const createPurchase = async (req, res) => {
         const existingPurchase = await models_1.Purchase.findOne({
             where: {
                 userId,
-                quizId,
+                questionSetId,
                 expiryDate: {
                     [sequelize_1.Op.gt]: new Date()
                 }
@@ -60,8 +60,8 @@ const createPurchase = async (req, res) => {
             currency: 'usd',
             metadata: {
                 userId: userId.toString(),
-                quizId: quizId,
-                quizTitle: questionSet.title
+                questionSetId: questionSetId,
+                questionSetTitle: questionSet.title
             }
         });
         res.status(201).json({
@@ -69,8 +69,8 @@ const createPurchase = async (req, res) => {
             data: {
                 clientSecret: paymentIntent.client_secret,
                 amount: questionSet.price,
-                quizId: quizId,
-                quizTitle: questionSet.title
+                questionSetId: questionSetId,
+                questionSetTitle: questionSet.title
             }
         });
     }
@@ -89,16 +89,16 @@ exports.createPurchase = createPurchase;
 const completePurchase = async (req, res) => {
     const transaction = await models_1.sequelize.transaction();
     try {
-        const { paymentIntentId, quizId, amount } = req.body;
+        const { paymentIntentId, questionSetId, amount } = req.body;
         const userId = req.user.id;
-        if (!paymentIntentId || !quizId || amount === undefined) {
+        if (!paymentIntentId || !questionSetId || amount === undefined) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide paymentIntentId, quizId, and amount'
+                message: 'Please provide paymentIntentId, questionSetId, and amount'
             });
         }
         // Verify the question set
-        const questionSet = await models_1.QuestionSet.findByPk(quizId, { transaction });
+        const questionSet = await models_1.QuestionSet.findByPk(questionSetId, { transaction });
         if (!questionSet) {
             await transaction.rollback();
             return res.status(404).json({
@@ -113,7 +113,7 @@ const completePurchase = async (req, res) => {
         const purchase = await models_1.Purchase.create({
             id: (0, uuid_1.v4)(),
             userId,
-            quizId,
+            questionSetId,
             purchaseDate: new Date(),
             expiryDate,
             transactionId: paymentIntentId,
@@ -128,7 +128,7 @@ const completePurchase = async (req, res) => {
             data: {
                 purchase: {
                     id: purchase.id,
-                    quizId,
+                    questionSetId,
                     expiryDate
                 }
             }
@@ -175,17 +175,17 @@ const getUserPurchases = async (req, res) => {
 };
 exports.getUserPurchases = getUserPurchases;
 // @desc    Check if user has access to a question set
-// @route   GET /api/purchases/check/:quizId
+// @route   GET /api/purchases/check/:questionSetId
 // @access  Private
 const checkPurchaseAccess = async (req, res) => {
     try {
         const userId = req.user.id;
-        const quizId = req.params.quizId;
+        const questionSetId = req.params.questionSetId;
         // Check for an active purchase
         const activePurchase = await models_1.Purchase.findOne({
             where: {
                 userId,
-                quizId,
+                questionSetId,
                 expiryDate: {
                     [sequelize_1.Op.gt]: new Date()
                 }
@@ -203,7 +203,7 @@ const checkPurchaseAccess = async (req, res) => {
             });
         }
         // Check if the question set is free
-        const questionSet = await models_1.QuestionSet.findByPk(quizId);
+        const questionSet = await models_1.QuestionSet.findByPk(questionSetId);
         if (questionSet && !questionSet.isPaid) {
             return res.json({
                 success: true,

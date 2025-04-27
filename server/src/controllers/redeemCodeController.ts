@@ -187,7 +187,7 @@ export const redeemCode = async (req: Request, res: Response) => {
     const existingPurchase = await Purchase.findOne({
       where: {
         userId,
-        quizId: redeemCode.questionSetId,
+        questionSetId: redeemCode.questionSetId,
         expiryDate: {
           [Op.gt]: new Date()
         }
@@ -207,7 +207,7 @@ export const redeemCode = async (req: Request, res: Response) => {
       await Purchase.create({
         id: uuidv4(),
         userId,
-        quizId: redeemCode.questionSetId,
+        questionSetId: redeemCode.questionSetId,
         purchaseDate: new Date(),
         expiryDate,
         transactionId: `redeem_${redeemCode.code}`,

@@ -170,7 +170,7 @@ const redeemCode = async (req, res) => {
         const existingPurchase = await models_1.Purchase.findOne({
             where: {
                 userId,
-                quizId: redeemCode.questionSetId,
+                questionSetId: redeemCode.questionSetId,
                 expiryDate: {
                     [sequelize_1.Op.gt]: new Date()
                 }
@@ -190,7 +190,7 @@ const redeemCode = async (req, res) => {
             await models_1.Purchase.create({
                 id: (0, uuid_1.v4)(),
                 userId,
-                quizId: redeemCode.questionSetId,
+                questionSetId: redeemCode.questionSetId,
                 purchaseDate: new Date(),
                 expiryDate,
                 transactionId: `redeem_${redeemCode.code}`,

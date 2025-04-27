@@ -11,10 +11,10 @@ const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const models_1 = require("./models");
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
-const models_1 = require("./models");
 require("./models/HomepageSettings");
 // Import routes (will create these next)
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
@@ -27,6 +27,34 @@ const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 // 信任代理，解决X-Forwarded-For头问题
 app.set('trust proxy', true);
+// Body parsing middleware
+// 确保最先配置body解析中间件，防止请求体解析问题
+app.use(express_1.default.json({
+    limit: '100mb',
+    verify: (req, res, buf) => {
+        try {
+            JSON.parse(buf.toString());
+        }
+        catch (e) {
+            console.error('JSON解析错误:', e.message);
+            // 注意：verify函数中不能直接发送响应，会导致Express错误
+            // 我们只记录错误，让Express的错误处理机制处理无效JSON
+            req.body = { _jsonParseError: true, message: e.message };
+        }
+    }
+}));
+app.use(express_1.default.urlencoded({
+    extended: true,
+    limit: '100mb'
+}));
+// 添加请求日志中间件
+app.use((req, res, next) => {
+    if (req.method === 'POST') {
+        console.log(`收到POST请求: ${req.method} ${req.url}`);
+        console.log('Content-Type:', req.headers['content-type']);
+    }
+    next();
+});
 // Security middleware
 app.use((0, helmet_1.default)());
 // Rate limit configuration
@@ -54,7 +82,6 @@ app.use((0, cors_1.default)({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true
 }));
-app.use(express_1.default.json({ limit: '50mb' }));
 app.use((0, morgan_1.default)('dev'));
 // Serve static files
 app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
@@ -64,8 +91,9 @@ app.use(generalLimiter);
 // 在控制台输出一个清晰的分隔符
 console.log('=========== API路由注册开始 ===========');
 // Routes
-app.use('/api/users/login', loginLimiter); // Login route extra restriction
+app.use('/api/users/login', loginLimiter);
 app.use('/api/users', userRoutes_1.default);
+console.log('注册路由: /api/users, 包含登录和注册功能');
 // QuestionSet路由处理所有题库相关的功能
 console.log('注册路由: /api/question-sets');
 app.use('/api/question-sets', questionSetRoutes_1.default);
@@ -110,19 +138,35 @@ app.use((err, req, res, next) => {
         error: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
 });
-// 同步数据库模型，然后启动服务器
-(async () => {
+// 同步数据库结构
+const ensureDatabaseSync = async () => {
     try {
-        console.log('开始同步数据库模型...');
+        console.log('正在同步数据库结构...');
         await (0, models_1.syncModels)();
-        console.log('数据库模型同步完成');
-        // Start server
+        console.log('数据库同步完成');
+        return true;
+    }
+    catch (error) {
+        console.error('数据库同步失败:', error);
+        // 不中断服务器启动，但记录错误
+        return false;
+    }
+};
+// 启动服务器
+const startServer = async () => {
+    try {
+        // 尝试同步数据库
+        await ensureDatabaseSync();
+        // 开始监听端口
         app.listen(PORT, () => {
-            console.log(`服务器以 ${process.env.NODE_ENV} 模式运行，端口 ${PORT}`);
+            console.log(`服务器运行在 http://localhost:${PORT}`);
         });
     }
     catch (error) {
         console.error('服务器启动失败:', error);
+        process.exit(1);
     }
-})();
+};
+// 启动服务器
+startServer();
 exports.default = app;

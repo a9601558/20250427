@@ -128,7 +128,7 @@ async function migrateData() {
                 await models_1.Purchase.create({
                     id: (0, uuid_1.v4)(),
                     userId: userId,
-                    quizId: quizId,
+                    questionSetId: quizId,
                     purchaseDate: new Date(mongoPurchase.purchaseDate),
                     expiryDate: new Date(mongoPurchase.expiryDate),
                     transactionId: mongoPurchase.transactionId,
