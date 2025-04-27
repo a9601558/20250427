@@ -20,6 +20,7 @@ import './models/HomepageSettings';
 // Import routes (will create these next)
 import userRoutes from './routes/userRoutes';
 import questionSetRoutes from './routes/questionSetRoutes';
+import questionRoutes from './routes/questionRoutes';
 import purchaseRoutes from './routes/purchaseRoutes';
 import redeemCodeRoutes from './routes/redeemCodeRoutes';
 import homepageRoutes from './routes/homepageRoutes';
@@ -111,6 +112,10 @@ console.log('注册路由: /api/users, 包含登录和注册功能');
 // QuestionSet路由处理所有题库相关的功能
 console.log('注册路由: /api/question-sets');
 app.use('/api/question-sets', questionSetRoutes);
+
+// Question路由处理单个题目的增删改查
+console.log('注册路由: /api/questions');
+app.use('/api/questions', questionRoutes);
 
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/redeem-codes', redeemCodeRoutes);

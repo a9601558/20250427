@@ -3,6 +3,7 @@ import QuestionSet from '../models/QuestionSet';
 import Question from '../models/Question';
 import { Op } from 'sequelize';
 import Option from '../models/Option';
+import { sequelize } from '../config/db';
 
 // @desc    获取所有题库
 // @route   GET /api/question-sets
@@ -223,6 +224,236 @@ export const deleteQuestionSet = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error.message || '服务器错误'
+    });
+  }
+};
+
+/**
+ * @desc    添加新题目
+ * @route   POST /api/questions
+ * @access  Admin
+ */
+export const createQuestion = async (req: Request, res: Response) => {
+  try {
+    const { 
+      questionSetId, 
+      text, 
+      explanation, 
+      questionType,
+      options,
+      orderIndex 
+    } = req.body;
+
+    if (!questionSetId) {
+      return res.status(400).json({
+        success: false,
+        message: '题库ID不能为空'
+      });
+    }
+
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        message: '题目内容不能为空'
+      });
+    }
+
+    if (!Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供至少两个选项'
+      });
+    }
+
+    // 使用事务确保题目和选项一起创建成功
+    const result = await sequelize.transaction(async (t) => {
+      // 创建题目
+      const question = await Question.create({
+        questionSetId,
+        text,
+        explanation: explanation || '暂无解析',
+        questionType: questionType || 'single',
+        orderIndex: orderIndex !== undefined ? orderIndex : 0
+      }, { transaction: t });
+
+      // 创建选项
+      const optionPromises = options.map((option, index) => {
+        return Option.create({
+          questionId: question.id,
+          text: option.text || `选项 ${index + 1}`,
+          isCorrect: !!option.isCorrect,
+          optionIndex: option.optionIndex || option.id || String.fromCharCode(65 + index) // A, B, C...
+        }, { transaction: t });
+      });
+
+      await Promise.all(optionPromises);
+
+      // 返回创建的题目（包含选项）
+      return Question.findByPk(question.id, {
+        include: [{ model: Option, as: 'options' }],
+        transaction: t
+      });
+    });
+
+    res.status(201).json({
+      success: true,
+      message: '题目创建成功',
+      data: result
+    });
+  } catch (error: any) {
+    console.error('创建题目失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '创建题目失败',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    更新题目
+ * @route   PUT /api/questions/:id
+ * @access  Admin
+ */
+export const updateQuestion = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { 
+      text, 
+      explanation, 
+      questionType,
+      options,
+      orderIndex 
+    } = req.body;
+
+    // 查找现有题目
+    const question = await Question.findByPk(id);
+    
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        message: '题目不存在'
+      });
+    }
+
+    // 使用事务确保题目和选项一起更新成功
+    const result = await sequelize.transaction(async (t) => {
+      // 更新题目
+      await question.update({
+        text: text || question.text,
+        explanation: explanation || question.explanation,
+        questionType: questionType || question.questionType,
+        orderIndex: orderIndex !== undefined ? orderIndex : question.orderIndex
+      }, { transaction: t });
+
+      // 如果提供了选项，则更新选项
+      if (Array.isArray(options)) {
+        // 先删除现有选项
+        await Option.destroy({
+          where: { questionId: id },
+          transaction: t
+        });
+
+        // 创建新选项
+        const optionPromises = options.map((option, index) => {
+          return Option.create({
+            questionId: id,
+            text: option.text || `选项 ${index + 1}`,
+            isCorrect: !!option.isCorrect,
+            optionIndex: option.optionIndex || option.id || String.fromCharCode(65 + index) // A, B, C...
+          }, { transaction: t });
+        });
+
+        await Promise.all(optionPromises);
+      }
+
+      // 返回更新后的题目（包含选项）
+      return Question.findByPk(id, {
+        include: [{ model: Option, as: 'options' }],
+        transaction: t
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: '题目更新成功',
+      data: result
+    });
+  } catch (error: any) {
+    console.error('更新题目失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '更新题目失败',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    获取题目详情
+ * @route   GET /api/questions/:id
+ * @access  Public
+ */
+export const getQuestionById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const question = await Question.findByPk(id, {
+      include: [{ model: Option, as: 'options' }]
+    });
+    
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        message: '题目不存在'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: question
+    });
+  } catch (error: any) {
+    console.error('获取题目失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取题目失败',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    删除题目
+ * @route   DELETE /api/questions/:id
+ * @access  Admin
+ */
+export const deleteQuestion = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const question = await Question.findByPk(id);
+    
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        message: '题目不存在'
+      });
+    }
+    
+    // 删除题目（关联的选项会通过外键级联删除）
+    await question.destroy();
+    
+    res.status(200).json({
+      success: true,
+      message: '题目删除成功'
+    });
+  } catch (error: any) {
+    console.error('删除题目失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '删除题目失败',
+      error: error.message
     });
   }
 }; 
