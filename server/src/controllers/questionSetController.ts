@@ -396,67 +396,36 @@ export const createQuestionSet = async (req: Request, res: Response) => {
         isFeatured: false
       }, { transaction: t });
 
-      // 如果有问题数据，则创建问题和选项
+      // 如果提供了题目，则创建题目和选项
       if (Array.isArray(questions) && questions.length > 0) {
-        console.log(`处理 ${questions.length} 个问题`);
-        
-        for (let i = 0; i < questions.length; i++) {
-          const q = questions[i];
-          
-          // 适配前端数据格式，处理question/text字段差异
-          const questionText = q.text || q.question || '';
-          if (!questionText) {
-            console.warn(`问题 ${i+1} 缺少文本内容，跳过`);
-            continue;
-          }
-          
-          console.log(`创建问题 ${i+1}: ${questionText.substring(0, 30)}...`);
-          
-          // 创建问题
-          const questionRecord = await Question.create({
-            text: questionText,
-            explanation: q.explanation || '暂无解析',
+        for (const q of questions) {
+          // 创建题目
+          const question = await Question.create({
             questionSetId: questionSet.id,
+            text: q.text,
+            explanation: q.explanation || '暂无解析',
             questionType: q.questionType || 'single',
-            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+            orderIndex: q.orderIndex || 0
           }, { transaction: t });
-          
+
           // 如果有选项数据，则创建选项
           if (Array.isArray(q.options) && q.options.length > 0) {
-            console.log(`处理问题 ${i+1} 的 ${q.options.length} 个选项`);
-            
-            const optionPromises = q.options.map((opt: any, j: number) => {
-              const optionIndex = opt.id || String.fromCharCode(65 + j); // 使用前端提供的ID或生成 A, B, C...
-              
-              // 处理正确答案标记
-              let isCorrect = false;
-              if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
-                isCorrect = true;
-              } else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
-                isCorrect = true;
-              } else if (opt.isCorrect) {
-                isCorrect = true;
-              }
-              
-              console.log(`- 选项 ${optionIndex}: ${opt.text.substring(0, 20)}... 正确: ${isCorrect}`);
-              
+            const optionPromises = q.options.map((opt: any, index: number) => {
               return Option.create({
-                questionId: questionRecord.id,
+                questionId: question.id,
                 text: opt.text,
-                isCorrect: isCorrect,
-                optionIndex: optionIndex
+                isCorrect: !!opt.isCorrect,
+                optionIndex: opt.optionIndex || String.fromCharCode(65 + index)
               }, { transaction: t });
             });
-            
+
             await Promise.all(optionPromises);
-          } else {
-            console.warn(`问题 ${i+1} 没有选项数据`);
           }
         }
       }
-      
+
       // 获取新创建的题库（包含问题和选项）
-      const createdQuestionSet = await QuestionSet.findByPk(questionSet.id, {
+      return QuestionSet.findByPk(questionSet.id, {
         include: [
           {
             model: Question,
@@ -466,8 +435,6 @@ export const createQuestionSet = async (req: Request, res: Response) => {
         ],
         transaction: t
       });
-      
-      return createdQuestionSet;
     });
 
     res.status(201).json({
@@ -479,8 +446,7 @@ export const createQuestionSet = async (req: Request, res: Response) => {
     console.error('创建题库失败:', error);
     res.status(500).json({
       success: false,
-      message: '创建题库失败',
-      error: error.message
+      message: error.message || '服务器错误'
     });
   }
 };

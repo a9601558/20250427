@@ -278,15 +278,13 @@ export const createQuestion = async (req: Request, res: Response) => {
       }, { transaction: t });
 
       // 创建选项
-      const optionPromises = options.map((option, index) => {
-        const optionData = {
+      const optionPromises = options.map((option: any, index: number) => {
+        return Option.create({
           questionId: question.id,
           text: option.text || `选项 ${index + 1}`,
           isCorrect: !!option.isCorrect,
           optionIndex: option.optionIndex || String.fromCharCode(65 + index)
-        };
-        
-        return Option.create(optionData, { transaction: t });
+        }, { transaction: t });
       });
 
       await Promise.all(optionPromises);
@@ -305,10 +303,12 @@ export const createQuestion = async (req: Request, res: Response) => {
 
     // 通过Socket.IO通知所有客户端更新题目数量
     const io = req.app.get('io');
-    emitToHomepage(io, 'question_count_updated', {
-      questionSetId,
-      count: questionCount
-    });
+    if (io) {
+      io.emit('question_count_updated', {
+        questionSetId,
+        count: questionCount
+      });
+    }
 
     res.status(201).json({
       success: true,
