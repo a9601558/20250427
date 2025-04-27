@@ -8,7 +8,8 @@ import {
   createQuestion,
   updateQuestion,
   getQuestionById,
-  deleteQuestion
+  deleteQuestion,
+  getQuestionsByQuestionSetId
 } from '../controllers/questionController';
 import { protect, admin } from '../middleware/authMiddleware';
 
@@ -31,6 +32,9 @@ router.put('/sets/:id', protect, admin, updateQuestionSet);
 router.delete('/sets/:id', protect, admin, deleteQuestionSet);
 
 // 题目相关路由
+// 获取题库中的所有题目
+router.get('/', getQuestionsByQuestionSetId);
+
 // 获取特定题目
 router.get('/:id', getQuestionById);
 

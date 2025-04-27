@@ -456,4 +456,42 @@ export const deleteQuestion = async (req: Request, res: Response) => {
       error: error.message
     });
   }
+};
+
+/**
+ * @desc    获取题库所有题目
+ * @route   GET /api/questions?questionSetId=id
+ * @access  Public
+ */
+export const getQuestionsByQuestionSetId = async (req: Request, res: Response) => {
+  try {
+    const questionSetId = req.query.questionSetId as string;
+    
+    if (!questionSetId) {
+      return res.status(400).json({
+        success: false,
+        message: 'questionSetId 参数是必需的'
+      });
+    }
+    
+    // 查询特定题库的所有题目
+    const questions = await Question.findAll({
+      where: { questionSetId },
+      include: [{ model: Option, as: 'options' }],
+      order: [['orderIndex', 'ASC']]
+    });
+    
+    console.log(`找到题库 ${questionSetId} 的 ${questions.length} 个题目`);
+    
+    res.json({
+      success: true,
+      data: questions
+    });
+  } catch (error: any) {
+    console.error('获取题库题目错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '服务器错误'
+    });
+  }
 }; 
