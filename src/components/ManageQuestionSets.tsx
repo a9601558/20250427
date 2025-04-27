@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { QuestionSet } from '../data/questionSets';
 import { Question } from '../data/questions';
 import AddQuestion from './AddQuestion';
+import EditQuestion from './EditQuestion';
 import axios from 'axios';
 import { useUser } from '../contexts/UserContext';
 
@@ -17,6 +18,9 @@ const ManageQuestionSets: React.FC = () => {
   const [currentQuestionSet, setCurrentQuestionSet] = useState<QuestionSet | null>(null);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+  const [isManagingQuestions, setIsManagingQuestions] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false);
 
   // 加载题库数据
   useEffect(() => {
@@ -90,10 +94,16 @@ const ManageQuestionSets: React.FC = () => {
     setError(null);
     
     try {
+      // 创建新题目对象，确保有唯一的ID
+      const newQuestion = {
+        ...question,
+        id: `q_${Date.now()}` // 生成唯一ID
+      };
+      
       // 确保题库的questions是数组
       const questions = Array.isArray(currentQuestionSet.questions) 
-        ? [...currentQuestionSet.questions, question] 
-        : [question];
+        ? [...currentQuestionSet.questions, newQuestion] 
+        : [newQuestion];
       
       // 创建更新后的题库对象
       const updatedQuestionSet = {
@@ -137,6 +147,132 @@ const ManageQuestionSets: React.FC = () => {
   const handleCancelAddQuestion = () => {
     setCurrentQuestionSet(null);
     setIsAddingQuestion(false);
+  };
+
+  // 开始管理题目
+  const handleManageQuestions = (questionSet: QuestionSet) => {
+    setCurrentQuestionSet(questionSet);
+    setIsManagingQuestions(true);
+  };
+
+  // 取消管理题目
+  const handleCancelManageQuestions = () => {
+    setCurrentQuestionSet(null);
+    setIsManagingQuestions(false);
+  };
+
+  // 编辑题目
+  const handleEditQuestion = async (question: Question) => {
+    setEditingQuestion(question);
+    setIsEditingQuestion(true);
+  };
+
+  // 保存编辑后的题目
+  const handleSaveEditedQuestion = async (updatedQuestion: Question) => {
+    if (!currentQuestionSet || !editingQuestion) return;
+    
+    setIsSavingQuestion(true);
+    setError(null);
+    
+    try {
+      // 更新题目数组
+      const updatedQuestions = currentQuestionSet.questions.map(q => 
+        q.id === editingQuestion.id ? updatedQuestion : q
+      );
+      
+      // 创建更新后的题库对象
+      const updatedQuestionSet = {
+        ...currentQuestionSet,
+        questions: updatedQuestions
+      };
+      
+      // 发送更新请求
+      await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      // 更新本地状态
+      setQuestionSets(prev => 
+        prev.map(set => 
+          set.id === currentQuestionSet.id ? updatedQuestionSet : set
+        )
+      );
+      
+      // 重置编辑状态
+      setEditingQuestion(null);
+      setIsEditingQuestion(false);
+      setSuccessMessage('题目更新成功');
+      
+      // 3秒后清除成功消息
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+    } catch (err) {
+      console.error('更新题目失败:', err);
+      setError('更新题目失败，请稍后重试');
+    } finally {
+      setIsSavingQuestion(false);
+    }
+  };
+
+  // 删除题目
+  const handleDeleteQuestion = async (question: Question) => {
+    if (!currentQuestionSet) return;
+    
+    // 确认删除
+    if (!window.confirm('确定要删除这个题目吗？此操作不可恢复。')) {
+      return;
+    }
+    
+    setIsSavingQuestion(true);
+    setError(null);
+    
+    try {
+      // 更新题目数组，移除要删除的题目
+      const updatedQuestions = currentQuestionSet.questions.filter(q => q.id !== question.id);
+      
+      // 创建更新后的题库对象
+      const updatedQuestionSet = {
+        ...currentQuestionSet,
+        questions: updatedQuestions
+      };
+      
+      // 发送更新请求
+      await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      // 更新本地状态
+      setQuestionSets(prev => 
+        prev.map(set => 
+          set.id === currentQuestionSet.id ? updatedQuestionSet : set
+        )
+      );
+      
+      setSuccessMessage('题目删除成功');
+      
+      // 3秒后清除成功消息
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+    } catch (err) {
+      console.error('删除题目失败:', err);
+      setError('删除题目失败，请稍后重试');
+    } finally {
+      setIsSavingQuestion(false);
+    }
+  };
+
+  // 取消编辑题目
+  const handleCancelEditQuestion = () => {
+    setEditingQuestion(null);
+    setIsEditingQuestion(false);
   };
 
   // 根据题库类型获取颜色
@@ -213,7 +349,7 @@ const ManageQuestionSets: React.FC = () => {
                   添加题目
                 </button>
                 <button
-                  onClick={() => setCurrentQuestionSet(questionSet)}
+                  onClick={() => handleManageQuestions(questionSet)}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
                 >
                   管理题目
@@ -262,7 +398,84 @@ const ManageQuestionSets: React.FC = () => {
             onAddQuestion={handleSaveQuestion}
             onCancel={handleCancelAddQuestion}
             questionCount={Array.isArray(currentQuestionSet.questions) ? currentQuestionSet.questions.length : 0}
+            isAdding={true}
           />
+        </div>
+      )}
+
+      {/* 编辑题目模态框 */}
+      {isEditingQuestion && editingQuestion && currentQuestionSet && (
+        <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium">
+              编辑题目: <span className="text-blue-600">{currentQuestionSet.title}</span>
+            </h3>
+            <button 
+              onClick={handleCancelEditQuestion}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              关闭
+            </button>
+          </div>
+          
+          <EditQuestion
+            question={editingQuestion}
+            onSave={handleSaveEditedQuestion}
+            onCancel={handleCancelEditQuestion}
+          />
+        </div>
+      )}
+
+      {/* 管理题目模态框 */}
+      {isManagingQuestions && currentQuestionSet && (
+        <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium">
+              管理题目: <span className="text-blue-600">{currentQuestionSet.title}</span>
+            </h3>
+            <button 
+              onClick={handleCancelManageQuestions}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              关闭
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {Array.isArray(currentQuestionSet.questions) && currentQuestionSet.questions.length > 0 ? (
+              currentQuestionSet.questions.map((question, index) => (
+                <div key={question.id} className="p-4 bg-white rounded-lg border border-gray-200">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-800">#{index + 1}. {question.text}</p>
+                      <p className="text-sm text-gray-500 mt-1">类型: {question.questionType === 'single' ? '单选题' : '多选题'}</p>
+                      {question.explanation && (
+                        <p className="text-sm text-gray-600 mt-1">解析: {question.explanation}</p>
+                      )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditQuestion(question)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        onClick={() => handleDeleteQuestion(question)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">该题库暂无题目</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
       

@@ -1102,6 +1102,9 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
   const { category } = req.params;
   
   try {
+    // 解码分类名称
+    const decodedCategory = decodeURIComponent(category);
+    
     // 执行SQL查询，获取指定分类的题库及其题目数量
     const [questionSets] = await db.execute<QuestionSetRow[]>(`
       SELECT 
@@ -1127,7 +1130,7 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
         qs.id
       ORDER BY 
         qs.createdAt DESC
-    `, [category]);
+    `, [decodedCategory]);
 
     // 确保返回的数据格式正确
     const formattedQuestionSets = questionSets.map(set => ({

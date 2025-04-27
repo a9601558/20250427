@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import AddQuestion from './AddQuestion';
-import { QuestionSet, Question } from '../types';
+import { Question } from '../data/questions';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -43,14 +42,14 @@ const AddQuestionSet: React.FC = () => {
   const navigate = useNavigate();
 
   // 添加题目
-  const handleAddQuestion = (question: Question) => {
-    setQuestions([...questions, question]);
+  const handleAddQuestion = (newQuestion: Question) => {
+    setQuestions([...questions, newQuestion]);
     setIsAddingQuestion(false);
   };
 
   // 删除题目
-  const handleDeleteQuestion = (id: string | number) => {
-    setQuestions(questions.filter(q => q.id !== id));
+  const handleDeleteQuestion = (questionId: string) => {
+    setQuestions(questions.filter(q => q.id !== questionId));
   };
 
   // 检查服务器状态
@@ -87,11 +86,10 @@ const AddQuestionSet: React.FC = () => {
       return;
     }
     
-    // 不再强制要求添加题目
-    // if (questions.length === 0) {
-    //   setErrorMessage('请至少添加一道题目');
-    //   return;
-    // }
+    if (questions.length === 0) {
+      setErrorMessage('请至少添加一个问题');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage('');
@@ -100,26 +98,25 @@ const AddQuestionSet: React.FC = () => {
     try {
       console.log('开始创建题库...');
       
-      // 创建题库对象
-      const questionSet: Partial<QuestionSet> = {
-        id: uuidv4(),
+      const questionSetData = {
         title,
         description,
         category,
         icon,
         isPaid,
-        questions,
+        price: isPaid ? price : undefined,
+        trialQuestions: isPaid ? trialQuestions : undefined,
+        questions: questions.map(q => ({
+          ...q,
+          explanation: q.explanation || '', // 确保 explanation 不是 undefined
+          questionType: q.questionType || 'single' // 确保 questionType 不是 undefined
+        }))
       };
 
-      if (isPaid) {
-        questionSet.price = parseFloat(price || '0');
-        questionSet.trialQuestions = parseInt(trialQuestions || '0');
-      }
-
-      console.log('题库数据:', JSON.stringify(questionSet));
+      console.log('题库数据:', JSON.stringify(questionSetData));
 
       // 直接使用axios发送请求，避开可能的封装问题
-      const response = await axios.post('/api/question-sets', questionSet, {
+      const response = await axios.post('/api/question-sets', questionSetData, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -315,26 +312,25 @@ const AddQuestionSet: React.FC = () => {
           </div>
           
           {questions.length > 0 ? (
-            <div className="bg-white border border-gray-200 rounded overflow-hidden">
-              <ul className="divide-y divide-gray-200">
-                {questions.map((question, index) => (
-                  <li key={question.id} className="p-4">
-                    <div className="flex justify-between">
-                      <div>
-                        <span className="font-medium text-gray-800">#{index + 1}. </span>
-                        <span>{question.question}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteQuestion(question.id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        删除
-                      </button>
+            <div className="space-y-4">
+              {questions.map((question) => (
+                <div key={question.id} className="bg-white p-4 rounded-lg shadow">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium">{question.text}</h4>
+                      {question.explanation && (
+                        <p className="text-sm text-gray-500 mt-1">{question.explanation}</p>
+                      )}
                     </div>
-                  </li>
-                ))}
-              </ul>
+                    <button
+                      onClick={() => handleDeleteQuestion(question.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="text-center py-10 bg-gray-50 rounded border border-gray-200">

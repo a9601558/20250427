@@ -110,7 +110,9 @@ const HomePage: React.FC = () => {
     // 获取特定分类的题库
     try {
       setCategoryLoading(true);
-      const response = await axios.get(`/api/question-sets/by-category/${category}`);
+      // 对分类名称进行编码
+      const encodedCategory = encodeURIComponent(category);
+      const response = await axios.get(`/api/question-sets/by-category/${encodedCategory}`);
       
       if (response.data && response.data.success && response.data.data) {
         setQuestionSets(response.data.data);
