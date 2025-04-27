@@ -48,7 +48,23 @@ Question.init(
     },
     text: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
+      validate: {
+        notNull: {
+          msg: 'text字段不能为null'
+        },
+        notEmpty: {
+          msg: 'text字段不能为空'
+        }
+      },
+      set(value: any) {
+        // 确保值不为null或空字符串
+        if (value === null || value === undefined || value === '') {
+          this.setDataValue('text', '未命名问题');
+        } else {
+          this.setDataValue('text', String(value).trim());
+        }
+      }
     },
     questionType: {
       type: DataTypes.ENUM('single', 'multiple'),

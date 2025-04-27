@@ -490,6 +490,25 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
       questionCount: questions?.length || 0
     }));
     
+    // 特殊处理: 如果前端传来的请求体包含格式为 {question: "xxx"} 的问题，转换为 {text: "xxx"}
+    if (Array.isArray(questions)) {
+      console.log(`预处理 ${questions.length} 个问题的请求数据`);
+      questions = questions.map((q, index) => {
+        if (!q) return q;
+        
+        // 直接输出原始问题对象帮助调试
+        console.log(`原始问题 ${index}:`, JSON.stringify(q));
+        
+        // 处理 {id: X, question: "xxx"} 格式
+        if (q.question !== undefined && q.text === undefined) {
+          console.log(`问题 ${index}: 转换 question 字段 "${q.question}" 到 text 字段`);
+          return { ...q, text: q.question };
+        }
+        
+        return q;
+      });
+    }
+    
     // 标准化问题数据，确保格式一致
     if (Array.isArray(questions) && questions.length > 0) {
       questions = normalizeQuestionData(questions);
