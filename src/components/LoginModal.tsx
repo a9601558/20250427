@@ -7,11 +7,11 @@ enum AuthMode {
 }
 
 interface LoginModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
   const [mode, setMode] = useState<AuthMode>(AuthMode.LOGIN);
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [email, setEmail] = useState('');

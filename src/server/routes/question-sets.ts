@@ -22,6 +22,46 @@ router.get('/', (async (_req: Request, res: Response) => {
   }
 }) as RequestHandler);
 
+// Get all available categories
+router.get('/categories', (async (_req: Request, res: Response) => {
+  try {
+    const categories = await db.query(
+      `SELECT DISTINCT category FROM question_sets ORDER BY category`
+    );
+    res.json({
+      success: true,
+      data: categories.map(item => item.category)
+    });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch categories' 
+    });
+  }
+}) as RequestHandler);
+
+// Get question sets by category
+router.get('/by-category/:category', (async (req: Request, res: Response) => {
+  try {
+    const { category } = req.params;
+    const questionSets = await db.query(
+      `SELECT * FROM question_sets WHERE category = ? ORDER BY title`,
+      [category]
+    );
+    res.json({
+      success: true,
+      data: questionSets
+    });
+  } catch (error) {
+    console.error(`Error fetching question sets for category ${req.params.category}:`, error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch question sets by category' 
+    });
+  }
+}) as RequestHandler);
+
 // Get a specific question set by ID
 router.get('/:id', (async (req: Request, res: Response) => {
   try {
