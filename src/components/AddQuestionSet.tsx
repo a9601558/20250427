@@ -98,6 +98,8 @@ const AddQuestionSet: React.FC = () => {
     setSuccessMessage('');
 
     try {
+      console.log('开始创建题库...');
+      
       // 创建题库对象
       const questionSet: Partial<QuestionSet> = {
         id: uuidv4(),
@@ -114,13 +116,18 @@ const AddQuestionSet: React.FC = () => {
         questionSet.trialQuestions = parseInt(trialQuestions || '0');
       }
 
-      // 发送请求保存题库
+      console.log('题库数据:', JSON.stringify(questionSet));
+
+      // 直接使用axios发送请求，避开可能的封装问题
       const response = await axios.post('/api/question-sets', questionSet, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        timeout: 10000 // 10秒超时
+        timeout: 15000 // 15秒超时
       });
+
+      console.log('创建题库响应:', response);
 
       if (response.data) {
         // 保存成功，重置表单
@@ -138,31 +145,22 @@ const AddQuestionSet: React.FC = () => {
         setErrorMessage(response.data?.message || '创建失败，请重试');
       }
     } catch (error: any) {
-      console.error('创建题库失败:', error);
+      console.error('创建题库错误:', error);
       
-      // 提取详细错误信息
-      let errorMsg = '创建题库失败，请稍后重试';
-      
+      // 详细记录错误信息
       if (error.response) {
-        if (error.response.status === 404) {
-          // 处理404特殊情况，可能是Nginx配置问题
-          errorMsg = '服务器未找到此API路径，请联系管理员检查服务器配置';
-          // 尝试检查服务器状态
-          checkServerStatus();
-        } else {
-          // 其他服务器响应错误
-          errorMsg = `服务器响应错误 (${error.response.status}): ${error.response.data?.error || error.message}`;
-          console.error('错误详情:', error.response.data);
-        }
+        // 服务器返回了错误状态码
+        console.error('服务器响应:', error.response.status, error.response.data);
+        setErrorMessage(`服务器错误: ${error.response.data?.message || error.response.status}`);
       } else if (error.request) {
-        // 请求发送成功但没有收到响应
-        errorMsg = '服务器无响应，请检查后端服务是否运行';
+        // 请求发送了但没有收到响应
+        console.error('没有收到服务器响应:', error.request);
+        setErrorMessage('服务器无响应，请检查网络连接');
       } else {
-        // 请求配置有问题
-        errorMsg = `请求配置错误: ${error.message}`;
+        // 设置请求时发生了错误
+        console.error('请求错误:', error.message);
+        setErrorMessage(`请求错误: ${error.message}`);
       }
-      
-      setErrorMessage(errorMsg);
     } finally {
       setIsSubmitting(false);
     }

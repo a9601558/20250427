@@ -26,14 +26,32 @@ export async function fetchWithAuth<T>(
   };
 
   try {
+    console.log(`发送${options.method || 'GET'}请求到: ${API_BASE_URL}${endpoint}`);
+    if (options.body) {
+      console.log('请求体:', options.body);
+    }
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
 
-    const responseData = await response.json();
+    console.log(`收到响应: 状态码 ${response.status}`);
+    
+    // 尝试获取响应内容
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (e) {
+      console.error('解析响应JSON失败:', e);
+      return {
+        success: false,
+        error: '解析服务器响应失败',
+      };
+    }
     
     if (!response.ok) {
+      console.error('API响应错误:', responseData);
       return {
         success: false,
         error: responseData.message || responseData.error || 'Unknown error occurred',
@@ -59,7 +77,7 @@ export async function fetchWithAuth<T>(
       message: responseData.message,
     };
   } catch (error) {
-    logger.error('API request failed', error);
+    console.error('API请求失败:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -155,6 +173,10 @@ export const purchaseApi = {
   getUserPurchases: async (): Promise<ApiResponse<Purchase[]>> => {
     return fetchWithAuth<Purchase[]>('/purchases/user');
   },
+
+  checkAccess: async (questionSetId: string): Promise<ApiResponse<{hasAccess: boolean, expiryDate?: string, remainingDays?: number}>> => {
+    return fetchWithAuth<{hasAccess: boolean, expiryDate?: string, remainingDays?: number}>(`/purchases/check/${questionSetId}`);
+  }
 };
 
 // Redeem code related API calls

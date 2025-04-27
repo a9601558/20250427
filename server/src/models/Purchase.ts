@@ -1,11 +1,13 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import { sequelize } from '../config/db';
+import QuestionSet from './QuestionSet';
+import User from './User';
 
 // 购买记录接口
 export interface PurchaseAttributes {
   id: string;
   userId: string;
-  quizId: string;
+  questionSetId: string;
   purchaseDate: Date;
   expiryDate: Date;
   transactionId: string;
@@ -23,7 +25,7 @@ interface PurchaseCreationAttributes extends Optional<PurchaseAttributes, 'id' |
 class Purchase extends Model<PurchaseAttributes, PurchaseCreationAttributes> implements PurchaseAttributes {
   public id!: string;
   public userId!: string;
-  public quizId!: string;
+  public questionSetId!: string;
   public purchaseDate!: Date;
   public expiryDate!: Date;
   public transactionId!: string;
@@ -52,7 +54,7 @@ Purchase.init(
         key: 'id'
       }
     },
-    quizId: {
+    questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
@@ -97,11 +99,17 @@ Purchase.init(
     tableName: 'purchases',
     indexes: [
       { fields: ['userId'] },
-      { fields: ['quizId'] },
+      { fields: ['questionSetId'] },
       { unique: true, fields: ['transactionId'] },
       { fields: ['status'] }
     ]
   }
 );
+
+// 声明关联
+export const initPurchaseAssociations = () => {
+  Purchase.belongsTo(User, { foreignKey: 'userId' });
+  Purchase.belongsTo(QuestionSet, { foreignKey: 'questionSetId' });
+};
 
 export default Purchase; 

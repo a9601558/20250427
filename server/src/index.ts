@@ -31,6 +31,36 @@ const PORT = process.env.PORT || 5000;
 // 信任代理，解决X-Forwarded-For头问题
 app.set('trust proxy', true);
 
+// Body parsing middleware
+// 确保最先配置body解析中间件，防止请求体解析问题
+app.use(express.json({ 
+  limit: '100mb',
+  verify: (req: express.Request, res: express.Response, buf: Buffer) => {
+    try {
+      JSON.parse(buf.toString());
+    } catch (e: any) {
+      console.error('JSON解析错误:', e.message);
+      // 注意：verify函数中不能直接发送响应，会导致Express错误
+      // 我们只记录错误，让Express的错误处理机制处理无效JSON
+      req.body = { _jsonParseError: true, message: e.message };
+    }
+  }
+}));
+
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '100mb'
+}));
+
+// 添加请求日志中间件
+app.use((req, res, next) => {
+  if (req.method === 'POST') {
+    console.log(`收到POST请求: ${req.method} ${req.url}`);
+    console.log('Content-Type:', req.headers['content-type']);
+  }
+  next();
+});
+
 // Security middleware
 app.use(helmet());
 
@@ -61,7 +91,6 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
 app.use(morgan('dev'));
 
 // Serve static files

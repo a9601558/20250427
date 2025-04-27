@@ -44,11 +44,16 @@ export interface Option {
 }
 
 export interface Purchase {
-  quizId: string;
+  id?: string;
+  userId?: string;
+  questionSetId: string;
   purchaseDate: string;
   expiryDate: string;
   transactionId: string;
   amount: number;
+  status?: string;
+  paymentMethod?: string;
+  questionSet?: QuestionSet;
 }
 
 export interface RedeemCode {

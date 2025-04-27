@@ -14,7 +14,7 @@ router.use(protect);
 
 router.post('/', createPurchase);
 router.post('/complete', completePurchase);
-router.get('/', getUserPurchases);
-router.get('/check/:quizId', checkPurchaseAccess);
+router.get('/user', getUserPurchases);
+router.get('/check/:questionSetId', checkPurchaseAccess);
 
 export default router; 

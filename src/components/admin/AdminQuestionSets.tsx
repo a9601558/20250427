@@ -245,40 +245,55 @@ const AdminQuestionSets = () => {
       questions: formData.questions
     });
 
+    // 确保正确设置Content-Type
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+
+    console.log('准备发送的题库数据:', JSON.stringify(questionSetData));
+    console.log('请求头:', headers);
+
     setLoading(true);
     setLoadingAction('create');
-    
+
     try {
-      const response = await questionSetApi.createQuestionSet(questionSetData);
+      // 使用fetch直接发送请求，不使用axios
+      const response = await fetch('/api/question-sets', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(questionSetData)
+      });
       
-      if (response.success && response.data) {
-        // 转换为客户端格式并更新本地列表
-        const clientQuestionSet = mapApiToClientQuestionSet(response.data);
-        setLocalQuestionSets(prev => [...prev, clientQuestionSet]);
+      console.log('响应状态:', response.status);
+      let responseData;
+      
+      try {
+        responseData = await response.json();
+        console.log('创建题库响应:', responseData);
+      } catch (parseError) {
+        console.error('解析JSON响应失败:', parseError);
+        const textResponse = await response.text();
+        console.log('原始响应文本:', textResponse);
+        responseData = { success: false, message: '无法解析服务器响应' };
+      }
+
+      if (response.ok) {
+        // 重新获取题库列表
+        await fetchQuestionSets();
         
-        // 显示成功消息
-        showStatusMessage('success', '题库创建成功！');
+        // 重置表单
+        handleResetForm();
         
-        // 重置表单并关闭
-        setFormData({
-          id: '',
-          title: '',
-          description: '',
-          category: '',
-          icon: '📝',
-          isPaid: false,
-          price: 29.9,
-          trialQuestions: 0,
-          questions: []
-        });
-        setShowCreateForm(false);
+        showStatusMessage('success', '题库创建成功');
+        onClose(); // 关闭模态框
       } else {
-        // 显示错误消息
-        showStatusMessage('error', `创建题库失败: ${response.error || response.message || '未知错误'}`);
+        showStatusMessage('error', responseData?.message || `服务器返回错误: ${response.status}`);
       }
     } catch (error) {
-      console.error('创建题库时出错:', error);
-      showStatusMessage('error', '创建题库时出现错误');
+      console.error('创建题库错误:', error);
+      showStatusMessage('error', error.message || '创建题库失败');
     } finally {
       setLoading(false);
       setLoadingAction('');

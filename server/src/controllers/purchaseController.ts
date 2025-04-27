@@ -9,11 +9,11 @@ import { v4 as uuidv4 } from 'uuid';
 // @access  Private
 export const createPurchase = async (req: Request, res: Response) => {
   try {
-    const { quizId } = req.body;
+    const { questionSetId } = req.body;
     const userId = req.user.id;
 
-    // Validate the quiz ID
-    const questionSet = await QuestionSet.findByPk(quizId);
+    // Validate the question set ID
+    const questionSet = await QuestionSet.findByPk(questionSetId);
     if (!questionSet) {
       return res.status(404).json({
         success: false,
@@ -42,7 +42,7 @@ export const createPurchase = async (req: Request, res: Response) => {
     const existingPurchase = await Purchase.findOne({
       where: {
         userId,
-        quizId,
+        questionSetId,
         expiryDate: {
           [Op.gt]: new Date()
         }
@@ -65,8 +65,8 @@ export const createPurchase = async (req: Request, res: Response) => {
       currency: 'usd',
       metadata: {
         userId: userId.toString(),
-        quizId: quizId,
-        quizTitle: questionSet.title
+        questionSetId: questionSetId,
+        questionSetTitle: questionSet.title
       }
     });
 
@@ -75,8 +75,8 @@ export const createPurchase = async (req: Request, res: Response) => {
       data: {
         clientSecret: paymentIntent.client_secret,
         amount: questionSet.price,
-        quizId: quizId,
-        quizTitle: questionSet.title
+        questionSetId: questionSetId,
+        questionSetTitle: questionSet.title
       }
     });
   } catch (error: any) {
@@ -95,18 +95,18 @@ export const completePurchase = async (req: Request, res: Response) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const { paymentIntentId, quizId, amount } = req.body;
+    const { paymentIntentId, questionSetId, amount } = req.body;
     const userId = req.user.id;
 
-    if (!paymentIntentId || !quizId || amount === undefined) {
+    if (!paymentIntentId || !questionSetId || amount === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide paymentIntentId, quizId, and amount'
+        message: 'Please provide paymentIntentId, questionSetId, and amount'
       });
     }
 
     // Verify the question set
-    const questionSet = await QuestionSet.findByPk(quizId, { transaction });
+    const questionSet = await QuestionSet.findByPk(questionSetId, { transaction });
     if (!questionSet) {
       await transaction.rollback();
       return res.status(404).json({
@@ -123,7 +123,7 @@ export const completePurchase = async (req: Request, res: Response) => {
     const purchase = await Purchase.create({
       id: uuidv4(),
       userId,
-      quizId,
+      questionSetId,
       purchaseDate: new Date(),
       expiryDate,
       transactionId: paymentIntentId,
@@ -140,7 +140,7 @@ export const completePurchase = async (req: Request, res: Response) => {
       data: {
         purchase: {
           id: purchase.id,
-          quizId,
+          questionSetId,
           expiryDate
         }
       }
@@ -188,18 +188,18 @@ export const getUserPurchases = async (req: Request, res: Response) => {
 };
 
 // @desc    Check if user has access to a question set
-// @route   GET /api/purchases/check/:quizId
+// @route   GET /api/purchases/check/:questionSetId
 // @access  Private
 export const checkPurchaseAccess = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
-    const quizId = req.params.quizId;
+    const questionSetId = req.params.questionSetId;
 
     // Check for an active purchase
     const activePurchase = await Purchase.findOne({
       where: {
         userId,
-        quizId,
+        questionSetId,
         expiryDate: {
           [Op.gt]: new Date()
         }
@@ -221,7 +221,7 @@ export const checkPurchaseAccess = async (req: Request, res: Response) => {
     }
 
     // Check if the question set is free
-    const questionSet = await QuestionSet.findByPk(quizId);
+    const questionSet = await QuestionSet.findByPk(questionSetId);
     if (questionSet && !questionSet.isPaid) {
       return res.json({
         success: true,
