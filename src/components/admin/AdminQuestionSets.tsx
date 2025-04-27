@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { questionSets as defaultQuestionSets } from '../../data/questionSets';
 import { Question as ClientQuestion, Option, QuestionType } from '../../data/questions';
 import { QuestionSet as ClientQuestionSet } from '../../data/questionSets';
@@ -6,7 +6,6 @@ import { RedeemCode, QuestionSet as ApiQuestionSet } from '../../types';
 import { useUser } from '../../contexts/UserContext';
 import { questionSetApi } from '../../utils/api';
 import axios from 'axios';  // 添加axios导入
-import { toast } from 'react-toastify';
 
 // Function to convert API question sets to client format
 const mapApiToClientQuestionSet = (apiSet: ApiQuestionSet): ClientQuestionSet => {
@@ -1554,7 +1553,7 @@ const AdminQuestionSets: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredCodes.map((code) => (
+                {filteredCodes.map((code: RedeemCode) => (
                   <tr key={code.code}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{code.code}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

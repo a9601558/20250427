@@ -135,7 +135,7 @@ const AddQuestionSet: React.FC = () => {
         setSuccessMessage('题库创建成功！');
         navigate('/');
       } else {
-        setError(response.data?.message || '创建失败，请重试');
+        setErrorMessage(response.data?.message || '创建失败，请重试');
       }
     } catch (error: any) {
       console.error('创建题库失败:', error);

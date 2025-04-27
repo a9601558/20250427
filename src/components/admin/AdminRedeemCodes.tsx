@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { RedeemCode } from '../../types';
 import { questionSets, QuestionSet } from '../../data/questionSets';
-import { toast } from 'react-hot-toast';
 
 const AdminRedeemCodes: React.FC = () => {
   const { generateRedeemCode, getRedeemCodes } = useUser();
@@ -15,11 +14,6 @@ const AdminRedeemCodes: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'used' | 'unused'>('all');
   const [filterQuestionSet, setFilterQuestionSet] = useState<string>('all');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [form, setForm] = useState({
-    questionSetId: '',
-    validityDays: 30,
-    quantity: 1
-  });
 
   // Get paid question sets
   useEffect(() => {
