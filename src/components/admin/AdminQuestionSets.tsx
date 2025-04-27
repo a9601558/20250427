@@ -145,44 +145,54 @@ const AdminQuestionSets = () => {
   }, [getRedeemCodes]);
 
   // 从API加载题库数据
-  useEffect(() => {
-    const loadQuestionSets = async () => {
-      setLoadingQuestionSets(true);
-      try {
-        // console.log("正在从API加载题库...");
-        const response = await questionSetApi.getAllQuestionSets();
-        // console.log("API响应:", response);
-        
-        if (response.success && response.data) {
-          // 确保response.data是数组
-          if (Array.isArray(response.data)) {
-            // Convert API format to client format
-            const clientQuestionSets = response.data.map(mapApiToClientQuestionSet);
-            setLocalQuestionSets(clientQuestionSets);
-            // console.log("成功加载题库:", clientQuestionSets.length);
-          } else {
-            console.error("API返回的题库数据不是数组:", response.data);
-            showStatusMessage('error', '题库数据格式不正确');
-            // 使用本地数据作为备份
-            setLocalQuestionSets(defaultQuestionSets);
-          }
+  const loadQuestionSets = async () => {
+    setLoadingQuestionSets(true);
+    try {
+      console.log("正在从API加载题库...");
+      const response = await questionSetApi.getAllQuestionSets();
+      console.log("API响应:", response);
+      
+      if (response.success && response.data) {
+        // 确保response.data是数组
+        if (Array.isArray(response.data)) {
+          // Convert API format to client format
+          const clientQuestionSets = response.data.map(mapApiToClientQuestionSet);
+          setLocalQuestionSets(clientQuestionSets);
+          console.log("成功加载题库:", clientQuestionSets.length);
         } else {
-          // console.error("加载题库失败:", response.error || response.message);
-          showStatusMessage('error', `加载题库失败: ${response.error || response.message || '未知错误'}`);
-          // 如果API加载失败，回退到本地数据
+          console.error("API返回的题库数据不是数组:", response.data);
+          showStatusMessage('error', '题库数据格式不正确');
+          // 使用本地数据作为备份
           setLocalQuestionSets(defaultQuestionSets);
         }
-      } catch (error) {
-        // console.error("加载题库出错:", error);
-        showStatusMessage('error', '加载题库时出现错误，使用本地数据');
+      } else {
+        console.error("加载题库失败:", response.error || response.message);
+        showStatusMessage('error', `加载题库失败: ${response.error || response.message || '未知错误'}`);
         // 如果API加载失败，回退到本地数据
         setLocalQuestionSets(defaultQuestionSets);
-      } finally {
-        setLoadingQuestionSets(false);
       }
-    };
-    
+    } catch (error) {
+      console.error("加载题库出错:", error);
+      showStatusMessage('error', '加载题库时出现错误，使用本地数据');
+      // 如果API加载失败，回退到本地数据
+      setLocalQuestionSets(defaultQuestionSets);
+    } finally {
+      setLoadingQuestionSets(false);
+    }
+  };
+
+  // 初始加载和自动刷新题库数据
+  useEffect(() => {
+    // 初始加载
     loadQuestionSets();
+    
+    // 设置定时器，每60秒自动刷新一次
+    const refreshInterval = setInterval(() => {
+      loadQuestionSets();
+    }, 60000);
+    
+    // 在组件卸载时清除定时器
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // 搜索过滤题库
@@ -291,13 +301,23 @@ const AdminQuestionSets = () => {
 
       if (response.ok) {
         // 重新获取题库列表
-        await fetchQuestionSets();
+        await loadQuestionSets();
         
         // 重置表单
-        handleResetForm();
+        setFormData({
+          id: '',
+          title: '',
+          description: '',
+          category: '',
+          icon: '📝',
+          isPaid: false,
+          price: 29.9,
+          trialQuestions: 0,
+          questions: []
+        });
         
         showStatusMessage('success', '题库创建成功');
-        onClose(); // 关闭模态框
+        setShowCreateForm(false); // 关闭模态框
       } else {
         showStatusMessage('error', responseData?.message || `服务器返回错误: ${response.status}`);
       }
@@ -356,11 +376,8 @@ const AdminQuestionSets = () => {
       const response = await questionSetApi.updateQuestionSet(formData.id, questionSetData);
       
       if (response.success && response.data) {
-        // 转换为客户端格式并更新本地列表
-        const clientQuestionSet = mapApiToClientQuestionSet(response.data);
-        setLocalQuestionSets(prev => 
-          prev.map(set => set.id === formData.id ? clientQuestionSet : set)
-        );
+        // 获取最新的题库数据
+        await loadQuestionSets();
         
         // 显示成功消息
         showStatusMessage('success', '题库更新成功！');
@@ -388,21 +405,34 @@ const AdminQuestionSets = () => {
       setLoadingAction('delete');
       
       try {
-        const response = await questionSetApi.deleteQuestionSet(id);
+        // 直接使用axios而不是通过questionSetApi
+        const response = await axios.delete(`/api/question-sets/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
         
-        if (response.success) {
-          // 从列表中移除题库
-          setLocalQuestionSets(prev => prev.filter(set => set.id !== id));
+        if (response.status === 200 || response.status === 204) {
+          // 从列表中移除题库并刷新数据
+          await loadQuestionSets();
           
           // 显示成功消息
           showStatusMessage('success', '题库删除成功！');
         } else {
           // 显示错误消息
-          showStatusMessage('error', `删除题库失败: ${response.error || response.message || '未知错误'}`);
+          showStatusMessage('error', `删除题库失败: ${response.data?.message || '未知错误'}`);
         }
       } catch (error) {
         console.error('删除题库时出错:', error);
-        showStatusMessage('error', '删除题库时出现错误');
+        // 提供更详细的错误信息
+        const errorMessage = error.response?.data?.message || error.message || '删除题库时出现错误';
+        showStatusMessage('error', errorMessage);
+        
+        // 如果是404错误（题库已被删除或不存在），仍然从本地移除并刷新数据
+        if (error.response?.status === 404) {
+          await loadQuestionSets();
+          showStatusMessage('warning', '题库可能已被删除或不存在，已从列表中移除');
+        }
       } finally {
         setLoading(false);
         setLoadingAction('');
@@ -579,6 +609,20 @@ const AdminQuestionSets = () => {
     
     // 重置选项输入
     setOptionInput({ id: '', text: '' });
+  };
+  
+  // 处理选项文本变更
+  const handleOptionChange = (index: number, newText: string) => {
+    const updatedOptions = [...questionFormData.options];
+    updatedOptions[index] = {
+      ...updatedOptions[index],
+      text: newText
+    };
+    
+    setQuestionFormData(prev => ({
+      ...prev,
+      options: updatedOptions
+    }));
   };
 
   // 处理选项被选为正确答案
@@ -787,33 +831,35 @@ const AdminQuestionSets = () => {
 
   // 保存所有更改到API
   const handleSaveAllChanges = async () => {
-    // 确保所有更改都已保存到本地问题集
     try {
       setLoadingAction('saveAll');
       setLoading(true);
-      // 合并本地问题集和远程问题集
-      // 这是一个复杂的操作，需要确保本地更改不会覆盖远程更改
-      // 可能需要使用某种同步或冲突解决机制
-      const response = await fetch('/api/questionSets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(localQuestionSets),
-      });
-
-      if (!response.ok) {
-        throw new Error('保存题库失败');
+      
+      // 获取授权令牌
+      const token = localStorage.getItem('token');
+      
+      // 使用axios发送请求
+      const response = await axios.post('/api/question-sets/batch-update', 
+        { questionSets: localQuestionSets },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        }
+      );
+      
+      if (response.status === 200) {
+        // 重新加载题库列表以获取最新数据
+        await loadQuestionSets();
+        
+        showStatusMessage('success', '所有题库已成功更新！');
+      } else {
+        throw new Error('更新题库失败');
       }
-
-      const data = await response.json();
-      setLocalQuestionSets(data);
-      showStatusMessage('success', '所有更改已保存');
-      setTimeout(() => showStatusMessage(''), 3000);
     } catch (error) {
       console.error('保存题库失败:', error);
-      showStatusMessage('error', '保存题库失败，请重试');
-      setTimeout(() => showStatusMessage(''), 5000);
+      showStatusMessage('error', '更新题库失败: ' + (error.response?.data?.message || error.message || '请重试'));
     } finally {
       setLoading(false);
       setLoadingAction('');
@@ -832,6 +878,9 @@ const AdminQuestionSets = () => {
       const validationResult = await form.validateFields();
       if (!validationResult) return;
       
+      // 生成唯一ID
+      const uniqueId = `temp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      
       // 准备请求数据
       const requestData = {
         questionSetId: formQuestionData.questionSetId,
@@ -847,13 +896,13 @@ const AdminQuestionSets = () => {
       setLoading(true);
       setLoadingAction('addQuestion');
       
-      // 调用API添加题目
-      const response = await axios.post('/api/questions', requestData);
+      // 使用PUT而不是POST，并提供前端生成的ID
+      const response = await axios.put(`/api/questions/${uniqueId}`, requestData);
       
       if (response.status === 200 || response.status === 201) {
         message.success('题目添加成功');
         
-        // 刷新题目列表
+        // 刷新题库列表以获取最新的题目数量
         await loadQuestionSets();
         
         // 关闭模态框
@@ -903,7 +952,7 @@ const AdminQuestionSets = () => {
       if (response.status === 200) {
         message.success('题目更新成功');
         
-        // 刷新题目列表
+        // 刷新题库列表以获取最新的题目数量
         await loadQuestionSets();
         
         // 关闭模态框
@@ -937,7 +986,7 @@ const AdminQuestionSets = () => {
       if (response.status === 200) {
         message.success('题目删除成功');
         
-        // 刷新题目列表
+        // 刷新题库列表以获取最新的题目数量
         await loadQuestionSets();
       } else {
         message.error('题目删除失败');
@@ -1196,7 +1245,433 @@ const AdminQuestionSets = () => {
         </div>
       </Modal>
       
-      {/* 组件 UI 内容... */}
+      {/* 兑换码生成模态框 */}
+      <Modal
+        title="生成兑换码"
+        visible={showRedeemCodeModal}
+        onCancel={() => setShowRedeemCodeModal(false)}
+        footer={null}
+        width={600}
+      >
+        <div className="mb-4">
+          {errorMessage && <Alert message={errorMessage} type="error" className="mb-3" />}
+          {successMessage && <Alert message={successMessage} type="success" className="mb-3" />}
+          
+          <Form layout="vertical">
+            <Form.Item
+              label="题库"
+              className="mb-3"
+            >
+              <Input 
+                disabled 
+                value={selectedQuizForCode?.title || ''}
+              />
+            </Form.Item>
+            
+            <Form.Item
+              label="有效期(天)"
+              className="mb-3"
+            >
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={codeDurationDays}
+                onChange={(e) => setCodeDurationDays(parseInt(e.target.value) || 30)}
+              />
+            </Form.Item>
+            
+            {generatedCode && (
+              <Alert
+                message="兑换码已生成"
+                description={
+                  <div>
+                    <p>兑换码: <strong>{generatedCode.code}</strong></p>
+                    <p>有效期至: {new Date(generatedCode.expiryDate).toLocaleString()}</p>
+                  </div>
+                }
+                type="success"
+                className="mb-4"
+              />
+            )}
+            
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowRedeemCodeModal(false)}
+                className="mr-2"
+              >
+                关闭
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleGenerateCode}
+                loading={loading && loadingAction === 'generateCode'}
+                disabled={!selectedQuizForCode}
+              >
+                生成兑换码
+              </Button>
+            </div>
+          </Form>
+        </div>
+      </Modal>
+
+      {/* 创建题库模态框 */}
+      <Modal
+        title="创建新题库"
+        visible={showCreateForm}
+        onCancel={() => setShowCreateForm(false)}
+        footer={null}
+        width={700}
+      >
+        <div className="mb-4">
+          {errorMessage && <Alert message={errorMessage} type="error" className="mb-3" />}
+          {successMessage && <Alert message={successMessage} type="success" className="mb-3" />}
+          
+          <Form layout="vertical">
+            <Form.Item 
+              label="题库ID" 
+              required 
+              className="mb-3"
+            >
+              <Input
+                name="id"
+                value={formData.id}
+                onChange={handleFormChange}
+                placeholder="请输入唯一ID，例如：network-101"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="标题" 
+              required 
+              className="mb-3"
+            >
+              <Input
+                name="title"
+                value={formData.title}
+                onChange={handleFormChange}
+                placeholder="请输入题库标题"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="描述" 
+              className="mb-3"
+            >
+              <Input.TextArea
+                rows={3}
+                name="description"
+                value={formData.description}
+                onChange={handleFormChange}
+                placeholder="请输入题库描述（可选）"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="分类" 
+              required 
+              className="mb-3"
+            >
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleFormChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">选择分类</option>
+                {categoryOptions.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </Form.Item>
+            
+            <Form.Item 
+              label="图标" 
+              className="mb-3"
+            >
+              <div className="flex flex-wrap gap-2">
+                {iconOptions.map(icon => (
+                  <div
+                    key={icon}
+                    onClick={() => setFormData({...formData, icon})}
+                    className={`text-2xl p-2 border rounded cursor-pointer ${formData.icon === icon ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                  >
+                    {icon}
+                  </div>
+                ))}
+              </div>
+            </Form.Item>
+            
+            <Form.Item 
+              label="付费设置" 
+              className="mb-3"
+            >
+              <div className="mb-2">
+                <input
+                  type="checkbox"
+                  name="isPaid"
+                  checked={formData.isPaid}
+                  onChange={handleFormChange}
+                  id="isPaid"
+                  className="mr-2"
+                />
+                <label htmlFor="isPaid">设为付费题库</label>
+              </div>
+              
+              {formData.isPaid && (
+                <>
+                  <div className="ml-5 mb-2">
+                    <label htmlFor="price" className="block mb-1">价格 (¥)</label>
+                    <Input
+                      type="number"
+                      name="price"
+                      value={formData.price}
+                      onChange={handleFormChange}
+                      placeholder="请输入价格"
+                      min={0.01}
+                      step={0.01}
+                    />
+                  </div>
+                  
+                  <div className="ml-5">
+                    <label htmlFor="trialQuestions" className="block mb-1">试用题目数量</label>
+                    <Input
+                      type="number"
+                      name="trialQuestions"
+                      value={formData.trialQuestions}
+                      onChange={handleFormChange}
+                      placeholder="免费试用的题目数量"
+                      min={0}
+                    />
+                  </div>
+                </>
+              )}
+            </Form.Item>
+            
+            <div className="flex justify-end mt-4">
+              <Button 
+                onClick={() => setShowCreateForm(false)} 
+                className="mr-2"
+              >
+                取消
+              </Button>
+              <Button 
+                type="primary" 
+                onClick={handleCreateSubmit}
+                loading={loading && loadingAction === 'create'}
+              >
+                创建题库
+              </Button>
+            </div>
+          </Form>
+        </div>
+      </Modal>
+      
+      {/* 编辑题库模态框 */}
+      <Modal
+        title="编辑题库"
+        visible={showEditForm}
+        onCancel={() => setShowEditForm(false)}
+        footer={null}
+        width={700}
+      >
+        <div className="mb-4">
+          {errorMessage && <Alert message={errorMessage} type="error" className="mb-3" />}
+          {successMessage && <Alert message={successMessage} type="success" className="mb-3" />}
+          
+          <Form layout="vertical">
+            <Form.Item 
+              label="题库ID" 
+              required 
+              className="mb-3"
+            >
+              <Input
+                name="id"
+                value={formData.id}
+                disabled={true}  // 编辑时不允许修改ID
+                placeholder="题库ID"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="标题" 
+              required 
+              className="mb-3"
+            >
+              <Input
+                name="title"
+                value={formData.title}
+                onChange={handleFormChange}
+                placeholder="请输入题库标题"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="描述" 
+              className="mb-3"
+            >
+              <Input.TextArea
+                rows={3}
+                name="description"
+                value={formData.description}
+                onChange={handleFormChange}
+                placeholder="请输入题库描述（可选）"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="分类" 
+              required 
+              className="mb-3"
+            >
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleFormChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">选择分类</option>
+                {categoryOptions.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </Form.Item>
+            
+            <Form.Item 
+              label="图标" 
+              className="mb-3"
+            >
+              <div className="flex flex-wrap gap-2">
+                {iconOptions.map(icon => (
+                  <div
+                    key={icon}
+                    onClick={() => setFormData({...formData, icon})}
+                    className={`text-2xl p-2 border rounded cursor-pointer ${formData.icon === icon ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                  >
+                    {icon}
+                  </div>
+                ))}
+              </div>
+            </Form.Item>
+            
+            <Form.Item 
+              label="付费设置" 
+              className="mb-3"
+            >
+              <div className="mb-2">
+                <input
+                  type="checkbox"
+                  name="isPaid"
+                  checked={formData.isPaid}
+                  onChange={handleFormChange}
+                  id="editIsPaid"
+                  className="mr-2"
+                />
+                <label htmlFor="editIsPaid">设为付费题库</label>
+              </div>
+              
+              {formData.isPaid && (
+                <>
+                  <div className="ml-5 mb-2">
+                    <label htmlFor="editPrice" className="block mb-1">价格 (¥)</label>
+                    <Input
+                      type="number"
+                      name="price"
+                      value={formData.price}
+                      onChange={handleFormChange}
+                      placeholder="请输入价格"
+                      min={0.01}
+                      step={0.01}
+                      id="editPrice"
+                    />
+                  </div>
+                  
+                  <div className="ml-5">
+                    <label htmlFor="editTrialQuestions" className="block mb-1">试用题目数量</label>
+                    <Input
+                      type="number"
+                      name="trialQuestions"
+                      value={formData.trialQuestions}
+                      onChange={handleFormChange}
+                      placeholder="免费试用的题目数量"
+                      min={0}
+                      id="editTrialQuestions"
+                    />
+                  </div>
+                </>
+              )}
+            </Form.Item>
+            
+            <div className="flex justify-end mt-4">
+              <Button 
+                onClick={() => setShowEditForm(false)} 
+                className="mr-2"
+              >
+                取消
+              </Button>
+              <Button 
+                type="primary" 
+                onClick={handleEditSubmit}
+                loading={loading && loadingAction === 'edit'}
+              >
+                保存修改
+              </Button>
+            </div>
+          </Form>
+        </div>
+      </Modal>
+      
+      {/* 主要UI内容 */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">题库管理</h1>
+          <div className="flex space-x-2">
+            <Button 
+              type="primary"
+              onClick={handleSaveAllChanges}
+              loading={loading && loadingAction === 'saveAll'}
+              className="mr-2"
+            >
+              更新所有题库
+            </Button>
+            <Button
+              type="primary" 
+              onClick={() => setShowCreateForm(true)}
+            >
+              添加题库
+            </Button>
+          </div>
+        </div>
+        
+        {/* 状态消息显示 */}
+        {statusMessage.type && (
+          <Alert
+            message={statusMessage.message}
+            type={statusMessage.type as any}
+            className="mb-4"
+            closable
+          />
+        )}
+        
+        {/* 搜索栏 */}
+        <div className="mb-6">
+          <Input
+            placeholder="搜索题库..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-md"
+          />
+        </div>
+        
+        {/* 题库列表 */}
+        {loadingQuestionSets ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500">加载中...</p>
+          </div>
+        ) : (
+          renderQuestionSets()
+        )}
+      </div>
     </div>
   );
 };
