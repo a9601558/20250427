@@ -22,15 +22,17 @@ const ManageQuestionSets: React.FC = () => {
   useEffect(() => {
     const loadQuestionSets = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const response = await fetchWithAuth<QuestionSet[]>('/question-sets');
-        if (response.success && response.data) {
-          setQuestionSets(response.data);
+        const response = await axios.get('/api/question-sets');
+        if (response.data && response.data.success && response.data.data) {
+          setQuestionSets(response.data.data);
         } else {
-          setError(response.error || '加载题库失败');
+          setError(response.data?.error || '加载题库失败');
         }
       } catch (err) {
-        setError('加载题库时发生错误');
+        console.error('加载题库失败:', err);
+        setError('加载题库时发生错误，请稍后重试');
       } finally {
         setLoading(false);
       }

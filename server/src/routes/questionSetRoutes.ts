@@ -7,7 +7,8 @@ import {
   deleteQuestionSet,
   saveProgress,
   uploadQuestionSets,
-  getQuestionSetCategories
+  getQuestionSetCategories,
+  getQuestionSetsByCategory
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -44,6 +45,9 @@ router.delete('/:id', protect, admin, deleteQuestionSet);
 // Base routes
 router.post('/', protect, admin, createQuestionSet);
 router.get('/:id', getQuestionSetById);
+
+// 按分类获取题库
+router.get('/by-category/:category', getQuestionSetsByCategory);
 
 // 添加测试路由，确认POST请求能够正常工作
 router.post('/test', (req, res) => {

@@ -1091,4 +1091,70 @@ export const getQuestionSetCategories = async (req: Request, res: Response) => {
       error: String(error)
     });
   }
+};
+
+/**
+ * @desc    按分类获取题库
+ * @route   GET /api/question-sets/by-category/:category
+ * @access  Public
+ */
+export const getQuestionSetsByCategory = async (req: Request, res: Response) => {
+  const { category } = req.params;
+  
+  try {
+    // 执行SQL查询，获取指定分类的题库及其题目数量
+    const [questionSets] = await db.execute<QuestionSetRow[]>(`
+      SELECT 
+        qs.id, 
+        qs.title, 
+        qs.description, 
+        qs.category, 
+        qs.icon, 
+        qs.isPaid, 
+        qs.price, 
+        qs.trialQuestions,
+        qs.isFeatured,
+        qs.createdAt,
+        qs.updatedAt,
+        COUNT(q.id) AS questionCount
+      FROM 
+        question_sets qs
+      LEFT JOIN 
+        questions q ON qs.id = q.questionSetId
+      WHERE 
+        qs.category = ?
+      GROUP BY 
+        qs.id
+      ORDER BY 
+        qs.createdAt DESC
+    `, [category]);
+
+    // 确保返回的数据格式正确
+    const formattedQuestionSets = questionSets.map(set => ({
+      id: set.id,
+      title: set.title,
+      description: set.description,
+      category: set.category,
+      icon: set.icon,
+      isPaid: set.isPaid,
+      price: set.price,
+      trialQuestions: set.trialQuestions,
+      isFeatured: set.isFeatured,
+      questionCount: set.questionCount,
+      createdAt: set.createdAt,
+      updatedAt: set.updatedAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedQuestionSets
+    });
+  } catch (error: any) {
+    console.error('获取分类题库失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取分类题库失败',
+      error: error.message
+    });
+  }
 }; 
