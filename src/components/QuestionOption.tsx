@@ -1,5 +1,5 @@
 import React from 'react';
-import { Option } from '../data/questions';
+import { Option } from '../types';
 
 // 获取选项标签（A, B, C, D...）
 const getOptionLabel = (index: number): string => {

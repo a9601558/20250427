@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Question } from '../data/questions';
+import { Question } from '../types';
 import QuestionOption from './QuestionOption';
 
 interface QuestionCardProps {

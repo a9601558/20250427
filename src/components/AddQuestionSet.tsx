@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import AddQuestion from './AddQuestion';
-import { QuestionSet } from '../data/questionSets';
-import { Question } from '../data/questions';
+import { QuestionSet, Question } from '../types';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -50,8 +49,8 @@ const AddQuestionSet: React.FC = () => {
   };
 
   // 删除题目
-  const handleDeleteQuestion = (questionId: number) => {
-    setQuestions(questions.filter(q => q.id !== questionId));
+  const handleDeleteQuestion = (id: string | number) => {
+    setQuestions(questions.filter(q => q.id !== id));
   };
 
   // 检查服务器状态

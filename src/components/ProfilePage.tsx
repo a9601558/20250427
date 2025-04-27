@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import { questionSets } from '../data/questionSets';
+import { questionSetApi } from '../utils/api';
+import { QuestionSet } from '../types';
 
 // 定义标签页枚举
 enum ProfileTab {
@@ -14,27 +15,46 @@ enum ProfileTab {
 const ProfilePage: React.FC = () => {
   const { user, logout } = useUser();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<ProfileTab>(ProfileTab.PROGRESS);
-  
+  const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemCodes' | 'settings'>('progress');
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+
   if (!user) {
     // 已经在 ProtectedRoute 中处理，但为了类型安全添加此检查
     return null;
   }
 
+  // 加载题库数据
+  useEffect(() => {
+    const fetchQuestionSets = async () => {
+      try {
+        const response = await questionSetApi.getAllQuestionSets();
+        if (response.success && response.data) {
+          setQuestionSets(response.data);
+        }
+      } catch (error) {
+        console.error('加载题库失败:', error);
+      }
+    };
+
+    fetchQuestionSets();
+  }, []);
+
   // 整理用户进度数据
-  const progressData = Object.entries(user.progress).map(([quizId, progress]) => {
+  const progressData = Object.entries(user.progress || {}).map(([quizId, progress]) => {
     const quizSet = questionSets.find(set => set.id === quizId);
+    
     return {
       quizId,
-      title: quizSet ? quizSet.title : `题库 ${quizId}`,
+      quizTitle: quizSet ? quizSet.title : quizId,
       category: quizSet ? quizSet.category : '未知分类',
       icon: quizSet ? quizSet.icon : '📝',
       completedQuestions: progress.completedQuestions,
-      totalQuestions: quizSet ? quizSet.questions.length : progress.totalQuestions,
+      totalQuestions: progress.totalQuestions,
       correctAnswers: progress.correctAnswers,
-      lastAccessed: progress.lastAccessed
+      score: Math.round((progress.correctAnswers / progress.totalQuestions) * 100),
+      lastAccessed: new Date(progress.lastAccessed)
     };
-  });
+  }).sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
 
   // 整理用户购买记录
   const purchaseData = user.purchases ? user.purchases.map(purchase => {
@@ -88,6 +108,18 @@ const ProfilePage: React.FC = () => {
     const expiryDate = new Date(dateString);
     const today = new Date();
     const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  // 计算购买剩余天数
+  const getRemainDays = (expiryDate: string | undefined): number => {
+    if (!expiryDate) return 0;
+    
+    const expiry = new Date(expiryDate);
+    const now = new Date();
+    const diffTime = expiry.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     return diffDays > 0 ? diffDays : 0;
@@ -237,7 +269,7 @@ const ProfilePage: React.FC = () => {
                         <div className="flex items-center">
                           <div className="text-3xl mr-3">{item.icon}</div>
                           <div>
-                            <h4 className="text-lg font-medium text-gray-900">{item.title}</h4>
+                            <h4 className="text-lg font-medium text-gray-900">{item.quizTitle}</h4>
                             <p className="text-sm text-gray-500">{item.category}</p>
                           </div>
                         </div>
@@ -274,7 +306,7 @@ const ProfilePage: React.FC = () => {
                         <div className="px-3 py-2 bg-gray-50 rounded-md sm:col-span-2">
                           <div className="text-xs font-medium text-gray-800 uppercase">最后访问</div>
                           <div className="mt-1 text-base text-gray-600">
-                            {formatDate(item.lastAccessed)}
+                            {formatDate(item.lastAccessed.toISOString())}
                           </div>
                         </div>
                       </div>
@@ -452,7 +484,7 @@ const ProfilePage: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {code.validityDays}
+                            {getRemainDays(code.expiryDate)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(code.createdAt)}

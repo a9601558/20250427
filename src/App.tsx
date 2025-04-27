@@ -6,7 +6,7 @@ import QuizPage from './components/QuizPage'
 import ProfilePage from './components/ProfilePage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { UserProvider } from './contexts/UserContext'
-import AdminPanel from './components/AdminPanel'
+import AdminPage from './components/AdminPage'
 
 function App() {
   return (
@@ -22,7 +22,7 @@ function App() {
             } />
             <Route path="/admin" element={
               <ProtectedRoute>
-                <AdminPanel />
+                <AdminPage />
               </ProtectedRoute>
             } />
             <Route path="/quiz/:questionSetId" element={<QuizPage />} />

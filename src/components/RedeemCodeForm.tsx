@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { questionSets } from '../data/questionSets';
+import { questionSetApi } from '../utils/api';
+import { QuestionSet } from '../types';
 
 // 扩展返回类型以匹配实际使用
 interface RedeemCodeResult {
@@ -19,8 +20,25 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [redeemedSet, setRedeemedSet] = useState<any>(null);
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   
   const { redeemCode: redeemCodeFunction } = useUser();
+  
+  // 加载题库数据
+  useEffect(() => {
+    const loadQuestionSets = async () => {
+      try {
+        const response = await questionSetApi.getAllQuestionSets();
+        if (response.success && response.data) {
+          setQuestionSets(response.data);
+        }
+      } catch (error) {
+        console.error('加载题库失败:', error);
+      }
+    };
+    
+    loadQuestionSets();
+  }, []);
   
   const handleRedeemCode = async (e: React.FormEvent) => {
     e.preventDefault();

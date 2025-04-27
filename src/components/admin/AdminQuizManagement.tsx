@@ -1,22 +1,38 @@
-import React, { useState } from 'react';
-import { questionSets, QuestionSet } from '../../data/questionSets';
+import React, { useState, useEffect } from 'react';
+import { QuestionSet } from '../../types';
+import { questionSetApi } from '../../utils/api';
 
 const AdminQuizManagement: React.FC = () => {
-  // 假设的数据管理函数，实际实现应连接到后端API
-  const [managedQuizSets, setManagedQuizSets] = useState<QuestionSet[]>([...questionSets]);
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+
+  // 加载题库数据
+  useEffect(() => {
+    const loadQuestionSets = async () => {
+      try {
+        const response = await questionSetApi.getAllQuestionSets();
+        if (response.success && response.data) {
+          setQuestionSets(response.data);
+        }
+      } catch (error) {
+        console.error('加载题库失败:', error);
+      }
+    };
+    
+    loadQuestionSets();
+  }, []);
   
   const deleteQuizSet = (id: string) => {
-    setManagedQuizSets(prevSets => prevSets.filter(set => set.id !== id));
+    setQuestionSets(prevSets => prevSets.filter(set => set.id !== id));
     return true;
   };
   
   const addQuizSet = (newSet: QuestionSet) => {
-    setManagedQuizSets(prevSets => [...prevSets, newSet]);
+    setQuestionSets(prevSets => [...prevSets, newSet]);
     return true;
   };
   
   const updateQuizSet = (updatedSet: QuestionSet) => {
-    setManagedQuizSets(prevSets => 
+    setQuestionSets(prevSets => 
       prevSets.map(set => set.id === updatedSet.id ? updatedSet : set)
     );
     return true;
@@ -241,7 +257,7 @@ const AdminQuizManagement: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {managedQuizSets.map((quizSet) => (
+            {questionSets.map((quizSet) => (
               <tr key={quizSet.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">{quizSet.title}</div>
@@ -293,7 +309,7 @@ const AdminQuizManagement: React.FC = () => {
               </tr>
             ))}
             
-            {managedQuizSets.length === 0 && (
+            {questionSets.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
                   没有题库数据

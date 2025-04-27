@@ -26,21 +26,26 @@ export interface QuestionSet {
   isPaid?: boolean;
   price?: number;
   trialQuestions?: number;
+  isFeatured?: boolean;
+  featuredCategory?: string;
 }
 
+export type QuestionType = 'single' | 'multiple';
+
 export interface Question {
-  id: string;
+  id: string | number;
   text: string;
+  question?: string; // 兼容旧代码，text和question都可以访问题目内容
   options: Option[];
   explanation: string;
-  questionType?: 'single' | 'multiple';
+  questionType?: QuestionType;
   correctAnswer?: string | string[];
 }
 
 export interface Option {
   id: string;
   text: string;
-  isCorrect: boolean;
+  isCorrect?: boolean;
   optionIndex?: string;
   label?: string;
 }
@@ -65,14 +70,18 @@ export interface RedeemCode {
   createdAt: string;
   usedBy?: string;
   usedAt?: string;
+  quizId?: string; // 兼容旧代码
+  expiryDate?: string;
 }
 
 export interface HomeContent {
   welcomeTitle: string;
   welcomeDescription: string;
   featuredCategories: string[];
-  announcements: Announcement[];
+  announcements: Announcement[] | string;
   footerText: string;
+  bannerImage?: string;
+  theme?: 'light' | 'dark' | 'auto';
 }
 
 export interface Announcement {

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { QuestionSet, Question } from '../types';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
-import { questionSetApi } from '../utils/api';
+import { questionSetApi, questionApi, purchaseApi, userProgressApi } from '../utils/api';
 
 // 获取选项标签（A, B, C, D...）
 const getOptionLabel = (index: number): string => {
@@ -13,7 +13,7 @@ const getOptionLabel = (index: number): string => {
 function QuizPage(): React.ReactNode {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
-  const { user, addProgress, hasAccessToQuestionSet, getRemainingAccessDays } = useUser();
+  const { user, addProgress, hasAccessToQuestionSet } = useUser();
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -29,6 +29,7 @@ function QuizPage(): React.ReactNode {
   const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState(false);
   const [trialEnded, setTrialEnded] = useState(false);
   
+  // 获取题库和题目数据
   useEffect(() => {
     const fetchQuestionSet = async () => {
       if (!questionSetId) {
@@ -39,18 +40,20 @@ function QuizPage(): React.ReactNode {
       
       try {
         setLoading(true);
-        // 尝试从API获取题库详情
+        // 获取题库详情
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
         if (response.success && response.data) {
           setQuestionSet(response.data);
           
-          // 检查题目数据
-          if (response.data.questions && response.data.questions.length > 0) {
-            console.log("获取到题目:", response.data.questions.length);
+          // 获取题目数据
+          const questionsResponse = await questionApi.getQuestionsByQuestionSetId(questionSetId);
+          
+          if (questionsResponse.success && questionsResponse.data && questionsResponse.data.length > 0) {
+            console.log("获取到题目:", questionsResponse.data.length);
             
-            // 检查并处理题目选项
-            const processedQuestions = response.data.questions.map(q => {
+            // 处理题目选项并设置数据
+            const processedQuestions = questionsResponse.data.map(q => {
               // 确保选项存在
               if (!q.options || !Array.isArray(q.options)) {
                 console.warn("题目缺少选项:", q.id);
@@ -65,22 +68,9 @@ function QuizPage(): React.ReactNode {
                 label: getOptionLabel(index) // 添加字母标签
               }));
               
-              // 处理正确答案
-              let correctAnswer;
-              if (q.questionType === 'single') {
-                const correctOpt = q.options.find(o => o.isCorrect);
-                correctAnswer = correctOpt ? (correctOpt.id || correctOpt.optionIndex || '') : '';
-              } else {
-                correctAnswer = q.options
-                  .filter(o => o.isCorrect)
-                  .map(o => o.id || o.optionIndex || '')
-                  .filter(id => id !== '');
-              }
-              
               return {
                 ...q,
-                options: processedOptions,
-                correctAnswer
+                options: processedOptions
               };
             });
             
@@ -90,7 +80,6 @@ function QuizPage(): React.ReactNode {
             setError('此题库不包含任何题目');
           }
         } else {
-          // 如果API请求失败，我们无法使用本地数据，只能显示错误
           setError('无法加载题库数据');
         }
       } catch (error) {
@@ -106,20 +95,42 @@ function QuizPage(): React.ReactNode {
   
   // 检查用户访问权限
   useEffect(() => {
-    if (!questionSet || !user) return;
-    
-    // 检查用户是否有权限访问此题库
-    const hasAccess = hasAccessToQuestionSet(questionSet.id);
-    setHasAccessToFullQuiz(hasAccess);
-    
-    // 获取剩余天数，但不需要存储
-    // const days = getRemainingAccessDays(questionSet.id);
-    
-    // 如果是免费题库，直接授权访问
-    if (!questionSet.isPaid) {
-      setHasAccessToFullQuiz(true);
-    }
-  }, [questionSet, user, hasAccessToQuestionSet, getRemainingAccessDays]);
+    const checkUserAccess = async () => {
+      if (!questionSet) return;
+      
+      try {
+        // 如果是免费题库，直接授权访问
+        if (!questionSet.isPaid) {
+          setHasAccessToFullQuiz(true);
+          return;
+        }
+        
+        // 未登录用户不检查权限，在需要时会提示登录
+        if (!user) {
+          setHasAccessToFullQuiz(false);
+          return;
+        }
+        
+        // 使用API检查访问权限
+        const accessResponse = await purchaseApi.checkAccess(questionSet.id);
+        
+        if (accessResponse.success && accessResponse.data) {
+          setHasAccessToFullQuiz(accessResponse.data.hasAccess);
+        } else {
+          // 如果API请求失败，使用本地检查方法作为后备
+          setHasAccessToFullQuiz(hasAccessToQuestionSet(questionSet.id));
+        }
+      } catch (error) {
+        console.error('检查访问权限失败:', error);
+        // 如果API失败，使用本地方法作为后备
+        if (user) {
+          setHasAccessToFullQuiz(hasAccessToQuestionSet(questionSet.id));
+        }
+      }
+    };
+
+    checkUserAccess();
+  }, [questionSet, user, hasAccessToQuestionSet]);
   
   // 处理试用题目限制
   useEffect(() => {
@@ -197,20 +208,25 @@ function QuizPage(): React.ReactNode {
     }
   };
   
-  // 完成测试
+  // 完成测试，保存进度
   const completeQuiz = async () => {
     if (!user || !questionSet) return;
     
     setQuizComplete(true);
     
-    // 保存进度
+    // 保存进度到API
     try {
-      await addProgress({
+      const progressData = {
         questionSetId: questionSet.id,
         completedQuestions: answeredQuestions.length,
         totalQuestions: questions.length,
         correctAnswers: correctAnswers
-      });
+      };
+      
+      await userProgressApi.updateProgress(progressData);
+      
+      // 更新本地用户上下文
+      await addProgress(progressData);
     } catch (error) {
       console.error('保存进度失败:', error);
     }
