@@ -307,6 +307,15 @@ export const userProgressService = {
   // 更新用户进度
   async updateProgress(progress: Partial<UserProgress>): Promise<ApiResponse<UserProgress>> {
     try {
+      // 确保questionSetId存在于请求体中
+      if (!progress.questionSetId) {
+        return {
+          success: false,
+          error: '题库ID (questionSetId) 不能为空'
+        };
+      }
+      
+      // 使用POST请求发送进度更新
       const response = await api.post('/user-progress', progress);
       return handleResponse<UserProgress>(response);
     } catch (error) {

@@ -44,7 +44,16 @@ export const getUserProgress = async (req: Request, res: Response) => {
 export const updateUserProgress = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
-    const questionSetId = req.params.questionSetId;
+    // 可以从URL参数或请求体中获取题库ID
+    const questionSetId = req.params.questionSetId || req.body.questionSetId;
+    
+    if (!questionSetId) {
+      return res.status(400).json({
+        success: false,
+        message: '题库ID不能为空'
+      });
+    }
+    
     const { completedQuestions, totalQuestions, correctAnswers } = req.body;
 
     const user = await User.findByPk(userId);

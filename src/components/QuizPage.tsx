@@ -187,12 +187,62 @@ function QuizPage(): React.ReactNode {
     setShowExplanation(true);
     
     // 更新已回答的题目和正确答案数
+    let newAnsweredQuestions = [...answeredQuestions];
+    let newCorrectAnswers = correctAnswers;
+    
     if (!answeredQuestions.includes(currentQuestionIndex)) {
-      setAnsweredQuestions([...answeredQuestions, currentQuestionIndex]);
+      newAnsweredQuestions = [...answeredQuestions, currentQuestionIndex];
+      setAnsweredQuestions(newAnsweredQuestions);
+      
       if (isCorrect) {
-        setCorrectAnswers(correctAnswers + 1);
+        newCorrectAnswers = correctAnswers + 1;
+        setCorrectAnswers(newCorrectAnswers);
       }
+      
+      // 在每次回答问题后保存进度
+      saveProgress(newAnsweredQuestions.length, newCorrectAnswers);
     }
+  };
+  
+  // 保存当前进度到服务器
+  const saveProgress = async (completedCount: number, correctCount: number) => {
+    if (!user || !questionSet) return;
+    
+    try {
+      // 准备进度数据
+      const progressData = {
+        questionSetId: questionSet.id,
+        completedQuestions: completedCount,
+        totalQuestions: questions.length,
+        correctAnswers: correctCount
+      };
+      
+      // 调用API保存进度 - 进度会在以下情况保存:
+      // 1. 用户回答问题后
+      // 2. 用户点击"下一题"按钮时
+      // 3. 用户完成整个测试时
+      const result = await userProgressApi.updateProgress(progressData);
+      
+      if (result.success) {
+        // 更新本地用户上下文中的进度
+        await addProgress(progressData);
+        console.log('进度已保存:', progressData);
+      } else {
+        console.error('保存进度失败:', result.error);
+      }
+    } catch (error) {
+      console.error('保存进度失败:', error);
+    }
+  };
+  
+  // 完成测试，保存最终进度
+  const completeQuiz = async () => {
+    if (!user || !questionSet) return;
+    
+    setQuizComplete(true);
+    
+    // 保存最终进度
+    await saveProgress(answeredQuestions.length, correctAnswers);
   };
   
   // 进入下一题
@@ -200,35 +250,17 @@ function QuizPage(): React.ReactNode {
     setSelectedOptions([]);
     setShowExplanation(false);
     
+    // 确保当前进度已保存
+    if (user && questionSet) {
+      // 如果用户已登录，保存当前进度
+      saveProgress(answeredQuestions.length, correctAnswers);
+    }
+    
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       // 完成测试
       completeQuiz();
-    }
-  };
-  
-  // 完成测试，保存进度
-  const completeQuiz = async () => {
-    if (!user || !questionSet) return;
-    
-    setQuizComplete(true);
-    
-    // 保存进度到API
-    try {
-      const progressData = {
-        questionSetId: questionSet.id,
-        completedQuestions: answeredQuestions.length,
-        totalQuestions: questions.length,
-        correctAnswers: correctAnswers
-      };
-      
-      await userProgressApi.updateProgress(progressData);
-      
-      // 更新本地用户上下文
-      await addProgress(progressData);
-    } catch (error) {
-      console.error('保存进度失败:', error);
     }
   };
   

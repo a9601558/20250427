@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { User, Purchase, RedeemCode } from '../types';
 import { userApi, redeemCodeApi } from '../utils/api';
+import { initializeSocket, authenticateUser, onProgressUpdate } from '../config/socket';
 
 export interface QuizProgress {
   questionSetId: string;
@@ -56,6 +57,38 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
     }
   }, []);
+
+  // 初始化Socket.IO连接并处理实时进度更新
+  useEffect(() => {
+    if (user) {
+      // 初始化Socket连接
+      initializeSocket();
+      
+      // 用户认证
+      authenticateUser(user.id);
+      
+      // 监听进度更新事件
+      const unsubscribe = onProgressUpdate((data) => {
+        if (data && data.questionSetId && data.progress) {
+          const currentProgress = { ...(user.progress || {}) };
+          currentProgress[data.questionSetId] = data.progress;
+          
+          // 更新本地用户状态
+          setUser({
+            ...user,
+            progress: currentProgress
+          });
+          
+          console.log('实时进度更新:', data);
+        }
+      });
+      
+      // 组件卸载时取消监听
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [user?.id]);
 
   const fetchCurrentUser = async () => {
     setLoading(true);
