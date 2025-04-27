@@ -7,6 +7,9 @@ import { RedeemCode, QuestionSet as ApiQuestionSet } from '../../types';
 import { useUser } from '../../contexts/UserContext';
 import { questionSetApi } from '../../utils/api';
 import axios from 'axios';  // 添加axios导入
+import Modal from 'react-modal';
+import { Alert, Form, Input, Radio, Button, Checkbox } from 'antd';
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 
 // Function to convert API question sets to client format
 const mapApiToClientQuestionSet = (apiSet: ApiQuestionSet): ClientQuestionSet => {
@@ -784,143 +787,167 @@ const AdminQuestionSets = () => {
 
   // 保存所有更改到API
   const handleSaveAllChanges = async () => {
-    setLoading(true);
-    setLoadingAction('saveAll');
-    
+    // 确保所有更改都已保存到本地问题集
     try {
-      // 先获取最新的题库列表，以确保数据是完整的
-      const questionSetsResponse = await questionSetApi.getAllQuestionSets();
-      
-      // 合并远程数据和本地数据，确保保留问题数据
-      let mergedQuestionSets = [...localQuestionSets];
-      
-      // 如果已有远程数据，确保合并
-      if (questionSetsResponse.success && questionSetsResponse.data) {
-        // 将远程题库映射为客户端格式
-        const remoteQuestionSets = questionSetsResponse.data.map(mapApiToClientQuestionSet);
-        
-        // 合并数据，本地数据优先
-        mergedQuestionSets = localQuestionSets.map(localSet => {
-          // 查找远程对应的数据
-          const remoteSet = remoteQuestionSets.find(set => set.id === localSet.id);
-          if (remoteSet) {
-            // 确保本地编辑的题目数据不会丢失
-            return {
-              ...localSet,
-              // 如果本地题目数组为空但远程不为空，使用远程题目
-              questions: localSet.questions.length > 0 ? localSet.questions : remoteSet.questions
-            };
-          }
-          return localSet;
-        });
-      }
-      
-      // 检查合并后的题库中是否有临时ID的题目
-      mergedQuestionSets.forEach(set => {
-        const tempQuestions = set.questions.filter(q => typeof q.id === 'number');
-        if (tempQuestions.length > 0) {
-          console.log(`题库「${set.title}」有${tempQuestions.length}个临时ID题目，将作为新题目添加`);
-          console.log('示例临时ID:', tempQuestions.map(q => q.id).slice(0, 3));
-        }
+      setLoadingAction('saveAll');
+      setLoading(true);
+      // 合并本地问题集和远程问题集
+      // 这是一个复杂的操作，需要确保本地更改不会覆盖远程更改
+      // 可能需要使用某种同步或冲突解决机制
+      const response = await fetch('/api/questionSets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(localQuestionSets),
       });
-      
-      // 转换为API格式，确保包含所有题目
-      const apiQuestionSets = mergedQuestionSets.map(set => {
-        const apiSet = mapClientToApiQuestionSet(set);
-        
-        // 检查转换后的API格式中题目ID的处理
-        const apiQuestionsWithId = apiSet.questions?.filter(q => q.id) || [];
-        const apiQuestionsWithoutId = apiSet.questions?.filter(q => !q.id) || [];
-        
-        console.log(`题库「${set.title}」转换后：${apiQuestionsWithId.length}个有ID的题目，${apiQuestionsWithoutId.length}个没有ID的题目（新增）`);
-        
-        if (apiQuestionsWithoutId.length > 0) {
-          console.log('新增题目示例:', JSON.stringify(apiQuestionsWithoutId[0]));
-        }
-        
-        return apiSet;
-      });
-      
-      // 使用批量上传API
-      console.log("开始批量上传题库数据...");
-      const response = await questionSetApi.uploadQuestionSets(apiQuestionSets);
-      
-      if (response.success) {
-        console.log("上传成功，响应数据:", response.data);
-        showStatusMessage('success', '所有题库更改已成功保存！');
-        
-        // 重新加载最新的题库数据
-        const refreshResponse = await questionSetApi.getAllQuestionSets();
-        if (refreshResponse.success && refreshResponse.data) {
-          const refreshedSets = refreshResponse.data.map(mapApiToClientQuestionSet);
-          setLocalQuestionSets(refreshedSets);
-          console.log("已重新加载最新题库数据，共", refreshedSets.length, "个题库");
-        }
-      } else {
-        console.error("上传失败:", response.error || response.message);
-        showStatusMessage('error', `保存失败: ${response.error || response.message || '未知错误'}`);
+
+      if (!response.ok) {
+        throw new Error('保存题库失败');
       }
+
+      const data = await response.json();
+      setLocalQuestionSets(data);
+      showStatusMessage('success', '所有更改已保存');
+      setTimeout(() => showStatusMessage(''), 3000);
     } catch (error) {
-      console.error('保存题库时出错:', error);
-      showStatusMessage('error', '保存时出现错误');
+      console.error('保存题库失败:', error);
+      showStatusMessage('error', '保存题库失败，请重试');
+      setTimeout(() => showStatusMessage(''), 5000);
     } finally {
       setLoading(false);
       setLoadingAction('');
     }
   };
 
-  // 处理文件选择
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setUploadFile(e.target.files[0]);
+  // 直接通过新API添加题目
+  const handleDirectAddQuestion = async () => {
+    try {
+      if (!formQuestionData?.questionSetId) {
+        message.error('题库ID不能为空');
+        return;
+      }
+      
+      // 表单验证
+      const validationResult = await form.validateFields();
+      if (!validationResult) return;
+      
+      // 准备请求数据
+      const requestData = {
+        questionSetId: formQuestionData.questionSetId,
+        content: formQuestionData.content,
+        type: formQuestionData.type,
+        explanation: formQuestionData.explanation || '',
+        options: formQuestionData.options || [],
+        answer: formQuestionData.answer || [],
+        tags: formQuestionData.tags || [],
+        point: formQuestionData.point || 1,
+      };
+      
+      setLoading(true);
+      setLoadingAction('addQuestion');
+      
+      // 调用API添加题目
+      const response = await axios.post('/api/questions', requestData);
+      
+      if (response.status === 200 || response.status === 201) {
+        message.success('题目添加成功');
+        
+        // 刷新题目列表
+        await loadQuestionSets();
+        
+        // 关闭模态框
+        handleCloseQuestionModal();
+      } else {
+        message.error('题目添加失败');
+      }
+    } catch (error) {
+      console.error('添加题目出错:', error);
+      message.error('添加题目失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
     }
   };
-
-  // 处理文件上传
-  const handleFileUpload = async () => {
-    if (!uploadFile) {
-      showStatusMessage('error', '请先选择文件');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', uploadFile);
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
+  
+  // 直接通过新API更新题目
+  const handleDirectUpdateQuestion = async () => {
     try {
-      const response = await axios.post('/api/question-sets/upload/file', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
-          setUploadProgress(percentCompleted);
-        }
-      });
-
-      if (response.data.success) {
-        showStatusMessage('success', '题库文件上传成功');
-        // 重新加载题库列表
-        const questionSetsResponse = await questionSetApi.getAllQuestionSets();
-        if (questionSetsResponse.success && questionSetsResponse.data) {
-          const clientQuestionSets = questionSetsResponse.data.map(mapApiToClientQuestionSet);
-          setLocalQuestionSets(clientQuestionSets);
-        }
-        // 清除文件选择
-        setUploadFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      } else {
-        showStatusMessage('error', `上传失败：${response.data.message || '未知错误'}`);
+      if (!currentQuestion?.id) {
+        message.error('题目ID不能为空');
+        return;
       }
-    } catch (error: any) {
-      console.error('文件上传错误:', error);
-      showStatusMessage('error', `上传失败：${error.response?.data?.message || error.message || '服务器错误'}`);
+      
+      // 表单验证
+      const validationResult = await form.validateFields();
+      if (!validationResult) return;
+      
+      // 准备请求数据
+      const requestData = {
+        questionSetId: formQuestionData.questionSetId,
+        content: formQuestionData.content,
+        type: formQuestionData.type,
+        explanation: formQuestionData.explanation || '',
+        options: formQuestionData.options || [],
+        answer: formQuestionData.answer || [],
+        tags: formQuestionData.tags || [],
+        point: formQuestionData.point || 1,
+      };
+      
+      setLoading(true);
+      setLoadingAction('updateQuestion');
+      
+      // 调用API更新题目
+      const response = await axios.put(`/api/questions/${currentQuestion.id}`, requestData);
+      
+      if (response.status === 200) {
+        message.success('题目更新成功');
+        
+        // 刷新题目列表
+        await loadQuestionSets();
+        
+        // 关闭模态框
+        handleCloseQuestionModal();
+      } else {
+        message.error('题目更新失败');
+      }
+    } catch (error) {
+      console.error('更新题目出错:', error);
+      message.error('更新题目失败: ' + (error.response?.data?.message || error.message));
     } finally {
-      setIsUploading(false);
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+  
+  // 直接通过新API删除题目
+  const handleDirectDeleteQuestion = async (questionId) => {
+    try {
+      if (!questionId) {
+        message.error('题目ID不能为空');
+        return;
+      }
+      
+      setLoading(true);
+      setLoadingAction('deleteQuestion');
+      
+      // 调用API删除题目
+      const response = await axios.delete(`/api/questions/${questionId}`);
+      
+      if (response.status === 200) {
+        message.success('题目删除成功');
+        
+        // 刷新题目列表
+        await loadQuestionSets();
+      } else {
+        message.error('题目删除失败');
+      }
+    } catch (error) {
+      console.error('删除题目出错:', error);
+      message.error('删除题目失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
     }
   };
 
@@ -1008,250 +1035,166 @@ const AdminQuestionSets = () => {
   // 组件的返回语句 - 实际 UI 部分
   return (
     <div>
-      {/* 题目管理模态框 */}
-      {showQuestionModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">
-                题库管理: {currentQuestionSet?.title}
-              </h2>
-              <button 
-                onClick={handleCloseQuestionModal}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* 问题管理模态框 */}
+      <Modal
+        title={currentQuestion ? '编辑题目' : '添加题目'}
+        visible={showQuestionModal}
+        onCancel={handleCloseQuestionModal}
+        footer={null}
+        width={800}
+        maskClosable={false}
+      >
+        <div className="mb-4">
+          {errorMessage && <Alert message={errorMessage} type="error" className="mb-3" />}
+          {successMessage && <Alert message={successMessage} type="success" className="mb-3" />}
+          
+          <Form layout="vertical">
+            <Form.Item 
+              label="题目内容" 
+              required 
+              className="mb-3"
+            >
+              <Input.TextArea
+                rows={4}
+                value={questionFormData.question}
+                onChange={e => setQuestionFormData({...questionFormData, question: e.target.value})}
+                placeholder="请输入题目内容"
+              />
+            </Form.Item>
             
-            {/* 题库信息 */}
-            {currentQuestionSet && (
-              <div className="mb-6">
-                <p className="text-sm text-gray-500">
-                  分类: <span className="font-medium">{currentQuestionSet.category}</span> | 
-                  付费状态: <span className="font-medium">{currentQuestionSet.isPaid ? '付费' : '免费'}</span> | 
-                  当前共有 <span className="font-medium">{currentQuestionSet.questions?.length || 0}</span> 题
-                </p>
-              </div>
-            )}
+            <Form.Item 
+              label="题目解释（可选）" 
+              className="mb-3"
+            >
+              <Input.TextArea
+                rows={2}
+                value={questionFormData.explanation}
+                onChange={e => setQuestionFormData({...questionFormData, explanation: e.target.value})}
+                placeholder="请输入题目解释（当用户答错时显示）"
+              />
+            </Form.Item>
             
-            {/* 题目列表和表单部分 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 左侧：题目列表 */}
-              <div className="bg-gray-50 p-4 rounded-lg max-h-[70vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-medium">题目列表</h3>
-                  <button 
-                    onClick={handleAddQuestion}
-                    className="text-blue-600 hover:text-blue-800 text-sm"
-                  >
-                    + 添加新题目
-                  </button>
-                </div>
-                
-                {currentQuestionSet && currentQuestionSet.questions?.length > 0 ? (
-                  <div className="divide-y divide-gray-200">
-                    {currentQuestionSet.questions.map((question, index) => (
-                      <div key={question.id} className="py-3">
-                        <div className="flex justify-between">
-                          <div 
-                            className="flex-1 cursor-pointer hover:text-blue-600"
-                            onClick={() => handleEditQuestion(question, index)}
-                          >
-                            <span className="font-medium">#{index + 1}.</span> {question.question.length > 50 ? question.question.substring(0, 50) + '...' : question.question}
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleEditQuestion(question, index)}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              编辑
-                            </button>
-                            <button
-                              onClick={() => handleDeleteQuestion(index)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              删除
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-10">
-                    <p className="text-gray-500">题库中还没有题目</p>
-                    <button
-                      onClick={handleAddQuestion}
-                      className="mt-2 text-blue-600 hover:text-blue-800"
-                    >
-                      点击添加题目
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* 右侧：题目表单 */}
-              <div className="bg-white border border-gray-200 p-4 rounded-lg">
-                <h3 className="font-medium mb-4">{isAddingQuestion ? "新增题目" : "编辑题目"}</h3>
-                
-                {/* 题目类型 */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">题目类型</label>
-                  <div className="flex space-x-4">
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        checked={questionFormData.questionType === 'single'}
-                        onChange={() => handleQuestionTypeChange('single')}
-                        className="form-radio h-4 w-4 text-blue-600"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">单选题</span>
-                    </label>
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        checked={questionFormData.questionType === 'multiple'}
-                        onChange={() => handleQuestionTypeChange('multiple')}
-                        className="form-radio h-4 w-4 text-blue-600"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">多选题</span>
-                    </label>
-                  </div>
-                </div>
-                
-                {/* 题目内容 */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">题目内容</label>
-                  <textarea
-                    name="question"
-                    value={questionFormData.question}
-                    onChange={handleQuestionFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    rows={3}
-                    placeholder="请输入题目内容"
-                  />
-                </div>
-                
-                {/* 选项管理 */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700">选项</label>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        value={optionInput.text}
-                        onChange={(e) => setOptionInput({...optionInput, text: e.target.value})}
-                        className="px-2 py-1 text-sm border border-gray-300 rounded"
-                        placeholder="输入新选项"
-                      />
-                      <button
-                        onClick={handleAddOption}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        添加
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* 选项列表 */}
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {questionFormData.options.map((option, index) => (
-                      <div key={option.id} className="flex items-center">
-                        {/* 单选/多选按钮 */}
-                        <div className="mr-2">
-                          {questionFormData.questionType === 'single' ? (
-                            <input
-                              type="radio"
-                              checked={questionFormData.correctAnswer === option.id}
-                              onChange={() => handleSelectCorrectAnswer(option.id)}
-                              className="form-radio h-4 w-4 text-blue-600"
-                            />
-                          ) : (
-                            <input
-                              type="checkbox"
-                              checked={Array.isArray(questionFormData.correctAnswer) && questionFormData.correctAnswer.includes(option.id)}
-                              onChange={() => handleSelectCorrectAnswer(option.id)}
-                              className="form-checkbox h-4 w-4 text-blue-600"
-                            />
-                          )}
-                        </div>
-                        
-                        {/* 选项ID */}
-                        <div className="w-6 text-center text-sm font-medium text-gray-700">
-                          {option.id}
-                        </div>
-                        
-                        {/* 选项文本 */}
-                        <input
-                          type="text"
-                          value={option.text}
-                          onChange={(e) => {
-                            const updatedOptions = [...questionFormData.options];
-                            updatedOptions[index].text = e.target.value;
-                            setQuestionFormData({...questionFormData, options: updatedOptions});
-                          }}
-                          className="flex-1 px-2 py-1 ml-2 border border-gray-300 rounded text-sm"
-                          placeholder={`选项 ${option.id}`}
+            <Form.Item 
+              label="题目类型" 
+              required
+              className="mb-3"
+            >
+              <Radio.Group
+                options={[
+                  { label: '单选题', value: 'single' },
+                  { label: '多选题', value: 'multiple' }
+                ]}
+                onChange={e => {
+                  const newType = e.target.value;
+                  setQuestionFormData({
+                    ...questionFormData,
+                    questionType: newType,
+                    correctAnswer: newType === 'single' ? '' : []
+                  });
+                }}
+                value={questionFormData.questionType}
+                optionType="button"
+              />
+            </Form.Item>
+            
+            <Form.Item 
+              label="选项" 
+              required
+              className="mb-3"
+            >
+              <div className="mb-2">
+                {questionFormData.options.map((option, index) => (
+                  <div key={option.id} className="flex items-center mb-2">
+                    <div className="mr-2 w-6">
+                      {questionFormData.questionType === 'single' ? (
+                        <Radio
+                          checked={questionFormData.correctAnswer === option.id}
+                          onChange={(e) => handleSelectCorrectAnswer(option.id)}
                         />
-                        
-                        {/* 删除按钮 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteOption(index);
-                          }}
-                          className="ml-2 text-red-600 hover:text-red-800 text-sm"
-                          disabled={questionFormData.options.length <= 2}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    ))}
+                      ) : (
+                        <Checkbox
+                          checked={Array.isArray(questionFormData.correctAnswer) && 
+                                 questionFormData.correctAnswer.includes(option.id)}
+                          onChange={(e) => handleSelectCorrectAnswer(option.id)}
+                        />
+                      )}
+                    </div>
+                    <Input
+                      value={option.text}
+                      onChange={(e) => handleOptionChange(index, e.target.value)}
+                      placeholder={`选项 ${index + 1}`}
+                      className="flex-1 mr-2"
+                    />
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleDeleteOption(index)}
+                      disabled={questionFormData.options.length <= 2}
+                    />
                   </div>
-                  
-                  <p className="text-xs text-gray-500 mt-1">
-                    {questionFormData.questionType === 'single' 
-                      ? '请选择一个正确答案' 
-                      : '请选择一个或多个正确答案'}
-                  </p>
-                </div>
-                
-                {/* 解析 */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">答案解析</label>
-                  <textarea
-                    name="explanation"
-                    value={questionFormData.explanation}
-                    onChange={handleQuestionFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    rows={2}
-                    placeholder="请输入答案解析（可选）"
-                  />
-                </div>
-                
-                {/* 保存按钮 */}
-                <div className="flex justify-end space-x-2 mt-6">
-                  <button
-                    onClick={handleCloseQuestionModal}
-                    className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={handleSaveQuestion}
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
-                  >
-                    保存题目
-                  </button>
-                </div>
+                ))}
               </div>
+              <Button 
+                type="dashed" 
+                onClick={handleAddOption} 
+                block
+                icon={<PlusOutlined />}
+              >
+                添加选项
+              </Button>
+            </Form.Item>
+            
+            {/* 模态框底部按钮 */}
+            <div className="modal-footer mt-6 flex justify-end">
+              <Button 
+                onClick={handleCloseQuestionModal} 
+                className="mr-2"
+                disabled={loading}
+              >
+                取消
+              </Button>
+              {currentQuestion ? (
+                <>
+                  <Button
+                    type="primary"
+                    onClick={handleSaveQuestion}
+                    loading={loading && loadingAction === 'saveQuestion'}
+                    className="mr-2"
+                  >
+                    保存到本地
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={handleDirectUpdateQuestion}
+                    loading={loading && loadingAction === 'updateQuestion'}
+                  >
+                    直接更新题目
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="primary"
+                    onClick={handleSaveQuestion}
+                    loading={loading && loadingAction === 'saveQuestion'}
+                    className="mr-2"
+                  >
+                    保存到本地
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={handleDirectAddQuestion}
+                    loading={loading && loadingAction === 'addQuestion'}
+                  >
+                    直接添加题目
+                  </Button>
+                </>
+              )}
             </div>
-          </div>
+          </Form>
         </div>
-      )}
+      </Modal>
       
       {/* 组件 UI 内容... */}
     </div>
