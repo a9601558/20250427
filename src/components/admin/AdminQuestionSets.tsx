@@ -468,15 +468,20 @@ const AdminQuestionSets = () => {
   const handleAddQuestion = () => {
     setIsAddingQuestion(true);
     setCurrentQuestion(null);
+    setQuestionIndex(-1); // 明确设置为-1表示是添加而不是编辑
     setQuestionFormData({
       id: Date.now(),
       question: '',
       questionType: 'single',
-      options: [],
+      options: [
+        { id: 'A', text: '' },
+        { id: 'B', text: '' },
+        { id: 'C', text: '' },
+        { id: 'D', text: '' },
+      ],
       correctAnswer: '',
       explanation: ''
     });
-    setOptionInput({ id: '', text: '' });
   };
 
   // 处理编辑题目
@@ -492,7 +497,6 @@ const AdminQuestionSets = () => {
       correctAnswer: question.correctAnswer,
       explanation: question.explanation
     });
-    setOptionInput({ id: '', text: '' });
   };
 
   // 处理删除题目
@@ -640,6 +644,14 @@ const AdminQuestionSets = () => {
     }));
   };
 
+  // 新增函数：关闭题目模态框并重置状态
+  const handleCloseQuestionModal = () => {
+    setShowQuestionModal(false);
+    setIsAddingQuestion(true); // 确保下次打开时默认是添加模式
+    setQuestionIndex(-1);
+    setCurrentQuestion(null);
+  };
+
   // 保存题目到题库
   const handleSaveQuestion = async () => {
     // 验证表单
@@ -681,19 +693,29 @@ const AdminQuestionSets = () => {
 
       // 如果是添加新题目
       if (isAddingQuestion) {
+        console.log("添加新题目，而不是更新");
+        // 生成真正唯一的ID，使用时间戳+随机数
+        const uniqueId = Date.now() + Math.floor(Math.random() * 1000);
+        
         const newQuestion = {
           ...questionFormData,
-          id: Date.now(), // 使用时间戳作为临时ID
+          id: uniqueId,
         };
         
         // 将新题目添加到问题集中
         updatedQuestionSet.questions.push(newQuestion);
       } else {
+        console.log("更新现有题目，索引:", questionIndex);
         // 如果是编辑现有题目
         if (questionIndex >= 0 && questionIndex < updatedQuestionSet.questions.length) {
           updatedQuestionSet.questions[questionIndex] = {
             ...questionFormData,
           };
+        } else {
+          // 如果questionIndex无效但又不是添加模式，则可能是状态错误
+          console.error("无效的questionIndex:", questionIndex, "但isAddingQuestion为false");
+          showStatusMessage('error', '状态错误，无法保存题目');
+          return;
         }
       }
       
@@ -707,8 +729,9 @@ const AdminQuestionSets = () => {
       // 更新当前问题集
       setCurrentQuestionSet(updatedQuestionSet);
       
-      // 关闭模态框
-      setShowQuestionModal(false);
+      // 使用封装的函数关闭模态框并重置状态
+      handleCloseQuestionModal();
+      
       showStatusMessage('success', isAddingQuestion ? '题目添加成功' : '题目更新成功');
     } catch (error) {
       console.error("保存题目失败:", error);
@@ -931,6 +954,249 @@ const AdminQuestionSets = () => {
   // 组件的返回语句 - 实际 UI 部分
   return (
     <div>
+      {/* 题目管理模态框 */}
+      {showQuestionModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {isAddingQuestion ? "添加题目" : "编辑题目"}
+              </h2>
+              <button 
+                onClick={handleCloseQuestionModal}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* 题库信息 */}
+            {currentQuestionSet && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium">
+                  题库: <span className="text-blue-600">{currentQuestionSet.title}</span>
+                </h3>
+                <p className="text-sm text-gray-500">
+                  当前共有 {currentQuestionSet.questions?.length || 0} 题
+                </p>
+              </div>
+            )}
+            
+            {/* 题目列表和表单部分 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 左侧：题目列表 */}
+              <div className="bg-gray-50 p-4 rounded-lg max-h-[70vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-medium">题目列表</h3>
+                  <button 
+                    onClick={handleAddQuestion}
+                    className="text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    + 添加新题目
+                  </button>
+                </div>
+                
+                {currentQuestionSet && currentQuestionSet.questions?.length > 0 ? (
+                  <div className="divide-y divide-gray-200">
+                    {currentQuestionSet.questions.map((question, index) => (
+                      <div key={question.id} className="py-3">
+                        <div className="flex justify-between">
+                          <div 
+                            className="flex-1 cursor-pointer hover:text-blue-600"
+                            onClick={() => handleEditQuestion(question, index)}
+                          >
+                            <span className="font-medium">#{index + 1}.</span> {question.question.length > 50 ? question.question.substring(0, 50) + '...' : question.question}
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditQuestion(question, index)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuestion(index)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10">
+                    <p className="text-gray-500">题库中还没有题目</p>
+                    <button
+                      onClick={handleAddQuestion}
+                      className="mt-2 text-blue-600 hover:text-blue-800"
+                    >
+                      点击添加题目
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {/* 右侧：题目表单 */}
+              <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                <h3 className="font-medium mb-4">{isAddingQuestion ? "新增题目" : "编辑题目"}</h3>
+                
+                {/* 题目类型 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">题目类型</label>
+                  <div className="flex space-x-4">
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        checked={questionFormData.questionType === 'single'}
+                        onChange={() => handleQuestionTypeChange('single')}
+                        className="form-radio h-4 w-4 text-blue-600"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">单选题</span>
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        checked={questionFormData.questionType === 'multiple'}
+                        onChange={() => handleQuestionTypeChange('multiple')}
+                        className="form-radio h-4 w-4 text-blue-600"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">多选题</span>
+                    </label>
+                  </div>
+                </div>
+                
+                {/* 题目内容 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">题目内容</label>
+                  <textarea
+                    name="question"
+                    value={questionFormData.question}
+                    onChange={handleQuestionFormChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    rows={3}
+                    placeholder="请输入题目内容"
+                  />
+                </div>
+                
+                {/* 选项管理 */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">选项</label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={optionInput.text}
+                        onChange={(e) => setOptionInput({...optionInput, text: e.target.value})}
+                        className="px-2 py-1 text-sm border border-gray-300 rounded"
+                        placeholder="输入新选项"
+                      />
+                      <button
+                        onClick={handleAddOption}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        添加
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 选项列表 */}
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {questionFormData.options.map((option, index) => (
+                      <div key={option.id} className="flex items-center">
+                        {/* 单选/多选按钮 */}
+                        <div className="mr-2">
+                          {questionFormData.questionType === 'single' ? (
+                            <input
+                              type="radio"
+                              checked={questionFormData.correctAnswer === option.id}
+                              onChange={() => handleSelectCorrectAnswer(option.id)}
+                              className="form-radio h-4 w-4 text-blue-600"
+                            />
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={Array.isArray(questionFormData.correctAnswer) && questionFormData.correctAnswer.includes(option.id)}
+                              onChange={() => handleSelectCorrectAnswer(option.id)}
+                              className="form-checkbox h-4 w-4 text-blue-600"
+                            />
+                          )}
+                        </div>
+                        
+                        {/* 选项ID */}
+                        <div className="w-6 text-center text-sm font-medium text-gray-700">
+                          {option.id}
+                        </div>
+                        
+                        {/* 选项文本 */}
+                        <input
+                          type="text"
+                          value={option.text}
+                          onChange={(e) => {
+                            const updatedOptions = [...questionFormData.options];
+                            updatedOptions[index].text = e.target.value;
+                            setQuestionFormData({...questionFormData, options: updatedOptions});
+                          }}
+                          className="flex-1 px-2 py-1 ml-2 border border-gray-300 rounded text-sm"
+                          placeholder={`选项 ${option.id}`}
+                        />
+                        
+                        {/* 删除按钮 */}
+                        <button
+                          onClick={() => handleDeleteOption(index)}
+                          className="ml-2 text-red-600 hover:text-red-800 text-sm"
+                          disabled={questionFormData.options.length <= 2}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 mt-1">
+                    {questionFormData.questionType === 'single' 
+                      ? '请选择一个正确答案' 
+                      : '请选择一个或多个正确答案'}
+                  </p>
+                </div>
+                
+                {/* 解析 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">答案解析</label>
+                  <textarea
+                    name="explanation"
+                    value={questionFormData.explanation}
+                    onChange={handleQuestionFormChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    rows={2}
+                    placeholder="请输入答案解析（可选）"
+                  />
+                </div>
+                
+                {/* 保存按钮 */}
+                <div className="flex justify-end space-x-2 mt-6">
+                  <button
+                    onClick={handleCloseQuestionModal}
+                    className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSaveQuestion}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none"
+                  >
+                    保存题目
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* 组件 UI 内容... */}
     </div>
   );
