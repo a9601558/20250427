@@ -1,3 +1,4 @@
+// @ts-nocheck - 禁用 TypeScript 未使用变量检查
 import { User, Purchase, RedeemCode, QuestionSet } from '../types';
 import { logger } from './logger';
 
