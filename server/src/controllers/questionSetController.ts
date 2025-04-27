@@ -18,6 +18,8 @@ interface QuestionSetRow extends RowDataPacket {
   price: number | null;
   trialQuestions: number | null;
   questionCount?: number;
+  isFeatured: boolean;
+  featuredCategory: string;
 }
 
 interface QuestionRow extends RowDataPacket {
@@ -224,7 +226,7 @@ function normalizeQuestionData(questions: any[]) {
  */
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
-    // 执行SQL查询
+    // 执行SQL查询，包含isFeatured和featuredCategory字段
     const [questionSets] = await db.execute<QuestionSetRow[]>(`
       SELECT 
         qs.id, 
@@ -235,6 +237,8 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         qs.isPaid, 
         qs.price, 
         qs.trialQuestions,
+        qs.isFeatured,
+        qs.featuredCategory,
         COUNT(q.id) AS questionCount
       FROM 
         question_sets qs
@@ -243,6 +247,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
       GROUP BY 
         qs.id
       ORDER BY 
+        qs.isFeatured DESC,
         qs.createdAt DESC
     `);
 
@@ -250,15 +255,14 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
       success: true,
       data: questionSets
     });
-  } catch (error: any) {
-    console.error('获取题库列表失败:', error);
+  } catch (error) {
+    console.error('获取题库列表错误:', error);
     res.status(500).json({
       success: false,
-      message: '获取题库列表失败',
-      error: error.message
+      error: '服务器错误，无法获取题库列表'
     });
   }
-};
+}
 
 /**
  * @desc    获取题库详情（包含问题和选项）
@@ -937,4 +941,98 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
       message: error.message || '服务器错误'
     });
   }
-}; 
+};
+
+/**
+ * @desc    获取精选题库
+ * @route   GET /api/homepage/featured-question-sets
+ * @access  Public
+ */
+export const getFeaturedQuestionSets = async (req: Request, res: Response) => {
+  try {
+    // 执行SQL查询，只获取精选题库
+    const [questionSets] = await db.execute<QuestionSetRow[]>(`
+      SELECT 
+        qs.id, 
+        qs.title, 
+        qs.description, 
+        qs.category, 
+        qs.icon, 
+        qs.isPaid, 
+        qs.price, 
+        qs.trialQuestions,
+        qs.isFeatured,
+        qs.featuredCategory,
+        COUNT(q.id) AS questionCount
+      FROM 
+        question_sets qs
+      LEFT JOIN 
+        questions q ON qs.id = q.questionSetId
+      WHERE
+        qs.isFeatured = true
+      GROUP BY 
+        qs.id
+      ORDER BY 
+        qs.featuredCategory,
+        qs.createdAt DESC
+    `);
+
+    res.status(200).json({
+      success: true,
+      data: questionSets
+    });
+  } catch (error) {
+    console.error('获取精选题库列表错误:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误，无法获取精选题库列表'
+    });
+  }
+}
+
+/**
+ * @desc    更新题库精选状态
+ * @route   PUT /api/homepage/featured-question-sets/:id
+ * @access  Private/Admin
+ */
+export const updateFeaturedStatus = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { isFeatured, featuredCategory } = req.body;
+  
+  try {
+    // 开始事务
+    await sequelize.transaction(async (t) => {
+      const questionSet = await QuestionSet.findByPk(id, { transaction: t });
+      
+      if (!questionSet) {
+        return res.status(404).json({
+          success: false,
+          error: '题库不存在'
+        });
+      }
+      
+      // 更新精选状态
+      if (isFeatured !== undefined) {
+        questionSet.isFeatured = isFeatured;
+      }
+      
+      // 更新精选分类
+      if (featuredCategory !== undefined) {
+        questionSet.featuredCategory = featuredCategory;
+      }
+      
+      await questionSet.save({ transaction: t });
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: '题库精选状态已更新'
+    });
+  } catch (error) {
+    console.error('更新题库精选状态错误:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器错误，无法更新题库精选状态'
+    });
+  }
+} 

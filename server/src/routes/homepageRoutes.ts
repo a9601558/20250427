@@ -3,10 +3,12 @@ import {
   getHomepageContent, 
   updateHomepageContent, 
   getFeaturedCategories, 
-  updateFeaturedCategories, 
-  getFeaturedQuestionSets, 
-  updateQuestionSetFeaturedStatus 
+  updateFeaturedCategories
 } from '../controllers/homepageController';
+import {
+  getFeaturedQuestionSets,
+  updateFeaturedStatus as updateQuestionSetFeaturedStatus
+} from '../controllers/questionSetController';
 import { protect, admin } from '../middleware/authMiddleware';
 
 const router = express.Router();

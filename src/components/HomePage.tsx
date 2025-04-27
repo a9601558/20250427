@@ -29,7 +29,7 @@ const defaultHomeContent: HomeContentData = {
 };
 
 const HomePage: React.FC = () => {
-  const { user, isAdmin, getRemainingAccessDays } = useUser();
+  const { user, isAdmin } = useUser();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,11 +68,28 @@ const HomePage: React.FC = () => {
           // 获取精选题库列表
           const featuredResponse = await axios.get('/api/homepage/featured-question-sets');
           if (featuredResponse.data && featuredResponse.data.success && featuredResponse.data.data) {
-            setQuestionSets(Array.isArray(featuredResponse.data.data) ? featuredResponse.data.data : []);
+            // 确保获取到的是数组且有数据
+            const featuredQuestionSets = Array.isArray(featuredResponse.data.data) ? featuredResponse.data.data : [];
+            
+            if (featuredQuestionSets.length > 0) {
+              setQuestionSets(featuredQuestionSets);
+            } else {
+              // 如果没有精选题库，获取所有题库列表
+              const quizResponse = await axios.get('/api/question-sets');
+              if (quizResponse.data && quizResponse.data.success && quizResponse.data.data) {
+                setQuestionSets(Array.isArray(quizResponse.data.data) ? quizResponse.data.data : []);
+              } else {
+                setQuestionSets([]);
+              }
+            }
           } else {
-            // 如果没有精选题库，获取所有题库列表
+            // 如果精选接口请求失败，获取所有题库列表
             const quizResponse = await axios.get('/api/question-sets');
-            setQuestionSets(Array.isArray(quizResponse.data) ? quizResponse.data : []);
+            if (quizResponse.data && quizResponse.data.success && quizResponse.data.data) {
+              setQuestionSets(Array.isArray(quizResponse.data.data) ? quizResponse.data.data : []);
+            } else {
+              setQuestionSets([]);
+            }
           }
         } catch (err) {
           console.error('获取数据失败:', err);
@@ -101,14 +118,6 @@ const HomePage: React.FC = () => {
     return acc;
   }, {} as Record<string, QuestionSet[]>);
 
-  // 获取剩余天数的文字描述
-  const calculateRemainingDaysText = (days: number | null): string => {
-    if (days === null) return '';
-    if (days <= 0) return '已过期';
-    if (days === 1) return '剩余1天';
-    return `剩余${days}天`;
-  };
-
   // 根据主题设置页面背景色
   const bgClass = homeContent.theme === 'dark' 
     ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
@@ -116,30 +125,42 @@ const HomePage: React.FC = () => {
 
   // 获取要显示的分类
   const displayCategories = (): string[] => {
-    // 如果有精选分类，先显示精选分类，然后是其他分类
+    // 首先创建普通分类列表（包含题库的分类）
+    const regularCategories = Object.keys(groupedSets);
+    
+    // 如果有精选分类，检查哪些分类包含精选题库
     if (homeContent.featuredCategories?.length > 0) {
-      // 只显示包含精选题库的分类
-      const categoriesWithFeaturedSets = homeContent.featuredCategories.filter(category => 
-        questionSets.some(set => (set as any).isFeatured && (set as any).featuredCategory === category)
+      // 找出所有包含精选题库的分类
+      const featuredCategories = homeContent.featuredCategories.filter(category => 
+        questionSets.some(set => set.isFeatured && set.featuredCategory === category)
       );
-      return [...new Set([...categoriesWithFeaturedSets, ...Object.keys(groupedSets)])];
+      
+      // 如果有包含精选题库的分类，优先显示这些分类，然后是其他普通分类
+      if (featuredCategories.length > 0) {
+        // 合并并去重分类列表
+        return [...new Set([...featuredCategories, ...regularCategories])];
+      }
     }
-    return Object.keys(groupedSets);
+    
+    // 如果没有精选分类，或者精选分类中没有题库，则返回所有普通分类
+    return regularCategories;
   };
 
   // 按分类或精选分类获取题库
   const getQuestionSetsByCategory = (category: string): QuestionSet[] => {
-    // 检查是否为精选分类并且有标记为该分类的精选题库
-    const featuredInCategory = questionSets.filter(
-      set => (set as any).isFeatured && (set as any).featuredCategory === category
-    );
-    
-    // 如果是精选分类且有题库，返回这些题库
-    if (homeContent.featuredCategories.includes(category) && featuredInCategory.length > 0) {
-      return featuredInCategory;
+    // 如果是精选分类，优先返回这个分类的精选题库
+    if (homeContent.featuredCategories?.includes(category)) {
+      const featuredInCategory = questionSets.filter(
+        set => set.isFeatured && set.featuredCategory === category
+      );
+      
+      // 如果有精选题库，返回这些题库
+      if (featuredInCategory.length > 0) {
+        return featuredInCategory;
+      }
     }
     
-    // 否则返回普通分类下的题库
+    // 如果不是精选分类，或者精选分类没有精选题库，返回普通分类下的题库
     return questionSets.filter(set => set.category === category);
   };
 
@@ -269,75 +290,69 @@ const HomePage: React.FC = () => {
             </div>
           )}
           
-          {/* 分类显示 - 按照精选分类优先排序 */}
-          <div className="space-y-8">
+          {/* 显示题库分类列表 */}
+          <div className="grid grid-cols-1 gap-6 mt-8">
             {displayCategories().map(category => (
-              <div key={category} className={`${homeContent.theme === 'dark' ? 'bg-gray-700' : 'bg-white'} overflow-hidden shadow-md rounded-lg`}>
-                <div className={`${homeContent.theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'} px-4 py-3 border-b ${homeContent.theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}>
-                  <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>{category}</h2>
-                </div>
-                <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 md:grid-cols-3">
-                  {getQuestionSetsByCategory(category).map(set => {
-                    // 检查用户是否购买了此题库，以及获取过期时间
-                    const isPaid = set.isPaid;
-                    const remainingDaysText = calculateRemainingDaysText(user && isPaid ? getRemainingAccessDays(set.id) : null);
-
-                    return (
+              <div key={category} className="bg-white shadow-md rounded-lg p-4">
+                <h3 className={`text-xl font-bold mb-4 ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
+                  {category}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getQuestionSetsByCategory(category).map((set) => (
+                    <div 
+                      key={set.id} 
+                      className={`border rounded-lg p-4 transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg ${homeContent.theme === 'dark' ? 'border-gray-700 bg-gray-700 text-white' : 'border-gray-200 bg-white'}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-lg font-semibold mb-2">{set.title}</h4>
+                        {set.isFeatured && (
+                          <span className="bg-yellow-100 text-yellow-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded">
+                            精选
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-sm mb-3 h-12 overflow-hidden ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {set.description.length > 60 ? set.description.substring(0, 60) + '...' : set.description}
+                      </p>
+                      
+                      {/* 题库信息 */}
+                      <div className={`flex items-center justify-between mb-4 text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {set.questionCount} 题
+                        </span>
+                        {set.isPaid && (
+                          <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                            ¥{set.price}
+                          </span>
+                        )}
+                      </div>
+                      
                       <Link
-                        to={`/quiz/${set.id}`}
-                        key={set.id}
-                        className={`block relative p-4 ${homeContent.theme === 'dark' ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white hover:bg-gray-50'} border ${homeContent.theme === 'dark' ? 'border-gray-500' : 'border-gray-200'} rounded-lg transition-transform transform hover:scale-105 hover:shadow-lg`}
+                        to={`/practice/${set.id}`}
+                        className={`block w-full text-center py-2 rounded font-medium transition duration-300 ${
+                          homeContent.theme === 'dark' 
+                            ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                        }`}
                       >
-                        {/* 付费标识 */}
-                        {isPaid && (
-                          <div className="absolute top-2 right-2">
-                            {user && isPaid && getRemainingAccessDays(set.id) !== null && (getRemainingAccessDays(set.id) || 0) > 0 ? (
-                              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                                已购买 · {remainingDaysText}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
-                                付费 · ¥{set.price}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 精选标识 - 只在精选题库上显示 */}
-                        {(set as any).isFeatured && (
-                          <div className="absolute top-2 left-2">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                              精选
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 text-3xl mr-3">{set.icon}</div>
-                          <div>
-                            <h3 className={`text-lg font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>{set.title}</h3>
-                            <p className={`mt-1 text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>{set.description}</p>
-                            <div className="mt-2 flex items-center justify-between">
-                              <span className={`text-xs ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>{set.questions?.length || 0} 个问题</span>
-                              {isPaid && user && getRemainingAccessDays(set.id) !== null && (getRemainingAccessDays(set.id) || 0) > 0 && (
-                                <span className={`text-xs ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
-                                  {remainingDaysText}
-                                </span>
-                              )}
-                              {isPaid && set.trialQuestions && set.trialQuestions > 0 && !user && (
-                                <span className={`text-xs ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
-                                  免费试用 {set.trialQuestions} 题
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                        开始练习
                       </Link>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
+            
+            {displayCategories().length === 0 && (
+              <div className="text-center py-8">
+                <p className={`text-lg ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  暂无题库可用，请稍后再试。
+                </p>
+              </div>
+            )}
           </div>
           
           {/* 页脚 */}

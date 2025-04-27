@@ -26,6 +26,9 @@ export interface QuestionSet {
   isPaid?: boolean;
   price?: number;
   trialQuestions?: number;
+  isFeatured?: boolean;
+  featuredCategory?: string;
+  questionCount?: number;
 }
 
 export interface Question {

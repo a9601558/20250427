@@ -6,7 +6,9 @@ import {
   updateQuestionSet,
   deleteQuestionSet,
   saveProgress,
-  uploadQuestionSets
+  uploadQuestionSets,
+  getFeaturedQuestionSets,
+  updateFeaturedStatus
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -25,6 +27,7 @@ router.use((req, res, next) => {
 
 // Public routes
 router.get('/', getAllQuestionSets);
+router.get('/featured', getFeaturedQuestionSets);
 
 // Admin routes
 router.post('/upload', protect, admin, uploadQuestionSets);
@@ -34,6 +37,9 @@ router.post('/upload/file', protect, admin, upload.single('file'), uploadQuestio
 
 // Protected routes that use ID parameters
 router.post('/:id/progress', protect, saveProgress);
+
+// Featured status update route
+router.put('/:id/featured', protect, admin, updateFeaturedStatus);
 
 // Admin routes with ID parameters
 router.put('/:id', protect, admin, updateQuestionSet);
