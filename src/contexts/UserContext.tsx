@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { User, Purchase, RedeemCode } from '../types';
 import { userApi, redeemCodeApi } from '../utils/api';
-import { initializeSocket, authenticateUser, onProgressUpdate } from '../config/socket';
+import { initSocket, authenticateUser, onProgressUpdate } from '../config/socket';
 
 export interface QuizProgress {
   questionSetId: string;
@@ -62,7 +62,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (user) {
       // 初始化Socket连接
-      initializeSocket();
+      initSocket();
       
       // 用户认证
       authenticateUser(user.id);

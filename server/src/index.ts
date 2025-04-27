@@ -7,6 +7,8 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { sequelize, syncModels } from './models';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 // Load environment variables
 dotenv.config();
@@ -30,8 +32,42 @@ import userProgressRoutes from './routes/userProgressRoutes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 信任代理，解决X-Forwarded-For头问题
-app.set('trust proxy', true);
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  path: '/socket.io'
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('新的Socket连接:', socket.id);
+
+  // 用户认证
+  socket.on('authenticate', (userId: string) => {
+    console.log('用户认证:', userId);
+    socket.join(`user:${userId}`);
+  });
+
+  // 断开连接
+  socket.on('disconnect', (reason) => {
+    console.log('Socket断开连接:', reason);
+  });
+
+  // 错误处理
+  socket.on('error', (error) => {
+    console.error('Socket错误:', error);
+  });
+});
+
+// Export io instance for use in other files
+export { io };
 
 // Body parsing middleware
 // 确保最先配置body解析中间件，防止请求体解析问题
@@ -190,9 +226,10 @@ const startServer = async () => {
     // 尝试同步数据库
     await ensureDatabaseSync();
     
-    // 开始监听端口
-    app.listen(PORT, () => {
+    // 使用httpServer替代app来启动服务器
+    httpServer.listen(PORT, () => {
       console.log(`服务器运行在 http://localhost:${PORT}`);
+      console.log(`Socket.IO 服务已启动`);
     });
   } catch (error) {
     console.error('服务器启动失败:', error);
