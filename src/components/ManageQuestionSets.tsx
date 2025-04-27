@@ -28,15 +28,37 @@ const ManageQuestionSets: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get('/api/question-sets');
-        if (response.data && response.data.success && response.data.data) {
-          setQuestionSets(response.data.data);
+        // 使用新的方式获取数据，提高可靠性
+        const response = await axios.get('/api/question-sets', {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        // 检查响应格式
+        if (response.data) {
+          if (response.data.success && response.data.data) {
+            // 标准API响应格式
+            setQuestionSets(response.data.data);
+          } else if (Array.isArray(response.data)) {
+            // 直接返回数组的格式
+            setQuestionSets(response.data);
+          } else {
+            // 其他格式，尝试处理
+            console.warn('Unexpected response format:', response.data);
+            if (response.data.questionSets) {
+              setQuestionSets(response.data.questionSets);
+            } else {
+              throw new Error('响应数据格式不正确');
+            }
+          }
         } else {
-          setError(response.data?.error || '加载题库失败');
+          throw new Error('获取题库失败');
         }
       } catch (err) {
         console.error('加载题库失败:', err);
-        setError('加载题库时发生错误，请稍后重试');
+        setError(`加载题库时发生错误：${err.message || '未知错误'}，请稍后重试`);
       } finally {
         setLoading(false);
       }
@@ -59,7 +81,12 @@ const ManageQuestionSets: React.FC = () => {
     }
 
     try {
-      await axios.delete(`/api/question-sets/${id}`);
+      await axios.delete(`/api/question-sets/${id}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       
       // 更新状态，移除已删除的题库
       setQuestionSets(prev => prev.filter(set => set.id !== id));
@@ -71,7 +98,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('删除题库失败:', err);
-      setError('删除题库失败，请稍后重试');
+      setError(`删除题库失败: ${err.message || '未知错误'}`);
       
       // 3秒后清除错误消息
       setTimeout(() => {
@@ -95,12 +122,25 @@ const ManageQuestionSets: React.FC = () => {
     
     try {
       // 获取当前最新的题库数据
-      const response = await axios.get(`/api/question-sets/${currentQuestionSet.id}`);
-      if (!response.data || !response.data.success) {
-        throw new Error('获取题库数据失败');
-      }
+      const response = await axios.get(`/api/question-sets/${currentQuestionSet.id}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       
-      const latestQuestionSet = response.data.data;
+      let latestQuestionSet = currentQuestionSet;
+      
+      // 处理不同的响应格式
+      if (response.data) {
+        if (response.data.success && response.data.data) {
+          latestQuestionSet = response.data.data;
+        } else if (response.data.id) {
+          latestQuestionSet = response.data;
+        } else if (response.data.questionSet) {
+          latestQuestionSet = response.data.questionSet;
+        }
+      }
       
       // 创建新题目对象
       const newQuestion = {
@@ -110,6 +150,7 @@ const ManageQuestionSets: React.FC = () => {
         questionType: question.questionType || 'single',
         orderIndex: latestQuestionSet.questions ? latestQuestionSet.questions.length : 0,
         options: question.options.map((opt, index) => ({
+          id: opt.id || `opt_${index}`,
           text: opt.text,
           isCorrect: opt.isCorrect,
           optionIndex: opt.optionIndex || String.fromCharCode(65 + index) // A, B, C...
@@ -127,9 +168,6 @@ const ManageQuestionSets: React.FC = () => {
         questions
       };
       
-      console.log('添加新题目:', newQuestion);
-      console.log('更新后的题库数据:', updatedQuestionSet);
-      
       // 发送更新请求
       const updateResponse = await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
         headers: {
@@ -138,19 +176,26 @@ const ManageQuestionSets: React.FC = () => {
         }
       });
       
-      if (!updateResponse.data || !updateResponse.data.success) {
-        throw new Error('保存题目失败');
+      let updatedData = updatedQuestionSet;
+      
+      // 处理不同的响应格式
+      if (updateResponse.data) {
+        if (updateResponse.data.success && updateResponse.data.data) {
+          updatedData = updateResponse.data.data;
+        } else if (updateResponse.data.id) {
+          updatedData = updateResponse.data;
+        }
       }
       
       // 更新本地状态
       setQuestionSets(prev => 
         prev.map(set => 
-          set.id === currentQuestionSet.id ? updateResponse.data.data : set
+          set.id === currentQuestionSet.id ? updatedData : set
         )
       );
       
       // 更新当前题库
-      setCurrentQuestionSet(updateResponse.data.data);
+      setCurrentQuestionSet(updatedData);
       
       // 重置添加题目状态
       setIsAddingQuestion(false);
@@ -162,7 +207,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('添加题目失败:', err);
-      setError('添加题目失败，请稍后重试');
+      setError(`添加题目失败: ${err.message || '未知错误'}`);
     } finally {
       setIsSavingQuestion(false);
     }
@@ -212,17 +257,28 @@ const ManageQuestionSets: React.FC = () => {
       };
       
       // 发送更新请求
-      await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
+      const response = await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       
+      let updatedData = updatedQuestionSet;
+      
+      // 处理不同的响应格式
+      if (response.data) {
+        if (response.data.success && response.data.data) {
+          updatedData = response.data.data;
+        } else if (response.data.id) {
+          updatedData = response.data;
+        }
+      }
+      
       // 更新本地状态
       setQuestionSets(prev => 
         prev.map(set => 
-          set.id === currentQuestionSet.id ? updatedQuestionSet : set
+          set.id === currentQuestionSet.id ? updatedData : set
         )
       );
       
@@ -237,7 +293,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('更新题目失败:', err);
-      setError('更新题目失败，请稍后重试');
+      setError(`更新题目失败: ${err.message || '未知错误'}`);
     } finally {
       setIsSavingQuestion(false);
     }
@@ -327,6 +383,21 @@ const ManageQuestionSets: React.FC = () => {
       );
     }
     
+    if (error) {
+      return (
+        <div className="bg-red-50 p-8 text-center rounded">
+          <p className="text-red-500 mb-2">加载出错</p>
+          <p className="text-gray-700">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            重新加载
+          </button>
+        </div>
+      );
+    }
+    
     if (!questionSets || !Array.isArray(questionSets) || questionSets.length === 0) {
       return (
         <div className="bg-gray-50 p-8 text-center rounded">
@@ -398,12 +469,19 @@ const ManageQuestionSets: React.FC = () => {
         </div>
       )}
       
-      {error && (
+      {error && !loading && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+          <p className="font-medium">加载出错</p>
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-2 px-3 py-1 bg-red-200 text-red-800 rounded hover:bg-red-300"
+          >
+            重新加载页面
+          </button>
         </div>
       )}
-      
+
       {/* 添加题目模态框 */}
       {isAddingQuestion && currentQuestionSet && (
         <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">

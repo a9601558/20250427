@@ -6,9 +6,11 @@ interface AddQuestionProps {
   onAddQuestion: (question: Question) => void;
   onCancel: () => void;
   questionCount: number;
+  isAdding?: boolean;
+  questionSetId?: string;
 }
 
-const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, questionCount }) => {
+const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, questionCount, isAdding = false, questionSetId }) => {
   const [questionText, setQuestionText] = useState('');
   const [questionType, setQuestionType] = useState<QuestionType>('single');
   const [options, setOptions] = useState<Option[]>([
@@ -102,7 +104,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
       
       // 创建题目对象 - 只使用有效的选项
       const newQuestion: Question = {
-        id: questionCount + 1,
+        id: `${Date.now()}`,
         text: questionText.trim(),
         questionType,
         options: validOptions.map(opt => ({
@@ -112,6 +114,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
             : selectedOptions.includes(opt.id)
         })),
         explanation: explanation.trim(),
+        questionSetId: questionSetId
       };
       
       // 提交题目
@@ -259,8 +262,9 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
           <button
             type="submit"
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            disabled={isAdding}
           >
-            添加题目
+            {isAdding ? '添加中...' : '添加题目'}
           </button>
         </div>
       </form>
