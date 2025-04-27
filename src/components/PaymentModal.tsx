@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { QuestionSet } from '../data/questionSets';
+import { QuestionSet } from '../types';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -112,7 +112,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       
       // 创建购买记录
       const purchase = {
-        quizId: questionSet.id,
+        questionSetId: questionSet.id,
         purchaseDate: now.toISOString(),
         expiryDate: expiryDate.toISOString(),
         transactionId: transactionId,

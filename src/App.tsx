@@ -25,7 +25,7 @@ function App() {
                 <AdminPanel />
               </ProtectedRoute>
             } />
-            <Route path="/quiz/:quizId" element={<QuizPage />} />
+            <Route path="/quiz/:questionSetId" element={<QuizPage />} />
           </Routes>
         </Layout>
       </Router>

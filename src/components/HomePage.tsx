@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { QuestionSet } from '../data/questionSets';
+import { QuestionSet } from '../types';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import LoginModal from './LoginModal';
 
-// 首页内容接口
-interface HomeContent {
+// 使用本地接口替代
+interface HomeContentData {
   welcomeTitle: string;
   welcomeDescription: string;
   featuredCategories: string[];
@@ -18,7 +18,7 @@ interface HomeContent {
 }
 
 // 默认首页内容
-const defaultHomeContent: HomeContent = {
+const defaultHomeContent: HomeContentData = {
   welcomeTitle: "ExamTopics 模拟练习",
   welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
   featuredCategories: ["网络协议", "编程语言", "计算机基础"],
@@ -29,7 +29,7 @@ const defaultHomeContent: HomeContent = {
 };
 
 const HomePage: React.FC = () => {
-  const { user, isAdmin, getPurchaseExpiry } = useUser();
+  const { user, isAdmin, getRemainingAccessDays } = useUser();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,7 @@ const HomePage: React.FC = () => {
     title: '在线题库练习系统',
     description: '选择以下任一题库开始练习，测试您的知识水平'
   });
-  const homeContent = useState<HomeContent>(defaultHomeContent)[0];
+  const homeContent = useState<HomeContentData>(defaultHomeContent)[0];
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(false);
 
@@ -101,24 +101,12 @@ const HomePage: React.FC = () => {
     return acc;
   }, {} as Record<string, QuestionSet[]>);
 
-  // 格式化到期日期为用户友好的格式
-  const formatExpiryDate = (dateInput: Date | string | null) => {
-    if (!dateInput) return '';
-    
-    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
-    return date.toLocaleDateString();
-  };
-
-  // 计算剩余天数
-  const calculateRemainingDays = (dateInput: Date | string | null) => {
-    if (!dateInput) return 0;
-    
-    const expiryDate = dateInput instanceof Date ? dateInput : new Date(dateInput);
-    const today = new Date();
-    const diffTime = expiryDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays > 0 ? diffDays : 0;
+  // 获取剩余天数的文字描述
+  const calculateRemainingDaysText = (days: number | null): string => {
+    if (days === null) return '';
+    if (days <= 0) return '已过期';
+    if (days === 1) return '剩余1天';
+    return `剩余${days}天`;
   };
 
   // 根据主题设置页面背景色
@@ -137,9 +125,9 @@ const HomePage: React.FC = () => {
 
   // 按分类或精选分类获取题库
   const getQuestionSetsByCategory = (category: string): QuestionSet[] => {
-    // 首先检查是否是精选分类
+    // 检查是否为精选分类 - 使用可选链和类型保护
     const featuredInCategory = questionSets.filter(
-      set => set.isFeatured && set.featuredCategory === category
+      set => (set as any).isFeatured && (set as any).featuredCategory === category
     );
     
     // 如果是精选分类且有题库，返回这些题库
@@ -288,9 +276,7 @@ const HomePage: React.FC = () => {
                   {getQuestionSetsByCategory(category).map(set => {
                     // 检查用户是否购买了此题库，以及获取过期时间
                     const isPaid = set.isPaid;
-                    const expiry = user && isPaid ? getPurchaseExpiry(set.id) : null;
-                    const hasPaid = user && isPaid && expiry !== null;
-                    const remainingDays = calculateRemainingDays(expiry);
+                    const remainingDaysText = calculateRemainingDaysText(user && isPaid ? getRemainingAccessDays(set.id) : null);
 
                     return (
                       <Link
@@ -301,9 +287,9 @@ const HomePage: React.FC = () => {
                         {/* 付费标识 */}
                         {isPaid && (
                           <div className="absolute top-2 right-2">
-                            {hasPaid ? (
+                            {user && isPaid && getRemainingAccessDays(set.id) !== null && (getRemainingAccessDays(set.id) || 0) > 0 ? (
                               <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                                已购买 · 剩余 {remainingDays} 天
+                                已购买 · {remainingDaysText}
                               </span>
                             ) : (
                               <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
@@ -314,7 +300,7 @@ const HomePage: React.FC = () => {
                         )}
 
                         {/* 精选标识 */}
-                        {set.isFeatured && (
+                        {(set as any).isFeatured && (
                           <div className="absolute top-2 left-2">
                             <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
                               精选
@@ -329,12 +315,12 @@ const HomePage: React.FC = () => {
                             <p className={`mt-1 text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>{set.description}</p>
                             <div className="mt-2 flex items-center justify-between">
                               <span className={`text-xs ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>{set.questions?.length || 0} 个问题</span>
-                              {isPaid && hasPaid && (
+                              {isPaid && user && getRemainingAccessDays(set.id) !== null && (getRemainingAccessDays(set.id) || 0) > 0 && (
                                 <span className={`text-xs ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
-                                  到期日期: {formatExpiryDate(expiry)}
+                                  {remainingDaysText}
                                 </span>
                               )}
-                              {isPaid && set.trialQuestions && set.trialQuestions > 0 && !hasPaid && (
+                              {isPaid && set.trialQuestions && set.trialQuestions > 0 && !user && (
                                 <span className={`text-xs ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
                                   免费试用 {set.trialQuestions} 题
                                 </span>

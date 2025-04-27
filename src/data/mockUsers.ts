@@ -60,7 +60,7 @@ export const MOCK_USERS: User[] = [
     },
     purchases: [
       {
-        quizId: '3',
+        questionSetId: '3',
         purchaseDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30天前
         expiryDate: new Date(Date.now() + 150 * 24 * 60 * 60 * 1000).toISOString(), // 150天后
         transactionId: 'tr_demo123456',
@@ -105,14 +105,14 @@ export const MOCK_USERS: User[] = [
     progress: {},
     purchases: [
       {
-        quizId: '2',
+        questionSetId: '2',
         purchaseDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), // 60天前
         expiryDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(), // 120天后
         transactionId: 'tr_premium123',
         amount: 29.99
       },
       {
-        quizId: '3',
+        questionSetId: '3',
         purchaseDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10天前
         expiryDate: new Date(Date.now() + 170 * 24 * 60 * 60 * 1000).toISOString(), // 170天后
         transactionId: 'tr_premium456',
@@ -179,7 +179,7 @@ export const MOCK_USERS: User[] = [
     },
     purchases: [
       {
-        quizId: '4',
+        questionSetId: '4',
         purchaseDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
         expiryDate: new Date(Date.now() + 160 * 24 * 60 * 60 * 1000).toISOString(),
         transactionId: 'tr_regular789',

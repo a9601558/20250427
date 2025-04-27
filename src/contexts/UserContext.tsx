@@ -1,14 +1,17 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi } from '../utils/api';
 
 export interface QuizProgress {
   questionSetId: string;
-  answeredQuestions: {
+  answeredQuestions?: {
     questionId: string;
     selectedOptionId: string;
     isCorrect: boolean;
   }[];
+  completedQuestions?: number;
+  totalQuestions?: number;
+  correctAnswers?: number;
   score?: number;
   lastAttemptDate?: Date;
 }
@@ -23,8 +26,8 @@ interface UserContextType {
   updateUser: (userData: Partial<User>) => Promise<void>;
   addProgress: (progress: QuizProgress) => Promise<void>;
   addPurchase: (purchase: Purchase) => Promise<void>;
-  hasPurchased: (questionSetId: string) => boolean;
-  getPurchaseExpiry: (questionSetId: string) => Date | null;
+  hasAccessToQuestionSet: (questionSetId: string) => boolean;
+  getRemainingAccessDays: (questionSetId: string) => number | null;
   isQuizCompleted: (questionSetId: string) => boolean;
   getQuizScore: (questionSetId: string) => number | null;
   getUserProgress: (questionSetId: string) => QuizProgress | undefined;
@@ -146,12 +149,16 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addProgress = async (progress: QuizProgress) => {
-    if (!user) return;
+    if (!user) {
+      console.error('User not logged in');
+      return;
+    }
+
     try {
       const userProgress: UserProgress = {
-        completedQuestions: progress.answeredQuestions.length,
-        totalQuestions: progress.answeredQuestions.length,
-        correctAnswers: progress.answeredQuestions.filter(a => a.isCorrect).length,
+        completedQuestions: progress.completedQuestions || progress.answeredQuestions?.length || 0,
+        totalQuestions: progress.totalQuestions || progress.answeredQuestions?.length || 0,
+        correctAnswers: progress.correctAnswers || progress.answeredQuestions?.filter(a => a.isCorrect).length || 0,
         lastAccessed: progress.lastAttemptDate ? progress.lastAttemptDate.toISOString() : new Date().toISOString()
       };
       const updatedProgress = { ...(user.progress || {}) };
@@ -173,16 +180,32 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const hasPurchased = (questionSetId: string): boolean => {
+  const hasAccessToQuestionSet = useCallback((questionSetId: string): boolean => {
     if (!user || !user.purchases) return false;
-    return user.purchases.some(p => p.quizId === questionSetId && (new Date(p.expiryDate) > new Date() || !p.expiryDate));
-  };
 
-  const getPurchaseExpiry = (questionSetId: string): Date | null => {
+    return user.purchases.some(p => 
+      p.questionSetId === questionSetId && 
+      (new Date(p.expiryDate) > new Date() || !p.expiryDate)
+    );
+  }, [user]);
+
+  const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
-    const purchase = user.purchases.find(p => p.quizId === questionSetId && new Date(p.expiryDate) > new Date());
-    return purchase ? new Date(purchase.expiryDate) : null;
-  };
+
+    const purchase = user.purchases.find(p => 
+      p.questionSetId === questionSetId && 
+      new Date(p.expiryDate) > new Date()
+    );
+
+    if (purchase) {
+      const expiryDate = new Date(purchase.expiryDate);
+      const currentDate = new Date();
+      const remainingTime = expiryDate.getTime() - currentDate.getTime();
+      const remainingDays = Math.ceil(remainingTime / (1000 * 60 * 60 * 24));
+      return remainingDays;
+    }
+    return null;
+  }, [user]);
 
   const isQuizCompleted = (questionSetId: string): boolean => {
     if (!user || !user.progress) return false;
@@ -307,8 +330,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateUser,
       addProgress,
       addPurchase,
-      hasPurchased,
-      getPurchaseExpiry,
+      hasAccessToQuestionSet,
+      getRemainingAccessDays,
       isQuizCompleted,
       getQuizScore,
       getUserProgress,

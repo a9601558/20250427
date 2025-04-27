@@ -38,10 +38,10 @@ const ProfilePage: React.FC = () => {
 
   // 整理用户购买记录
   const purchaseData = user.purchases ? user.purchases.map(purchase => {
-    const quizSet = questionSets.find(set => set.id === purchase.quizId);
+    const quizSet = questionSets.find(set => set.id === purchase.questionSetId);
     return {
       ...purchase,
-      title: quizSet ? quizSet.title : `题库 ${purchase.quizId}`,
+      title: quizSet ? quizSet.title : `题库 ${purchase.questionSetId}`,
       category: quizSet ? quizSet.category : '未知分类',
       icon: quizSet ? quizSet.icon : '📝',
       isActive: new Date(purchase.expiryDate) > new Date()
@@ -374,7 +374,7 @@ const ProfilePage: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <Link
-                              to={`/quiz/${purchase.quizId}`}
+                              to={`/quiz/${purchase.questionSetId}`}
                               className="text-blue-600 hover:text-blue-900"
                             >
                               开始学习
