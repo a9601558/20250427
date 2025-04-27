@@ -15,6 +15,8 @@ const AdminFeaturedQuestionSets: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [featuredCategories, setFeaturedCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState<string>('');
+  const [showCategoryManagement, setShowCategoryManagement] = useState<boolean>(false);
 
   // 加载题库和精选分类
   useEffect(() => {
@@ -107,6 +109,72 @@ const AdminFeaturedQuestionSets: React.FC = () => {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  // 添加新的精选分类
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) {
+      setMessage({ type: 'error', text: '分类名称不能为空' });
+      return;
+    }
+
+    if (featuredCategories.includes(newCategory)) {
+      setMessage({ type: 'error', text: '分类已存在' });
+      return;
+    }
+
+    try {
+      const updatedCategories = [...featuredCategories, newCategory];
+      const response = await fetchWithAuth('/homepage/featured-categories', {
+        method: 'PUT',
+        body: JSON.stringify({ featuredCategories: updatedCategories })
+      });
+
+      if (response.success) {
+        setFeaturedCategories(updatedCategories);
+        setNewCategory('');
+        setMessage({ type: 'success', text: '分类添加成功' });
+      } else {
+        setMessage({ type: 'error', text: response.error || '添加分类失败' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: '添加分类时发生错误' });
+    }
+  };
+
+  // 删除精选分类
+  const handleDeleteCategory = async (category: string) => {
+    try {
+      // 检查是否有题库使用该分类
+      const hasQuestionSets = questionSets.some(qs => qs.featuredCategory === category);
+      if (hasQuestionSets) {
+        // 提示用户有题库使用该分类
+        if (!window.confirm(`有题库正在使用该分类，删除将会清除这些题库的分类设置。确定删除？`)) {
+          return;
+        }
+
+        // 清除使用该分类的题库分类设置
+        const updatedQuestionSets = questionSets.map(qs => 
+          qs.featuredCategory === category ? { ...qs, featuredCategory: '' } : qs
+        );
+        setQuestionSets(updatedQuestionSets);
+      }
+
+      const updatedCategories = featuredCategories.filter(c => c !== category);
+      const response = await fetchWithAuth('/homepage/featured-categories', {
+        method: 'PUT',
+        body: JSON.stringify({ featuredCategories: updatedCategories })
+      });
+
+      if (response.success) {
+        setFeaturedCategories(updatedCategories);
+        setMessage({ type: 'success', text: '分类删除成功' });
+      } else {
+        setMessage({ type: 'error', text: response.error || '删除分类失败' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: '删除分类时发生错误' });
+    }
+  };
+
   if (loading) {
     return <div className="p-4">正在加载...</div>;
   }
@@ -128,6 +196,55 @@ const AdminFeaturedQuestionSets: React.FC = () => {
       <p className="mb-4 text-gray-600">
         选择要在首页展示的题库，并为它们分配精选分类。精选分类决定了题库在首页上的分组方式。
       </p>
+
+      {/* 分类管理工具 */}
+      <div className="mb-6">
+        <button 
+          onClick={() => setShowCategoryManagement(!showCategoryManagement)}
+          className="mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {showCategoryManagement ? '隐藏分类管理' : '显示分类管理'}
+        </button>
+
+        {showCategoryManagement && (
+          <div className="p-4 border rounded-lg bg-gray-50">
+            <h3 className="text-lg font-medium mb-3">精选分类管理</h3>
+            
+            <div className="flex mb-4">
+              <input
+                type="text"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="输入新分类名称"
+                className="flex-1 border rounded-l-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleAddCategory}
+                className="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700"
+              >
+                添加
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {featuredCategories.map(category => (
+                <div key={category} className="flex justify-between items-center p-2 bg-white rounded border">
+                  <span>{category}</span>
+                  <button
+                    onClick={() => handleDeleteCategory(category)}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+              {featuredCategories.length === 0 && (
+                <p className="text-gray-500 text-center py-2">暂无精选分类</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">

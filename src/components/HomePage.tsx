@@ -37,7 +37,8 @@ const HomePage: React.FC = () => {
     title: '在线题库练习系统',
     description: '选择以下任一题库开始练习，测试您的知识水平'
   });
-  const homeContent = useState<HomeContentData>(defaultHomeContent)[0];
+  // 使用完整的状态管理
+  const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(false);
 
@@ -48,34 +49,33 @@ const HomePage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        // 不再单独检查API服务器健康状态
-        // 直接尝试获取题库列表，如果成功则表示服务器在线
         try {
-          // 获取题库列表
-          const quizResponse = await axios.get('/api/question-sets');
-          setQuestionSets(Array.isArray(quizResponse.data) ? quizResponse.data : []);
+          // 获取首页设置
+          const settingsResponse = await axios.get('/api/homepage/content');
+          let contentData;
+          if (settingsResponse.data && settingsResponse.data.success && settingsResponse.data.data) {
+            // 获取首页设置
+            contentData = settingsResponse.data.data;
+            // 更新欢迎信息
+            setWelcomeData({
+              title: contentData.welcomeTitle || defaultHomeContent.welcomeTitle,
+              description: contentData.welcomeDescription || defaultHomeContent.welcomeDescription
+            });
+            // 更新整个首页内容
+            setHomeContent(contentData);
+          }
           
-          // 如果题库列表获取成功，继续获取首页设置
-          try {
-            const settingsResponse = await axios.get('/api/homepage/content');
-            if (settingsResponse.data && settingsResponse.data.success && settingsResponse.data.data) {
-              // 确保使用从API返回的data字段中的数据
-              const contentData = settingsResponse.data.data;
-              setWelcomeData({
-                title: contentData.welcomeTitle || defaultHomeContent.welcomeTitle,
-                description: contentData.welcomeDescription || defaultHomeContent.welcomeDescription
-              });
-              
-              // 更新其他首页内容
-              // 这里我们不能直接修改homeContent，因为它是一个useState，而且传入了defaultHomeContent
-              // 如果需要完整替换，应该使用useState的第二个返回值，如setHomeContent(contentData)
-            }
-          } catch (err) {
-            console.error('获取首页设置失败:', err);
-            // 使用默认设置，不显示错误
+          // 获取精选题库列表
+          const featuredResponse = await axios.get('/api/homepage/featured-question-sets');
+          if (featuredResponse.data && featuredResponse.data.success && featuredResponse.data.data) {
+            setQuestionSets(Array.isArray(featuredResponse.data.data) ? featuredResponse.data.data : []);
+          } else {
+            // 如果没有精选题库，获取所有题库列表
+            const quizResponse = await axios.get('/api/question-sets');
+            setQuestionSets(Array.isArray(quizResponse.data) ? quizResponse.data : []);
           }
         } catch (err) {
-          console.error('获取题库列表失败:', err);
+          console.error('获取数据失败:', err);
           setError('无法连接到服务器，请确保后端服务正在运行');
           // 确保即使请求失败，questionSets也是一个空数组
           setQuestionSets([]);
@@ -118,20 +118,24 @@ const HomePage: React.FC = () => {
   const displayCategories = (): string[] => {
     // 如果有精选分类，先显示精选分类，然后是其他分类
     if (homeContent.featuredCategories?.length > 0) {
-      return [...new Set([...homeContent.featuredCategories, ...Object.keys(groupedSets)])];
+      // 只显示包含精选题库的分类
+      const categoriesWithFeaturedSets = homeContent.featuredCategories.filter(category => 
+        questionSets.some(set => (set as any).isFeatured && (set as any).featuredCategory === category)
+      );
+      return [...new Set([...categoriesWithFeaturedSets, ...Object.keys(groupedSets)])];
     }
     return Object.keys(groupedSets);
   };
 
   // 按分类或精选分类获取题库
   const getQuestionSetsByCategory = (category: string): QuestionSet[] => {
-    // 检查是否为精选分类 - 使用可选链和类型保护
+    // 检查是否为精选分类并且有标记为该分类的精选题库
     const featuredInCategory = questionSets.filter(
       set => (set as any).isFeatured && (set as any).featuredCategory === category
     );
     
     // 如果是精选分类且有题库，返回这些题库
-    if (featuredInCategory.length > 0) {
+    if (homeContent.featuredCategories.includes(category) && featuredInCategory.length > 0) {
       return featuredInCategory;
     }
     
@@ -299,7 +303,7 @@ const HomePage: React.FC = () => {
                           </div>
                         )}
 
-                        {/* 精选标识 */}
+                        {/* 精选标识 - 只在精选题库上显示 */}
                         {(set as any).isFeatured && (
                           <div className="absolute top-2 left-2">
                             <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
