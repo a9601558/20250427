@@ -86,57 +86,86 @@ function normalizeQuestionData(questions: any[]) {
   }
   
   return questions.map((q, index) => {
+    // Handle potential null question object
+    if (!q) {
+      console.warn(`Question at index ${index} is null or undefined`);
+      return null;
+    }
+    
+    // 确保text字段不为null，如果是null或空字符串则提供默认值
+    let questionText = '';
+    if (q.text !== undefined && q.text !== null) {
+      questionText = String(q.text);
+    } else if (q.question !== undefined && q.question !== null) {
+      questionText = String(q.question);
+    } else {
+      questionText = `问题 #${index + 1}`;  // 默认文本
+    }
+    
+    // 确保其他字段不为null
+    const explanation = q.explanation !== undefined && q.explanation !== null 
+      ? String(q.explanation) 
+      : '暂无解析';
+      
+    const questionType = q.questionType || 'single';
+    const orderIndex = q.orderIndex !== undefined ? q.orderIndex : index;
+    
     // 标准化问题数据
     const normalizedQuestion = {
-      // 处理文本字段 - 可能是text或question
-      text: q.text || q.question || '',
-      explanation: q.explanation || '暂无解析',
-      questionType: q.questionType || 'single',
-      orderIndex: q.orderIndex !== undefined ? q.orderIndex : index,
-      options: []
+      text: questionText.trim(),
+      explanation: explanation.trim(),
+      questionType,
+      orderIndex,
+      options: [] as Array<{text: string, isCorrect: boolean, optionIndex: string}>
     };
-    
-    // 跳过无文本的问题
-    if (!normalizedQuestion.text) {
-      console.warn(`Question ${index+1} has no text, will be skipped`);
-      return normalizedQuestion;
-    }
     
     // 处理选项
     if (Array.isArray(q.options)) {
-      normalizedQuestion.options = q.options.map((opt: any, j: number) => {
-        // 选项ID处理
-        let optionIndex = '';
-        if (typeof opt.optionIndex === 'string') {
-          optionIndex = opt.optionIndex;
-        } else if (typeof opt.id === 'string') {
-          optionIndex = opt.id;
-        } else {
-          optionIndex = String.fromCharCode(65 + j); // A, B, C...
-        }
-        
-        // 判断是否为正确选项
-        let isCorrect = false;
-        if (opt.isCorrect === true) {
-          isCorrect = true;
-        } else if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
-          isCorrect = true;
-        } else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
-          isCorrect = true;
-        }
-        
-        return {
-          text: opt.text || '',
-          isCorrect,
-          optionIndex
-        };
-      });
+      normalizedQuestion.options = q.options
+        .filter((opt: any) => opt) // 移除null或undefined选项
+        .map((opt: any, j: number) => {
+          // 确保选项文本不为null
+          const optionText = opt.text !== undefined && opt.text !== null
+            ? String(opt.text)
+            : `选项 ${String.fromCharCode(65 + j)}`; // A, B, C...
+          
+          // 选项ID处理
+          let optionIndex = '';
+          if (typeof opt.optionIndex === 'string') {
+            optionIndex = opt.optionIndex;
+          } else if (typeof opt.id === 'string') {
+            optionIndex = opt.id;
+          } else {
+            optionIndex = String.fromCharCode(65 + j); // A, B, C...
+          }
+          
+          // 判断是否为正确选项
+          let isCorrect = false;
+          if (opt.isCorrect === true) {
+            isCorrect = true;
+          } else if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
+            isCorrect = true;
+          } else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
+            isCorrect = true;
+          }
+          
+          return {
+            text: optionText.trim(),
+            isCorrect,
+            optionIndex
+          };
+        });
     } else {
-      console.warn(`Question ${index+1} has no options array`);
+      console.warn(`Question ${index+1} has no options array, creating default options`);
+      // 创建默认选项
+      normalizedQuestion.options = [
+        { text: '选项 A', isCorrect: true, optionIndex: 'A' },
+        { text: '选项 B', isCorrect: false, optionIndex: 'B' }
+      ];
     }
     
     return normalizedQuestion;
-  });
+  }).filter(q => q !== null); // 移除null的问题
 }
 
 /**
@@ -405,7 +434,7 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
 
   try {
     console.log(`Received update request for question set ${id}`);
-    console.log('Request body:', JSON.stringify({
+    console.log('Request body summary:', JSON.stringify({
       title,
       description,
       category,
@@ -456,15 +485,9 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
           // 重新创建问题和选项
           for (let i = 0; i < questions.length; i++) {
             const q = questions[i];
-            console.log(`Creating question ${i+1}/${questions.length}`);
+            console.log(`Creating question ${i+1}/${questions.length}: "${q.text.substring(0, 30)}..."`);
             
-            // 跳过无文本的问题
-            if (!q.text) {
-              console.warn(`Question ${i+1} has no text, skipping`);
-              continue;
-            }
-            
-            // 创建问题
+            // 创建问题 - 不需要再次检查text，因为normalizeQuestionData已确保它不为null
             const question = await Question.create({
               text: q.text,
               explanation: q.explanation,
@@ -477,16 +500,15 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
             if (Array.isArray(q.options) && q.options.length > 0) {
               console.log(`Creating ${q.options.length} options for question ${i+1}`);
               try {
-                const optionPromises = q.options.map((opt: any) => {
-                  return Option.create({
+                for (const opt of q.options) {
+                  // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
+                  await Option.create({
                     questionId: question.id,
                     text: opt.text,
                     isCorrect: opt.isCorrect,
                     optionIndex: opt.optionIndex
                   }, { transaction: t });
-                });
-                
-                await Promise.all(optionPromises);
+                }
               } catch (optionError) {
                 console.error(`Error creating options for question ${i+1}:`, optionError);
                 throw optionError;
