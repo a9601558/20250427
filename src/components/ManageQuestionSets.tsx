@@ -16,10 +16,23 @@ const ManageQuestionSets: React.FC = () => {
         setError(null);
         
         const response = await axios.get('/api/question-sets');
-        setQuestionSets(response.data);
+        // 确保设置的数据是一个数组
+        if (Array.isArray(response.data)) {
+          setQuestionSets(response.data);
+        } else if (response.data && typeof response.data === 'object' && response.data.data && Array.isArray(response.data.data)) {
+          // 如果响应格式是 { data: [...] }
+          setQuestionSets(response.data.data);
+        } else {
+          // 如果不是数组，设置为空数组并记录错误
+          console.error('API返回的题库数据不是数组格式:', response.data);
+          setQuestionSets([]);
+          setError('题库数据格式不正确，请联系管理员');
+        }
       } catch (err) {
         console.error('获取题库列表失败:', err);
         setError('无法加载题库列表，请稍后重试');
+        // 确保在错误情况下也设置为空数组
+        setQuestionSets([]);
       } finally {
         setLoading(false);
       }
@@ -96,7 +109,7 @@ const ManageQuestionSets: React.FC = () => {
         <div className="text-center py-8">
           <p className="text-gray-500">加载中...</p>
         </div>
-      ) : questionSets.length === 0 ? (
+      ) : !questionSets || !Array.isArray(questionSets) || questionSets.length === 0 ? (
         <div className="bg-gray-50 p-8 text-center rounded">
           <p className="text-gray-500 mb-2">暂无题库</p>
           <p className="text-gray-400 text-sm">您可以在"添加题库"选项卡中创建新题库</p>

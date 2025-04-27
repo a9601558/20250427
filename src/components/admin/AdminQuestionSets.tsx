@@ -143,10 +143,18 @@ const AdminQuestionSets: React.FC = () => {
         // console.log("API响应:", response);
         
         if (response.success && response.data) {
-          // Convert API format to client format
-          const clientQuestionSets = response.data.map(mapApiToClientQuestionSet);
-          setLocalQuestionSets(clientQuestionSets);
-          // console.log("成功加载题库:", clientQuestionSets.length);
+          // 确保response.data是数组
+          if (Array.isArray(response.data)) {
+            // Convert API format to client format
+            const clientQuestionSets = response.data.map(mapApiToClientQuestionSet);
+            setLocalQuestionSets(clientQuestionSets);
+            // console.log("成功加载题库:", clientQuestionSets.length);
+          } else {
+            console.error("API返回的题库数据不是数组:", response.data);
+            showStatusMessage('error', '题库数据格式不正确');
+            // 使用本地数据作为备份
+            setLocalQuestionSets(defaultQuestionSets);
+          }
         } else {
           // console.error("加载题库失败:", response.error || response.message);
           showStatusMessage('error', `加载题库失败: ${response.error || response.message || '未知错误'}`);
@@ -599,101 +607,67 @@ const AdminQuestionSets: React.FC = () => {
     }));
   };
 
-  // 处理保存题目
+  // 保存题目到题库
   const handleSaveQuestion = async () => {
-    if (!currentQuestionSet) return;
-    
     // 验证表单
-    if (!questionFormData.question.trim()) {
-      showStatusMessage('error', '题目内容不能为空');
+    if (!questionFormData.question || questionFormData.options.length < 2) {
+      showStatusMessage('error', '请完整填写题目信息，至少需要两个选项');
       return;
     }
-    
-    if (questionFormData.options.length < 2) {
-      showStatusMessage('error', '每个题目至少需要两个选项');
+
+    // 验证答案
+    if (
+      (questionFormData.questionType === 'single' && !questionFormData.correctAnswer) ||
+      (questionFormData.questionType === 'multiple' && 
+       (!Array.isArray(questionFormData.correctAnswer) || questionFormData.correctAnswer.length === 0))
+    ) {
+      showStatusMessage('error', '请选择至少一个正确答案');
       return;
     }
-    
-    // 检查是否有正确答案
-    const hasCorrectAnswer = questionFormData.questionType === 'single' 
-      ? !!questionFormData.correctAnswer
-      : Array.isArray(questionFormData.correctAnswer) && questionFormData.correctAnswer.length > 0;
-    
-    if (!hasCorrectAnswer) {
-      showStatusMessage('error', '请至少标记一个正确答案');
-      return;
-    }
-    
-    const updatedQuestion: ClientQuestion = {
-      id: questionFormData.id,
-      question: questionFormData.question,
-      questionType: questionFormData.questionType,
-      options: questionFormData.options,
-      correctAnswer: questionFormData.correctAnswer,
-      explanation: questionFormData.explanation
-    };
-    
-    let updatedQuestions;
-    
-    if (isAddingQuestion) {
-      // 添加新题目
-      updatedQuestions = [...currentQuestionSet.questions, updatedQuestion];
-    } else {
-      // 更新现有题目
-      updatedQuestions = [...currentQuestionSet.questions];
-      updatedQuestions[questionIndex] = updatedQuestion;
-    }
-    
-    const updatedQuestionSet = {
-      ...currentQuestionSet,
-      questions: updatedQuestions
-    };
-    
-    setCurrentQuestionSet(updatedQuestionSet);
-    
-    // 更新本地题库数据
-    const updatedQuestionSets = localQuestionSets.map(set => 
-      set.id === currentQuestionSet.id ? updatedQuestionSet : set
-    );
-    
-    setLocalQuestionSets(updatedQuestionSets);
-    
-    // 立即将更改保存到数据库
-    setLoading(true);
-    
+
     try {
-      // 转换为API格式
-      const questionSetData = mapClientToApiQuestionSet(updatedQuestionSet);
+      // 准备更新后的问题集
+      const updatedQuestionSet = { ...currentQuestionSet };
+
+      // 如果是添加新题目
+      if (isAddingQuestion) {
+        const newQuestion = {
+          ...questionFormData,
+          id: Date.now(), // 使用时间戳作为临时ID
+        };
+        
+        if (!updatedQuestionSet.questions) {
+          updatedQuestionSet.questions = [];
+        }
+        
+        // 将新题目添加到问题集中
+        updatedQuestionSet.questions.push(newQuestion);
+      } else {
+        // 如果是编辑现有题目
+        if (updatedQuestionSet && updatedQuestionSet.questions) {
+          updatedQuestionSet.questions[questionIndex] = {
+            ...questionFormData,
+          };
+        }
+      }
       
-      // 调用API更新题库
-      const response = await questionSetApi.updateQuestionSet(
-        updatedQuestionSet.id, 
-        questionSetData
+      // 保存更新后的问题集到localQuestionSets
+      setLocalQuestionSets(prev => 
+        prev.map(set => 
+          set.id === updatedQuestionSet.id ? updatedQuestionSet : set
+        )
       );
       
-      if (response.success) {
-        showStatusMessage('success', isAddingQuestion ? '题目添加成功并已保存到数据库！' : '题目更新成功并已保存到数据库！');
-      } else {
-        showStatusMessage('error', `保存失败：${response.error || response.message || '未知错误'}`);
-      }
+      // 更新当前问题集
+      setCurrentQuestionSet(updatedQuestionSet);
+      
+      // 关闭模态框
+      setShowQuestionModal(false);
+      showStatusMessage('success', isAddingQuestion ? '题目添加成功' : '题目更新成功');
     } catch (error) {
-      console.error('保存题目时出错:', error);
-      showStatusMessage('error', '保存题目到数据库时出错，但已更新本地数据。建议点击"保存所有更改"按钮再次尝试。');
-    } finally {
-      setLoading(false);
+      console.error("保存题目失败:", error);
+      showStatusMessage('error', '保存题目失败');
     }
-    
-    // 重置状态
-    setIsAddingQuestion(false);
-    setCurrentQuestion(null);
-    setQuestionFormData({
-      id: 0,
-      question: '',
-      questionType: 'single',
-      options: [],
-      correctAnswer: '',
-      explanation: ''
-    });
   };
 
   // 过滤兑换码

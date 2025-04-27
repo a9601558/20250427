@@ -30,19 +30,32 @@ export async function fetchWithAuth<T>(
       headers,
     });
 
-    const data = await response.json();
+    const responseData = await response.json();
     
     if (!response.ok) {
       return {
         success: false,
-        error: data.message || 'Unknown error occurred',
+        error: responseData.message || responseData.error || 'Unknown error occurred',
       };
+    }
+
+    // 检查响应格式，确保我们正确处理不同的API响应结构
+    let data;
+    if (responseData.data !== undefined) {
+      // 如果响应格式是 { data: ... }
+      data = responseData.data;
+    } else if (responseData.success !== undefined && responseData.data !== undefined) {
+      // 如果响应格式是 { success: true, data: ... }
+      data = responseData.data;
+    } else {
+      // 如果整个响应就是我们需要的数据
+      data = responseData;
     }
 
     return {
       success: true,
-      data: data.data,
-      message: data.message,
+      data: data as T,
+      message: responseData.message,
     };
   } catch (error) {
     logger.error('API request failed', error);

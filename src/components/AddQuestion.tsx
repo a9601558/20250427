@@ -68,48 +68,56 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 验证题目文本
-    if (questionText.trim() === '') {
-      setErrorMessage('请输入题目内容');
-      return;
+    try {
+      // 验证题目文本
+      if (questionText.trim() === '') {
+        setErrorMessage('请输入题目内容');
+        return;
+      }
+      
+      // 验证选项 - 确保所有选项都有文本内容
+      const validOptions = options.filter(option => option.text.trim() !== '');
+      if (validOptions.length < 2) {
+        setErrorMessage('请至少添加两个有效选项');
+        return;
+      }
+      
+      // 验证答案
+      if (questionType === 'single' && !selectedOption) {
+        setErrorMessage('请选择正确答案');
+        return;
+      }
+      
+      if (questionType === 'multiple' && selectedOptions.length === 0) {
+        setErrorMessage('请至少选择一个正确答案');
+        return;
+      }
+      
+      // 验证解析
+      if (explanation.trim() === '') {
+        setErrorMessage('请输入解析');
+        return;
+      }
+      
+      // 创建题目对象 - 只使用有效的选项
+      const newQuestion: Question = {
+        id: questionCount + 1,
+        question: questionText.trim(),
+        questionType,
+        options: validOptions,
+        correctAnswer: questionType === 'single' ? selectedOption : selectedOptions,
+        explanation: explanation.trim(),
+      };
+      
+      // 提交题目
+      onAddQuestion(newQuestion);
+      
+      // 清除表单状态
+      setErrorMessage('');
+    } catch (error) {
+      console.error('添加题目时出错:', error);
+      setErrorMessage('添加题目时发生错误，请检查表单内容或刷新页面重试');
     }
-    
-    // 验证选项
-    const validOptions = options.filter(option => option.text.trim() !== '');
-    if (validOptions.length < 2) {
-      setErrorMessage('请至少添加两个有效选项');
-      return;
-    }
-    
-    // 验证答案
-    if (questionType === 'single' && !selectedOption) {
-      setErrorMessage('请选择正确答案');
-      return;
-    }
-    
-    if (questionType === 'multiple' && selectedOptions.length === 0) {
-      setErrorMessage('请至少选择一个正确答案');
-      return;
-    }
-    
-    // 验证解析
-    if (explanation.trim() === '') {
-      setErrorMessage('请输入解析');
-      return;
-    }
-    
-    // 创建题目对象
-    const newQuestion: Question = {
-      id: questionCount + 1,
-      question: questionText,
-      questionType,
-      options: validOptions,
-      correctAnswer: questionType === 'single' ? selectedOption : selectedOptions,
-      explanation,
-    };
-    
-    // 提交题目
-    onAddQuestion(newQuestion);
   };
 
   return (
