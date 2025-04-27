@@ -54,6 +54,8 @@ interface QuestionSetWithQuestions extends QuestionSet {
 interface QuestionOption {
   text: string;
   isCorrect: boolean;
+  optionIndex?: string;
+  id?: string;
 }
 
 interface QuestionData {
@@ -594,31 +596,31 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
             if (Array.isArray(q.options) && q.options.length > 0) {
               console.log(`Creating ${q.options.length} options for question ${i+1}`);
               try {
-                for (const opt of q.options) {
-                  if (!opt) {
+                for (const option of q.options) {
+                  if (!option) {
                     console.log('跳过空选项');
                     continue;
                   }
                   
                   // 确保选项文本不为空
-                  let optionText = opt.text;
-                  if (!optionText && opt.id) {
+                  let optionText = option.text || '';
+                  if (!optionText && option.id) {
                     // 尝试从ID为键的属性中获取文本
-                    const idKey = opt.id;
-                    optionText = opt[idKey] || '';
+                    const idKey = option.id;
+                    optionText = option[idKey] || '';
                   }
                   
                   // 如果仍然为空，使用默认值
                   if (!optionText) {
-                    optionText = `选项 ${opt.optionIndex || opt.id || ''}`;
+                    optionText = `选项 ${option.optionIndex || option.id || ''}`;
                   }
                   
                   // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
                   await Option.create({
-                    questionId: question.id,
+                    questionId: q.id!,  // 使用非空断言，因为在这个上下文中我们已经确认q.id存在
                     text: String(optionText).trim() || '默认选项文本',
-                    isCorrect: !!opt.isCorrect,
-                    optionIndex: opt.optionIndex || opt.id || ''
+                    isCorrect: !!option.isCorrect,
+                    optionIndex: option.optionIndex || option.id || ''
                   }, { transaction: t });
                 }
               } catch (optionError) {
@@ -813,15 +815,21 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
       });
     }
     
-    const results: Array<{id: string, status: string, message: string}> = [];
+    console.log(`接收到 ${questionSets.length} 个题库的批量上传请求`);
+    
+    const results: Array<{id: string, status: string, message: string, questions: {added: number, updated: number}}> = [];
     
     // 使用事务处理批量上传
     for (const setData of questionSets) {
       // 检查题库ID是否已存在
       const existingSet = await QuestionSet.findByPk(setData.id);
       
+      let questionsAdded = 0;
+      let questionsUpdated = 0;
+      
       if (existingSet) {
         // 如果存在则更新
+        console.log(`正在更新题库 ${setData.id}: ${setData.title}`);
         await existingSet.update({
           title: setData.title || existingSet.title,
           description: setData.description || existingSet.description,
@@ -832,21 +840,104 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           trialQuestions: setData.isPaid && setData.trialQuestions !== undefined ? setData.trialQuestions : undefined
         });
         
-        // 如果提供了题目，并且题目数组不为空，则更新题目
+        // 如果提供了题目，则更新题目
         if (Array.isArray(setData.questions) && setData.questions.length > 0) {
-          console.log(`更新题库 ${setData.id} 的题目，数量: ${setData.questions.length}`);
+          console.log(`处理题库 ${setData.id} 的题目，数量: ${setData.questions.length}`);
           
-          // 先删除所有旧题目
-          await Question.destroy({
-            where: { questionSetId: setData.id }
+          // 分类出有ID和无ID的题目
+          const questionsWithId = setData.questions.filter(q => q.id);
+          const questionsWithoutId = setData.questions.filter(q => !q.id);
+          
+          console.log(`题库 ${setData.id}: 有ID的题目: ${questionsWithId.length}, 无ID的题目（新增）: ${questionsWithoutId.length}`);
+          
+          // 获取当前题库的所有题目ID，用于检查哪些需要保留
+          const existingQuestions = await Question.findAll({
+            where: { questionSetId: setData.id },
+            attributes: ['id']
           });
           
-          // 添加新题目
-          for (let i = 0; i < setData.questions.length; i++) {
-            const q = setData.questions[i];
-            // 创建问题
-            const question = await Question.create({
-              id: q.id || undefined, // 如果未提供ID，让Sequelize生成
+          const existingIds = existingQuestions.map(q => q.id);
+          const idsToKeep = questionsWithId.map(q => q.id);
+          
+          // 删除不在更新列表中的题目
+          const idsToDelete = existingIds.filter(id => !idsToKeep.includes(id));
+          if (idsToDelete.length > 0) {
+            console.log(`将删除题库 ${setData.id} 中的 ${idsToDelete.length} 个题目`);
+            await Question.destroy({
+              where: { 
+                id: idsToDelete,
+                questionSetId: setData.id 
+              }
+            });
+          }
+          
+          // 更新有ID的题目
+          for (const q of questionsWithId) {
+            const existingQuestion = await Question.findOne({
+              where: { id: q.id, questionSetId: setData.id }
+            });
+            
+            if (existingQuestion) {
+              // 更新现有题目
+              console.log(`更新题目 ${q.id}: ${q.text?.substring(0, 30)}...`);
+              await existingQuestion.update({
+                text: q.text || '',
+                explanation: q.explanation || '',
+                questionType: q.questionType || 'single',
+                orderIndex: q.orderIndex !== undefined ? q.orderIndex : existingQuestion.orderIndex
+              });
+              
+              // 更新选项
+              if (q.options && q.options.length > 0) {
+                // 先删除现有选项
+                await Option.destroy({
+                  where: { questionId: q.id }
+                });
+                
+                // 创建新选项
+                for (const option of q.options) {
+                  await Option.create({
+                    questionId: q.id!,  // 使用非空断言，因为在这个上下文中我们已经确认q.id存在
+                    text: option.text || '',
+                    isCorrect: option.isCorrect,
+                    optionIndex: option.optionIndex || option.id || ''
+                  });
+                }
+              }
+              questionsUpdated++;
+            } else {
+              // ID存在但题目不存在，创建新题目
+              console.log(`创建指定ID的题目 ${q.id}: ${q.text?.substring(0, 30)}...`);
+              const newQuestion = await Question.create({
+                id: q.id,
+                text: q.text,
+                explanation: q.explanation,
+                questionSetId: setData.id,
+                questionType: q.questionType || 'single',
+                orderIndex: q.orderIndex !== undefined ? q.orderIndex : 0
+              });
+              
+              // 创建选项
+              if (q.options && q.options.length > 0) {
+                for (const option of q.options) {
+                  await Option.create({
+                    questionId: newQuestion.id,
+                    text: option.text || '',
+                    isCorrect: option.isCorrect,
+                    optionIndex: option.optionIndex || option.id || ''
+                  });
+                }
+              }
+              questionsAdded++;
+            }
+          }
+          
+          // 创建没有ID的新题目
+          for (let i = 0; i < questionsWithoutId.length; i++) {
+            const q = questionsWithoutId[i];
+            console.log(`创建新题目 ${i+1}: ${q.text?.substring(0, 30)}...`);
+            
+            const newQuestion = await Question.create({
               text: q.text,
               explanation: q.explanation,
               questionSetId: setData.id,
@@ -854,30 +945,33 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
               orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
             });
             
-            // 创建问题的选项
+            // 创建选项
             if (q.options && q.options.length > 0) {
-              // 这里需要定义Option模型，或者使用原生SQL
-              // 示例: 使用原生SQL插入选项
               for (const option of q.options) {
-                await db.execute(`
-                  INSERT INTO options (id, question_id, text, is_correct)
-                  VALUES (UUID(), ?, ?, ?)
-                `, [question.id, option.text, option.isCorrect ? 1 : 0]);
+                await Option.create({
+                  questionId: newQuestion.id,
+                  text: option.text || '',
+                  isCorrect: option.isCorrect,
+                  optionIndex: option.optionIndex || option.id || ''
+                });
               }
             }
+            questionsAdded++;
           }
-        } else {
-          // 如果没有提供题目或提供了空数组，不做任何修改
-          console.log(`题库 ${setData.id} 的题目未提供或为空，保留原题目`);
         }
         
         results.push({
           id: setData.id,
           status: 'updated',
-          message: '题库更新成功'
+          message: '题库更新成功',
+          questions: {
+            added: questionsAdded,
+            updated: questionsUpdated
+          }
         });
       } else {
         // 如果不存在则创建
+        console.log(`创建新题库 ${setData.id}: ${setData.title}`);
         const newQuestionSet = await QuestionSet.create({
           id: setData.id,
           title: setData.title,
@@ -893,6 +987,8 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
         if (setData.questions && setData.questions.length > 0) {
           for (let i = 0; i < setData.questions.length; i++) {
             const q = setData.questions[i];
+            console.log(`创建新题库的题目 ${i+1}: ${q.text?.substring(0, 30)}...`);
+            
             // 创建问题
             const question = await Question.create({
               id: q.id || undefined, // 如果未提供ID，让Sequelize生成
@@ -905,22 +1001,27 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
             
             // 创建问题的选项
             if (q.options && q.options.length > 0) {
-              // 这里需要定义Option模型，或者使用原生SQL
-              // 示例: 使用原生SQL插入选项
               for (const option of q.options) {
-                await db.execute(`
-                  INSERT INTO options (id, question_id, text, is_correct)
-                  VALUES (UUID(), ?, ?, ?)
-                `, [question.id, option.text, option.isCorrect ? 1 : 0]);
+                await Option.create({
+                  questionId: question.id,
+                  text: option.text || '',
+                  isCorrect: option.isCorrect,
+                  optionIndex: option.optionIndex || option.id || ''
+                });
               }
             }
+            questionsAdded++;
           }
         }
         
         results.push({
           id: setData.id,
           status: 'created',
-          message: '题库创建成功'
+          message: '题库创建成功',
+          questions: {
+            added: questionsAdded,
+            updated: 0
+          }
         });
       }
     }

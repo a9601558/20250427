@@ -44,19 +44,26 @@ const mapClientToApiQuestionSet = (clientSet: ClientQuestionSet): Partial<ApiQue
     isPaid: clientSet.isPaid,
     price: clientSet.isPaid ? clientSet.price : undefined,
     trialQuestions: clientSet.isPaid ? clientSet.trialQuestions : undefined,
-    questions: clientSet.questions.map(q => ({
-      id: q.id.toString(),
-      text: q.question,
-      questionType: q.questionType,
-      explanation: q.explanation,
-      options: q.options.map(opt => ({
-        id: opt.id,
-        text: opt.text,
-        isCorrect: Array.isArray(q.correctAnswer) 
-          ? q.correctAnswer.includes(opt.id)
-          : q.correctAnswer === opt.id
-      }))
-    }))
+    questions: clientSet.questions.map(q => {
+      // 检查ID是否是数字格式（前端生成的临时ID）
+      const isTemporaryId = typeof q.id === 'number';
+      
+      return {
+        // 如果是临时ID，不发送ID字段，让后端自动生成UUID
+        ...(isTemporaryId ? {} : { id: q.id.toString() }),
+        text: q.question,
+        questionType: q.questionType,
+        explanation: q.explanation,
+        options: q.options.map(opt => ({
+          // 选项ID保留，因为它们是A、B、C、D格式，用于匹配正确答案
+          id: opt.id,
+          text: opt.text,
+          isCorrect: Array.isArray(q.correctAnswer) 
+            ? q.correctAnswer.includes(opt.id)
+            : q.correctAnswer === opt.id
+        }))
+      };
+    })
   };
 };
 
@@ -694,16 +701,21 @@ const AdminQuestionSets = () => {
       // 如果是添加新题目
       if (isAddingQuestion) {
         console.log("添加新题目，而不是更新");
+        
         // 生成真正唯一的ID，使用时间戳+随机数
         const uniqueId = Date.now() + Math.floor(Math.random() * 1000);
+        console.log("为新题目生成临时ID:", uniqueId);
         
         const newQuestion = {
           ...questionFormData,
           id: uniqueId,
         };
         
+        console.log("新题目对象:", JSON.stringify(newQuestion));
+        
         // 将新题目添加到问题集中
         updatedQuestionSet.questions.push(newQuestion);
+        console.log("题库现在有", updatedQuestionSet.questions.length, "个题目");
       } else {
         console.log("更新现有题目，索引:", questionIndex);
         // 如果是编辑现有题目
@@ -725,6 +737,14 @@ const AdminQuestionSets = () => {
           set.id === updatedQuestionSet.id ? updatedQuestionSet : set
         )
       );
+      
+      // 查看一下更新后的题库
+      console.log("更新后的题库数据:", JSON.stringify({
+        id: updatedQuestionSet.id,
+        title: updatedQuestionSet.title,
+        questionsCount: updatedQuestionSet.questions.length,
+        lastQuestionId: updatedQuestionSet.questions[updatedQuestionSet.questions.length - 1]?.id
+      }));
       
       // 更新当前问题集
       setCurrentQuestionSet(updatedQuestionSet);
@@ -795,19 +815,49 @@ const AdminQuestionSets = () => {
         });
       }
       
+      // 检查合并后的题库中是否有临时ID的题目
+      mergedQuestionSets.forEach(set => {
+        const tempQuestions = set.questions.filter(q => typeof q.id === 'number');
+        if (tempQuestions.length > 0) {
+          console.log(`题库「${set.title}」有${tempQuestions.length}个临时ID题目，将作为新题目添加`);
+          console.log('示例临时ID:', tempQuestions.map(q => q.id).slice(0, 3));
+        }
+      });
+      
       // 转换为API格式，确保包含所有题目
       const apiQuestionSets = mergedQuestionSets.map(set => {
         const apiSet = mapClientToApiQuestionSet(set);
-        // console.log(`准备上传题库 ${set.id}，题目数量: ${set.questions.length}`);
+        
+        // 检查转换后的API格式中题目ID的处理
+        const apiQuestionsWithId = apiSet.questions?.filter(q => q.id) || [];
+        const apiQuestionsWithoutId = apiSet.questions?.filter(q => !q.id) || [];
+        
+        console.log(`题库「${set.title}」转换后：${apiQuestionsWithId.length}个有ID的题目，${apiQuestionsWithoutId.length}个没有ID的题目（新增）`);
+        
+        if (apiQuestionsWithoutId.length > 0) {
+          console.log('新增题目示例:', JSON.stringify(apiQuestionsWithoutId[0]));
+        }
+        
         return apiSet;
       });
       
       // 使用批量上传API
+      console.log("开始批量上传题库数据...");
       const response = await questionSetApi.uploadQuestionSets(apiQuestionSets);
       
       if (response.success) {
+        console.log("上传成功，响应数据:", response.data);
         showStatusMessage('success', '所有题库更改已成功保存！');
+        
+        // 重新加载最新的题库数据
+        const refreshResponse = await questionSetApi.getAllQuestionSets();
+        if (refreshResponse.success && refreshResponse.data) {
+          const refreshedSets = refreshResponse.data.map(mapApiToClientQuestionSet);
+          setLocalQuestionSets(refreshedSets);
+          console.log("已重新加载最新题库数据，共", refreshedSets.length, "个题库");
+        }
       } else {
+        console.error("上传失败:", response.error || response.message);
         showStatusMessage('error', `保存失败: ${response.error || response.message || '未知错误'}`);
       }
     } catch (error) {
@@ -899,7 +949,11 @@ const AdminQuestionSets = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredQuestionSets.map((set) => (
-              <tr key={set.id}>
+              <tr 
+                key={set.id} 
+                className="hover:bg-gray-50 cursor-pointer"
+                onClick={() => handleManageQuestions(set)}
+              >
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{set.id}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{set.title}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{set.category}</td>
@@ -915,7 +969,7 @@ const AdminQuestionSets = () => {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{set.questions?.length || 0}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2" onClick={(e) => e.stopPropagation()}>
                   <button
                     className="text-indigo-600 hover:text-indigo-900"
                     onClick={() => handleEditClick(set)}
@@ -926,7 +980,7 @@ const AdminQuestionSets = () => {
                     className="text-green-600 hover:text-green-900"
                     onClick={() => handleManageQuestions(set)}
                   >
-                    添加题目
+                    管理题目
                   </button>
                   <button
                     className="text-red-600 hover:text-red-900"
@@ -960,7 +1014,7 @@ const AdminQuestionSets = () => {
           <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">
-                {isAddingQuestion ? "添加题目" : "编辑题目"}
+                题库管理: {currentQuestionSet?.title}
               </h2>
               <button 
                 onClick={handleCloseQuestionModal}
@@ -975,11 +1029,10 @@ const AdminQuestionSets = () => {
             {/* 题库信息 */}
             {currentQuestionSet && (
               <div className="mb-6">
-                <h3 className="text-lg font-medium">
-                  题库: <span className="text-blue-600">{currentQuestionSet.title}</span>
-                </h3>
                 <p className="text-sm text-gray-500">
-                  当前共有 {currentQuestionSet.questions?.length || 0} 题
+                  分类: <span className="font-medium">{currentQuestionSet.category}</span> | 
+                  付费状态: <span className="font-medium">{currentQuestionSet.isPaid ? '付费' : '免费'}</span> | 
+                  当前共有 <span className="font-medium">{currentQuestionSet.questions?.length || 0}</span> 题
                 </p>
               </div>
             )}
@@ -1146,7 +1199,10 @@ const AdminQuestionSets = () => {
                         
                         {/* 删除按钮 */}
                         <button
-                          onClick={() => handleDeleteOption(index)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteOption(index);
+                          }}
                           className="ml-2 text-red-600 hover:text-red-800 text-sm"
                           disabled={questionFormData.options.length <= 2}
                         >
