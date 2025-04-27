@@ -7,6 +7,7 @@ import { useUser } from '../contexts/UserContext';
 import UserProgressDisplay from './UserProgressDisplay';
 import RecentlyStudiedQuestionSets from './RecentlyStudiedQuestionSets';
 import StudySuggestions from './StudySuggestions';
+import SocketTest from './SocketTest';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -459,6 +460,15 @@ const HomePage: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {isAdmin && (
+          <div className="mb-10">
+            <h2 className="text-xl font-bold mb-4">管理员工具</h2>
+            <SocketTest />
+          </div>
+        )}
       </div>
     </div>
   );

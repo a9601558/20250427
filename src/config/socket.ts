@@ -1,44 +1,81 @@
 import { io, Socket } from 'socket.io-client';
 import { UserProgress } from '../types';
 
-let socket: Socket | null = null;
+// 获取正确的Socket.IO服务器URL
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || window.location.origin;
 
-// 初始化Socket.IO连接
-export const initializeSocket = () => {
+// 创建Socket实例
+let socket: Socket;
+
+// 用于跟踪重连尝试
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+// 初始化Socket连接
+export const initSocket = (): Socket => {
   if (!socket) {
-    const API_URL = '/';
-    
-    socket = io(API_URL, {
-      transports: ['websocket'],
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
+    // 配置Socket.IO客户端
+    socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'], // 首先尝试WebSocket，然后回退到polling
+      reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
       timeout: 10000
     });
 
     // 监听连接事件
     socket.on('connect', () => {
-      console.log('Socket.IO连接已建立!');
+      console.log('Socket.IO连接成功');
+      reconnectAttempts = 0;
     });
 
     // 监听断开连接事件
     socket.on('disconnect', (reason) => {
-      console.log('Socket.IO连接已断开:', reason);
+      console.log(`Socket.IO断开连接: ${reason}`);
     });
 
     // 监听错误事件
     socket.on('connect_error', (error) => {
       console.error('Socket.IO连接错误:', error);
+      reconnectAttempts++;
+      
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.warn(`Socket.IO已尝试重连${MAX_RECONNECT_ATTEMPTS}次，停止自动重连`);
+        // 可以在这里添加提示用户手动重连的逻辑
+      }
+    });
+
+    // 监听重连尝试
+    socket.on('reconnect_attempt', (attempt) => {
+      console.log(`Socket.IO重连尝试 #${attempt}`);
+    });
+
+    // 监听重连成功
+    socket.on('reconnect', (attempt) => {
+      console.log(`Socket.IO重连成功，尝试次数: ${attempt}`);
     });
   }
 
   return socket;
 };
 
+// 获取Socket实例
+export const getSocket = (): Socket => {
+  if (!socket) {
+    return initSocket();
+  }
+  return socket;
+};
+
+// 关闭Socket连接
+export const closeSocket = (): void => {
+  if (socket) {
+    socket.disconnect();
+  }
+};
+
 // 用户认证 - 在用户登录后调用
 export const authenticateUser = (userId: string) => {
-  if (!socket) initializeSocket();
+  if (!socket) initSocket();
   if (socket && userId) {
     socket.emit('authenticate', userId);
     console.log('用户认证已发送:', userId);
@@ -47,7 +84,7 @@ export const authenticateUser = (userId: string) => {
 
 // 监听进度更新
 export const onProgressUpdate = (callback: (data: { questionSetId: string, progress: UserProgress }) => void) => {
-  if (!socket) initializeSocket();
+  if (!socket) initSocket();
   
   socket?.on('progress_updated', (data) => {
     callback(data);
@@ -58,18 +95,4 @@ export const onProgressUpdate = (callback: (data: { questionSetId: string, progr
   };
 };
 
-// 断开连接
-export const disconnectSocket = () => {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-    console.log('Socket.IO连接已手动断开');
-  }
-};
-
-export default {
-  initializeSocket,
-  authenticateUser,
-  onProgressUpdate,
-  disconnectSocket
-}; 
+export default getSocket; 
