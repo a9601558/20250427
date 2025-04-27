@@ -539,28 +539,14 @@ const AdminQuestionSets = () => {
     });
   };
 
-  // 处理删除题目
+  // 处理删除题目 - 直接调用API
   const handleDeleteQuestion = (index: number) => {
     if (!currentQuestionSet) return;
     
     if (window.confirm('确定要删除这个题目吗？此操作不可逆。')) {
-      const updatedQuestions = [...currentQuestionSet.questions];
-      updatedQuestions.splice(index, 1);
-      
-      const updatedQuestionSet = {
-        ...currentQuestionSet,
-        questions: updatedQuestions
-      };
-      
-      setCurrentQuestionSet(updatedQuestionSet);
-      
-      // 更新本地题库数据
-      const updatedQuestionSets = localQuestionSets.map(set => 
-        set.id === currentQuestionSet.id ? updatedQuestionSet : set
-      );
-      
-      setLocalQuestionSets(updatedQuestionSets);
-      showStatusMessage('success', '题目删除成功！');
+      const questionId = currentQuestionSet.questions[index].id;
+      // 直接调用API删除
+      handleDirectDeleteQuestion(questionId);
     }
   };
 
@@ -706,103 +692,208 @@ const AdminQuestionSets = () => {
     setCurrentQuestion(null);
   };
 
-  // 保存题目到题库
+  // 保存题目到题库 - 直接调用API
   const handleSaveQuestion = async () => {
-    // 验证表单
-    if (!questionFormData.question || questionFormData.options.length < 2) {
-      showStatusMessage('error', '请完整填写题目信息，至少需要两个选项');
-      return;
-    }
-
-    // 验证答案
-    if (
-      (questionFormData.questionType === 'single' && !questionFormData.correctAnswer) ||
-      (questionFormData.questionType === 'multiple' && 
-       (!Array.isArray(questionFormData.correctAnswer) || questionFormData.correctAnswer.length === 0))
-    ) {
-      showStatusMessage('error', '请选择至少一个正确答案');
-      return;
-    }
-
     try {
-      // 检查当前问题集是否存在
-      if (!currentQuestionSet) {
-        showStatusMessage('error', '当前没有选择题库');
-        return;
-      }
-
-      // 准备更新后的问题集（确保拥有所有必要的非可选属性）
-      const updatedQuestionSet: ClientQuestionSet = {
-        ...currentQuestionSet,
-        id: currentQuestionSet.id,
-        title: currentQuestionSet.title,
-        description: currentQuestionSet.description || '',
-        category: currentQuestionSet.category,
-        icon: currentQuestionSet.icon || '📝',
-        isPaid: currentQuestionSet.isPaid || false,
-        price: currentQuestionSet.price || 0,
-        trialQuestions: currentQuestionSet.trialQuestions || 0,
-        questions: [...(currentQuestionSet.questions || [])]
-      };
-
-      // 如果是添加新题目
-      if (isAddingQuestion) {
-        console.log("添加新题目，而不是更新");
-        
-        // 生成真正唯一的ID，使用时间戳+随机数
-        const uniqueId = Date.now() + Math.floor(Math.random() * 1000);
-        console.log("为新题目生成临时ID:", uniqueId);
-        
-        const newQuestion = {
-          ...questionFormData,
-          id: uniqueId,
-        };
-        
-        console.log("新题目对象:", JSON.stringify(newQuestion));
-        
-        // 将新题目添加到问题集中
-        updatedQuestionSet.questions.push(newQuestion);
-        console.log("题库现在有", updatedQuestionSet.questions.length, "个题目");
+      if (currentQuestion) {
+        // 如果是编辑现有题目，调用更新API
+        await handleDirectUpdateQuestion();
       } else {
-        console.log("更新现有题目，索引:", questionIndex);
-        // 如果是编辑现有题目
-        if (questionIndex >= 0 && questionIndex < updatedQuestionSet.questions.length) {
-          updatedQuestionSet.questions[questionIndex] = {
-            ...questionFormData,
-          };
-        } else {
-          // 如果questionIndex无效但又不是添加模式，则可能是状态错误
-          console.error("无效的questionIndex:", questionIndex, "但isAddingQuestion为false");
-          showStatusMessage('error', '状态错误，无法保存题目');
-          return;
-        }
+        // 如果是添加新题目，调用添加API
+        await handleDirectAddQuestion();
       }
-      
-      // 保存更新后的问题集到localQuestionSets
-      setLocalQuestionSets(prev => 
-        prev.map(set => 
-          set.id === updatedQuestionSet.id ? updatedQuestionSet : set
-        )
-      );
-      
-      // 查看一下更新后的题库
-      console.log("更新后的题库数据:", JSON.stringify({
-        id: updatedQuestionSet.id,
-        title: updatedQuestionSet.title,
-        questionsCount: updatedQuestionSet.questions.length,
-        lastQuestionId: updatedQuestionSet.questions[updatedQuestionSet.questions.length - 1]?.id
-      }));
-      
-      // 更新当前问题集
-      setCurrentQuestionSet(updatedQuestionSet);
-      
-      // 使用封装的函数关闭模态框并重置状态
-      handleCloseQuestionModal();
-      
-      showStatusMessage('success', isAddingQuestion ? '题目添加成功' : '题目更新成功');
     } catch (error) {
       console.error("保存题目失败:", error);
       showStatusMessage('error', '保存题目失败');
+    }
+  };
+
+  // 刷新题库数据
+  const handleSaveAllChanges = async () => {
+    try {
+      setLoadingAction('saveAll');
+      setLoading(true);
+      
+      // 直接刷新数据，不进行批量更新
+      await loadQuestionSets();
+      showStatusMessage('success', '题库数据已刷新！');
+    } catch (error) {
+      console.error('刷新题库失败:', error);
+      showStatusMessage('error', '刷新题库失败: ' + (error.response?.data?.message || error.message || '请重试'));
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 直接通过API添加题目
+  const handleDirectAddQuestion = async () => {
+    try {
+      // 验证表单
+      if (!questionFormData.question || questionFormData.options.length < 2) {
+        showStatusMessage('error', '请完整填写题目信息，至少需要两个选项');
+        return;
+      }
+
+      // 验证答案
+      if (
+        (questionFormData.questionType === 'single' && !questionFormData.correctAnswer) ||
+        (questionFormData.questionType === 'multiple' && 
+         (!Array.isArray(questionFormData.correctAnswer) || questionFormData.correctAnswer.length === 0))
+      ) {
+        showStatusMessage('error', '请选择至少一个正确答案');
+        return;
+      }
+      
+      if (!currentQuestionSet?.id) {
+        showStatusMessage('error', '题库ID不能为空');
+        return;
+      }
+      
+      // 生成唯一ID
+      const uniqueId = `temp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      
+      // 准备请求数据
+      const requestData = {
+        questionSetId: currentQuestionSet.id,
+        content: questionFormData.question,
+        type: questionFormData.questionType,
+        explanation: questionFormData.explanation || '',
+        options: questionFormData.options.map(opt => ({
+          id: opt.id,
+          text: opt.text,
+          isCorrect: questionFormData.questionType === 'single' 
+            ? questionFormData.correctAnswer === opt.id
+            : Array.isArray(questionFormData.correctAnswer) && questionFormData.correctAnswer.includes(opt.id)
+        })),
+      };
+      
+      setLoading(true);
+      setLoadingAction('addQuestion');
+      
+      // 调用API添加题目
+      const response = await axios.put(`/api/questions/${uniqueId}`, requestData);
+      
+      if (response.status === 200 || response.status === 201) {
+        showStatusMessage('success', '题目添加成功');
+        
+        // 刷新题库列表以获取最新的题目数量
+        await loadQuestionSets();
+        
+        // 重置表单
+        setIsAddingQuestion(false);
+        setCurrentQuestion(null);
+      } else {
+        showStatusMessage('error', '题目添加失败');
+      }
+    } catch (error) {
+      console.error('添加题目出错:', error);
+      showStatusMessage('error', '添加题目失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 直接通过API更新题目
+  const handleDirectUpdateQuestion = async () => {
+    try {
+      // 验证表单
+      if (!questionFormData.question || questionFormData.options.length < 2) {
+        showStatusMessage('error', '请完整填写题目信息，至少需要两个选项');
+        return;
+      }
+
+      // 验证答案
+      if (
+        (questionFormData.questionType === 'single' && !questionFormData.correctAnswer) ||
+        (questionFormData.questionType === 'multiple' && 
+         (!Array.isArray(questionFormData.correctAnswer) || questionFormData.correctAnswer.length === 0))
+      ) {
+        showStatusMessage('error', '请选择至少一个正确答案');
+        return;
+      }
+      
+      if (!currentQuestion?.id) {
+        showStatusMessage('error', '题目ID不能为空');
+        return;
+      }
+      
+      if (!currentQuestionSet?.id) {
+        showStatusMessage('error', '题库ID不能为空');
+        return;
+      }
+      
+      // 准备请求数据
+      const requestData = {
+        questionSetId: currentQuestionSet.id,
+        content: questionFormData.question,
+        type: questionFormData.questionType,
+        explanation: questionFormData.explanation || '',
+        options: questionFormData.options.map(opt => ({
+          id: opt.id,
+          text: opt.text,
+          isCorrect: questionFormData.questionType === 'single' 
+            ? questionFormData.correctAnswer === opt.id
+            : Array.isArray(questionFormData.correctAnswer) && questionFormData.correctAnswer.includes(opt.id)
+        })),
+      };
+      
+      setLoading(true);
+      setLoadingAction('updateQuestion');
+      
+      // 调用API更新题目
+      const response = await axios.put(`/api/questions/${currentQuestion.id}`, requestData);
+      
+      if (response.status === 200) {
+        showStatusMessage('success', '题目更新成功');
+        
+        // 刷新题库列表以获取最新的题目数量
+        await loadQuestionSets();
+        
+        // 重置表单
+        setIsAddingQuestion(false);
+        setCurrentQuestion(null);
+      } else {
+        showStatusMessage('error', '题目更新失败');
+      }
+    } catch (error) {
+      console.error('更新题目出错:', error);
+      showStatusMessage('error', '更新题目失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+  
+  // 直接通过API删除题目
+  const handleDirectDeleteQuestion = async (questionId) => {
+    try {
+      if (!questionId) {
+        showStatusMessage('error', '题目ID不能为空');
+        return;
+      }
+      
+      setLoading(true);
+      setLoadingAction('deleteQuestion');
+      
+      // 调用API删除题目
+      const response = await axios.delete(`/api/questions/${questionId}`);
+      
+      if (response.status === 200) {
+        showStatusMessage('success', '题目删除成功');
+        
+        // 刷新题库列表以获取最新的题目数量
+        await loadQuestionSets();
+      } else {
+        showStatusMessage('error', '题目删除失败');
+      }
+    } catch (error) {
+      console.error('删除题目出错:', error);
+      showStatusMessage('error', '删除题目失败: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
     }
   };
 
@@ -828,177 +919,6 @@ const AdminQuestionSets = () => {
   
   // 计算过滤后的兑换码
   const filteredCodes = filterRedeemCodes();
-
-  // 保存所有更改到API
-  const handleSaveAllChanges = async () => {
-    try {
-      setLoadingAction('saveAll');
-      setLoading(true);
-      
-      // 获取授权令牌
-      const token = localStorage.getItem('token');
-      
-      // 使用axios发送请求
-      const response = await axios.post('/api/question-sets/batch-update', 
-        { questionSets: localQuestionSets },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-          }
-        }
-      );
-      
-      if (response.status === 200) {
-        // 重新加载题库列表以获取最新数据
-        await loadQuestionSets();
-        
-        showStatusMessage('success', '所有题库已成功更新！');
-      } else {
-        throw new Error('更新题库失败');
-      }
-    } catch (error) {
-      console.error('保存题库失败:', error);
-      showStatusMessage('error', '更新题库失败: ' + (error.response?.data?.message || error.message || '请重试'));
-    } finally {
-      setLoading(false);
-      setLoadingAction('');
-    }
-  };
-
-  // 直接通过新API添加题目
-  const handleDirectAddQuestion = async () => {
-    try {
-      if (!formQuestionData?.questionSetId) {
-        message.error('题库ID不能为空');
-        return;
-      }
-      
-      // 表单验证
-      const validationResult = await form.validateFields();
-      if (!validationResult) return;
-      
-      // 生成唯一ID
-      const uniqueId = `temp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      
-      // 准备请求数据
-      const requestData = {
-        questionSetId: formQuestionData.questionSetId,
-        content: formQuestionData.content,
-        type: formQuestionData.type,
-        explanation: formQuestionData.explanation || '',
-        options: formQuestionData.options || [],
-        answer: formQuestionData.answer || [],
-        tags: formQuestionData.tags || [],
-        point: formQuestionData.point || 1,
-      };
-      
-      setLoading(true);
-      setLoadingAction('addQuestion');
-      
-      // 使用PUT而不是POST，并提供前端生成的ID
-      const response = await axios.put(`/api/questions/${uniqueId}`, requestData);
-      
-      if (response.status === 200 || response.status === 201) {
-        message.success('题目添加成功');
-        
-        // 刷新题库列表以获取最新的题目数量
-        await loadQuestionSets();
-        
-        // 关闭模态框
-        handleCloseQuestionModal();
-      } else {
-        message.error('题目添加失败');
-      }
-    } catch (error) {
-      console.error('添加题目出错:', error);
-      message.error('添加题目失败: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-      setLoadingAction('');
-    }
-  };
-  
-  // 直接通过新API更新题目
-  const handleDirectUpdateQuestion = async () => {
-    try {
-      if (!currentQuestion?.id) {
-        message.error('题目ID不能为空');
-        return;
-      }
-      
-      // 表单验证
-      const validationResult = await form.validateFields();
-      if (!validationResult) return;
-      
-      // 准备请求数据
-      const requestData = {
-        questionSetId: formQuestionData.questionSetId,
-        content: formQuestionData.content,
-        type: formQuestionData.type,
-        explanation: formQuestionData.explanation || '',
-        options: formQuestionData.options || [],
-        answer: formQuestionData.answer || [],
-        tags: formQuestionData.tags || [],
-        point: formQuestionData.point || 1,
-      };
-      
-      setLoading(true);
-      setLoadingAction('updateQuestion');
-      
-      // 调用API更新题目
-      const response = await axios.put(`/api/questions/${currentQuestion.id}`, requestData);
-      
-      if (response.status === 200) {
-        message.success('题目更新成功');
-        
-        // 刷新题库列表以获取最新的题目数量
-        await loadQuestionSets();
-        
-        // 关闭模态框
-        handleCloseQuestionModal();
-      } else {
-        message.error('题目更新失败');
-      }
-    } catch (error) {
-      console.error('更新题目出错:', error);
-      message.error('更新题目失败: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-      setLoadingAction('');
-    }
-  };
-  
-  // 直接通过新API删除题目
-  const handleDirectDeleteQuestion = async (questionId) => {
-    try {
-      if (!questionId) {
-        message.error('题目ID不能为空');
-        return;
-      }
-      
-      setLoading(true);
-      setLoadingAction('deleteQuestion');
-      
-      // 调用API删除题目
-      const response = await axios.delete(`/api/questions/${questionId}`);
-      
-      if (response.status === 200) {
-        message.success('题目删除成功');
-        
-        // 刷新题库列表以获取最新的题目数量
-        await loadQuestionSets();
-      } else {
-        message.error('题目删除失败');
-      }
-    } catch (error) {
-      console.error('删除题目出错:', error);
-      message.error('删除题目失败: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-      setLoadingAction('');
-    }
-  };
 
   // 在renderQuestionSets函数中添加添加题目按钮
   const renderQuestionSets = () => {
@@ -1166,16 +1086,8 @@ const AdminQuestionSets = () => {
                   type="primary" 
                   onClick={handleAddQuestion}
                   icon={<PlusOutlined />}
-                  className="mr-2"
                 >
                   添加新问题
-                </Button>
-                
-                <Button 
-                  onClick={handleSaveAllChanges}
-                  loading={loading && loadingAction === 'saveAll'}
-                >
-                  保存所有更改
                 </Button>
               </div>
               
@@ -1314,41 +1226,21 @@ const AdminQuestionSets = () => {
                     取消
                   </Button>
                   {currentQuestion ? (
-                    <>
-                      <Button
-                        type="primary"
-                        onClick={handleSaveQuestion}
-                        loading={loading && loadingAction === 'saveQuestion'}
-                        className="mr-2"
-                      >
-                        保存到本地
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={handleDirectUpdateQuestion}
-                        loading={loading && loadingAction === 'updateQuestion'}
-                      >
-                        直接更新题目
-                      </Button>
-                    </>
+                    <Button
+                      type="primary"
+                      onClick={handleDirectUpdateQuestion}
+                      loading={loading && loadingAction === 'updateQuestion'}
+                    >
+                      更新题目
+                    </Button>
                   ) : (
-                    <>
-                      <Button
-                        type="primary"
-                        onClick={handleSaveQuestion}
-                        loading={loading && loadingAction === 'saveQuestion'}
-                        className="mr-2"
-                      >
-                        保存到本地
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={handleDirectAddQuestion}
-                        loading={loading && loadingAction === 'addQuestion'}
-                      >
-                        直接添加题目
-                      </Button>
-                    </>
+                    <Button
+                      type="primary"
+                      onClick={handleDirectAddQuestion}
+                      loading={loading && loadingAction === 'addQuestion'}
+                    >
+                      添加题目
+                    </Button>
                   )}
                 </div>
               </Form>
@@ -1744,7 +1636,7 @@ const AdminQuestionSets = () => {
               loading={loading && loadingAction === 'saveAll'}
               className="mr-2"
             >
-              更新所有题库
+              刷新题库数据
             </Button>
             <Button
               type="primary" 
