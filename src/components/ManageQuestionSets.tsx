@@ -94,40 +94,65 @@ const ManageQuestionSets: React.FC = () => {
     setError(null);
     
     try {
-      // 创建新题目对象，确保有唯一的ID
+      // 获取当前最新的题库数据
+      const response = await axios.get(`/api/question-sets/${currentQuestionSet.id}`);
+      if (!response.data || !response.data.success) {
+        throw new Error('获取题库数据失败');
+      }
+      
+      const latestQuestionSet = response.data.data;
+      
+      // 创建新题目对象
       const newQuestion = {
-        ...question,
-        id: `q_${Date.now()}` // 生成唯一ID
+        id: `${Date.now()}`, // 生成唯一ID
+        text: question.text,
+        explanation: question.explanation || '',
+        questionType: question.questionType || 'single',
+        orderIndex: latestQuestionSet.questions ? latestQuestionSet.questions.length : 0,
+        options: question.options.map((opt, index) => ({
+          text: opt.text,
+          isCorrect: opt.isCorrect,
+          optionIndex: opt.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+        }))
       };
       
       // 确保题库的questions是数组
-      const questions = Array.isArray(currentQuestionSet.questions) 
-        ? [...currentQuestionSet.questions, newQuestion] 
+      const questions = Array.isArray(latestQuestionSet.questions) 
+        ? [...latestQuestionSet.questions, newQuestion] 
         : [newQuestion];
       
       // 创建更新后的题库对象
       const updatedQuestionSet = {
-        ...currentQuestionSet,
+        ...latestQuestionSet,
         questions
       };
       
+      console.log('添加新题目:', newQuestion);
+      console.log('更新后的题库数据:', updatedQuestionSet);
+      
       // 发送更新请求
-      await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
+      const updateResponse = await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       
+      if (!updateResponse.data || !updateResponse.data.success) {
+        throw new Error('保存题目失败');
+      }
+      
       // 更新本地状态
       setQuestionSets(prev => 
         prev.map(set => 
-          set.id === currentQuestionSet.id ? updatedQuestionSet : set
+          set.id === currentQuestionSet.id ? updateResponse.data.data : set
         )
       );
       
+      // 更新当前题库
+      setCurrentQuestionSet(updateResponse.data.data);
+      
       // 重置添加题目状态
-      setCurrentQuestionSet(null);
       setIsAddingQuestion(false);
       setSuccessMessage('题目添加成功');
       

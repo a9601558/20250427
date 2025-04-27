@@ -48,7 +48,7 @@ const AddQuestionSet: React.FC = () => {
   };
 
   // 删除题目
-  const handleDeleteQuestion = (questionId: string) => {
+  const handleDeleteQuestion = (questionId: string | number) => {
     setQuestions(questions.filter(q => q.id !== questionId));
   };
 
@@ -106,10 +106,16 @@ const AddQuestionSet: React.FC = () => {
         isPaid,
         price: isPaid ? price : undefined,
         trialQuestions: isPaid ? trialQuestions : undefined,
-        questions: questions.map(q => ({
-          ...q,
-          explanation: q.explanation || '', // 确保 explanation 不是 undefined
-          questionType: q.questionType || 'single' // 确保 questionType 不是 undefined
+        questions: questions.map((q, index) => ({
+          text: q.text,
+          explanation: q.explanation || '',
+          questionType: q.questionType || 'single',
+          orderIndex: index,
+          options: q.options.map((opt, i) => ({
+            text: opt.text,
+            isCorrect: opt.isCorrect,
+            optionIndex: opt.optionIndex || String.fromCharCode('A'.charCodeAt(0) + i)
+          }))
         }))
       };
 

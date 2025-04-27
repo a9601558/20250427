@@ -17,10 +17,25 @@ router.get('/', (async (req: Request, res: Response) => {
       [questionSetId]
     );
     
-    res.json(questions);
+    // 获取每个问题的选项
+    for (const question of questions) {
+      const options = await db.query(
+        `SELECT * FROM options WHERE questionId = ? ORDER BY optionIndex`,
+        [question.id]
+      );
+      question.options = options;
+    }
+    
+    res.json({
+      success: true,
+      data: questions
+    });
   } catch (error) {
     console.error('Error fetching questions:', error);
-    res.status(500).json({ error: 'Failed to fetch questions' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch questions' 
+    });
   }
 }) as RequestHandler);
 

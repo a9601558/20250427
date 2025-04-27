@@ -12,10 +12,10 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
   const [questionText, setQuestionText] = useState('');
   const [questionType, setQuestionType] = useState<QuestionType>('single');
   const [options, setOptions] = useState<Option[]>([
-    { id: 'A', text: '' },
-    { id: 'B', text: '' },
-    { id: 'C', text: '' },
-    { id: 'D', text: '' },
+    { id: 'A', text: '', optionIndex: 'A' },
+    { id: 'B', text: '', optionIndex: 'B' },
+    { id: 'C', text: '', optionIndex: 'C' },
+    { id: 'D', text: '', optionIndex: 'D' },
   ]);
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -25,7 +25,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
   // 添加新选项
   const handleAddOption = () => {
     const nextOptionId = String.fromCharCode('A'.charCodeAt(0) + options.length);
-    setOptions([...options, { id: nextOptionId, text: '' }]);
+    setOptions([...options, { id: nextOptionId, text: '', optionIndex: nextOptionId }]);
   };
 
   // 删除选项
@@ -103,10 +103,14 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
       // 创建题目对象 - 只使用有效的选项
       const newQuestion: Question = {
         id: questionCount + 1,
-        question: questionText.trim(),
+        text: questionText.trim(),
         questionType,
-        options: validOptions,
-        correctAnswer: questionType === 'single' ? selectedOption : selectedOptions,
+        options: validOptions.map(opt => ({
+          ...opt,
+          isCorrect: questionType === 'single' 
+            ? opt.id === selectedOption 
+            : selectedOptions.includes(opt.id)
+        })),
         explanation: explanation.trim(),
       };
       
