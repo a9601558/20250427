@@ -12,6 +12,7 @@ import {
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
+import { updateQuestionSetFeaturedStatus } from '../controllers/homepageController';
 
 const router = express.Router();
 
@@ -41,6 +42,9 @@ router.post('/:id/progress', protect, saveProgress);
 // Admin routes with ID parameters
 router.put('/:id', protect, admin, updateQuestionSet);
 router.delete('/:id', protect, admin, deleteQuestionSet);
+
+// Featured status update route
+router.put('/:id/featured', protect, admin, updateQuestionSetFeaturedStatus);
 
 // Base routes
 router.post('/', protect, admin, createQuestionSet);

@@ -43,6 +43,15 @@ const ProfilePage: React.FC = () => {
   const progressData = Object.entries(user.progress || {}).map(([quizId, progress]) => {
     const quizSet = questionSets.find(set => set.id === quizId);
     
+    // 计算完成度和正确率
+    const completionRate = progress.totalQuestions > 0 
+      ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)
+      : 0;
+    
+    const accuracyRate = progress.completedQuestions > 0
+      ? Math.round((progress.correctAnswers / progress.completedQuestions) * 100)
+      : 0;
+    
     return {
       quizId,
       quizTitle: quizSet ? quizSet.title : quizId,
@@ -51,7 +60,8 @@ const ProfilePage: React.FC = () => {
       completedQuestions: progress.completedQuestions,
       totalQuestions: progress.totalQuestions,
       correctAnswers: progress.correctAnswers,
-      score: Math.round((progress.correctAnswers / progress.totalQuestions) * 100),
+      completionRate,
+      accuracyRate,
       lastAccessed: new Date(progress.lastAccessed)
     };
   }).sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
@@ -78,12 +88,6 @@ const ProfilePage: React.FC = () => {
       icon: quizSet ? quizSet.icon : '📝'
     };
   }) : [];
-
-  // 计算正确率
-  const calculateAccuracy = (correct: number, total: number) => {
-    if (total === 0) return 0;
-    return Math.round((correct / total) * 100);
-  };
 
   // 退出登录
   const handleLogout = () => {
@@ -240,73 +244,81 @@ const ProfilePage: React.FC = () => {
         <div className="bg-white shadow rounded-lg p-6">
           {/* 学习进度标签页 */}
           {activeTab === ProfileTab.PROGRESS && (
-            <div>
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                学习进度
-              </h3>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">学习进度</h2>
               
               {progressData.length === 0 ? (
-                <div className="text-center py-10">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">暂无学习记录</h3>
-                  <p className="mt-1 text-sm text-gray-500">开始答题来记录您的学习进度</p>
-                  <div className="mt-6">
-                    <Link
-                      to="/"
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      浏览题库
-                    </Link>
-                  </div>
+                <div className="text-center py-12">
+                  <p className="text-gray-500">暂无学习进度记录</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {progressData.map((item, index) => (
-                    <div key={index} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center">
-                          <div className="text-3xl mr-3">{item.icon}</div>
+                <div className="grid gap-6">
+                  {progressData.map((progress) => (
+                    <div
+                      key={progress.quizId}
+                      className="bg-white rounded-lg shadow p-6"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-2xl">{progress.icon}</span>
                           <div>
-                            <h4 className="text-lg font-medium text-gray-900">{item.quizTitle}</h4>
-                            <p className="text-sm text-gray-500">{item.category}</p>
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {progress.quizTitle}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {progress.category}
+                            </p>
                           </div>
                         </div>
-                        <Link
-                          to={`/quiz/${item.quizId}`}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          继续学习
-                        </Link>
+                        <span className="text-sm text-gray-500">
+                          最后学习: {progress.lastAccessed.toLocaleDateString()}
+                        </span>
                       </div>
-                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="px-3 py-2 bg-blue-50 rounded-md">
-                          <div className="text-xs font-medium text-blue-800 uppercase">完成度</div>
-                          <div className="mt-1 flex justify-between items-center">
-                            <div className="text-xl font-semibold text-blue-600">
-                              {Math.round((item.completedQuestions / item.totalQuestions) * 100)}%
-                            </div>
-                            <div className="text-sm text-blue-700">
-                              {item.completedQuestions}/{item.totalQuestions}
-                            </div>
+
+                      <div className="space-y-4">
+                        {/* 完成度进度条 */}
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>完成度</span>
+                            <span>{progress.completionRate}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div
+                              className="bg-blue-600 h-2.5 rounded-full"
+                              style={{ width: `${progress.completionRate}%` }}
+                            />
                           </div>
                         </div>
-                        <div className="px-3 py-2 bg-green-50 rounded-md">
-                          <div className="text-xs font-medium text-green-800 uppercase">正确率</div>
-                          <div className="mt-1 flex justify-between items-center">
-                            <div className="text-xl font-semibold text-green-600">
-                              {calculateAccuracy(item.correctAnswers, item.completedQuestions)}%
-                            </div>
-                            <div className="text-sm text-green-700">
-                              {item.correctAnswers}/{item.completedQuestions}
-                            </div>
+
+                        {/* 正确率进度条 */}
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>正确率</span>
+                            <span>{progress.accuracyRate}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div
+                              className="bg-green-600 h-2.5 rounded-full"
+                              style={{ width: `${progress.accuracyRate}%` }}
+                            />
                           </div>
                         </div>
-                        <div className="px-3 py-2 bg-gray-50 rounded-md sm:col-span-2">
-                          <div className="text-xs font-medium text-gray-800 uppercase">最后访问</div>
-                          <div className="mt-1 text-base text-gray-600">
-                            {formatDate(item.lastAccessed.toISOString())}
+
+                        {/* 详细数据 */}
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="text-gray-500">已完成</div>
+                            <div className="font-medium">
+                              {progress.completedQuestions}/{progress.totalQuestions}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-gray-500">正确数</div>
+                            <div className="font-medium">{progress.correctAnswers}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-gray-500">正确率</div>
+                            <div className="font-medium">{progress.accuracyRate}%</div>
                           </div>
                         </div>
                       </div>

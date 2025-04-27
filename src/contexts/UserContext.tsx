@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { User, Purchase, RedeemCode, UserProgress } from '../types';
+import { User, Purchase, RedeemCode } from '../types';
 import { userApi, redeemCodeApi } from '../utils/api';
 
 export interface QuizProgress {
@@ -155,17 +155,31 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-      const userProgress: UserProgress = {
-        completedQuestions: progress.completedQuestions || progress.answeredQuestions?.length || 0,
-        totalQuestions: progress.totalQuestions || progress.answeredQuestions?.length || 0,
-        correctAnswers: progress.correctAnswers || progress.answeredQuestions?.filter(a => a.isCorrect).length || 0,
+      const currentProgress = user.progress || {};
+      const existingProgress = currentProgress[progress.questionSetId] || {
+        completedQuestions: 0,
+        totalQuestions: 0,
+        correctAnswers: 0,
+        lastAccessed: new Date().toISOString()
+      };
+
+      const updatedProgress = {
+        ...existingProgress,
+        completedQuestions: progress.completedQuestions || existingProgress.completedQuestions,
+        totalQuestions: progress.totalQuestions || existingProgress.totalQuestions,
+        correctAnswers: progress.correctAnswers || existingProgress.correctAnswers,
         lastAccessed: progress.lastAttemptDate ? progress.lastAttemptDate.toISOString() : new Date().toISOString()
       };
-      const updatedProgress = { ...(user.progress || {}) };
-      updatedProgress[progress.questionSetId] = userProgress;
-      await updateUser({ progress: updatedProgress });
+
+      const newProgress = {
+        ...currentProgress,
+        [progress.questionSetId]: updatedProgress
+      };
+
+      await updateUser({ progress: newProgress });
     } catch (error) {
       console.error('Failed to add progress:', error);
+      throw error;
     }
   };
 
