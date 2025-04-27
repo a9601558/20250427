@@ -1097,151 +1097,263 @@ const AdminQuestionSets = () => {
           {errorMessage && <Alert message={errorMessage} type="error" className="mb-3" />}
           {successMessage && <Alert message={successMessage} type="success" className="mb-3" />}
           
-          <Form layout="vertical">
-            <Form.Item 
-              label="题目内容" 
-              required 
-              className="mb-3"
-            >
-              <Input.TextArea
-                rows={4}
-                value={questionFormData.question}
-                onChange={e => setQuestionFormData({...questionFormData, question: e.target.value})}
-                placeholder="请输入题目内容"
-              />
-            </Form.Item>
-            
-            <Form.Item 
-              label="题目解释（可选）" 
-              className="mb-3"
-            >
-              <Input.TextArea
-                rows={2}
-                value={questionFormData.explanation}
-                onChange={e => setQuestionFormData({...questionFormData, explanation: e.target.value})}
-                placeholder="请输入题目解释（当用户答错时显示）"
-              />
-            </Form.Item>
-            
-            <Form.Item 
-              label="题目类型" 
-              required
-              className="mb-3"
-            >
-              <Radio.Group
-                options={[
-                  { label: '单选题', value: 'single' },
-                  { label: '多选题', value: 'multiple' }
-                ]}
-                onChange={e => {
-                  const newType = e.target.value;
-                  setQuestionFormData({
-                    ...questionFormData,
-                    questionType: newType,
-                    correctAnswer: newType === 'single' ? '' : []
-                  });
-                }}
-                value={questionFormData.questionType}
-                optionType="button"
-              />
-            </Form.Item>
-            
-            <Form.Item 
-              label="选项" 
-              required
-              className="mb-3"
-            >
-              <div className="mb-2">
-                {questionFormData.options.map((option, index) => (
-                  <div key={option.id} className="flex items-center mb-2">
-                    <div className="mr-2 w-6">
-                      {questionFormData.questionType === 'single' ? (
-                        <Radio
-                          checked={questionFormData.correctAnswer === option.id}
-                          onChange={(e) => handleSelectCorrectAnswer(option.id)}
-                        />
-                      ) : (
-                        <Checkbox
-                          checked={Array.isArray(questionFormData.correctAnswer) && 
-                                 questionFormData.correctAnswer.includes(option.id)}
-                          onChange={(e) => handleSelectCorrectAnswer(option.id)}
-                        />
-                      )}
-                    </div>
-                    <Input
-                      value={option.text}
-                      onChange={(e) => handleOptionChange(index, e.target.value)}
-                      placeholder={`选项 ${index + 1}`}
-                      className="flex-1 mr-2"
-                    />
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDeleteOption(index)}
-                      disabled={questionFormData.options.length <= 2}
-                    />
-                  </div>
-                ))}
+          {/* 添加标题和题库信息 */}
+          {currentQuestionSet && (
+            <div className="mb-4">
+              <h2 className="text-lg font-medium">
+                题库: {currentQuestionSet.title} 
+                <span className="ml-2 text-sm text-gray-500">
+                  {currentQuestionSet.questions?.length || 0} 个问题
+                </span>
+              </h2>
+            </div>
+          )}
+          
+          {/* 添加问题列表 */}
+          {currentQuestionSet && currentQuestionSet.questions && currentQuestionSet.questions.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-md font-medium mb-2">问题列表</h3>
+              <div className="bg-gray-50 p-2 rounded max-h-60 overflow-y-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3 w-8">#</th>
+                      <th className="text-left py-2 px-3">问题内容</th>
+                      <th className="text-left py-2 px-3 w-24">问题类型</th>
+                      <th className="text-left py-2 px-3 w-24">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentQuestionSet.questions.map((question, index) => (
+                      <tr key={question.id} className="border-b hover:bg-gray-100">
+                        <td className="py-2 px-3">{index + 1}</td>
+                        <td className="py-2 px-3">
+                          <div className="truncate max-w-md" title={question.question}>
+                            {question.question}
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">
+                          {question.questionType === 'single' ? '单选题' : '多选题'}
+                        </td>
+                        <td className="py-2 px-3">
+                          <button 
+                            className="text-blue-600 hover:text-blue-800 mr-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditQuestion(question, index);
+                            }}
+                          >
+                            编辑
+                          </button>
+                          <button 
+                            className="text-red-600 hover:text-red-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteQuestion(index);
+                            }}
+                          >
+                            删除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              
+              <div className="mt-3 mb-4">
+                <Button 
+                  type="primary" 
+                  onClick={handleAddQuestion}
+                  icon={<PlusOutlined />}
+                  className="mr-2"
+                >
+                  添加新问题
+                </Button>
+                
+                <Button 
+                  onClick={handleSaveAllChanges}
+                  loading={loading && loadingAction === 'saveAll'}
+                >
+                  保存所有更改
+                </Button>
+              </div>
+              
+              <div className="border-t border-gray-200 my-4"></div>
+            </div>
+          )}
+          
+          {/* 当前没有问题时显示提示 */}
+          {currentQuestionSet && (!currentQuestionSet.questions || currentQuestionSet.questions.length === 0) && !currentQuestion && (
+            <div className="text-center py-4 mb-4 bg-gray-50 rounded">
+              <p className="text-gray-500 mb-3">当前题库还没有问题</p>
               <Button 
-                type="dashed" 
-                onClick={handleAddOption} 
-                block
+                type="primary" 
+                onClick={handleAddQuestion}
                 icon={<PlusOutlined />}
               >
-                添加选项
+                添加第一个问题
               </Button>
-            </Form.Item>
-            
-            {/* 模态框底部按钮 */}
-            <div className="modal-footer mt-6 flex justify-end">
-              <Button 
-                onClick={handleCloseQuestionModal} 
-                className="mr-2"
-                disabled={loading}
-              >
-                取消
-              </Button>
-              {currentQuestion ? (
-                <>
-                  <Button
-                    type="primary"
-                    onClick={handleSaveQuestion}
-                    loading={loading && loadingAction === 'saveQuestion'}
-                    className="mr-2"
-                  >
-                    保存到本地
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={handleDirectUpdateQuestion}
-                    loading={loading && loadingAction === 'updateQuestion'}
-                  >
-                    直接更新题目
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    type="primary"
-                    onClick={handleSaveQuestion}
-                    loading={loading && loadingAction === 'saveQuestion'}
-                    className="mr-2"
-                  >
-                    保存到本地
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={handleDirectAddQuestion}
-                    loading={loading && loadingAction === 'addQuestion'}
-                  >
-                    直接添加题目
-                  </Button>
-                </>
-              )}
             </div>
-          </Form>
+          )}
+          
+          {/* 问题表单 - 当添加或编辑问题时显示 */}
+          {(isAddingQuestion || currentQuestion) && (
+            <div>
+              <h3 className="text-md font-medium mb-2">
+                {currentQuestion ? '编辑问题' : '添加新问题'}
+              </h3>
+              
+              <Form layout="vertical">
+                <Form.Item 
+                  label="题目内容" 
+                  required 
+                  className="mb-3"
+                >
+                  <Input.TextArea
+                    rows={4}
+                    value={questionFormData.question}
+                    onChange={e => setQuestionFormData({...questionFormData, question: e.target.value})}
+                    placeholder="请输入题目内容"
+                  />
+                </Form.Item>
+                
+                <Form.Item 
+                  label="题目解释（可选）" 
+                  className="mb-3"
+                >
+                  <Input.TextArea
+                    rows={2}
+                    value={questionFormData.explanation}
+                    onChange={e => setQuestionFormData({...questionFormData, explanation: e.target.value})}
+                    placeholder="请输入题目解释（当用户答错时显示）"
+                  />
+                </Form.Item>
+                
+                <Form.Item 
+                  label="题目类型" 
+                  required
+                  className="mb-3"
+                >
+                  <Radio.Group
+                    options={[
+                      { label: '单选题', value: 'single' },
+                      { label: '多选题', value: 'multiple' }
+                    ]}
+                    onChange={e => {
+                      const newType = e.target.value;
+                      setQuestionFormData({
+                        ...questionFormData,
+                        questionType: newType,
+                        correctAnswer: newType === 'single' ? '' : []
+                      });
+                    }}
+                    value={questionFormData.questionType}
+                    optionType="button"
+                  />
+                </Form.Item>
+                
+                <Form.Item 
+                  label="选项" 
+                  required
+                  className="mb-3"
+                >
+                  <div className="mb-2">
+                    {questionFormData.options.map((option, index) => (
+                      <div key={option.id} className="flex items-center mb-2">
+                        <div className="mr-2 w-6">
+                          {questionFormData.questionType === 'single' ? (
+                            <Radio
+                              checked={questionFormData.correctAnswer === option.id}
+                              onChange={(e) => handleSelectCorrectAnswer(option.id)}
+                            />
+                          ) : (
+                            <Checkbox
+                              checked={Array.isArray(questionFormData.correctAnswer) && 
+                                     questionFormData.correctAnswer.includes(option.id)}
+                              onChange={(e) => handleSelectCorrectAnswer(option.id)}
+                            />
+                          )}
+                        </div>
+                        <Input
+                          value={option.text}
+                          onChange={(e) => handleOptionChange(index, e.target.value)}
+                          placeholder={`选项 ${index + 1}`}
+                          className="flex-1 mr-2"
+                        />
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteOption(index)}
+                          disabled={questionFormData.options.length <= 2}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    type="dashed" 
+                    onClick={handleAddOption} 
+                    block
+                    icon={<PlusOutlined />}
+                  >
+                    添加选项
+                  </Button>
+                </Form.Item>
+                
+                {/* 表单底部按钮 */}
+                <div className="mt-6 flex justify-end">
+                  <Button 
+                    onClick={() => {
+                      setIsAddingQuestion(false);
+                      setCurrentQuestion(null);
+                    }} 
+                    className="mr-2"
+                    disabled={loading}
+                  >
+                    取消
+                  </Button>
+                  {currentQuestion ? (
+                    <>
+                      <Button
+                        type="primary"
+                        onClick={handleSaveQuestion}
+                        loading={loading && loadingAction === 'saveQuestion'}
+                        className="mr-2"
+                      >
+                        保存到本地
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={handleDirectUpdateQuestion}
+                        loading={loading && loadingAction === 'updateQuestion'}
+                      >
+                        直接更新题目
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        type="primary"
+                        onClick={handleSaveQuestion}
+                        loading={loading && loadingAction === 'saveQuestion'}
+                        className="mr-2"
+                      >
+                        保存到本地
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={handleDirectAddQuestion}
+                        loading={loading && loadingAction === 'addQuestion'}
+                      >
+                        直接添加题目
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </Form>
+            </div>
+          )}
         </div>
       </Modal>
       

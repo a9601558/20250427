@@ -1038,4 +1038,35 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
       message: error.message || '服务器错误'
     });
   }
+};
+
+/**
+ * @desc    获取所有题库分类
+ * @route   GET /api/question-sets/categories
+ * @access  Public
+ */
+export const getQuestionSetCategories = async (req: Request, res: Response) => {
+  try {
+    // 执行SQL查询获取所有不同的分类
+    const [categories] = await db.execute(`
+      SELECT DISTINCT category
+      FROM question_sets
+      ORDER BY category
+    `);
+    
+    // 提取分类列表
+    const categoryList = (categories as RowDataPacket[]).map(row => row.category);
+    
+    res.status(200).json({
+      success: true,
+      data: categoryList
+    });
+  } catch (error) {
+    console.error('获取题库分类列表失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取题库分类列表失败',
+      error: String(error)
+    });
+  }
 }; 

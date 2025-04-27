@@ -6,7 +6,8 @@ import {
   updateQuestionSet,
   deleteQuestionSet,
   saveProgress,
-  uploadQuestionSets
+  uploadQuestionSets,
+  getQuestionSetCategories
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -25,6 +26,7 @@ router.use((req, res, next) => {
 
 // Public routes
 router.get('/', getAllQuestionSets);
+router.get('/categories', getQuestionSetCategories);
 
 // Admin routes
 router.post('/upload', protect, admin, uploadQuestionSets);
