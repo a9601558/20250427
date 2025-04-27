@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import User from '../models/User';
 import { generateToken } from '../middleware/authMiddleware';
-import { Op } from 'sequelize';
 
 // @desc    Register a new user
 // @route   POST /api/users

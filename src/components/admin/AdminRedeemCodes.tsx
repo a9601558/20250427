@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { RedeemCode } from '../../types';
 import { questionSets, QuestionSet } from '../../data/questionSets';
+import { toast } from 'react-hot-toast';
 
 const AdminRedeemCodes: React.FC = () => {
   const { generateRedeemCode, getRedeemCodes } = useUser();
@@ -14,6 +15,11 @@ const AdminRedeemCodes: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'used' | 'unused'>('all');
   const [filterQuestionSet, setFilterQuestionSet] = useState<string>('all');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [form, setForm] = useState({
+    questionSetId: '',
+    validityDays: 30,
+    quantity: 1
+  });
 
   // Get paid question sets
   useEffect(() => {
@@ -67,7 +73,7 @@ const AdminRedeemCodes: React.FC = () => {
       });
       return;
     }
-
+    
     if (quantity <= 0 || quantity > 100) {
       setStatusMessage({ 
         type: 'error', 
@@ -76,23 +82,15 @@ const AdminRedeemCodes: React.FC = () => {
       return;
     }
 
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
-      console.log('Generating codes with params:', {
-        questionSetId: selectedQuestionSet,
-        validityDays,
-        quantity
-      });
-      
       const result = await generateRedeemCode(selectedQuestionSet, validityDays, quantity);
       
       if (!result.success) {
         throw new Error(result.message || '生成兑换码失败');
       }
       
-      console.log('Code generation result:', result);
-      
-      // 重新获取更新后的兑换码列表
       const updatedCodes = await getRedeemCodes();
       setRedeemCodes(updatedCodes);
       

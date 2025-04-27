@@ -4,6 +4,7 @@ import AddQuestion from './AddQuestion';
 import { QuestionSet } from '../data/questionSets';
 import { Question } from '../data/questions';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 // 分类选项
 const categoryOptions = [
@@ -39,6 +40,8 @@ const AddQuestionSet: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  const navigate = useNavigate();
 
   // 添加题目
   const handleAddQuestion = (question: Question) => {
@@ -119,17 +122,21 @@ const AddQuestionSet: React.FC = () => {
         timeout: 10000 // 10秒超时
       });
 
-      // 保存成功，重置表单
-      setTitle('');
-      setDescription('');
-      setCategory(categoryOptions[0]);
-      setIcon(iconOptions[0]);
-      setIsPaid(false);
-      setPrice('');
-      setTrialQuestions('0');
-      setQuestions([]);
-      setSuccessMessage('题库创建成功！');
-      console.log('创建成功:', response.data);
+      if (response.data) {
+        // 保存成功，重置表单
+        setTitle('');
+        setDescription('');
+        setCategory(categoryOptions[0]);
+        setIcon(iconOptions[0]);
+        setIsPaid(false);
+        setPrice('');
+        setTrialQuestions('0');
+        setQuestions([]);
+        setSuccessMessage('题库创建成功！');
+        navigate('/');
+      } else {
+        setError(response.data?.message || '创建失败，请重试');
+      }
     } catch (error: any) {
       console.error('创建题库失败:', error);
       

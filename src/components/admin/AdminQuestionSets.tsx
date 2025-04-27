@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { questionSets as defaultQuestionSets } from '../../data/questionSets';
 import { Question as ClientQuestion, Option, QuestionType } from '../../data/questions';
 import { QuestionSet as ClientQuestionSet } from '../../data/questionSets';
@@ -6,6 +6,7 @@ import { RedeemCode, QuestionSet as ApiQuestionSet } from '../../types';
 import { useUser } from '../../contexts/UserContext';
 import { questionSetApi } from '../../utils/api';
 import axios from 'axios';  // 添加axios导入
+import { toast } from 'react-toastify';
 
 // Function to convert API question sets to client format
 const mapApiToClientQuestionSet = (apiSet: ApiQuestionSet): ClientQuestionSet => {
@@ -138,23 +139,23 @@ const AdminQuestionSets: React.FC = () => {
     const loadQuestionSets = async () => {
       setLoadingQuestionSets(true);
       try {
-        console.log("正在从API加载题库...");
+        // console.log("正在从API加载题库...");
         const response = await questionSetApi.getAllQuestionSets();
-        console.log("API响应:", response);
+        // console.log("API响应:", response);
         
         if (response.success && response.data) {
           // Convert API format to client format
           const clientQuestionSets = response.data.map(mapApiToClientQuestionSet);
           setLocalQuestionSets(clientQuestionSets);
-          console.log("成功加载题库:", clientQuestionSets.length);
+          // console.log("成功加载题库:", clientQuestionSets.length);
         } else {
-          console.error("加载题库失败:", response.error || response.message);
+          // console.error("加载题库失败:", response.error || response.message);
           showStatusMessage('error', `加载题库失败: ${response.error || response.message || '未知错误'}`);
           // 如果API加载失败，回退到本地数据
           setLocalQuestionSets(defaultQuestionSets);
         }
       } catch (error) {
-        console.error("加载题库出错:", error);
+        // console.error("加载题库出错:", error);
         showStatusMessage('error', '加载题库时出现错误，使用本地数据');
         // 如果API加载失败，回退到本地数据
         setLocalQuestionSets(defaultQuestionSets);
@@ -755,7 +756,7 @@ const AdminQuestionSets: React.FC = () => {
       // 转换为API格式，确保包含所有题目
       const apiQuestionSets = mergedQuestionSets.map(set => {
         const apiSet = mapClientToApiQuestionSet(set);
-        console.log(`准备上传题库 ${set.id}，题目数量: ${set.questions.length}`);
+        // console.log(`准备上传题库 ${set.id}，题目数量: ${set.questions.length}`);
         return apiSet;
       });
       

@@ -122,7 +122,6 @@ export const questionSetApi = {
   },
   
   uploadQuestionSets: async (questionSets: Partial<QuestionSet>[]): Promise<ApiResponse<any>> => {
-    console.log('Uploading question sets, count:', questionSets.length);
     return fetchWithAuth<any>('/question-sets/upload', {
       method: 'POST',
       body: JSON.stringify({ questionSets }),
@@ -158,7 +157,6 @@ export const redeemCodeApi = {
     validityDays: number,
     quantity: number
   ): Promise<ApiResponse<RedeemCode[]>> => {
-    console.log('Constructing API request for code generation:', { questionSetId, validityDays, quantity });
     return fetchWithAuth<RedeemCode[]>('/redeem-codes/generate', {
       method: 'POST',
       body: JSON.stringify({ 

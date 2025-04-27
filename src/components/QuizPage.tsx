@@ -158,7 +158,7 @@ const QuizPage = () => {
     // 调用addProgress保存进度
     try {
       await addProgress(progress);
-      console.log('学习进度保存成功');
+      // console.log('学习进度保存成功');
     } catch (error) {
       console.error("保存进度失败:", error);
     }

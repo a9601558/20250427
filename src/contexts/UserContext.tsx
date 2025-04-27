@@ -237,17 +237,21 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const generateRedeemCode = async (questionSetId: string, validityDays: number, quantity: number): Promise<{ success: boolean; codes?: RedeemCode[]; message: string }> => {
     if (!isAdmin()) return { success: false, message: '无权限执行此操作' };
     try {
-      console.log('Sending API request with params:', { questionSetId, validityDays, quantity });
       const response = await redeemCodeApi.generateRedeemCodes(questionSetId, validityDays, quantity);
-      console.log('API response:', response);
       
       if (response.success && response.data) {
-        return { success: true, codes: response.data, message: `成功生成 ${response.data.length} 个兑换码` };
+        return { 
+          success: true, 
+          codes: response.data, 
+          message: `成功生成 ${response.data.length} 个兑换码` 
+        };
       } else {
-        return { success: false, message: response.message || response.error || '生成兑换码失败' };
+        return { 
+          success: false, 
+          message: response.message || response.error || '生成兑换码失败' 
+        };
       }
     } catch (error: any) {
-      console.error('生成兑换码API错误:', error);
       return { success: false, message: error.message || '生成兑换码过程中发生错误' };
     }
   };
