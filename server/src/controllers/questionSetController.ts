@@ -85,11 +85,20 @@ function normalizeQuestionData(questions: any[]) {
     return [];
   }
   
+  console.log('正在标准化问题数据，数量:', questions.length);
+  
   return questions.map((q, index) => {
     // Handle potential null question object
     if (!q) {
       console.warn(`Question at index ${index} is null or undefined`);
       return null;
+    }
+    
+    // 处理请求中不同的数据格式
+    // 如果是 {id: 1, question: "text"} 格式
+    if (q.id !== undefined && q.question !== undefined && !q.text) {
+      console.log(`问题 ${index} 使用 'question' 字段而不是 'text' 字段`);
+      q.text = q.question;
     }
     
     // 确保text字段不为null，如果是null或空字符串则提供默认值
@@ -121,13 +130,43 @@ function normalizeQuestionData(questions: any[]) {
     
     // 处理选项
     if (Array.isArray(q.options)) {
+      console.log(`处理问题 ${index} 的选项数组:`, JSON.stringify(q.options));
       normalizedQuestion.options = q.options
         .filter((opt: any) => opt) // 移除null或undefined选项
         .map((opt: any, j: number) => {
           // 确保选项文本不为null
-          const optionText = opt.text !== undefined && opt.text !== null
-            ? String(opt.text)
-            : `选项 ${String.fromCharCode(65 + j)}`; // A, B, C...
+          let optionText = '';
+          if (opt.text !== undefined && opt.text !== null) {
+            optionText = String(opt.text);
+          } else if (typeof opt === 'object') {
+            // 特殊处理可能的格式 {"id":"D", "text":"3333"} 或 {"D":"3333"}
+            if (opt.id && typeof opt.id === 'string') {
+              // 如果是 {"id":"D"} 格式，尝试找到文本
+              if (opt.text) {
+                optionText = String(opt.text);
+              } else {
+                // 检查是否有键与id相同
+                const idKey = opt.id;
+                if (opt[idKey]) {
+                  optionText = String(opt[idKey]);
+                  console.log(`从键 ${idKey} 获取选项文本: ${optionText}`);
+                }
+              }
+            } else {
+              // 检查是否是 {A: "text"} 格式
+              const keys = Object.keys(opt);
+              if (keys.length === 1 && keys[0].length === 1) {
+                optionText = String(opt[keys[0]]);
+                console.log(`从键值对 {${keys[0]}: "${optionText}"} 获取选项文本`);
+              }
+            }
+          }
+          
+          // 如果还是没有文本，使用默认值
+          if (!optionText) {
+            optionText = `选项 ${String.fromCharCode(65 + j)}`; // A, B, C...
+            console.log(`选项 ${j} 没有找到有效文本，使用默认值: ${optionText}`);
+          }
           
           // 选项ID处理
           let optionIndex = '';
@@ -485,36 +524,81 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
           // 重新创建问题和选项
           for (let i = 0; i < questions.length; i++) {
             const q = questions[i];
-            console.log(`Creating question ${i+1}/${questions.length}: "${q.text.substring(0, 30)}..."`);
             
-            // 创建问题 - 不需要再次检查text，因为normalizeQuestionData已确保它不为null
-            const question = await Question.create({
+            // 详细调试日志
+            const qDebug = {
+              id: q.id,
               text: q.text,
-              explanation: q.explanation,
-              questionSetId: id,
-              questionType: q.questionType,
-              orderIndex: q.orderIndex
-            }, { transaction: t });
+              question: (q as any).question,
+              hasOptions: Array.isArray(q.options) ? q.options.length : 'not an array'
+            };
+            console.log(`处理问题 ${i+1}/${questions.length}, 详情:`, JSON.stringify(qDebug));
             
-            // 创建问题的选项
-            if (Array.isArray(q.options) && q.options.length > 0) {
-              console.log(`Creating ${q.options.length} options for question ${i+1}`);
-              try {
-                for (const opt of q.options) {
-                  // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
-                  await Option.create({
-                    questionId: question.id,
-                    text: opt.text,
-                    isCorrect: opt.isCorrect,
-                    optionIndex: opt.optionIndex
-                  }, { transaction: t });
-                }
-              } catch (optionError) {
-                console.error(`Error creating options for question ${i+1}:`, optionError);
-                throw optionError;
+            // 确保题目文本不为null
+            let questionText = q.text;
+            if (!questionText) {
+              if ((q as any).question) {
+                questionText = (q as any).question;
+                console.log(`使用 'question' 字段: ${questionText}`);
+              } else {
+                questionText = `问题 ${i+1}`;
+                console.log(`使用默认问题文本: ${questionText}`);
               }
-            } else {
-              console.warn(`Question ${i+1} has no options`);
+            }
+            
+            try {
+              // 创建问题 - 确保text字段有值
+              console.log(`创建问题, text = "${questionText}"`);
+              const question = await Question.create({
+                text: String(questionText || '').trim() || `问题 ${i+1}`,
+                explanation: String(q.explanation || '暂无解析').trim(),
+                questionSetId: id,
+                questionType: q.questionType || 'single',
+                orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+              }, { transaction: t });
+              
+              // 创建问题的选项
+              if (Array.isArray(q.options) && q.options.length > 0) {
+                console.log(`Creating ${q.options.length} options for question ${i+1}`);
+                try {
+                  for (const opt of q.options) {
+                    if (!opt) {
+                      console.log('跳过空选项');
+                      continue;
+                    }
+                    
+                    // 确保选项文本不为空
+                    let optionText = opt.text;
+                    if (!optionText && opt.id) {
+                      // 尝试从ID为键的属性中获取文本
+                      const idKey = opt.id;
+                      optionText = opt[idKey] || '';
+                    }
+                    
+                    // 如果仍然为空，使用默认值
+                    if (!optionText) {
+                      optionText = `选项 ${opt.optionIndex || opt.id || ''}`;
+                    }
+                    
+                    // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
+                    await Option.create({
+                      questionId: question.id,
+                      text: String(optionText).trim() || '默认选项文本',
+                      isCorrect: !!opt.isCorrect,
+                      optionIndex: opt.optionIndex || opt.id || ''
+                    }, { transaction: t });
+                  }
+                } catch (optionError) {
+                  console.error(`Error creating options for question ${i+1}:`, optionError);
+                  throw optionError;
+                }
+              } else {
+                console.warn(`Question ${i+1} has no options`);
+              }
+            } catch (questionCreateError) {
+              console.error(`创建问题 ${i+1} 失败:`, questionCreateError);
+              console.error(`问题数据:`, JSON.stringify(q));
+              throw questionCreateError;
             }
           }
         } catch (questionError) {
