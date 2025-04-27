@@ -1,0 +1,21 @@
+# 生产环境部署前应删除的文件（可选，根据实际需求决定）
+
+# 测试脚本
+test-register.js
+backend-route-diagnosis.js
+test-api-routes.sh
+
+# 服务器端测试和迁移脚本
+server/src/scripts/test-register.js
+server/src/scripts/migrateMongoDB.ts
+
+# 示例数据文件
+src/data/mockUsers.ts
+
+# Nginx配置文件（应移至正确位置，而非删除）
+nginx-headers-only.conf
+api-path-mapping.conf
+api-proxy-settings.conf
+
+# 数据库初始化脚本（一次性使用）
+server/create-db.js 
