@@ -78,6 +78,67 @@ interface QuestionSetUploadData {
   questions?: QuestionData[];
 }
 
+// 添加一个预处理函数来标准化前端传来的数据格式
+function normalizeQuestionData(questions: any[]) {
+  if (!Array.isArray(questions)) {
+    console.warn('questions is not an array:', questions);
+    return [];
+  }
+  
+  return questions.map((q, index) => {
+    // 标准化问题数据
+    const normalizedQuestion = {
+      // 处理文本字段 - 可能是text或question
+      text: q.text || q.question || '',
+      explanation: q.explanation || '暂无解析',
+      questionType: q.questionType || 'single',
+      orderIndex: q.orderIndex !== undefined ? q.orderIndex : index,
+      options: []
+    };
+    
+    // 跳过无文本的问题
+    if (!normalizedQuestion.text) {
+      console.warn(`Question ${index+1} has no text, will be skipped`);
+      return normalizedQuestion;
+    }
+    
+    // 处理选项
+    if (Array.isArray(q.options)) {
+      normalizedQuestion.options = q.options.map((opt: any, j: number) => {
+        // 选项ID处理
+        let optionIndex = '';
+        if (typeof opt.optionIndex === 'string') {
+          optionIndex = opt.optionIndex;
+        } else if (typeof opt.id === 'string') {
+          optionIndex = opt.id;
+        } else {
+          optionIndex = String.fromCharCode(65 + j); // A, B, C...
+        }
+        
+        // 判断是否为正确选项
+        let isCorrect = false;
+        if (opt.isCorrect === true) {
+          isCorrect = true;
+        } else if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
+          isCorrect = true;
+        } else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
+          isCorrect = true;
+        }
+        
+        return {
+          text: opt.text || '',
+          isCorrect,
+          optionIndex
+        };
+      });
+    } else {
+      console.warn(`Question ${index+1} has no options array`);
+    }
+    
+    return normalizedQuestion;
+  });
+}
+
 /**
  * @desc    获取所有题库
  * @route   GET /api/question-sets
@@ -329,7 +390,7 @@ export const createQuestionSet = async (req: Request, res: Response) => {
  */
 export const updateQuestionSet = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { 
+  let { 
     title, 
     description, 
     category, 
@@ -343,6 +404,20 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
   } = req.body;
 
   try {
+    console.log(`Received update request for question set ${id}`);
+    console.log('Request body:', JSON.stringify({
+      title,
+      description,
+      category,
+      questionCount: questions?.length || 0
+    }));
+    
+    // 标准化问题数据，确保格式一致
+    if (Array.isArray(questions) && questions.length > 0) {
+      questions = normalizeQuestionData(questions);
+      console.log(`Normalized ${questions.length} questions`);
+    }
+
     // 使用Sequelize事务
     const result = await sequelize.transaction(async (t) => {
       // 查找题库
@@ -352,6 +427,8 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
         // 不要在事务内返回响应，而是抛出错误
         throw new Error('题库不存在');
       }
+      
+      console.log(`Found question set ${id}, updating basic info`);
       
       // 更新题库基本信息
       await questionSet.update({
@@ -368,46 +445,67 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
       
       // 如果提供了问题数据，则更新问题
       if (Array.isArray(questions) && questions.length > 0) {
-        // 先删除该题库下的所有问题和选项
-        await Question.destroy({
-          where: { questionSetId: id },
-          transaction: t
-        });
-        
-        // 重新创建问题和选项
-        for (let i = 0; i < questions.length; i++) {
-          const q = questions[i];
+        console.log(`Updating ${questions.length} questions for set ${id}`);
+        try {
+          // 先删除该题库下的所有问题和选项
+          await Question.destroy({
+            where: { questionSetId: id },
+            transaction: t
+          });
           
-          // 创建问题
-          const question = await Question.create({
-            text: q.text,
-            explanation: q.explanation || '暂无解析',
-            questionSetId: id,
-            questionType: q.questionType || 'single',
-            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
-          }, { transaction: t });
-          
-          // 创建问题的选项
-          if (Array.isArray(q.options) && q.options.length > 0) {
-            const optionPromises = q.options.map((opt: any, j: number) => {
-              const optionIndex = opt.optionIndex || String.fromCharCode(65 + j); // A, B, C...
-              
-              return Option.create({
-                questionId: question.id,
-                text: opt.text,
-                isCorrect: opt.isCorrect ? true : false,
-                optionIndex: optionIndex
-              }, { transaction: t });
-            });
+          // 重新创建问题和选项
+          for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            console.log(`Creating question ${i+1}/${questions.length}`);
             
-            await Promise.all(optionPromises);
+            // 跳过无文本的问题
+            if (!q.text) {
+              console.warn(`Question ${i+1} has no text, skipping`);
+              continue;
+            }
+            
+            // 创建问题
+            const question = await Question.create({
+              text: q.text,
+              explanation: q.explanation,
+              questionSetId: id,
+              questionType: q.questionType,
+              orderIndex: q.orderIndex
+            }, { transaction: t });
+            
+            // 创建问题的选项
+            if (Array.isArray(q.options) && q.options.length > 0) {
+              console.log(`Creating ${q.options.length} options for question ${i+1}`);
+              try {
+                const optionPromises = q.options.map((opt: any) => {
+                  return Option.create({
+                    questionId: question.id,
+                    text: opt.text,
+                    isCorrect: opt.isCorrect,
+                    optionIndex: opt.optionIndex
+                  }, { transaction: t });
+                });
+                
+                await Promise.all(optionPromises);
+              } catch (optionError) {
+                console.error(`Error creating options for question ${i+1}:`, optionError);
+                throw optionError;
+              }
+            } else {
+              console.warn(`Question ${i+1} has no options`);
+            }
           }
+        } catch (questionError) {
+          console.error('Error updating questions:', questionError);
+          throw questionError;
         }
       }
       
       // 获取更新后的题库ID - 不返回完整对象避免循环引用
       return questionSet.id;
     });
+    
+    console.log(`Transaction completed successfully, fetching updated data for ${result}`);
     
     // 事务完成后，单独查询题库，避免循环引用
     const updatedQuestionSet = await QuestionSet.findByPk(result, {
@@ -426,6 +524,8 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
         message: '题库不存在'
       });
     }
+
+    console.log(`Building safe response for question set ${result} with ${updatedQuestionSet.questions?.length || 0} questions`);
 
     // 手动构建安全的响应对象，避免可能的循环引用
     const safeResponse = {
@@ -454,6 +554,7 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
       }))
     };
 
+    console.log(`Successfully updated question set ${result}`);
     return res.status(200).json({
       success: true,
       message: '题库更新成功',
@@ -469,9 +570,19 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
     }
     
     console.error('更新题库失败:', error);
+    console.error('Error stack:', error.stack);
+    
+    // 提供更具体的错误信息
+    let errorMessage = '更新题库失败';
+    if (error.name === 'SequelizeValidationError') {
+      errorMessage = '数据验证失败: ' + error.message;
+    } else if (error.name === 'SequelizeDatabaseError') {
+      errorMessage = '数据库错误: ' + error.message;
+    }
+    
     return res.status(500).json({
       success: false,
-      message: '更新题库失败',
+      message: errorMessage,
       error: error.message
     });
   }
