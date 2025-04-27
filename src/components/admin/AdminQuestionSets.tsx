@@ -441,10 +441,27 @@ const AdminQuestionSets = () => {
     }
   };
 
-  // 打开题目管理模态框
+  // 显示题库管理界面，包含添加题目和查看题目功能
   const handleManageQuestions = (questionSet: ClientQuestionSet) => {
-    setCurrentQuestionSet(questionSet);
+    setCurrentQuestionSet({...questionSet});
     setShowQuestionModal(true);
+    setCurrentQuestion(null);
+    setIsAddingQuestion(true);
+    
+    // 初始化新题目表单
+    setQuestionFormData({
+      id: Date.now(),
+      question: '',
+      questionType: 'single',
+      options: [
+        { id: 'A', text: '' },
+        { id: 'B', text: '' },
+        { id: 'C', text: '' },
+        { id: 'D', text: '' },
+      ],
+      correctAnswer: '',
+      explanation: ''
+    });
   };
 
   // 处理添加新题目
@@ -832,6 +849,83 @@ const AdminQuestionSets = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // 在renderQuestionSets函数中添加添加题目按钮
+  const renderQuestionSets = () => {
+    if (filteredQuestionSets.length === 0) {
+      return (
+        <div className="text-center py-10">
+          <p className="text-gray-500">未找到匹配的题库</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标题</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分类</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">付费</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">题目数</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredQuestionSets.map((set) => (
+              <tr key={set.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{set.id}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{set.title}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{set.category}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {set.isPaid ? (
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                      付费 (¥{set.price})
+                    </span>
+                  ) : (
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                      免费
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{set.questions?.length || 0}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
+                  <button
+                    className="text-indigo-600 hover:text-indigo-900"
+                    onClick={() => handleEditClick(set)}
+                  >
+                    编辑
+                  </button>
+                  <button
+                    className="text-green-600 hover:text-green-900"
+                    onClick={() => handleManageQuestions(set)}
+                  >
+                    添加题目
+                  </button>
+                  <button
+                    className="text-red-600 hover:text-red-900"
+                    onClick={() => handleDeleteQuestionSet(set.id)}
+                  >
+                    删除
+                  </button>
+                  {set.isPaid && (
+                    <button
+                      className="text-yellow-600 hover:text-yellow-900"
+                      onClick={() => handleShowGenerateCodeModal(set)}
+                    >
+                      生成兑换码
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   // 组件的返回语句 - 实际 UI 部分

@@ -88,10 +88,11 @@ const AddQuestionSet: React.FC = () => {
       return;
     }
     
-    if (questions.length === 0) {
-      setErrorMessage('请至少添加一道题目');
-      return;
-    }
+    // 不再强制要求添加题目
+    // if (questions.length === 0) {
+    //   setErrorMessage('请至少添加一道题目');
+    //   return;
+    // }
 
     setIsSubmitting(true);
     setErrorMessage('');
@@ -248,139 +249,124 @@ const AddQuestionSet: React.FC = () => {
             </div>
             
             <div>
-              <label className="block text-gray-700 mb-2">访问权限</label>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={isPaid}
-                  onChange={(e) => setIsPaid(e.target.checked)}
-                  className="mr-2"
-                />
-                <span>付费题库</span>
-              </div>
-              
-              {isPaid && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-gray-700 mb-1 text-sm">价格 (元)</label>
-                    <input
-                      type="number"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-1"
-                      placeholder="0.00"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 mb-1 text-sm">试用题数</label>
-                    <input
-                      type="number"
-                      value={trialQuestions}
-                      onChange={(e) => setTrialQuestions(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-1"
-                      placeholder="0"
-                      min="0"
-                      step="1"
-                    />
-                  </div>
-                </div>
-              )}
+              <label className="block text-gray-700 mb-2">描述</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                rows={3}
+                placeholder="输入题库描述"
+              />
             </div>
           </div>
           
           <div className="mt-4">
-            <label className="block text-gray-700 mb-2">描述</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              rows={3}
-              placeholder="输入题库描述"
-            />
+            <label className="inline-flex items-center">
+              <input
+                type="checkbox"
+                checked={isPaid}
+                onChange={(e) => setIsPaid(e.target.checked)}
+                className="form-checkbox"
+              />
+              <span className="ml-2">付费题库</span>
+            </label>
+            
+            {isPaid && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <label className="block text-gray-700 mb-2">价格 (¥)</label>
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    placeholder="例如: 29.9"
+                    step="0.1"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-2">免费试用题目数量</label>
+                  <input
+                    type="number"
+                    value={trialQuestions}
+                    onChange={(e) => setTrialQuestions(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    placeholder="例如: 5"
+                    step="1"
+                    min="0"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
-        {/* 题目管理部分 */}
-        <div>
+        {/* 题目管理部分 - 可选 */}
+        <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-700">题目管理</h3>
+            <h3 className="text-lg font-medium text-gray-700">题目管理（可选）</h3>
             <button
               type="button"
               onClick={() => setIsAddingQuestion(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
               添加题目
             </button>
           </div>
           
-          {questions.length === 0 ? (
-            <div className="bg-gray-50 p-6 text-center rounded">
-              <p className="text-gray-500">还没有添加题目，点击「添加题目」开始创建</p>
+          {questions.length > 0 ? (
+            <div className="bg-white border border-gray-200 rounded overflow-hidden">
+              <ul className="divide-y divide-gray-200">
+                {questions.map((question, index) => (
+                  <li key={question.id} className="p-4">
+                    <div className="flex justify-between">
+                      <div>
+                        <span className="font-medium text-gray-800">#{index + 1}. </span>
+                        <span>{question.question}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteQuestion(question.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : (
-            <div className="space-y-4">
-              {questions.map((question, index) => (
-                <div key={question.id} className="border border-gray-200 rounded p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full mb-2">
-                        {question.questionType === 'single' ? '单选题' : '多选题'}
-                      </span>
-                      <h4 className="font-medium">{index + 1}. {question.question}</h4>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteQuestion(question.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      删除
-                    </button>
-                  </div>
-                  <div className="mt-2 pl-4">
-                    {question.options.map((option) => (
-                      <div key={option.id} className="flex items-center my-1">
-                        <span className={`w-6 h-6 flex items-center justify-center rounded-full border mr-2 ${
-                          question.questionType === 'single'
-                            ? question.correctAnswer === option.id
-                              ? 'bg-green-500 text-white border-green-500'
-                              : 'border-gray-300'
-                            : (question.correctAnswer as string[]).includes(option.id)
-                              ? 'bg-green-500 text-white border-green-500'
-                              : 'border-gray-300'
-                        }`}>
-                          {option.id}
-                        </span>
-                        <span>{option.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {isAddingQuestion && (
-            <div className="mt-4 border-t border-gray-200 pt-4">
-              <AddQuestion
-                onAddQuestion={handleAddQuestion}
-                onCancel={() => setIsAddingQuestion(false)}
-                questionCount={questions.length}
-              />
+            <div className="text-center py-10 bg-gray-50 rounded border border-gray-200">
+              <p className="text-gray-500">题库中还没有题目。添加题目或者先创建空题库。</p>
             </div>
           )}
         </div>
         
+        {/* 添加题目表单 */}
+        {isAddingQuestion && (
+          <AddQuestion
+            onAddQuestion={handleAddQuestion}
+            onCancel={() => setIsAddingQuestion(false)}
+            questionCount={questions.length}
+          />
+        )}
+        
         {/* 提交按钮 */}
-        <div className="mt-6 pt-6 border-t border-gray-200">
+        <div className="flex justify-end space-x-4 mt-6">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            取消
+          </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`px-6 py-2 rounded font-medium ${
-              isSubmitting
-                ? 'bg-gray-400 text-white cursor-not-allowed'
-                : 'bg-green-600 text-white hover:bg-green-700'
+            className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
+              isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
             }`}
           >
             {isSubmitting ? '保存中...' : '保存题库'}

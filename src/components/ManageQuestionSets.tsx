@@ -1,6 +1,8 @@
 // @ts-nocheck - 禁用 TypeScript 未使用变量检查
 import React, { useState, useEffect } from 'react';
 import { QuestionSet } from '../data/questionSets';
+import { Question } from '../data/questions';
+import AddQuestion from './AddQuestion';
 import axios from 'axios';
 
 const ManageQuestionSets: React.FC = () => {
@@ -8,6 +10,11 @@ const ManageQuestionSets: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // 添加题目相关状态
+  const [currentQuestionSet, setCurrentQuestionSet] = useState<QuestionSet | null>(null);
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [isSavingQuestion, setIsSavingQuestion] = useState(false);
 
   // 加载题库列表
   useEffect(() => {
@@ -71,6 +78,69 @@ const ManageQuestionSets: React.FC = () => {
     }
   };
 
+  // 开始添加题目
+  const handleAddQuestion = (questionSet: QuestionSet) => {
+    setCurrentQuestionSet(questionSet);
+    setIsAddingQuestion(true);
+  };
+
+  // 保存新题目
+  const handleSaveQuestion = async (question: Question) => {
+    if (!currentQuestionSet) return;
+    
+    setIsSavingQuestion(true);
+    setError(null);
+    
+    try {
+      // 确保题库的questions是数组
+      const questions = Array.isArray(currentQuestionSet.questions) 
+        ? [...currentQuestionSet.questions, question] 
+        : [question];
+      
+      // 创建更新后的题库对象
+      const updatedQuestionSet = {
+        ...currentQuestionSet,
+        questions
+      };
+      
+      // 发送更新请求
+      await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      // 更新本地状态
+      setQuestionSets(prev => 
+        prev.map(set => 
+          set.id === currentQuestionSet.id ? updatedQuestionSet : set
+        )
+      );
+      
+      // 重置添加题目状态
+      setCurrentQuestionSet(null);
+      setIsAddingQuestion(false);
+      setSuccessMessage('题目添加成功');
+      
+      // 3秒后清除成功消息
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+    } catch (err) {
+      console.error('添加题目失败:', err);
+      setError('添加题目失败，请稍后重试');
+    } finally {
+      setIsSavingQuestion(false);
+    }
+  };
+
+  // 取消添加题目
+  const handleCancelAddQuestion = () => {
+    setCurrentQuestionSet(null);
+    setIsAddingQuestion(false);
+  };
+
   // 根据题库类型获取颜色
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -124,6 +194,12 @@ const ManageQuestionSets: React.FC = () => {
               </div>
               <div className="flex space-x-2">
                 <button
+                  onClick={() => handleAddQuestion(set)}
+                  className="px-2 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                >
+                  添加题目
+                </button>
+                <button
                   onClick={() => handleDelete(set.id)}
                   className="text-red-600 hover:text-red-800 text-sm"
                 >
@@ -166,6 +242,29 @@ const ManageQuestionSets: React.FC = () => {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
+        </div>
+      )}
+      
+      {/* 添加题目模态框 */}
+      {isAddingQuestion && currentQuestionSet && (
+        <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium">
+              添加题目到: <span className="text-blue-600">{currentQuestionSet.title}</span>
+            </h3>
+            <button 
+              onClick={handleCancelAddQuestion}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              关闭
+            </button>
+          </div>
+          
+          <AddQuestion
+            onAddQuestion={handleSaveQuestion}
+            onCancel={handleCancelAddQuestion}
+            questionCount={Array.isArray(currentQuestionSet.questions) ? currentQuestionSet.questions.length : 0}
+          />
         </div>
       )}
       
