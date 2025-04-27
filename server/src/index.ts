@@ -75,8 +75,18 @@ app.use(generalLimiter);
 console.log('=========== API路由注册开始 ===========');
 
 // Routes
-app.use('/api/users/login', loginLimiter); // Login route extra restriction
-app.use('/api/users', userRoutes);
+app.use('/api/users', userRoutes); // 先注册主路由
+console.log('注册路由: /api/users, 包含登录和注册功能');
+
+// 单独注册完整的登录路径，确保可以访问
+app.post('/api/users/login', loginLimiter, (req, res, next) => {
+  console.log('收到登录请求, 转发到userRoutes处理');
+  next();
+}, (req, res) => {
+  import('./controllers/userController').then(controllers => {
+    controllers.loginUser(req, res);
+  });
+});
 
 // QuestionSet路由处理所有题库相关的功能
 console.log('注册路由: /api/question-sets');
