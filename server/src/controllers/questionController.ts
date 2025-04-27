@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import QuestionSet from '../models/QuestionSet';
 import Question from '../models/Question';
 import { Op } from 'sequelize';
+import Option from '../models/Option';
 
 // @desc    获取所有题库
 // @route   GET /api/question-sets
@@ -9,7 +10,11 @@ import { Op } from 'sequelize';
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
     const questionSets = await QuestionSet.findAll({
-      include: [{ model: Question, as: 'questions' }]
+      include: [{ 
+        model: Question, 
+        as: 'questions',
+        include: [{ model: Option, as: 'options' }]
+      }]
     });
     
     res.json({
@@ -31,7 +36,11 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
 export const getQuestionSetById = async (req: Request, res: Response) => {
   try {
     const questionSet = await QuestionSet.findByPk(req.params.id, {
-      include: [{ model: Question, as: 'questions' }]
+      include: [{ 
+        model: Question, 
+        as: 'questions',
+        include: [{ model: Option, as: 'options' }]
+      }]
     });
     
     if (!questionSet) {
@@ -102,7 +111,11 @@ export const createQuestionSet = async (req: Request, res: Response) => {
     
     // 获取带有题目的完整题库
     const fullQuestionSet = await QuestionSet.findByPk(questionSet.id, {
-      include: [{ model: Question, as: 'questions' }]
+      include: [{ 
+        model: Question, 
+        as: 'questions',
+        include: [{ model: Option, as: 'options' }]
+      }]
     });
     
     res.status(201).json({
@@ -164,7 +177,11 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
     
     // 获取更新后的完整题库
     const updatedQuestionSet = await QuestionSet.findByPk(questionSet.id, {
-      include: [{ model: Question, as: 'questions' }]
+      include: [{ 
+        model: Question, 
+        as: 'questions',
+        include: [{ model: Option, as: 'options' }]
+      }]
     });
     
     res.json({

@@ -220,13 +220,7 @@ exports.getFeaturedQuestionSets = getFeaturedQuestionSets;
 const updateQuestionSetFeaturedStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { isFeatured } = req.body;
-        if (typeof isFeatured !== 'boolean') {
-            return res.status(400).json({
-                success: false,
-                message: 'isFeatured必须是一个布尔值'
-            });
-        }
+        const { isFeatured, featuredCategory } = req.body;
         // 查找题库
         const questionSet = await QuestionSet_1.default.findByPk(id);
         if (!questionSet) {
@@ -235,13 +229,40 @@ const updateQuestionSetFeaturedStatus = async (req, res) => {
                 message: '题库不存在'
             });
         }
-        // 更新精选状态
-        await questionSet.update({
-            isFeatured
-        });
+        // 准备更新数据对象
+        const updateData = {};
+        // 如果提供了 isFeatured 参数
+        if (typeof isFeatured === 'boolean') {
+            updateData.isFeatured = isFeatured;
+            // 如果取消精选，同时清除精选分类
+            if (isFeatured === false) {
+                updateData.featuredCategory = undefined;
+            }
+        }
+        // 如果提供了 featuredCategory 参数
+        if (featuredCategory !== undefined) {
+            updateData.featuredCategory = featuredCategory || undefined;
+        }
+        // 没有任何参数时返回错误
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: '需要提供 isFeatured 或 featuredCategory 参数'
+            });
+        }
+        // 更新题库
+        await questionSet.update(updateData);
+        // 准备响应消息
+        let message = '';
+        if ('isFeatured' in updateData) {
+            message = `题库${updateData.isFeatured ? '已添加到' : '已从'}精选列表${updateData.isFeatured ? '中' : '移除'}`;
+        }
+        else if ('featuredCategory' in updateData) {
+            message = '题库精选分类已更新';
+        }
         res.status(200).json({
             success: true,
-            message: `题库${isFeatured ? '已添加到' : '已从'}精选列表${isFeatured ? '中' : '移除'}`
+            message
         });
     }
     catch (error) {

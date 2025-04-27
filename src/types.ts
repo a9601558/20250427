@@ -41,6 +41,7 @@ export interface Option {
   id: string;
   text: string;
   isCorrect: boolean;
+  optionIndex?: string;
 }
 
 export interface Purchase {

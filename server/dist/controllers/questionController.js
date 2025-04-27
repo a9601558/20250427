@@ -6,13 +6,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Question_1 = __importDefault(require("../models/Question"));
+const Option_1 = __importDefault(require("../models/Option"));
 // @desc    获取所有题库
 // @route   GET /api/question-sets
 // @access  Public
 const getAllQuestionSets = async (req, res) => {
     try {
         const questionSets = await QuestionSet_1.default.findAll({
-            include: [{ model: Question_1.default, as: 'questions' }]
+            include: [{
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{ model: Option_1.default, as: 'options' }]
+                }]
         });
         res.json({
             success: true,
@@ -34,7 +39,11 @@ exports.getAllQuestionSets = getAllQuestionSets;
 const getQuestionSetById = async (req, res) => {
     try {
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
-            include: [{ model: Question_1.default, as: 'questions' }]
+            include: [{
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{ model: Option_1.default, as: 'options' }]
+                }]
         });
         if (!questionSet) {
             return res.status(404).json({
@@ -97,7 +106,11 @@ const createQuestionSet = async (req, res) => {
         }
         // 获取带有题目的完整题库
         const fullQuestionSet = await QuestionSet_1.default.findByPk(questionSet.id, {
-            include: [{ model: Question_1.default, as: 'questions' }]
+            include: [{
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{ model: Option_1.default, as: 'options' }]
+                }]
         });
         res.status(201).json({
             success: true,
@@ -152,7 +165,11 @@ const updateQuestionSet = async (req, res) => {
         }
         // 获取更新后的完整题库
         const updatedQuestionSet = await QuestionSet_1.default.findByPk(questionSet.id, {
-            include: [{ model: Question_1.default, as: 'questions' }]
+            include: [{
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{ model: Option_1.default, as: 'options' }]
+                }]
         });
         res.json({
             success: true,

@@ -10,6 +10,139 @@ const db_1 = __importDefault(require("../config/db"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const db_2 = require("../config/db");
+// 添加一个预处理函数来标准化前端传来的数据格式
+function normalizeQuestionData(questions) {
+    if (!Array.isArray(questions)) {
+        console.warn('questions is not an array:', questions);
+        return [];
+    }
+    console.log('正在标准化问题数据，数量:', questions.length);
+    console.log('原始问题数据:', JSON.stringify(questions));
+    return questions.map((q, index) => {
+        // Handle potential null question object
+        if (!q) {
+            console.warn(`Question at index ${index} is null or undefined`);
+            return null;
+        }
+        // 记录原始问题数据以帮助调试
+        console.log(`处理原始问题 ${index}:`, JSON.stringify(q));
+        // 处理请求中不同的数据格式
+        // 如果是 {id: 1, question: "text"} 格式但没有text字段
+        if (q.question !== undefined && q.text === undefined) {
+            console.log(`问题 ${index}: 使用 'question' 字段 "${q.question}" 设置为 'text'`);
+            q.text = q.question; // 确保text字段存在
+        }
+        // 确保text字段不为null，如果是null或空字符串则提供默认值
+        let questionText = '';
+        if (q.text !== undefined && q.text !== null) {
+            questionText = String(q.text);
+        }
+        else if (q.question !== undefined && q.question !== null) {
+            questionText = String(q.question);
+            // 同时设置q.text，防止后续处理丢失
+            q.text = questionText;
+        }
+        else {
+            questionText = `问题 #${index + 1}`; // 默认文本
+            // 同时设置q.text
+            q.text = questionText;
+        }
+        console.log(`问题 ${index} 标准化后的text:`, questionText);
+        // 确保其他字段不为null
+        const explanation = q.explanation !== undefined && q.explanation !== null
+            ? String(q.explanation)
+            : '暂无解析';
+        const questionType = q.questionType || 'single';
+        const orderIndex = q.orderIndex !== undefined ? q.orderIndex : index;
+        // 标准化问题数据
+        const normalizedQuestion = {
+            text: questionText.trim(),
+            explanation: explanation.trim(),
+            questionType,
+            orderIndex,
+            options: []
+        };
+        // 处理选项
+        if (Array.isArray(q.options)) {
+            console.log(`处理问题 ${index} 的选项数组:`, JSON.stringify(q.options));
+            normalizedQuestion.options = q.options
+                .filter((opt) => opt) // 移除null或undefined选项
+                .map((opt, j) => {
+                // 确保选项文本不为null
+                let optionText = '';
+                if (opt.text !== undefined && opt.text !== null) {
+                    optionText = String(opt.text);
+                }
+                else if (typeof opt === 'object') {
+                    // 特殊处理可能的格式 {"id":"D", "text":"3333"} 或 {"D":"3333"}
+                    if (opt.id && typeof opt.id === 'string') {
+                        // 如果是 {"id":"D"} 格式，尝试找到文本
+                        if (opt.text) {
+                            optionText = String(opt.text);
+                        }
+                        else {
+                            // 检查是否有键与id相同
+                            const idKey = opt.id;
+                            if (opt[idKey]) {
+                                optionText = String(opt[idKey]);
+                                console.log(`从键 ${idKey} 获取选项文本: ${optionText}`);
+                            }
+                        }
+                    }
+                    else {
+                        // 检查是否是 {A: "text"} 格式
+                        const keys = Object.keys(opt);
+                        if (keys.length === 1 && keys[0].length === 1) {
+                            optionText = String(opt[keys[0]]);
+                            console.log(`从键值对 {${keys[0]}: "${optionText}"} 获取选项文本`);
+                        }
+                    }
+                }
+                // 如果还是没有文本，使用默认值
+                if (!optionText) {
+                    optionText = `选项 ${String.fromCharCode(65 + j)}`; // A, B, C...
+                    console.log(`选项 ${j} 没有找到有效文本，使用默认值: ${optionText}`);
+                }
+                // 选项ID处理
+                let optionIndex = '';
+                if (typeof opt.optionIndex === 'string') {
+                    optionIndex = opt.optionIndex;
+                }
+                else if (typeof opt.id === 'string') {
+                    optionIndex = opt.id;
+                }
+                else {
+                    optionIndex = String.fromCharCode(65 + j); // A, B, C...
+                }
+                // 判断是否为正确选项
+                let isCorrect = false;
+                if (opt.isCorrect === true) {
+                    isCorrect = true;
+                }
+                else if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
+                    isCorrect = true;
+                }
+                else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
+                    isCorrect = true;
+                }
+                return {
+                    text: optionText.trim(),
+                    isCorrect,
+                    optionIndex
+                };
+            });
+        }
+        else {
+            console.warn(`Question ${index + 1} has no options array, creating default options`);
+            // 创建默认选项
+            normalizedQuestion.options = [
+                { text: '选项 A', isCorrect: true, optionIndex: 'A' },
+                { text: '选项 B', isCorrect: false, optionIndex: 'B' }
+            ];
+        }
+        return normalizedQuestion;
+    }).filter(q => q !== null); // 移除null的问题
+}
 /**
  * @desc    获取所有题库
  * @route   GET /api/question-sets
@@ -235,10 +368,38 @@ exports.createQuestionSet = createQuestionSet;
  * @access  Admin
  */
 const updateQuestionSet = async (req, res) => {
-    var _a;
+    var _a, _b;
     const { id } = req.params;
-    const { title, description, category, icon, isPaid, price, trialQuestions, questions, isFeatured, featuredCategory } = req.body;
+    let { title, description, category, icon, isPaid, price, trialQuestions, questions, isFeatured, featuredCategory } = req.body;
     try {
+        console.log(`Received update request for question set ${id}`);
+        console.log('Request body summary:', JSON.stringify({
+            title,
+            description,
+            category,
+            questionCount: (questions === null || questions === void 0 ? void 0 : questions.length) || 0
+        }));
+        // 特殊处理: 如果前端传来的请求体包含格式为 {question: "xxx"} 的问题，转换为 {text: "xxx"}
+        if (Array.isArray(questions)) {
+            console.log(`预处理 ${questions.length} 个问题的请求数据`);
+            questions = questions.map((q, index) => {
+                if (!q)
+                    return q;
+                // 直接输出原始问题对象帮助调试
+                console.log(`原始问题 ${index}:`, JSON.stringify(q));
+                // 处理 {id: X, question: "xxx"} 格式
+                if (q.question !== undefined && q.text === undefined) {
+                    console.log(`问题 ${index}: 转换 question 字段 "${q.question}" 到 text 字段`);
+                    return { ...q, text: q.question };
+                }
+                return q;
+            });
+        }
+        // 标准化问题数据，确保格式一致
+        if (Array.isArray(questions) && questions.length > 0) {
+            questions = normalizeQuestionData(questions);
+            console.log(`Normalized ${questions.length} questions`);
+        }
         // 使用Sequelize事务
         const result = await db_2.sequelize.transaction(async (t) => {
             // 查找题库
@@ -247,6 +408,7 @@ const updateQuestionSet = async (req, res) => {
                 // 不要在事务内返回响应，而是抛出错误
                 throw new Error('题库不存在');
             }
+            console.log(`Found question set ${id}, updating basic info`);
             // 更新题库基本信息
             await questionSet.update({
                 title: title !== undefined ? title : questionSet.title,
@@ -261,40 +423,94 @@ const updateQuestionSet = async (req, res) => {
             }, { transaction: t });
             // 如果提供了问题数据，则更新问题
             if (Array.isArray(questions) && questions.length > 0) {
-                // 先删除该题库下的所有问题和选项
-                await Question_1.default.destroy({
-                    where: { questionSetId: id },
-                    transaction: t
-                });
-                // 重新创建问题和选项
+                console.log(`Updating ${questions.length} questions for set ${id}`);
+                // 直接检查questions数组，确保每个问题都有text字段
                 for (let i = 0; i < questions.length; i++) {
-                    const q = questions[i];
-                    // 创建问题
-                    const question = await Question_1.default.create({
-                        text: q.text,
-                        explanation: q.explanation || '暂无解析',
-                        questionSetId: id,
-                        questionType: q.questionType || 'single',
-                        orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
-                    }, { transaction: t });
-                    // 创建问题的选项
-                    if (Array.isArray(q.options) && q.options.length > 0) {
-                        const optionPromises = q.options.map((opt, j) => {
-                            const optionIndex = opt.optionIndex || String.fromCharCode(65 + j); // A, B, C...
-                            return Option_1.default.create({
-                                questionId: question.id,
-                                text: opt.text,
-                                isCorrect: opt.isCorrect ? true : false,
-                                optionIndex: optionIndex
-                            }, { transaction: t });
-                        });
-                        await Promise.all(optionPromises);
+                    // 确保question数据中存在text字段
+                    if (questions[i] && !questions[i].text && questions[i].question) {
+                        console.log(`预处理: 问题 ${i + 1} 没有text字段但有question字段，复制值`);
+                        questions[i].text = questions[i].question;
                     }
+                }
+                try {
+                    // 先删除该题库下的所有问题和选项
+                    await Question_1.default.destroy({
+                        where: { questionSetId: id },
+                        transaction: t
+                    });
+                    // 重新创建问题和选项
+                    for (let i = 0; i < questions.length; i++) {
+                        const q = questions[i];
+                        // 详细诊断日志 - 使用最简单的方式输出
+                        console.log("=============================================");
+                        console.log("问题创建前调试信息 - 问题 #" + (i + 1));
+                        console.log("q.text = " + q.text);
+                        console.log("q.question = " + q.question);
+                        console.log("JSON: " + JSON.stringify(q));
+                        console.log("=============================================");
+                        // 确保创建的数据绝对不会有null
+                        const createData = {
+                            text: String(q.text || '').trim() || `问题 ${i + 1}`,
+                            explanation: String(q.explanation || '暂无解析').trim(),
+                            questionSetId: id,
+                            questionType: q.questionType || 'single',
+                            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+                        };
+                        // 再次验证 text 不为 null
+                        if (!createData.text) {
+                            console.error(`警告: 在 create 前 text 为空，强制设置默认值`);
+                            createData.text = `问题 ${i + 1} [自动修复]`;
+                        }
+                        console.log(`最终创建数据:`, JSON.stringify(createData));
+                        const question = await Question_1.default.create(createData, { transaction: t });
+                        // 创建问题的选项
+                        if (Array.isArray(q.options) && q.options.length > 0) {
+                            console.log(`Creating ${q.options.length} options for question ${i + 1}`);
+                            try {
+                                for (const opt of q.options) {
+                                    if (!opt) {
+                                        console.log('跳过空选项');
+                                        continue;
+                                    }
+                                    // 确保选项文本不为空
+                                    let optionText = opt.text;
+                                    if (!optionText && opt.id) {
+                                        // 尝试从ID为键的属性中获取文本
+                                        const idKey = opt.id;
+                                        optionText = opt[idKey] || '';
+                                    }
+                                    // 如果仍然为空，使用默认值
+                                    if (!optionText) {
+                                        optionText = `选项 ${opt.optionIndex || opt.id || ''}`;
+                                    }
+                                    // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
+                                    await Option_1.default.create({
+                                        questionId: question.id,
+                                        text: String(optionText).trim() || '默认选项文本',
+                                        isCorrect: !!opt.isCorrect,
+                                        optionIndex: opt.optionIndex || opt.id || ''
+                                    }, { transaction: t });
+                                }
+                            }
+                            catch (optionError) {
+                                console.error(`Error creating options for question ${i + 1}:`, optionError);
+                                throw optionError;
+                            }
+                        }
+                        else {
+                            console.warn(`Question ${i + 1} has no options`);
+                        }
+                    }
+                }
+                catch (questionError) {
+                    console.error('Error updating questions:', questionError);
+                    throw questionError;
                 }
             }
             // 获取更新后的题库ID - 不返回完整对象避免循环引用
             return questionSet.id;
         });
+        console.log(`Transaction completed successfully, fetching updated data for ${result}`);
         // 事务完成后，单独查询题库，避免循环引用
         const updatedQuestionSet = await QuestionSet_1.default.findByPk(result, {
             include: [
@@ -311,6 +527,7 @@ const updateQuestionSet = async (req, res) => {
                 message: '题库不存在'
             });
         }
+        console.log(`Building safe response for question set ${result} with ${((_a = updatedQuestionSet.questions) === null || _a === void 0 ? void 0 : _a.length) || 0} questions`);
         // 手动构建安全的响应对象，避免可能的循环引用
         const safeResponse = {
             id: updatedQuestionSet.id,
@@ -323,7 +540,7 @@ const updateQuestionSet = async (req, res) => {
             trialQuestions: updatedQuestionSet.trialQuestions,
             isFeatured: updatedQuestionSet.isFeatured,
             featuredCategory: updatedQuestionSet.featuredCategory,
-            questions: (_a = updatedQuestionSet.questions) === null || _a === void 0 ? void 0 : _a.map((q) => {
+            questions: (_b = updatedQuestionSet.questions) === null || _b === void 0 ? void 0 : _b.map((q) => {
                 var _a;
                 return ({
                     id: q.id,
@@ -340,6 +557,7 @@ const updateQuestionSet = async (req, res) => {
                 });
             })
         };
+        console.log(`Successfully updated question set ${result}`);
         return res.status(200).json({
             success: true,
             message: '题库更新成功',
@@ -355,9 +573,18 @@ const updateQuestionSet = async (req, res) => {
             });
         }
         console.error('更新题库失败:', error);
+        console.error('Error stack:', error.stack);
+        // 提供更具体的错误信息
+        let errorMessage = '更新题库失败';
+        if (error.name === 'SequelizeValidationError') {
+            errorMessage = '数据验证失败: ' + error.message;
+        }
+        else if (error.name === 'SequelizeDatabaseError') {
+            errorMessage = '数据库错误: ' + error.message;
+        }
         return res.status(500).json({
             success: false,
-            message: '更新题库失败',
+            message: errorMessage,
             error: error.message
         });
     }

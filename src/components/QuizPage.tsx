@@ -5,7 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi } from '../utils/api';
 
-const QuizPage: React.FC = () => {
+function QuizPage(): React.ReactNode {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const { user, addProgress, hasAccessToQuestionSet, getRemainingAccessDays } = useUser();
@@ -40,9 +40,47 @@ const QuizPage: React.FC = () => {
         if (response.success && response.data) {
           setQuestionSet(response.data);
           
+          // 检查题目数据
           if (response.data.questions && response.data.questions.length > 0) {
-            setQuestions(response.data.questions);
+            console.log("获取到题目:", response.data.questions.length);
+            
+            // 检查并处理题目选项
+            const processedQuestions = response.data.questions.map(q => {
+              // 确保选项存在
+              if (!q.options || !Array.isArray(q.options)) {
+                console.warn("题目缺少选项:", q.id);
+                q.options = [];
+              }
+              
+              // 处理选项
+              const processedOptions = q.options.map(opt => ({
+                id: opt.id || opt.optionIndex || `option-${Math.random().toString(36).substr(2, 9)}`,
+                text: opt.text,
+                isCorrect: opt.isCorrect
+              }));
+              
+              // 处理正确答案
+              let correctAnswer;
+              if (q.questionType === 'single') {
+                const correctOpt = q.options.find(o => o.isCorrect);
+                correctAnswer = correctOpt ? (correctOpt.id || correctOpt.optionIndex || '') : '';
+              } else {
+                correctAnswer = q.options
+                  .filter(o => o.isCorrect)
+                  .map(o => o.id || o.optionIndex || '')
+                  .filter(id => id !== '');
+              }
+              
+              return {
+                ...q,
+                options: processedOptions,
+                correctAnswer
+              };
+            });
+            
+            setQuestions(processedQuestions);
           } else {
+            console.error("题库中没有题目");
             setError('此题库不包含任何题目');
           }
         } else {
@@ -446,6 +484,6 @@ const QuizPage: React.FC = () => {
       </div>
     </div>
   );
-};
+}
 
 export default QuizPage; 
