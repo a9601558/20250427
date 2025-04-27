@@ -4,7 +4,9 @@ import axios from 'axios';
 import { QuestionSet } from '../types';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
-import LoginModal from './LoginModal';
+import UserProgressDisplay from './UserProgressDisplay';
+import RecentlyStudiedQuestionSets from './RecentlyStudiedQuestionSets';
+import StudySuggestions from './StudySuggestions';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -40,7 +42,6 @@ const HomePage: React.FC = () => {
     description: '选择以下任一题库开始练习，测试您的知识水平'
   });
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(false);
 
   // 获取首页设置、分类和题库列表
@@ -257,6 +258,32 @@ const HomePage: React.FC = () => {
               </div>
             )}
             
+            {/* 添加用户进度展示组件和最近学习题库组件 */}
+            {user && questionSets.length > 0 && (
+              <>
+                <div className="mt-6 mx-auto max-w-2xl grid md:grid-cols-2 gap-4">
+                  <UserProgressDisplay
+                    questionSets={questionSets}
+                    limit={3}
+                    className={homeContent.theme === 'dark' ? 'bg-gray-700 text-white border-gray-600' : 'bg-white'}
+                  />
+                  <RecentlyStudiedQuestionSets
+                    questionSets={questionSets}
+                    limit={4}
+                    theme={homeContent.theme === 'dark' ? 'dark' : 'light'}
+                  />
+                </div>
+                
+                {/* 添加学习建议组件 */}
+                <div className="mt-4 mx-auto max-w-2xl">
+                  <StudySuggestions
+                    questionSets={questionSets}
+                    theme={homeContent.theme === 'dark' ? 'dark' : 'light'}
+                  />
+                </div>
+              </>
+            )}
+            
             {!user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
                 <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2`}>随时开始，无需登录</h3>
@@ -264,7 +291,7 @@ const HomePage: React.FC = () => {
                   您可以直接开始答题，但登录后可以保存答题进度、查看错题记录，以及收藏喜欢的题库。
                 </p>
                 <button 
-                  onClick={() => setIsLoginModalOpen(true)}
+                  onClick={() => window.location.href = "/login"}
                   className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -381,6 +408,34 @@ const HomePage: React.FC = () => {
                       )}
                     </div>
                     
+                    {/* 用户进度指示器 */}
+                    {user && user.progress && user.progress[questionSet.id] && (
+                      <div className="mb-4">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>完成进度</span>
+                          <span>
+                            {Math.round((user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full" 
+                            style={{ width: `${(user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs mt-1">
+                          <span className={`${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {user.progress[questionSet.id].completedQuestions}/{user.progress[questionSet.id].totalQuestions} 题
+                          </span>
+                          {user.progress[questionSet.id].correctAnswers > 0 && (
+                            <span className={`font-medium ${homeContent.theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                              正确率: {Math.round((user.progress[questionSet.id].correctAnswers / user.progress[questionSet.id].completedQuestions) * 100)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                     <Link 
                       to={`/quiz/${questionSet.id}`}
                       className={`block w-full px-4 py-2 text-center rounded-md text-white font-medium ${
@@ -389,7 +444,7 @@ const HomePage: React.FC = () => {
                           : 'bg-blue-600 hover:bg-blue-700'
                       }`}
                     >
-                      开始练习
+                      {user && user.progress && user.progress[questionSet.id] ? '继续练习' : '开始练习'}
                     </Link>
                   </div>
                 </div>
@@ -397,34 +452,14 @@ const HomePage: React.FC = () => {
             </div>
           )}
           
-          {getFilteredQuestionSets().length === 0 && !categoryLoading && (
-            <div className={`text-center py-10 ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-              <svg className="mx-auto h-12 w-12 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
-              </svg>
-              <h3 className="mt-2 text-lg font-medium">暂无题库</h3>
-              <p className="mt-1">当前分类下没有可用的题库</p>
+          {/* 错误消息显示 */}
+          {errorMessage && (
+            <div className="max-w-4xl mx-auto mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              <p>{errorMessage}</p>
             </div>
           )}
-          
-          {/* 页脚信息 */}
-          <div className={`text-center mt-12 text-sm ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-            {homeContent.footerText || defaultHomeContent.footerText}
-          </div>
         </div>
       </div>
-      
-      {/* 登录弹窗 */}
-      {isLoginModalOpen && (
-        <LoginModal onClose={() => setIsLoginModalOpen(false)} />
-      )}
-
-      {/* 错误消息显示 */}
-      {errorMessage && (
-        <div className="max-w-4xl mx-auto mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p>{errorMessage}</p>
-        </div>
-      )}
     </div>
   );
 };

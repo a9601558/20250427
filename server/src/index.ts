@@ -24,6 +24,7 @@ import questionRoutes from './routes/questionRoutes';
 import purchaseRoutes from './routes/purchaseRoutes';
 import redeemCodeRoutes from './routes/redeemCodeRoutes';
 import homepageRoutes from './routes/homepageRoutes';
+import userProgressRoutes from './routes/userProgressRoutes';
 
 // Initialize express app
 const app = express();
@@ -120,6 +121,8 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/redeem-codes', redeemCodeRoutes);
 app.use('/api/homepage', homepageRoutes);
+app.use('/api/user-progress', userProgressRoutes);
+console.log('注册路由: /api/user-progress, 处理用户进度');
 
 console.log('=========== API路由注册结束 ===========');
 
