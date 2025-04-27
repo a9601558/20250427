@@ -14,17 +14,27 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 // 初始化Socket连接
 export const initSocket = (): Socket => {
   if (!socket) {
+    console.log('初始化Socket.IO连接到:', SOCKET_URL);
+    
     // 配置Socket.IO客户端
     socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'], // 首先尝试WebSocket，然后回退到polling
+      path: '/socket.io',
+      transports: ['websocket', 'polling'], // 先尝试WebSocket，失败后回退到polling
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
-      timeout: 10000
+      timeout: 15000,
+      forceNew: true,
+      autoConnect: true,
+      withCredentials: true, // 允许跨域请求携带凭证
+      extraHeaders: { // 添加额外的头部信息
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Credentials': 'true'
+      }
     });
 
     // 监听连接事件
     socket.on('connect', () => {
-      console.log('Socket.IO连接成功');
+      console.log('Socket.IO连接成功，ID:', socket.id);
       reconnectAttempts = 0;
     });
 
@@ -35,7 +45,7 @@ export const initSocket = (): Socket => {
 
     // 监听错误事件
     socket.on('connect_error', (error) => {
-      console.error('Socket.IO连接错误:', error);
+      console.error('Socket.IO连接错误:', error.message);
       reconnectAttempts++;
       
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {

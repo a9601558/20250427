@@ -29,7 +29,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   const setupSocketListeners = (socket: Socket) => {
     socket.on('connect', () => {
-      console.log('Socket连接成功');
+      console.log('Socket连接成功，ID:', socket.id);
       setIsConnected(true);
       setConnectionError(null);
       setReconnectAttempts(0);
@@ -52,14 +52,21 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
 
     socket.on('connect_error', (error) => {
-      console.error('Socket连接错误:', error);
+      console.error('Socket连接错误:', {
+        message: error.message,
+        type: error.name,
+        stack: error.stack
+      });
+      
       setIsConnected(false);
       setConnectionError(error.message);
       setReconnectAttempts(prev => prev + 1);
       
       // 三次重连失败后显示错误提示
       if (reconnectAttempts >= 2) {
-        toast.error(`Socket连接失败: ${error.message}，请检查网络或联系管理员`);
+        const errorMsg = `Socket连接失败: ${error.message}`;
+        toast.error(errorMsg);
+        console.error(errorMsg, '，请检查网络或联系管理员');
       }
     });
 
@@ -102,31 +109,35 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         closeSocket();
         setSocket(null);
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('初始化Socket失败:', error);
-      setConnectionError(error instanceof Error ? error.message : '未知错误');
-      toast.error(`Socket初始化失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      const errorMessage = error?.message || '未知错误';
+      setConnectionError(errorMessage);
+      toast.error(`Socket初始化失败: ${errorMessage}`);
     }
   }, []);
 
   // 提供手动重连功能
   const reconnect = () => {
-    if (socket) {
-      try {
-        // 先关闭现有连接
+    try {
+      console.log('尝试手动重连Socket');
+      
+      // 先关闭现有连接
+      if (socket) {
         closeSocket();
         setSocket(null);
-        
-        // 然后重新建立连接
-        const newSocket = initSocket();
-        setSocket(newSocket);
-        setupSocketListeners(newSocket);
-        toast.info('正在尝试重新连接...');
-      } catch (error) {
-        console.error('手动重连失败:', error);
-        setConnectionError(error instanceof Error ? error.message : '未知错误');
-        toast.error(`重连失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
+      
+      // 然后重新建立连接
+      const newSocket = initSocket();
+      setSocket(newSocket);
+      setupSocketListeners(newSocket);
+      toast.info('正在尝试重新连接...');
+    } catch (error: any) {
+      console.error('手动重连失败:', error);
+      const errorMessage = error?.message || '未知错误';
+      setConnectionError(errorMessage);
+      toast.error(`重连失败: ${errorMessage}`);
     }
   };
 
