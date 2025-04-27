@@ -19,6 +19,7 @@ require("./models/HomepageSettings");
 // Import routes (will create these next)
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const questionSetRoutes_1 = __importDefault(require("./routes/questionSetRoutes"));
+const questionRoutes_1 = __importDefault(require("./routes/questionRoutes"));
 const purchaseRoutes_1 = __importDefault(require("./routes/purchaseRoutes"));
 const redeemCodeRoutes_1 = __importDefault(require("./routes/redeemCodeRoutes"));
 const homepageRoutes_1 = __importDefault(require("./routes/homepageRoutes"));
@@ -97,6 +98,9 @@ console.log('注册路由: /api/users, 包含登录和注册功能');
 // QuestionSet路由处理所有题库相关的功能
 console.log('注册路由: /api/question-sets');
 app.use('/api/question-sets', questionSetRoutes_1.default);
+// Question路由处理单个题目的增删改查
+console.log('注册路由: /api/questions');
+app.use('/api/questions', questionRoutes_1.default);
 app.use('/api/purchases', purchaseRoutes_1.default);
 app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
 app.use('/api/homepage', homepageRoutes_1.default);

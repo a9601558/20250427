@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
+exports.getQuestionsByQuestionSetId = exports.deleteQuestion = exports.getQuestionById = exports.updateQuestion = exports.createQuestion = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
+const db_1 = require("../config/db");
 // @desc    获取所有题库
 // @route   GET /api/question-sets
 // @access  Public
@@ -214,3 +215,236 @@ const deleteQuestionSet = async (req, res) => {
     }
 };
 exports.deleteQuestionSet = deleteQuestionSet;
+/**
+ * @desc    添加新题目
+ * @route   POST /api/questions
+ * @access  Admin
+ */
+const createQuestion = async (req, res) => {
+    try {
+        const { questionSetId, text, explanation, questionType, options, orderIndex } = req.body;
+        if (!questionSetId) {
+            return res.status(400).json({
+                success: false,
+                message: '题库ID不能为空'
+            });
+        }
+        if (!text) {
+            return res.status(400).json({
+                success: false,
+                message: '题目内容不能为空'
+            });
+        }
+        if (!Array.isArray(options) || options.length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: '请提供至少两个选项'
+            });
+        }
+        // 使用事务确保题目和选项一起创建成功
+        const result = await db_1.sequelize.transaction(async (t) => {
+            // 创建题目
+            const question = await Question_1.default.create({
+                questionSetId,
+                text,
+                explanation: explanation || '暂无解析',
+                questionType: questionType || 'single',
+                orderIndex: orderIndex !== undefined ? orderIndex : 0
+            }, { transaction: t });
+            // 创建选项
+            const optionPromises = options.map((option, index) => {
+                return Option_1.default.create({
+                    questionId: question.id,
+                    text: option.text || `选项 ${index + 1}`,
+                    isCorrect: !!option.isCorrect,
+                    optionIndex: option.optionIndex || option.id || String.fromCharCode(65 + index) // A, B, C...
+                }, { transaction: t });
+            });
+            await Promise.all(optionPromises);
+            // 返回创建的题目（包含选项）
+            return Question_1.default.findByPk(question.id, {
+                include: [{ model: Option_1.default, as: 'options' }],
+                transaction: t
+            });
+        });
+        res.status(201).json({
+            success: true,
+            message: '题目创建成功',
+            data: result
+        });
+    }
+    catch (error) {
+        console.error('创建题目失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '创建题目失败',
+            error: error.message
+        });
+    }
+};
+exports.createQuestion = createQuestion;
+/**
+ * @desc    更新题目
+ * @route   PUT /api/questions/:id
+ * @access  Admin
+ */
+const updateQuestion = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { text, explanation, questionType, options, orderIndex } = req.body;
+        // 查找现有题目
+        const question = await Question_1.default.findByPk(id);
+        if (!question) {
+            return res.status(404).json({
+                success: false,
+                message: '题目不存在'
+            });
+        }
+        // 使用事务确保题目和选项一起更新成功
+        const result = await db_1.sequelize.transaction(async (t) => {
+            // 更新题目
+            await question.update({
+                text: text || question.text,
+                explanation: explanation || question.explanation,
+                questionType: questionType || question.questionType,
+                orderIndex: orderIndex !== undefined ? orderIndex : question.orderIndex
+            }, { transaction: t });
+            // 如果提供了选项，则更新选项
+            if (Array.isArray(options)) {
+                // 先删除现有选项
+                await Option_1.default.destroy({
+                    where: { questionId: id },
+                    transaction: t
+                });
+                // 创建新选项
+                const optionPromises = options.map((option, index) => {
+                    return Option_1.default.create({
+                        questionId: id,
+                        text: option.text || `选项 ${index + 1}`,
+                        isCorrect: !!option.isCorrect,
+                        optionIndex: option.optionIndex || option.id || String.fromCharCode(65 + index) // A, B, C...
+                    }, { transaction: t });
+                });
+                await Promise.all(optionPromises);
+            }
+            // 返回更新后的题目（包含选项）
+            return Question_1.default.findByPk(id, {
+                include: [{ model: Option_1.default, as: 'options' }],
+                transaction: t
+            });
+        });
+        res.status(200).json({
+            success: true,
+            message: '题目更新成功',
+            data: result
+        });
+    }
+    catch (error) {
+        console.error('更新题目失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '更新题目失败',
+            error: error.message
+        });
+    }
+};
+exports.updateQuestion = updateQuestion;
+/**
+ * @desc    获取题目详情
+ * @route   GET /api/questions/:id
+ * @access  Public
+ */
+const getQuestionById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const question = await Question_1.default.findByPk(id, {
+            include: [{ model: Option_1.default, as: 'options' }]
+        });
+        if (!question) {
+            return res.status(404).json({
+                success: false,
+                message: '题目不存在'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            data: question
+        });
+    }
+    catch (error) {
+        console.error('获取题目失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '获取题目失败',
+            error: error.message
+        });
+    }
+};
+exports.getQuestionById = getQuestionById;
+/**
+ * @desc    删除题目
+ * @route   DELETE /api/questions/:id
+ * @access  Admin
+ */
+const deleteQuestion = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const question = await Question_1.default.findByPk(id);
+        if (!question) {
+            return res.status(404).json({
+                success: false,
+                message: '题目不存在'
+            });
+        }
+        // 删除题目（关联的选项会通过外键级联删除）
+        await question.destroy();
+        res.status(200).json({
+            success: true,
+            message: '题目删除成功'
+        });
+    }
+    catch (error) {
+        console.error('删除题目失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '删除题目失败',
+            error: error.message
+        });
+    }
+};
+exports.deleteQuestion = deleteQuestion;
+/**
+ * @desc    获取题库所有题目
+ * @route   GET /api/questions?questionSetId=id
+ * @access  Public
+ */
+const getQuestionsByQuestionSetId = async (req, res) => {
+    try {
+        const questionSetId = req.query.questionSetId;
+        if (!questionSetId) {
+            return res.status(400).json({
+                success: false,
+                message: 'questionSetId 参数是必需的'
+            });
+        }
+        // 查询特定题库的所有题目
+        const questions = await Question_1.default.findAll({
+            where: { questionSetId },
+            include: [{ model: Option_1.default, as: 'options' }],
+            order: [['orderIndex', 'ASC']]
+        });
+        console.log(`找到题库 ${questionSetId} 的 ${questions.length} 个题目`);
+        res.json({
+            success: true,
+            data: questions
+        });
+    }
+    catch (error) {
+        console.error('获取题库题目错误:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || '服务器错误'
+        });
+    }
+};
+exports.getQuestionsByQuestionSetId = getQuestionsByQuestionSetId;

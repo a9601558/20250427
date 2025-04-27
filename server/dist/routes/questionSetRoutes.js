@@ -19,6 +19,7 @@ router.use((req, res, next) => {
 });
 // Public routes
 router.get('/', questionSetController_1.getAllQuestionSets);
+router.get('/categories', questionSetController_1.getQuestionSetCategories);
 // Admin routes
 router.post('/upload', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.uploadQuestionSets);
 // File upload route
@@ -31,6 +32,8 @@ router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, question
 // Base routes
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.createQuestionSet);
 router.get('/:id', questionSetController_1.getQuestionSetById);
+// 按分类获取题库
+router.get('/by-category/:category', questionSetController_1.getQuestionSetsByCategory);
 // 添加测试路由，确认POST请求能够正常工作
 router.post('/test', (req, res) => {
     console.log('测试POST请求成功接收');
