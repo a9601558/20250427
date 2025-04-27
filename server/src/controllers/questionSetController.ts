@@ -86,6 +86,7 @@ function normalizeQuestionData(questions: any[]) {
   }
   
   console.log('正在标准化问题数据，数量:', questions.length);
+  console.log('原始问题数据:', JSON.stringify(questions));
   
   return questions.map((q, index) => {
     // Handle potential null question object
@@ -94,11 +95,14 @@ function normalizeQuestionData(questions: any[]) {
       return null;
     }
     
+    // 记录原始问题数据以帮助调试
+    console.log(`处理原始问题 ${index}:`, JSON.stringify(q));
+    
     // 处理请求中不同的数据格式
-    // 如果是 {id: 1, question: "text"} 格式
-    if (q.id !== undefined && q.question !== undefined && !q.text) {
-      console.log(`问题 ${index} 使用 'question' 字段而不是 'text' 字段`);
-      q.text = q.question;
+    // 如果是 {id: 1, question: "text"} 格式但没有text字段
+    if (q.question !== undefined && q.text === undefined) {
+      console.log(`问题 ${index}: 使用 'question' 字段 "${q.question}" 设置为 'text'`);
+      q.text = q.question; // 确保text字段存在
     }
     
     // 确保text字段不为null，如果是null或空字符串则提供默认值
@@ -107,9 +111,15 @@ function normalizeQuestionData(questions: any[]) {
       questionText = String(q.text);
     } else if (q.question !== undefined && q.question !== null) {
       questionText = String(q.question);
+      // 同时设置q.text，防止后续处理丢失
+      q.text = questionText;
     } else {
       questionText = `问题 #${index + 1}`;  // 默认文本
+      // 同时设置q.text
+      q.text = questionText;
     }
+    
+    console.log(`问题 ${index} 标准化后的text:`, questionText);
     
     // 确保其他字段不为null
     const explanation = q.explanation !== undefined && q.explanation !== null 
@@ -514,6 +524,16 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
       // 如果提供了问题数据，则更新问题
       if (Array.isArray(questions) && questions.length > 0) {
         console.log(`Updating ${questions.length} questions for set ${id}`);
+        
+        // 直接检查questions数组，确保每个问题都有text字段
+        for (let i = 0; i < questions.length; i++) {
+          // 确保question数据中存在text字段
+          if (questions[i] && !questions[i].text && (questions[i] as any).question) {
+            console.log(`预处理: 问题 ${i+1} 没有text字段但有question字段，复制值`);
+            questions[i].text = (questions[i] as any).question;
+          }
+        }
+        
         try {
           // 先删除该题库下的所有问题和选项
           await Question.destroy({
@@ -525,80 +545,75 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
           for (let i = 0; i < questions.length; i++) {
             const q = questions[i];
             
-            // 详细调试日志
-            const qDebug = {
-              id: q.id,
-              text: q.text,
-              question: (q as any).question,
-              hasOptions: Array.isArray(q.options) ? q.options.length : 'not an array'
-            };
-            console.log(`处理问题 ${i+1}/${questions.length}, 详情:`, JSON.stringify(qDebug));
+            // 详细诊断日志
+            console.log(`--- 准备创建题目 #${i+1} ---`);
+            console.log(`原始问题对象:`, JSON.stringify(q));
+            console.log(`即将用于 Question.create 的题目数据:`, JSON.stringify({
+              text: q.text, // 直接使用q.text而不做任何转换，以排查问题
+              explanation: q.explanation,
+              questionSetId: id,
+              questionType: q.questionType,
+              orderIndex: q.orderIndex
+            }));
+            console.log(`直接检查 q.text 的值 (来自标准化后的对象):`, q.text);
+            console.log(`直接检查 q.question 的值 (如果存在于标准化前的原始对象):`, (q as any).question);
+            console.log(`--- 日志结束 ---`);
             
-            // 确保题目文本不为null
-            let questionText = q.text;
-            if (!questionText) {
-              if ((q as any).question) {
-                questionText = (q as any).question;
-                console.log(`使用 'question' 字段: ${questionText}`);
-              } else {
-                questionText = `问题 ${i+1}`;
-                console.log(`使用默认问题文本: ${questionText}`);
-              }
+            // 确保创建的数据绝对不会有null
+            const createData = {
+              text: String(q.text || '').trim() || `问题 ${i+1}`,
+              explanation: String(q.explanation || '暂无解析').trim(),
+              questionSetId: id,
+              questionType: q.questionType || 'single',
+              orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+            };
+            
+            // 再次验证 text 不为 null
+            if (!createData.text) {
+              console.error(`警告: 在 create 前 text 为空，强制设置默认值`);
+              createData.text = `问题 ${i+1} [自动修复]`;
             }
             
-            try {
-              // 创建问题 - 确保text字段有值
-              console.log(`创建问题, text = "${questionText}"`);
-              const question = await Question.create({
-                text: String(questionText || '').trim() || `问题 ${i+1}`,
-                explanation: String(q.explanation || '暂无解析').trim(),
-                questionSetId: id,
-                questionType: q.questionType || 'single',
-                orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
-              }, { transaction: t });
-              
-              // 创建问题的选项
-              if (Array.isArray(q.options) && q.options.length > 0) {
-                console.log(`Creating ${q.options.length} options for question ${i+1}`);
-                try {
-                  for (const opt of q.options) {
-                    if (!opt) {
-                      console.log('跳过空选项');
-                      continue;
-                    }
-                    
-                    // 确保选项文本不为空
-                    let optionText = opt.text;
-                    if (!optionText && opt.id) {
-                      // 尝试从ID为键的属性中获取文本
-                      const idKey = opt.id;
-                      optionText = opt[idKey] || '';
-                    }
-                    
-                    // 如果仍然为空，使用默认值
-                    if (!optionText) {
-                      optionText = `选项 ${opt.optionIndex || opt.id || ''}`;
-                    }
-                    
-                    // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
-                    await Option.create({
-                      questionId: question.id,
-                      text: String(optionText).trim() || '默认选项文本',
-                      isCorrect: !!opt.isCorrect,
-                      optionIndex: opt.optionIndex || opt.id || ''
-                    }, { transaction: t });
+            console.log(`最终创建数据:`, JSON.stringify(createData));
+            const question = await Question.create(createData, { transaction: t });
+            
+            // 创建问题的选项
+            if (Array.isArray(q.options) && q.options.length > 0) {
+              console.log(`Creating ${q.options.length} options for question ${i+1}`);
+              try {
+                for (const opt of q.options) {
+                  if (!opt) {
+                    console.log('跳过空选项');
+                    continue;
                   }
-                } catch (optionError) {
-                  console.error(`Error creating options for question ${i+1}:`, optionError);
-                  throw optionError;
+                  
+                  // 确保选项文本不为空
+                  let optionText = opt.text;
+                  if (!optionText && opt.id) {
+                    // 尝试从ID为键的属性中获取文本
+                    const idKey = opt.id;
+                    optionText = opt[idKey] || '';
+                  }
+                  
+                  // 如果仍然为空，使用默认值
+                  if (!optionText) {
+                    optionText = `选项 ${opt.optionIndex || opt.id || ''}`;
+                  }
+                  
+                  // 使用单独创建而不是批量创建，以避免批量操作的潜在问题
+                  await Option.create({
+                    questionId: question.id,
+                    text: String(optionText).trim() || '默认选项文本',
+                    isCorrect: !!opt.isCorrect,
+                    optionIndex: opt.optionIndex || opt.id || ''
+                  }, { transaction: t });
                 }
-              } else {
-                console.warn(`Question ${i+1} has no options`);
+              } catch (optionError) {
+                console.error(`Error creating options for question ${i+1}:`, optionError);
+                throw optionError;
               }
-            } catch (questionCreateError) {
-              console.error(`创建问题 ${i+1} 失败:`, questionCreateError);
-              console.error(`问题数据:`, JSON.stringify(q));
-              throw questionCreateError;
+            } else {
+              console.warn(`Question ${i+1} has no options`);
             }
           }
         } catch (questionError) {
