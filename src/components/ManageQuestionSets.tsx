@@ -501,7 +501,8 @@ const ManageQuestionSets: React.FC = () => {
             onAddQuestion={handleSaveQuestion}
             onCancel={handleCancelAddQuestion}
             questionCount={Array.isArray(currentQuestionSet.questions) ? currentQuestionSet.questions.length : 0}
-            isAdding={true}
+            isAdding={isSavingQuestion}
+            questionSetId={currentQuestionSet.id}
           />
         </div>
       )}

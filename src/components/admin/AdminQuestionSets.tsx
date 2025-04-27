@@ -102,12 +102,54 @@ const AdminQuestionSets = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // 状态消息
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // 可选的分类和图标
+  const categoryOptions = [
+    '前端开发',
+    '后端开发',
+    '全栈开发',
+    '移动开发',
+    '数据库',
+    '人工智能',
+    '网络安全',
+    '操作系统',
+    '软件工程',
+    '计算机基础',
+    '网络协议',
+    '云计算',
+    '区块链',
+    '大数据',
+    '服务器运维',
+    '其他'
+  ];
+  
+  const iconOptions = [
+    '📝', '📚', '💻', '🔍', '🧩', '⚙️', '📊', '🔐', '📡', '🛠️',
+    '🧪', '🔬', '📱', '🌐', '🤖', '🧠', '🔥', '💾', '⚡', '☁️'
+  ];
 
   // 显示状态消息
   const showStatusMessage = (type: string, message: string) => {
     setStatusMessage({ type, message });
+    // 根据消息类型设置对应的状态
+    if (type === 'error') {
+      setErrorMessage(message);
+      setSuccessMessage('');
+    } else if (type === 'success') {
+      setSuccessMessage(message);
+      setErrorMessage('');
+    }
+    
     // 5秒后自动清除消息
-    setTimeout(() => setStatusMessage({ type: '', message: '' }), 5000);
+    setTimeout(() => {
+      setStatusMessage({ type: '', message: '' });
+      setErrorMessage('');
+      setSuccessMessage('');
+    }, 5000);
   };
 
   // 加载所有兑换码
@@ -360,6 +402,414 @@ const AdminQuestionSets = () => {
       setLoading(false);
       setLoadingAction('');
     }
+  };
+
+  // 初始化添加问题的表单
+  const handleAddQuestion = () => {
+    // 重置问题表单
+    setQuestionFormData({
+      id: '',
+      question: '',
+      questionType: 'single',
+      options: [
+        { id: 'opt1', text: '' },
+        { id: 'opt2', text: '' }
+      ],
+      correctAnswer: '',
+      explanation: ''
+    });
+    setIsAddingQuestion(true);
+    setCurrentQuestion(null);
+    setShowQuestionModal(true);
+  };
+
+  // 编辑问题
+  const handleEditQuestion = (question, index) => {
+    setQuestionIndex(index);
+    setCurrentQuestion(question);
+    setQuestionFormData({
+      id: question.id,
+      question: question.question,
+      questionType: question.questionType,
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+      explanation: question.explanation
+    });
+    setShowQuestionModal(true);
+  };
+
+  // 删除问题
+  const handleDeleteQuestion = (index) => {
+    if (!currentQuestionSet) return;
+    
+    if (!window.confirm('确定要删除此问题吗？此操作不可恢复！')) {
+      return;
+    }
+    
+    const updatedQuestions = [...currentQuestionSet.questions];
+    updatedQuestions.splice(index, 1);
+    
+    setCurrentQuestionSet({
+      ...currentQuestionSet,
+      questions: updatedQuestions
+    });
+    
+    // 直接更新题库中的问题列表
+    handleUpdateQuestions(updatedQuestions);
+  };
+
+  // 选择正确答案
+  const handleSelectCorrectAnswer = (optionId) => {
+    if (questionFormData.questionType === 'single') {
+      setQuestionFormData({
+        ...questionFormData,
+        correctAnswer: optionId
+      });
+    } else {
+      const currentAnswers = Array.isArray(questionFormData.correctAnswer) 
+        ? [...questionFormData.correctAnswer] 
+        : [];
+      
+      if (currentAnswers.includes(optionId)) {
+        setQuestionFormData({
+          ...questionFormData,
+          correctAnswer: currentAnswers.filter(id => id !== optionId)
+        });
+      } else {
+        setQuestionFormData({
+          ...questionFormData,
+          correctAnswer: [...currentAnswers, optionId]
+        });
+      }
+    }
+  };
+
+  // 修改选项文本
+  const handleOptionChange = (index, text) => {
+    const updatedOptions = [...questionFormData.options];
+    updatedOptions[index] = {
+      ...updatedOptions[index],
+      text
+    };
+    
+    setQuestionFormData({
+      ...questionFormData,
+      options: updatedOptions
+    });
+  };
+
+  // 添加新选项
+  const handleAddOption = () => {
+    const newOptionId = `opt${questionFormData.options.length + 1}`;
+    setQuestionFormData({
+      ...questionFormData,
+      options: [...questionFormData.options, { id: newOptionId, text: '' }]
+    });
+  };
+
+  // 删除选项
+  const handleDeleteOption = (index) => {
+    if (questionFormData.options.length <= 2) return;
+    
+    const updatedOptions = [...questionFormData.options];
+    const deletedOption = updatedOptions[index];
+    updatedOptions.splice(index, 1);
+    
+    // 如果删除的是正确答案，需要更新correctAnswer
+    let updatedCorrectAnswer = questionFormData.correctAnswer;
+    
+    if (questionFormData.questionType === 'single' && questionFormData.correctAnswer === deletedOption.id) {
+      updatedCorrectAnswer = '';
+    } else if (questionFormData.questionType === 'multiple' && Array.isArray(questionFormData.correctAnswer)) {
+      updatedCorrectAnswer = questionFormData.correctAnswer.filter(id => id !== deletedOption.id);
+    }
+    
+    setQuestionFormData({
+      ...questionFormData,
+      options: updatedOptions,
+      correctAnswer: updatedCorrectAnswer
+    });
+  };
+
+  // 直接添加问题到服务器
+  const handleDirectAddQuestion = async () => {
+    if (!currentQuestionSet) return;
+    
+    // 验证表单
+    if (!questionFormData.question) {
+      showStatusMessage('error', '问题内容不能为空');
+      return;
+    }
+    
+    if (questionFormData.options.length < 2) {
+      showStatusMessage('error', '至少需要两个选项');
+      return;
+    }
+    
+    if (questionFormData.options.some(opt => !opt.text.trim())) {
+      showStatusMessage('error', '选项内容不能为空');
+      return;
+    }
+    
+    if (
+      (questionFormData.questionType === 'single' && !questionFormData.correctAnswer) ||
+      (questionFormData.questionType === 'multiple' && 
+       (!Array.isArray(questionFormData.correctAnswer) || questionFormData.correctAnswer.length === 0))
+    ) {
+      showStatusMessage('error', '请选择正确答案');
+      return;
+    }
+    
+    setLoading(true);
+    setLoadingAction('addQuestion');
+    
+    try {
+      // 转换问题格式为API格式
+      const questionData = mapClientToApiQuestion(questionFormData);
+      
+      // 重要: 确保传入当前题库的ID
+      const response = await questionApi.addQuestion(currentQuestionSet.id, questionData);
+      
+      if (response.success && response.data) {
+        // 将API返回的问题转换为前端格式并添加到当前题库
+        const apiQuestion = response.data;
+        const clientQuestion = mapApiToClientQuestion(apiQuestion);
+        
+        const updatedQuestions = [...(currentQuestionSet.questions || []), clientQuestion];
+        
+        setCurrentQuestionSet({
+          ...currentQuestionSet,
+          questions: updatedQuestions
+        });
+        
+        showStatusMessage('success', '问题添加成功');
+        setIsAddingQuestion(false);
+        setShowQuestionModal(false);
+        
+        // 重置表单
+        setQuestionFormData({
+          id: '',
+          question: '',
+          questionType: 'single',
+          options: [
+            { id: 'opt1', text: '' },
+            { id: 'opt2', text: '' }
+          ],
+          correctAnswer: '',
+          explanation: ''
+        });
+      } else {
+        showStatusMessage('error', `添加问题失败: ${response.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error("添加问题出错:", error);
+      showStatusMessage('error', '添加问题时发生错误');
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 更新题库的问题列表
+  const handleUpdateQuestions = async (questions) => {
+    if (!currentQuestionSet) return;
+    
+    setLoading(true);
+    setLoadingAction('updateQuestions');
+    
+    try {
+      // 更新题库中的问题列表
+      const updatedQuestionSet = {
+        ...currentQuestionSet,
+        questions
+      };
+      
+      const response = await questionSetApi.updateQuestionSet(
+        currentQuestionSet.id, 
+        updatedQuestionSet
+      );
+      
+      if (response.success && response.data) {
+        showStatusMessage('success', '问题列表更新成功');
+        // 更新本地状态
+        setCurrentQuestionSet(response.data);
+      } else {
+        showStatusMessage('error', `更新问题列表失败: ${response.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error("更新问题列表出错:", error);
+      showStatusMessage('error', '更新问题列表时发生错误');
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 直接更新问题
+  const handleDirectUpdateQuestion = async () => {
+    if (!currentQuestionSet || !currentQuestion) return;
+    
+    // 验证表单
+    if (!questionFormData.question) {
+      showStatusMessage('error', '问题内容不能为空');
+      return;
+    }
+    
+    if (questionFormData.options.length < 2) {
+      showStatusMessage('error', '至少需要两个选项');
+      return;
+    }
+    
+    if (questionFormData.options.some(opt => !opt.text.trim())) {
+      showStatusMessage('error', '选项内容不能为空');
+      return;
+    }
+    
+    if (
+      (questionFormData.questionType === 'single' && !questionFormData.correctAnswer) ||
+      (questionFormData.questionType === 'multiple' && 
+       (!Array.isArray(questionFormData.correctAnswer) || questionFormData.correctAnswer.length === 0))
+    ) {
+      showStatusMessage('error', '请选择正确答案');
+      return;
+    }
+    
+    setLoading(true);
+    setLoadingAction('updateQuestion');
+    
+    try {
+      // 转换问题格式为API格式
+      const questionData = mapClientToApiQuestion(questionFormData);
+      
+      // 调用API更新问题
+      const response = await questionApi.updateQuestion(questionFormData.id, questionData);
+      
+      if (response.success && response.data) {
+        // 将API返回的问题转换为前端格式
+        const apiQuestion = response.data;
+        const updatedQuestion = mapApiToClientQuestion(apiQuestion);
+        
+        // 更新题库中的问题
+        const updatedQuestions = [...currentQuestionSet.questions];
+        updatedQuestions[questionIndex] = updatedQuestion;
+        
+        setCurrentQuestionSet({
+          ...currentQuestionSet,
+          questions: updatedQuestions
+        });
+        
+        showStatusMessage('success', '问题更新成功');
+        setCurrentQuestion(null);
+        setShowQuestionModal(false);
+      } else {
+        showStatusMessage('error', `更新问题失败: ${response.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error("更新问题出错:", error);
+      showStatusMessage('error', '更新问题时发生错误');
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 保存所有更改
+  const handleSaveAllChanges = async () => {
+    setLoading(true);
+    setLoadingAction('saveAll');
+    
+    try {
+      await loadQuestionSets();
+      showStatusMessage('success', '数据刷新成功');
+    } catch (error) {
+      console.error("刷新数据出错:", error);
+      showStatusMessage('error', '刷新数据时发生错误');
+    } finally {
+      setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 渲染题库列表
+  const renderQuestionSets = () => {
+    if (filteredQuestionSets.length === 0) {
+      return (
+        <div className="text-center py-10 bg-gray-50 rounded">
+          <p className="text-gray-500">没有找到匹配的题库</p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredQuestionSets.map(questionSet => (
+          <div 
+            key={questionSet.id} 
+            className="bg-white p-5 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center">
+                <span className="text-2xl mr-2">{questionSet.icon || '📝'}</span>
+                <h3 className="text-lg font-medium">{questionSet.title}</h3>
+              </div>
+              <div>
+                {questionSet.isPaid && (
+                  <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded mr-1">
+                    付费
+                  </span>
+                )}
+                <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                  {questionSet.category}
+                </span>
+              </div>
+            </div>
+            
+            <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+              {questionSet.description || '没有描述'}
+            </p>
+            
+            <div className="flex justify-between items-center text-sm text-gray-500 mb-4">
+              <span>题目数量: {questionSet.questions?.length || 0}</span>
+              <span>ID: {questionSet.id}</span>
+            </div>
+            
+            <div className="flex justify-between pt-3 border-t border-gray-100">
+              <div>
+                <button 
+                  className="text-blue-600 hover:text-blue-800 mr-3"
+                  onClick={() => {
+                    setCurrentQuestionSet(questionSet);
+                    setShowQuestionModal(true);
+                  }}
+                >
+                  管理题目
+                </button>
+                <button 
+                  className="text-indigo-600 hover:text-indigo-800"
+                  onClick={() => handleShowGenerateCodeModal(questionSet)}
+                >
+                  生成兑换码
+                </button>
+              </div>
+              <div>
+                <button 
+                  className="text-green-600 hover:text-green-800 mr-3"
+                  onClick={() => handleEditClick(questionSet)}
+                >
+                  编辑
+                </button>
+                <button 
+                  className="text-red-600 hover:text-red-800"
+                  onClick={() => handleDeleteQuestionSet(questionSet.id)}
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   // 组件的返回语句 - 实际 UI 部分
