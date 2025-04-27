@@ -6,15 +6,15 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
+import { sequelize, syncModels } from './models';
 
 // Load environment variables
 dotenv.config();
 
 // Import database connection
-import pool, { sequelize } from './config/db';
+import pool from './config/db';
 
 // Import models to ensure they are initialized
-import { syncModels } from './models';
 import './models/HomepageSettings';
 
 // Import routes (will create these next)
@@ -133,20 +133,37 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// 同步数据库模型，然后启动服务器
-(async () => {
+// 同步数据库结构
+const ensureDatabaseSync = async () => {
   try {
-    console.log('开始同步数据库模型...');
+    console.log('正在同步数据库结构...');
     await syncModels();
-    console.log('数据库模型同步完成');
+    console.log('数据库同步完成');
+    return true;
+  } catch (error) {
+    console.error('数据库同步失败:', error);
+    // 不中断服务器启动，但记录错误
+    return false;
+  }
+};
+
+// 启动服务器
+const startServer = async () => {
+  try {
+    // 尝试同步数据库
+    await ensureDatabaseSync();
     
-    // Start server
+    // 开始监听端口
     app.listen(PORT, () => {
-      console.log(`服务器以 ${process.env.NODE_ENV} 模式运行，端口 ${PORT}`);
+      console.log(`服务器运行在 http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error('服务器启动失败:', error);
+    process.exit(1);
   }
-})();
+};
+
+// 启动服务器
+startServer();
 
 export default app; 
