@@ -564,19 +564,13 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
           for (let i = 0; i < questions.length; i++) {
             const q = questions[i];
             
-            // 详细诊断日志
-            console.log(`--- 准备创建题目 #${i+1} ---`);
-            console.log(`原始问题对象:`, JSON.stringify(q));
-            console.log(`即将用于 Question.create 的题目数据:`, JSON.stringify({
-              text: q.text, // 直接使用q.text而不做任何转换，以排查问题
-              explanation: q.explanation,
-              questionSetId: id,
-              questionType: q.questionType,
-              orderIndex: q.orderIndex
-            }));
-            console.log(`直接检查 q.text 的值 (来自标准化后的对象):`, q.text);
-            console.log(`直接检查 q.question 的值 (如果存在于标准化前的原始对象):`, (q as any).question);
-            console.log(`--- 日志结束 ---`);
+            // 详细诊断日志 - 使用最简单的方式输出
+            console.log("=============================================");
+            console.log("问题创建前调试信息 - 问题 #" + (i+1));
+            console.log("q.text = " + q.text);
+            console.log("q.question = " + (q as any).question);
+            console.log("JSON: " + JSON.stringify(q));
+            console.log("=============================================");
             
             // 确保创建的数据绝对不会有null
             const createData = {
