@@ -28,6 +28,7 @@ export interface QuestionSet {
   trialQuestions?: number;
   isFeatured?: boolean;
   featuredCategory?: string;
+  questionCount?: number;
 }
 
 export type QuestionType = 'single' | 'multiple';

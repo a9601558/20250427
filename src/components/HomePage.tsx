@@ -53,7 +53,26 @@ const HomePage: React.FC = () => {
         // 获取所有题库列表
         const quizResponse = await axios.get('/api/question-sets');
         if (quizResponse.data && quizResponse.data.success && quizResponse.data.data) {
-          setQuestionSets(quizResponse.data.data);
+          const questionSetsData = quizResponse.data.data;
+          console.log('获取到题库列表:', questionSetsData.length);
+          setQuestionSets(questionSetsData);
+          
+          // 为每个题库获取题目
+          for (const set of questionSetsData) {
+            try {
+              const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}`);
+              if (questionsResponse.data && questionsResponse.data.success) {
+                console.log(`题库 ${set.id} 包含 ${questionsResponse.data.data.length} 个题目`);
+                // 更新题库中的题目数据
+                set.questions = questionsResponse.data.data;
+              }
+            } catch (err) {
+              console.warn(`获取题库 ${set.id} 的题目失败:`, err);
+            }
+          }
+          
+          // 使用更新后的题库数据
+          setQuestionSets([...questionSetsData]);
         } else {
           setErrorMessage('获取题库列表失败');
         }
@@ -98,29 +117,41 @@ const HomePage: React.FC = () => {
   const handleCategoryChange = useCallback(async (category: string) => {
     setActiveCategory(category);
     
-    // 如果选择"全部"分类，直接显示所有题库
-    if (category === 'all') {
-      const response = await axios.get('/api/question-sets');
-      if (response.data && response.data.success && response.data.data) {
-        setQuestionSets(response.data.data);
-      }
-      return;
-    }
-    
-    // 获取特定分类的题库
     try {
       setCategoryLoading(true);
-      // 对分类名称进行编码
-      const encodedCategory = encodeURIComponent(category);
-      const response = await axios.get(`/api/question-sets/by-category/${encodedCategory}`);
+      let response;
+      
+      // 获取题库数据
+      if (category === 'all') {
+        // 获取所有题库
+        response = await axios.get('/api/question-sets');
+      } else {
+        // 获取特定分类的题库
+        const encodedCategory = encodeURIComponent(category);
+        response = await axios.get(`/api/question-sets/by-category/${encodedCategory}`);
+      }
       
       if (response.data && response.data.success && response.data.data) {
-        setQuestionSets(response.data.data);
+        const questionSetsData = response.data.data;
+        
+        // 为每个题库获取题目
+        for (const set of questionSetsData) {
+          try {
+            const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}`);
+            if (questionsResponse.data && questionsResponse.data.success) {
+              set.questions = questionsResponse.data.data;
+            }
+          } catch (err) {
+            console.warn(`获取题库 ${set.id} 的题目失败:`, err);
+          }
+        }
+        
+        setQuestionSets(questionSetsData);
       } else {
-        setErrorMessage('获取分类题库失败');
+        setErrorMessage('获取题库数据失败');
       }
-    } catch (err) {
-      console.error(`获取分类 ${category} 的题库失败:`, err);
+    } catch (error) {
+      console.error(`获取分类 ${category} 的题库失败:`, error);
       setErrorMessage('获取分类题库失败');
     } finally {
       setCategoryLoading(false);
@@ -331,6 +362,10 @@ const HomePage: React.FC = () => {
                     <div className="flex items-center justify-between mb-4">
                       <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-blue-50 text-blue-600'}`}>
                         {questionSet.category}
+                      </span>
+                      
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-green-50 text-green-600'}`}>
+                        {questionSet.questions ? `${questionSet.questions.length} 题` : `${questionSet.questionCount || 0} 题`}
                       </span>
                       
                       {user && questionSet.isPaid && (

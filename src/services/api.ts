@@ -411,6 +411,26 @@ export const homepageService = {
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
+  },
+  
+  // 获取精选分类
+  async getFeaturedCategories(): Promise<ApiResponse<string[]>> {
+    try {
+      const response = await api.get('/homepage/featured-categories');
+      return handleResponse<string[]>(response);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // 更新精选分类 (仅管理员)
+  async updateFeaturedCategories(featuredCategories: string[]): Promise<ApiResponse<any>> {
+    try {
+      const response = await api.put('/homepage/featured-categories', { featuredCategories });
+      return handleResponse<any>(response);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
   }
 };
 

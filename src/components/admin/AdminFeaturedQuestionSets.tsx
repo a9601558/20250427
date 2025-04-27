@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
-import { fetchWithAuth } from '../../utils/api';
+import { homepageService, questionSetService } from '../../services/api';
 import { QuestionSet } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface FeaturedQuestionSet extends QuestionSet {
   isFeatured: boolean;
@@ -24,22 +25,28 @@ const AdminFeaturedQuestionSets: React.FC = () => {
       setLoading(true);
       try {
         // 获取所有题库
-        const qsResponse = await fetchWithAuth<QuestionSet[]>('/question-sets');
+        const qsResponse = await questionSetService.getAllQuestionSets();
         
         // 获取精选分类
-        const fcResponse = await fetchWithAuth<string[]>('/homepage/featured-categories');
+        const fcResponse = await homepageService.getFeaturedCategories();
         
         if (qsResponse.success && qsResponse.data) {
           setQuestionSets(qsResponse.data as FeaturedQuestionSet[]);
         } else {
-          setError(qsResponse.error || '加载题库失败');
+          const errorMsg = qsResponse.error || '加载题库失败';
+          logger.error('Failed to load question sets:', errorMsg);
+          setError(errorMsg);
         }
         
         if (fcResponse.success && fcResponse.data) {
           setFeaturedCategories(fcResponse.data);
+        } else if (!fcResponse.success) {
+          logger.warn('Failed to load featured categories:', fcResponse.error);
         }
       } catch (err) {
-        setError('加载数据时发生错误');
+        const errorMsg = err instanceof Error ? err.message : '加载数据时发生错误';
+        logger.error('Exception while loading data:', errorMsg);
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -53,10 +60,7 @@ const AdminFeaturedQuestionSets: React.FC = () => {
   // 更新题库的精选状态
   const handleFeaturedStatusChange = async (id: string, isFeatured: boolean) => {
     try {
-      const response = await fetchWithAuth(`/homepage/featured-question-sets/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ isFeatured })
-      });
+      const response = await questionSetService.setFeaturedQuestionSet(id, isFeatured);
 
       if (response.success) {
         // 更新本地状态
@@ -71,10 +75,14 @@ const AdminFeaturedQuestionSets: React.FC = () => {
           text: `题库已${isFeatured ? '添加到' : '从'}首页${isFeatured ? '' : '移除'}` 
         });
       } else {
-        setMessage({ type: 'error', text: response.error || '更新失败' });
+        const errorMsg = response.error || '更新失败';
+        logger.error(`Failed to update featured status for question set ${id}:`, errorMsg);
+        setMessage({ type: 'error', text: errorMsg });
       }
     } catch (err) {
-      setMessage({ type: 'error', text: '更新过程中发生错误' });
+      const errorMsg = err instanceof Error ? err.message : '更新过程中发生错误';
+      logger.error(`Exception while updating featured status for question set ${id}:`, errorMsg);
+      setMessage({ type: 'error', text: errorMsg });
     }
     
     // 3秒后清除消息
@@ -84,10 +92,18 @@ const AdminFeaturedQuestionSets: React.FC = () => {
   // 更新题库的精选分类
   const handleFeaturedCategoryChange = async (id: string, featuredCategory: string) => {
     try {
-      const response = await fetchWithAuth(`/homepage/featured-question-sets/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ featuredCategory })
-      });
+      // 首先获取当前题库的状态
+      const currentSet = questionSets.find(qs => qs.id === id);
+      if (!currentSet) {
+        setMessage({ type: 'error', text: '找不到指定题库' });
+        return;
+      }
+
+      const response = await questionSetService.setFeaturedQuestionSet(
+        id, 
+        currentSet.isFeatured, 
+        featuredCategory
+      );
 
       if (response.success) {
         // 更新本地状态
@@ -99,10 +115,14 @@ const AdminFeaturedQuestionSets: React.FC = () => {
         
         setMessage({ type: 'success', text: '精选分类已更新' });
       } else {
-        setMessage({ type: 'error', text: response.error || '更新失败' });
+        const errorMsg = response.error || '更新失败';
+        logger.error(`Failed to update featured category for question set ${id}:`, errorMsg);
+        setMessage({ type: 'error', text: errorMsg });
       }
     } catch (err) {
-      setMessage({ type: 'error', text: '更新过程中发生错误' });
+      const errorMsg = err instanceof Error ? err.message : '更新过程中发生错误';
+      logger.error(`Exception while updating featured category for question set ${id}:`, errorMsg);
+      setMessage({ type: 'error', text: errorMsg });
     }
     
     // 3秒后清除消息
@@ -123,20 +143,21 @@ const AdminFeaturedQuestionSets: React.FC = () => {
 
     try {
       const updatedCategories = [...featuredCategories, newCategory];
-      const response = await fetchWithAuth('/homepage/featured-categories', {
-        method: 'PUT',
-        body: JSON.stringify({ featuredCategories: updatedCategories })
-      });
+      const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);
         setNewCategory('');
         setMessage({ type: 'success', text: '分类添加成功' });
       } else {
-        setMessage({ type: 'error', text: response.error || '添加分类失败' });
+        const errorMsg = response.error || '添加分类失败';
+        logger.error('Failed to add category:', errorMsg);
+        setMessage({ type: 'error', text: errorMsg });
       }
     } catch (err) {
-      setMessage({ type: 'error', text: '添加分类时发生错误' });
+      const errorMsg = err instanceof Error ? err.message : '添加分类时发生错误';
+      logger.error('Exception while adding category:', errorMsg);
+      setMessage({ type: 'error', text: errorMsg });
     }
   };
 
@@ -152,26 +173,37 @@ const AdminFeaturedQuestionSets: React.FC = () => {
         }
 
         // 清除使用该分类的题库分类设置
-        const updatedQuestionSets = questionSets.map(qs => 
-          qs.featuredCategory === category ? { ...qs, featuredCategory: '' } : qs
+        await Promise.all(
+          questionSets
+            .filter(qs => qs.featuredCategory === category)
+            .map(async (qs) => {
+              await questionSetService.setFeaturedQuestionSet(qs.id, qs.isFeatured, '');
+            })
         );
-        setQuestionSets(updatedQuestionSets);
+        
+        // 更新本地状态
+        setQuestionSets(prev => 
+          prev.map(qs => 
+            qs.featuredCategory === category ? { ...qs, featuredCategory: '' } : qs
+          )
+        );
       }
 
       const updatedCategories = featuredCategories.filter(c => c !== category);
-      const response = await fetchWithAuth('/homepage/featured-categories', {
-        method: 'PUT',
-        body: JSON.stringify({ featuredCategories: updatedCategories })
-      });
+      const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);
         setMessage({ type: 'success', text: '分类删除成功' });
       } else {
-        setMessage({ type: 'error', text: response.error || '删除分类失败' });
+        const errorMsg = response.error || '删除分类失败';
+        logger.error('Failed to delete category:', errorMsg);
+        setMessage({ type: 'error', text: errorMsg });
       }
     } catch (err) {
-      setMessage({ type: 'error', text: '删除分类时发生错误' });
+      const errorMsg = err instanceof Error ? err.message : '删除分类时发生错误';
+      logger.error('Exception while deleting category:', errorMsg);
+      setMessage({ type: 'error', text: errorMsg });
     }
   };
 
