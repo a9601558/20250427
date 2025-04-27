@@ -1,56 +1,101 @@
 import { QuestionSet } from '../types';
 
-export async function fetchQuestionSets(): Promise<QuestionSet[]> {
-  try {
-    const response = await fetch('/api/question-sets');
-    if (!response.ok) {
-      throw new Error('Failed to fetch question sets');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching question sets:', error);
-    throw error;
-  }
+// Using an interface that matches the ApiResponse in api.ts
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
 }
 
-export async function updateQuestionCount(questionSetId: string, count: number): Promise<QuestionSet> {
-  try {
-    const response = await fetch(`/api/question-sets/${questionSetId}/count`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ count }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to update question count');
+// Question Set API service
+export const questionSetService = {
+  // Get all question sets
+  async getAllQuestionSets(): Promise<ApiResponse<QuestionSet[]>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.getAllQuestionSets();
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating question count:', error);
-    throw error;
-  }
-}
-
-export async function createQuestionSet(questionSetData: Partial<QuestionSet>): Promise<QuestionSet> {
-  try {
-    const response = await fetch('/api/question-sets', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(questionSetData),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create question set');
+  },
+  
+  // Get question sets by category
+  async getQuestionSetsByCategory(category: string): Promise<ApiResponse<QuestionSet[]>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.getQuestionSetsByCategory(category);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error creating question set:', error);
-    throw error;
+  },
+  
+  // Get all categories
+  async getAllCategories(): Promise<ApiResponse<string[]>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.getAllCategories();
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Get question set by ID
+  async getQuestionSetById(id: string): Promise<ApiResponse<QuestionSet>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.getQuestionSetById(id);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Create a new question set (admin only)
+  async createQuestionSet(questionSetData: Partial<QuestionSet>): Promise<ApiResponse<QuestionSet>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.createQuestionSet(questionSetData);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Update a question set (admin only)
+  async updateQuestionSet(id: string, questionSetData: Partial<QuestionSet>): Promise<ApiResponse<QuestionSet>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.updateQuestionSet(id, questionSetData);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Delete a question set (admin only)
+  async deleteQuestionSet(id: string): Promise<ApiResponse<void>> {
+    try {
+      const { questionSetService } = await import('./api');
+      return questionSetService.deleteQuestionSet(id);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Update the question count for a question set
+  async updateQuestionCount(questionSetId: string): Promise<ApiResponse<QuestionSet>> {
+    try {
+      const response = await fetch(`/api/question-sets/${questionSetId}/count`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
   }
-} 
+};
+
+export default questionSetService; 

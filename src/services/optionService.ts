@@ -1,79 +1,55 @@
 import { Option } from '../types';
 
-export async function addOption(questionId: string, optionData: Partial<Option>): Promise<Option> {
-  try {
-    const response = await fetch(`/api/questions/${questionId}/options`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(optionData),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to add option');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error adding option:', error);
-    throw error;
-  }
+// Using an interface that matches the ApiResponse in api.ts
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
 }
 
-export async function updateOption(optionId: string, optionData: Partial<Option>): Promise<Option> {
-  try {
-    const response = await fetch(`/api/options/${optionId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(optionData),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to update option');
+// Option API service
+export const optionService = {
+  // Add a new option to a question
+  async addOption(questionId: string, optionData: Partial<Option>): Promise<ApiResponse<Option>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.addOption(questionId, optionData);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating option:', error);
-    throw error;
+  },
+  
+  // Update an existing option
+  async updateOption(optionId: string, optionData: Partial<Option>): Promise<ApiResponse<Option>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.updateOption(optionId, optionData);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Delete an option
+  async deleteOption(optionId: string): Promise<ApiResponse<void>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.deleteOption(optionId);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Bulk add options to a question
+  async bulkAddOptions(questionId: string, options: Partial<Option>[]): Promise<ApiResponse<Option[]>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.bulkAddOptions(questionId, options);
+    } catch (error) {
+      console.error('Error bulk adding options:', error);
+      return { success: false, error: 'Failed to bulk add options' };
+    }
   }
-}
+};
 
-export async function deleteOption(optionId: string): Promise<void> {
-  try {
-    const response = await fetch(`/api/options/${optionId}`, {
-      method: 'DELETE',
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to delete option');
-    }
-  } catch (error) {
-    console.error('Error deleting option:', error);
-    throw error;
-  }
-}
-
-export async function bulkAddOptions(questionId: string, options: Partial<Option>[]): Promise<Option[]> {
-  try {
-    const response = await fetch(`/api/questions/${questionId}/options/bulk`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ options }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to bulk add options');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error bulk adding options:', error);
-    throw error;
-  }
-} 
+export default optionService; 

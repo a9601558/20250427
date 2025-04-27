@@ -1,94 +1,81 @@
-import { Question, Option } from '../types';
+import { Question } from '../types';
 
-export async function fetchQuestions(questionSetId: string): Promise<Question[]> {
-  try {
-    const response = await fetch(`/api/question-sets/${questionSetId}/questions`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch questions');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching questions:', error);
-    throw error;
-  }
+// Using an interface that matches the ApiResponse in api.ts
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
 }
 
-export async function getQuestionById(questionId: string): Promise<Question> {
-  try {
-    const response = await fetch(`/api/questions/${questionId}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch question');
+// Question API service
+export const questionService = {
+  // Get questions by question set ID
+  async getQuestionsBySetId(questionSetId: string): Promise<ApiResponse<Question[]>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.getQuestionsByQuestionSetId(questionSetId);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching question:', error);
-    throw error;
+  },
+  
+  // Get a single question by ID
+  async getQuestionById(questionId: string): Promise<ApiResponse<Question>> {
+    try {
+      const response = await fetch(`/api/questions/${questionId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Add a new question to a question set
+  async addQuestion(questionSetId: string, questionData: Partial<Question>): Promise<ApiResponse<Question>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.addQuestion(questionSetId, questionData);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Update an existing question
+  async updateQuestion(questionId: string, questionData: Partial<Question>): Promise<ApiResponse<Question>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.updateQuestion(questionId, questionData);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Delete a question
+  async deleteQuestion(questionId: string): Promise<ApiResponse<void>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.deleteQuestion(questionId);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Upload multiple questions at once
+  async uploadQuestions(questionSetId: string, questions: Partial<Question>[]): Promise<ApiResponse<Question[]>> {
+    try {
+      const { questionService } = await import('./api');
+      return questionService.uploadQuestions(questionSetId, questions);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
   }
-}
+};
 
-export async function createQuestion(questionSetId: string, questionData: { 
-  text: string, 
-  options: Partial<Option>[] 
-}): Promise<Question> {
-  try {
-    const response = await fetch(`/api/question-sets/${questionSetId}/questions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(questionData),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to create question');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error creating question:', error);
-    throw error;
-  }
-}
-
-export async function updateQuestion(questionId: string, questionData: { 
-  text?: string, 
-  options?: Partial<Option>[] 
-}): Promise<Question> {
-  try {
-    const response = await fetch(`/api/questions/${questionId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(questionData),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to update question');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating question:', error);
-    throw error;
-  }
-}
-
-export async function deleteQuestion(questionId: string): Promise<void> {
-  try {
-    const response = await fetch(`/api/questions/${questionId}`, {
-      method: 'DELETE',
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to delete question');
-    }
-  } catch (error) {
-    console.error('Error deleting question:', error);
-    throw error;
-  }
-} 
+export default questionService; 

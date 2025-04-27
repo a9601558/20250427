@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Question, User, QuestionSet, Purchase, RedeemCode, UserProgress } from '../types';
+import { Question, User, QuestionSet, Purchase, RedeemCode, UserProgress, Option } from '../types';
 
 // API基础URL
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
@@ -276,6 +276,46 @@ export const questionService = {
     try {
       const response = await api.post('/questions/upload', { questionSetId, questions });
       return handleResponse<Question[]>(response);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Add a new option to a question
+  async addOption(questionId: string, optionData: Partial<Option>): Promise<ApiResponse<Option>> {
+    try {
+      const response = await api.post(`/questions/${questionId}/options`, optionData);
+      return handleResponse<Option>(response);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Update an existing option
+  async updateOption(optionId: string, optionData: Partial<Option>): Promise<ApiResponse<Option>> {
+    try {
+      const response = await api.put(`/options/${optionId}`, optionData);
+      return handleResponse<Option>(response);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Delete an option
+  async deleteOption(optionId: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await api.delete(`/options/${optionId}`);
+      return handleResponse<void>(response);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  // Bulk add options to a question
+  async bulkAddOptions(questionId: string, options: Partial<Option>[]): Promise<ApiResponse<Option[]>> {
+    try {
+      const response = await api.post(`/questions/${questionId}/options/bulk`, { options });
+      return handleResponse<Option[]>(response);
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
