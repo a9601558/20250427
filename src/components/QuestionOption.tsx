@@ -1,6 +1,11 @@
 import React from 'react';
 import { Option } from '../data/questions';
 
+// 获取选项标签（A, B, C, D...）
+const getOptionLabel = (index: number): string => {
+  return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
+};
+
 interface QuestionOptionProps {
   option: Option;
   isSelected: boolean;
@@ -8,6 +13,7 @@ interface QuestionOptionProps {
   isSubmitted: boolean;
   isMultiple?: boolean;
   onClick: () => void;
+  index: number; // 添加索引属性
 }
 
 const QuestionOption: React.FC<QuestionOptionProps> = ({
@@ -16,7 +22,8 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
   isCorrect,
   isSubmitted,
   isMultiple = false,
-  onClick
+  onClick,
+  index
 }) => {
   // 根据当前状态确定背景颜色
   const getBgColor = () => {
@@ -42,6 +49,9 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
     ? isCorrect === option.id
     : isSubmitted && option.id === isCorrect;
 
+  // 获取选项显示标签
+  const optionLabel = option.label || getOptionLabel(index);
+
   return (
     <div
       className={`flex items-start p-4 mb-3 border rounded-lg cursor-pointer transition-all ${getBgColor()}`}
@@ -64,8 +74,8 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         )}
-        {!isMultiple && option.id}
-        {isMultiple && !isSelected && option.id}
+        {!isMultiple && optionLabel}
+        {isMultiple && !isSelected && optionLabel}
       </div>
       <div className="flex-1">
         <p className="text-gray-800">{option.text}</p>

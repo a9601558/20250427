@@ -204,7 +204,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
                     />
                   )}
                 </div>
-                <div className="w-8 text-center font-medium">{option.id}.</div>
+                <div className="w-8 text-center font-medium">{option.id}</div>
                 <input
                   type="text"
                   value={option.text}

@@ -5,6 +5,11 @@ import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi } from '../utils/api';
 
+// 获取选项标签（A, B, C, D...）
+const getOptionLabel = (index: number): string => {
+  return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
+};
+
 function QuizPage(): React.ReactNode {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -53,10 +58,11 @@ function QuizPage(): React.ReactNode {
               }
               
               // 处理选项
-              const processedOptions = q.options.map(opt => ({
+              const processedOptions = q.options.map((opt, index) => ({
                 id: opt.id || opt.optionIndex || `option-${Math.random().toString(36).substr(2, 9)}`,
                 text: opt.text,
-                isCorrect: opt.isCorrect
+                isCorrect: opt.isCorrect,
+                label: getOptionLabel(index) // 添加字母标签
               }));
               
               // 处理正确答案
@@ -404,7 +410,7 @@ function QuizPage(): React.ReactNode {
         
         {/* 选项列表 */}
         <div className="space-y-3 mb-6">
-          {currentQuestion.options.map((option) => {
+          {currentQuestion.options.map((option, index) => {
             const isSelected = selectedOptions.includes(option.id);
             return (
               <div 
@@ -430,7 +436,7 @@ function QuizPage(): React.ReactNode {
                   <span className={`w-6 h-6 flex items-center justify-center rounded-full border mr-3 ${
                     isSelected ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300'
                   }`}>
-                    {option.id}
+                    {option.label || getOptionLabel(index)}
                   </span>
                   <span>{option.text}</span>
                 </div>

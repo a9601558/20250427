@@ -1,6 +1,7 @@
 export interface Option {
   id: string;
   text: string;
+  label?: string; // 选项显示标签
 }
 
 export type QuestionType = 'single' | 'multiple';

@@ -42,6 +42,7 @@ export interface Option {
   text: string;
   isCorrect: boolean;
   optionIndex?: string;
+  label?: string;
 }
 
 export interface Purchase {

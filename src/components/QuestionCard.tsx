@@ -131,10 +131,11 @@ const QuestionCard = ({
 
       {/* 选项 */}
       <div className="mb-6">
-        {question.options.map((option) => (
+        {question.options.map((option, index) => (
           <QuestionOption
             key={option.id}
             option={option}
+            index={index}
             isSelected={
               question.questionType === 'single' 
                 ? selectedOption === option.id 
