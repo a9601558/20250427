@@ -6,20 +6,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateUser = exports.getUserById = exports.deleteUser = exports.getUsers = exports.updateUserProfile = exports.getUserProfile = exports.loginUser = exports.registerUser = void 0;
 const User_1 = __importDefault(require("../models/User"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
-const sequelize_1 = require("sequelize");
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
 const registerUser = async (req, res) => {
     try {
         const { username, email, password } = req.body;
-        // Check if user exists
-        const userExists = await User_1.default.findOne({
-            where: {
-                [sequelize_1.Op.or]: [{ email }, { username }]
-            }
+        // 避免使用Op.or，分别检查用户名和邮箱
+        const userExistsByUsername = await User_1.default.findOne({
+            where: { username }
         });
-        if (userExists) {
+        const userExistsByEmail = await User_1.default.findOne({
+            where: { email }
+        });
+        if (userExistsByUsername || userExistsByEmail) {
             return res.status(400).json({
                 success: false,
                 message: 'User already exists'
@@ -75,23 +75,16 @@ const loginUser = async (req, res) => {
                 message: '用户名/邮箱和密码不能为空'
             });
         }
-        // 确保Op.or存在，避免TypeError
-        if (!sequelize_1.Op || typeof sequelize_1.Op.or === 'undefined') {
-            console.error('Sequelize Op.or未定义');
-            return res.status(500).json({
-                success: false,
-                message: '服务器配置错误'
+        // 避免使用Op.or，使用两次查询代替
+        let user = await User_1.default.findOne({
+            where: { username: username }
+        });
+        // 如果按用户名找不到，再按邮箱查找
+        if (!user) {
+            user = await User_1.default.findOne({
+                where: { email: username }
             });
         }
-        // 使用 Op.or 同时查询用户名和邮箱，更加健壮
-        const user = await User_1.default.findOne({
-            where: {
-                [sequelize_1.Op.or]: [
-                    { username: username },
-                    { email: username }
-                ]
-            }
-        });
         // Check if user exists and password matches
         if (user && (await user.comparePassword(password))) {
             res.json({

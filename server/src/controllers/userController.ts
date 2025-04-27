@@ -10,14 +10,16 @@ export const registerUser = async (req: Request, res: Response) => {
   try {
     const { username, email, password } = req.body;
 
-    // Check if user exists
-    const userExists = await User.findOne({ 
-      where: {
-        [Op.or]: [{ email }, { username }]
-      }
+    // 避免使用Op.or，分别检查用户名和邮箱
+    const userExistsByUsername = await User.findOne({ 
+      where: { username }
+    });
+    
+    const userExistsByEmail = await User.findOne({ 
+      where: { email }
     });
 
-    if (userExists) {
+    if (userExistsByUsername || userExistsByEmail) {
       return res.status(400).json({
         success: false,
         message: 'User already exists'
@@ -75,24 +77,17 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     }
 
-    // 确保Op.or存在，避免TypeError
-    if (!Op || typeof Op.or === 'undefined') {
-      console.error('Sequelize Op.or未定义');
-      return res.status(500).json({
-        success: false,
-        message: '服务器配置错误'
+    // 避免使用Op.or，使用两次查询代替
+    let user = await User.findOne({
+      where: { username: username }
+    });
+
+    // 如果按用户名找不到，再按邮箱查找
+    if (!user) {
+      user = await User.findOne({
+        where: { email: username }
       });
     }
-
-    // 使用 Op.or 同时查询用户名和邮箱，更加健壮
-    const user = await User.findOne({
-      where: {
-        [Op.or]: [
-          { username: username },
-          { email: username }
-        ]
-      }
-    });
 
     // Check if user exists and password matches
     if (user && (await user.comparePassword(password))) {
