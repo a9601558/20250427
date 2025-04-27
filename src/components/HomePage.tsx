@@ -164,6 +164,20 @@ const HomePage: React.FC = () => {
     return questionSets.filter(set => set.category === category);
   };
 
+  // 检查当前获取的题库数据是否完整
+  useEffect(() => {
+    // 如果有题库但没有题目，打印日志帮助调试
+    if (questionSets.length > 0) {
+      console.log(`共加载了 ${questionSets.length} 个题库`);
+      
+      // 打印每个题库的题目数量
+      questionSets.forEach(set => {
+        // 由于API返回的是questionCount而不是questions数组
+        console.log(`题库 ${set.title} 包含 ${set.questionCount || 0} 题`);
+      });
+    }
+  }, [questionSets]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -321,7 +335,8 @@ const HomePage: React.FC = () => {
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          {set.questionCount} 题
+                          {/* 如果questions不存在，则使用questionCount */}
+                          {set.questions?.length || set.questionCount || 0} 题
                         </span>
                         {set.isPaid && (
                           <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">

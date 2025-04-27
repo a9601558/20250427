@@ -22,7 +22,7 @@ export interface QuestionSet {
   description: string;
   category: string;
   icon: string;
-  questions: Question[];
+  questions?: Question[];
   isPaid?: boolean;
   price?: number;
   trialQuestions?: number;
