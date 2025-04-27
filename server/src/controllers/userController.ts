@@ -75,6 +75,15 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     }
 
+    // 确保Op.or存在，避免TypeError
+    if (!Op || typeof Op.or === 'undefined') {
+      console.error('Sequelize Op.or未定义');
+      return res.status(500).json({
+        success: false,
+        message: '服务器配置错误'
+      });
+    }
+
     // 使用 Op.or 同时查询用户名和邮箱，更加健壮
     const user = await User.findOne({
       where: {

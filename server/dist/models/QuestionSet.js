@@ -50,12 +50,22 @@ QuestionSet.init({
         validate: {
             min: 0
         }
+    },
+    isFeatured: {
+        type: sequelize_1.DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+    featuredCategory: {
+        type: sequelize_1.DataTypes.STRING(50),
+        allowNull: true
     }
 }, {
     sequelize: db_1.sequelize,
     tableName: 'question_sets',
     indexes: [
-        { fields: ['category'] }
+        { fields: ['category'] },
+        { fields: ['isFeatured'] }
     ],
     hooks: {
         beforeValidate: (questionSet) => {

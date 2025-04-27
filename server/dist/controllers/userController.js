@@ -75,6 +75,14 @@ const loginUser = async (req, res) => {
                 message: '用户名/邮箱和密码不能为空'
             });
         }
+        // 确保Op.or存在，避免TypeError
+        if (!sequelize_1.Op || typeof sequelize_1.Op.or === 'undefined') {
+            console.error('Sequelize Op.or未定义');
+            return res.status(500).json({
+                success: false,
+                message: '服务器配置错误'
+            });
+        }
         // 使用 Op.or 同时查询用户名和邮箱，更加健壮
         const user = await User_1.default.findOne({
             where: {

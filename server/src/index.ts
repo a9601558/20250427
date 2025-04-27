@@ -28,6 +28,9 @@ import homepageRoutes from './routes/homepageRoutes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// 信任代理，解决X-Forwarded-For头问题
+app.set('trust proxy', true);
+
 // Security middleware
 app.use(helmet());
 

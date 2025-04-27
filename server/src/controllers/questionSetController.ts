@@ -93,18 +93,18 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         qs.description, 
         qs.category, 
         qs.icon, 
-        qs.is_paid AS isPaid, 
+        qs.isPaid, 
         qs.price, 
-        qs.trial_questions AS trialQuestions,
+        qs.trialQuestions,
         COUNT(q.id) AS questionCount
       FROM 
         question_sets qs
       LEFT JOIN 
-        questions q ON qs.id = q.question_set_id
+        questions q ON qs.id = q.questionSetId
       GROUP BY 
         qs.id
       ORDER BY 
-        qs.created_at DESC
+        qs.createdAt DESC
     `);
 
     res.status(200).json({
