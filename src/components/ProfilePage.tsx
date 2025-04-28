@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import { questionSetApi } from '../utils/api';
+import api from '../services/api';
 import { QuestionSet } from '../types';
 
 // 定义标签页枚举
@@ -17,6 +17,8 @@ const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemCodes' | 'settings'>('progress');
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   if (!user) {
     // 已经在 ProtectedRoute 中处理，但为了类型安全添加此检查
@@ -27,17 +29,38 @@ const ProfilePage: React.FC = () => {
   useEffect(() => {
     const fetchQuestionSets = async () => {
       try {
-        const response = await questionSetApi.getAllQuestionSets();
+        const response = await api.questionSetService.getAllQuestionSets();
         if (response.success && response.data) {
           setQuestionSets(response.data);
         }
       } catch (error) {
-        console.error('加载题库失败:', error);
+        console.error('获取题库列表失败:', error);
       }
     };
 
     fetchQuestionSets();
   }, []);
+
+  // 加载购买记录
+  useEffect(() => {
+    const fetchPurchases = async () => {
+      if (!user) return;
+      
+      setLoading(true);
+      try {
+        const response = await api.purchaseService.getUserPurchases();
+        if (response.success && response.data) {
+          setPurchases(response.data);
+        }
+      } catch (error) {
+        console.error('获取购买记录失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPurchases();
+  }, [user]);
 
   // 整理用户进度数据
   const progressData = Object.entries(user.progress || {}).map(([quizId, progress]) => {
@@ -67,7 +90,7 @@ const ProfilePage: React.FC = () => {
   }).sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
 
   // 整理用户购买记录
-  const purchaseData = user.purchases ? user.purchases.map(purchase => {
+  const purchaseData = purchases.map(purchase => {
     const quizSet = questionSets.find(set => set.id === purchase.questionSetId);
     return {
       ...purchase,
@@ -76,7 +99,7 @@ const ProfilePage: React.FC = () => {
       icon: quizSet ? quizSet.icon : '📝',
       isActive: new Date(purchase.expiryDate) > new Date()
     };
-  }) : [];
+  });
 
   // 整理用户兑换码记录
   const redeemCodeData = user.redeemCodes ? user.redeemCodes.map(code => {

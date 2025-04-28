@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import User from '../models/User';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { Op } from 'sequelize';
 
 // 生成JWT令牌函数
 const generateToken = (id: string | number) => {
@@ -9,104 +11,90 @@ const generateToken = (id: string | number) => {
   });
 };
 
+// 统一响应格式
+const sendResponse = <T>(res: Response, status: number, data: T, message?: string) => {
+  res.status(status).json({
+    success: status >= 200 && status < 300,
+    data,
+    message
+  });
+};
+
+// 统一错误响应
+const sendError = (res: Response, status: number, message: string, error?: any) => {
+  res.status(status).json({
+    success: false,
+    message,
+    error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+  });
+};
+
 // @desc    Register a new user
-// @route   POST /api/users
+// @route   POST /api/v1/users/register
 // @access  Public
 export const registerUser = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
-    
-    // 使用邮箱的@前面部分作为用户名
-    const username = email.split('@')[0];
-    
-    // 验证必要字段
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: '请提供邮箱和密码'
-      });
+    const { username, email, password } = req.body;
+
+    // 验证必填字段
+    if (!username || !email || !password) {
+      return sendError(res, 400, '请提供用户名、邮箱和密码');
     }
 
-    // 密码长度验证
+    // 验证密码长度
     if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: '密码长度必须至少为6个字符'
-      });
+      return sendError(res, 400, '密码长度至少为6个字符');
     }
 
-    console.log(`开始注册新用户: ${username}, ${email}`);
-
-    // 检查邮箱是否已存在
-    const userExistsByEmail = await User.findOne({
-      where: { email },
-    });
-
-    if (userExistsByEmail) {
-      return res.status(400).json({ success: false, message: '邮箱已被注册' });
-    }
-
-    // 检查用户名是否已存在，如果存在则添加随机数
-    let finalUsername = username;
-    let userExistsByUsername = await User.findOne({
-      where: { username: finalUsername },
+    // 检查用户是否已存在
+    const existingUser = await User.findOne({
+      where: { email }
     });
     
-    if (userExistsByUsername) {
-      finalUsername = `${username}${Math.floor(Math.random() * 1000)}`;
+    if (existingUser) {
+      return sendError(res, 400, '该邮箱已被注册');
     }
 
-    console.log(`开始创建用户记录, 原始密码长度: ${password.length}`);
+    // 加密密码
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     // 创建新用户
     const user = await User.create({
-      username: finalUsername,
+      username,
       email,
-      password,
+      password: hashedPassword,
       isAdmin: false,
       progress: {},
       purchases: [],
       redeemCodes: []
     });
 
-    console.log(`用户创建完成, 密码长度: ${user.password.length}, 密码前缀: ${user.password.substring(0, 10)}...`);
+    // 生成 JWT token
+    const token = generateToken(user.id);
 
-    // 简单验证密码是否已被加密（加密后应该很长且包含$字符）
-    if (!user.password.includes('$') || user.password.length < 20) {
-      console.warn(`警告: 用户密码可能未被正确加密! 密码长度:${user.password.length}`);
-    }
+    // 返回用户信息（不包含密码）
+    const userResponse = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
 
-    // 返回成功响应和用户信息（不包含密码）
-    if (user) {
-      res.status(201).json({
-        success: true,
-        message: '注册成功',
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          isAdmin: user.isAdmin,
-          token: generateToken(user.id),
-        },
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: '用户创建失败，请稍后再试'
-      });
-    }
-  } catch (error: any) {
-    console.error('Register error:', error);
-    res.status(500).json({
-      success: false,
-      message: '注册失败',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
-    });
+    sendResponse(res, 201, {
+      user: userResponse,
+      token
+    }, '注册成功');
+  } catch (error) {
+    console.error('注册用户时出错:', error);
+    sendError(res, 500, '服务器错误，请稍后重试', error);
   }
 };
 
 // @desc    Login user & get token
-// @route   POST /api/users/login
+// @route   POST /api/v1/users/login
 // @access  Public
 export const loginUser = async (req: Request, res: Response) => {
   try {
@@ -114,10 +102,7 @@ export const loginUser = async (req: Request, res: Response) => {
     
     // 检查输入是否为空
     if (!username || !password) {
-      return res.status(400).json({
-        success: false,
-        message: '用户名/邮箱和密码不能为空'
-      });
+      return sendError(res, 400, '用户名/邮箱和密码不能为空');
     }
 
     // 先尝试按用户名查找
@@ -134,76 +119,50 @@ export const loginUser = async (req: Request, res: Response) => {
 
     // 如果用户不存在，返回错误
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: '用户名/邮箱或密码错误'
-      });
+      return sendError(res, 401, '用户名/邮箱或密码错误');
     }
 
     // 检查密码是否存在
     if (!user.password) {
       console.error('用户密码字段为空:', username);
-      // 尝试更新用户密码为默认值以修复数据问题
-      if (process.env.NODE_ENV === 'development') {
-        try {
-          user.password = 'temporary_password';
-          await user.save();
-          console.log('已为用户创建临时密码，请用户重置密码');
-        } catch (e) {
-          console.error('无法修复密码字段:', e);
-        }
-      }
-      
-      return res.status(500).json({
-        success: false,
-        message: '账户数据异常，请联系管理员或重置密码'
-      });
+      return sendError(res, 500, '账户数据异常，请联系管理员或重置密码');
     }
 
-    // 比较密码 - 添加额外的错误处理
+    // 比较密码
     try {
       const isPasswordMatch = await user.comparePassword(password);
       
       if (isPasswordMatch) {
         // 密码正确，返回用户信息和令牌
-        return res.json({
-          success: true,
-          data: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            isAdmin: user.isAdmin,
-            token: generateToken(user.id)
-          }
-        });
+        const userResponse = {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          isAdmin: user.isAdmin,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        };
+
+        sendResponse(res, 200, {
+          user: userResponse,
+          token: generateToken(user.id)
+        }, '登录成功');
       } else {
         // 密码不匹配
-        return res.status(401).json({
-          success: false,
-          message: '用户名/邮箱或密码错误'
-        });
+        sendError(res, 401, '用户名/邮箱或密码错误');
       }
     } catch (passwordError) {
-      // 密码比较过程出错
       console.error('密码比较过程出错:', passwordError);
-      return res.status(500).json({
-        success: false,
-        message: '登录时发生错误，请稍后再试'
-      });
+      sendError(res, 500, '登录时发生错误，请稍后再试', passwordError);
     }
-  } catch (error: any) {
-    // 捕获所有其他错误
+  } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: '登录失败，请稍后再试',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    sendError(res, 500, '登录失败，请稍后再试', error);
   }
 };
 
 // @desc    Get user profile
-// @route   GET /api/users/profile
+// @route   GET /api/v1/users/profile
 // @access  Private
 export const getUserProfile = async (req: Request, res: Response) => {
   try {
@@ -212,27 +171,18 @@ export const getUserProfile = async (req: Request, res: Response) => {
     });
 
     if (user) {
-      res.json({
-        success: true,
-        data: user
-      });
+      sendResponse(res, 200, user);
     } else {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      sendError(res, 404, '用户不存在');
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
+    sendError(res, 500, '获取用户信息失败', error);
   }
 };
 
 // @desc    Update user profile
-// @route   PUT /api/users/profile
+// @route   PUT /api/v1/users/profile
 // @access  Private
 export const updateUserProfile = async (req: Request, res: Response) => {
   try {
@@ -243,38 +193,36 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       user.email = req.body.email || user.email;
 
       if (req.body.password) {
-        user.password = req.body.password;
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(req.body.password, salt);
       }
 
       const updatedUser = await user.save();
 
-      res.json({
-        success: true,
-        data: {
-          id: updatedUser.id,
-          username: updatedUser.username,
-          email: updatedUser.email,
-          isAdmin: updatedUser.isAdmin,
-          token: generateToken(updatedUser.id)
-        }
-      });
+      const userResponse = {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        isAdmin: updatedUser.isAdmin,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt
+      };
+
+      sendResponse(res, 200, {
+        user: userResponse,
+        token: generateToken(updatedUser.id)
+      }, '用户信息更新成功');
     } else {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      sendError(res, 404, '用户不存在');
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
+    sendError(res, 500, '更新用户信息失败', error);
   }
 };
 
 // @desc    Get all users
-// @route   GET /api/users
+// @route   GET /api/v1/users
 // @access  Private/Admin
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -282,49 +230,15 @@ export const getUsers = async (req: Request, res: Response) => {
       attributes: { exclude: ['password'] }
     });
     
-    res.json({
-      success: true,
-      data: users
-    });
-  } catch (error: any) {
+    sendResponse(res, 200, users);
+  } catch (error) {
     console.error('Get users error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
-  }
-};
-
-// @desc    Delete user
-// @route   DELETE /api/users/:id
-// @access  Private/Admin
-export const deleteUser = async (req: Request, res: Response) => {
-  try {
-    const user = await User.findByPk(req.params.id);
-
-    if (user) {
-      await user.destroy();
-      res.json({
-        success: true,
-        message: 'User removed'
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-  } catch (error: any) {
-    console.error('Delete user error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
+    sendError(res, 500, '获取用户列表失败', error);
   }
 };
 
 // @desc    Get user by ID
-// @route   GET /api/users/:id
+// @route   GET /api/v1/users/:id
 // @access  Private/Admin
 export const getUserById = async (req: Request, res: Response) => {
   try {
@@ -333,27 +247,18 @@ export const getUserById = async (req: Request, res: Response) => {
     });
 
     if (user) {
-      res.json({
-        success: true,
-        data: user
-      });
+      sendResponse(res, 200, user);
     } else {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      sendError(res, 404, '用户不存在');
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get user by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
+    sendError(res, 500, '获取用户信息失败', error);
   }
 };
 
 // @desc    Update user
-// @route   PUT /api/users/:id
+// @route   PUT /api/v1/users/:id
 // @access  Private/Admin
 export const updateUser = async (req: Request, res: Response) => {
   try {
@@ -366,26 +271,40 @@ export const updateUser = async (req: Request, res: Response) => {
 
       const updatedUser = await user.save();
 
-      res.json({
-        success: true,
-        data: {
-          id: updatedUser.id,
-          username: updatedUser.username,
-          email: updatedUser.email,
-          isAdmin: updatedUser.isAdmin
-        }
-      });
+      const userResponse = {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        isAdmin: updatedUser.isAdmin,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt
+      };
+
+      sendResponse(res, 200, userResponse, '用户信息更新成功');
     } else {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      sendError(res, 404, '用户不存在');
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Update user error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server error'
-    });
+    sendError(res, 500, '更新用户信息失败', error);
+  }
+};
+
+// @desc    Delete user
+// @route   DELETE /api/v1/users/:id
+// @access  Private/Admin
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+
+    if (user) {
+      await user.destroy();
+      sendResponse(res, 200, null, '用户删除成功');
+    } else {
+      sendError(res, 404, '用户不存在');
+    }
+  } catch (error) {
+    console.error('Delete user error:', error);
+    sendError(res, 500, '删除用户失败', error);
   }
 }; 

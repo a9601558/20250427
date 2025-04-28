@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { Question, User, QuestionSet, Purchase, RedeemCode, UserProgress, Option } from '../types';
+import { AccessCheckResult } from './purchaseService';
 
 // API基础URL - 确保这里指向了正确的后端服务地址
-const API_BASE_URL = '/api';
+export const API_BASE_URL = '/api/v1';
 
 // 创建axios实例
 const api = axios.create({
@@ -23,8 +24,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // 添加调试日志
-    console.log(`发送请求 ${config.method?.toUpperCase()}: ${config.url}`, config.data);
     return config;
   },
   error => {
@@ -36,29 +35,39 @@ api.interceptors.request.use(
 // 响应拦截器 - 统一处理错误
 api.interceptors.response.use(
   response => {
-    console.log(`接收响应 ${response.status}: ${response.config.url}`, response.data);
     return response;
   },
   error => {
     if (error.response) {
       // 服务器返回了错误状态码
-      console.error('API错误响应:', {
-        url: error.config?.url,
-        status: error.response.status,
-        data: error.response.data
+      const { status, data } = error.response;
+      const errorMessage = data?.message || '请求失败';
+      
+      // 处理特定状态码
+      if (status === 401) {
+        // 未授权，清除token并跳转到登录页
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      
+      return Promise.reject({
+        success: false,
+        message: errorMessage,
+        error: data?.error
       });
     } else if (error.request) {
       // 请求发送成功，但没有收到响应
-      console.error('API请求无响应:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        message: error.message
+      return Promise.reject({
+        success: false,
+        message: '服务器未响应，请检查网络连接'
       });
     } else {
       // 请求设置过程中发生错误
-      console.error('API请求配置错误:', error.message);
+      return Promise.reject({
+        success: false,
+        message: error.message || '请求配置错误'
+      });
     }
-    return Promise.reject(error);
   }
 );
 
@@ -72,14 +81,7 @@ interface ApiResponse<T> {
 
 // 处理API响应
 const handleResponse = <T>(response: any): ApiResponse<T> => {
-  if (response.data.success !== undefined) {
-    return response.data as ApiResponse<T>;
-  }
-  
-  return {
-    success: true,
-    data: response.data as T,
-  };
+  return response.data as ApiResponse<T>;
 };
 
 // 用户API服务
@@ -87,28 +89,13 @@ export const userService = {
   // 用户登录
   async login(username: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
-      // 修正路径，移除了多余的 /api 前缀，因为 axios 实例已经配置了 baseURL
       const response = await api.post('/users/login', { username, password });
       return handleResponse<{ user: User; token: string }>(response);
     } catch (error: any) {
-      // 增强错误处理，提供更具体的错误消息
-      let errorMessage = '登录失败';
-      
-      if (error.response) {
-        // 服务器返回了具体错误信息
-        errorMessage = error.response.data?.message || errorMessage;
-      } else if (error.request) {
-        // 请求发送了但没有收到响应
-        errorMessage = '服务器未响应，请检查网络连接';
-      } else {
-        // 发送请求时出错
-        errorMessage = error.message || errorMessage;
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage,
-        message: errorMessage 
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
       };
     }
   },
@@ -116,23 +103,13 @@ export const userService = {
   // 用户注册
   async register(userData: Partial<User>): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
-      const response = await api.post('/users', userData);
+      const response = await api.post('/users/register', userData);
       return handleResponse<{ user: User; token: string }>(response);
     } catch (error: any) {
-      let errorMessage = '注册失败';
-      
-      if (error.response) {
-        errorMessage = error.response.data?.message || errorMessage;
-      } else if (error.request) {
-        errorMessage = '服务器未响应，请检查网络连接';
-      } else {
-        errorMessage = error.message || errorMessage;
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage,
-        message: errorMessage 
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
       };
     }
   },
@@ -143,20 +120,10 @@ export const userService = {
       const response = await api.get('/users/profile');
       return handleResponse<User>(response);
     } catch (error: any) {
-      let errorMessage = '获取用户信息失败';
-      
-      if (error.response) {
-        errorMessage = error.response.data?.message || errorMessage;
-      } else if (error.request) {
-        errorMessage = '服务器未响应，请检查网络连接';
-      } else {
-        errorMessage = error.message || errorMessage;
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage,
-        message: errorMessage 
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
       };
     }
   },
@@ -166,8 +133,12 @@ export const userService = {
     try {
       const response = await api.put(`/users/${userId}`, userData);
       return handleResponse<User>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
 
@@ -176,8 +147,12 @@ export const userService = {
     try {
       const response = await api.get('/users');
       return handleResponse<User[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
 
@@ -186,8 +161,12 @@ export const userService = {
     try {
       const response = await api.delete(`/users/${userId}`);
       return handleResponse<void>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -196,8 +175,12 @@ export const userService = {
     try {
       const response = await api.put(`/users/${userId}/role`, { isAdmin });
       return handleResponse<User>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
@@ -209,8 +192,12 @@ export const questionSetService = {
     try {
       const response = await api.get('/question-sets');
       return handleResponse<QuestionSet[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
 
@@ -219,8 +206,12 @@ export const questionSetService = {
     try {
       const response = await api.get(`/question-sets/by-category/${category}`);
       return handleResponse<QuestionSet[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
 
@@ -229,8 +220,12 @@ export const questionSetService = {
     try {
       const response = await api.get('/question-sets/categories');
       return handleResponse<string[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
 
@@ -239,8 +234,12 @@ export const questionSetService = {
     try {
       const response = await api.get(`/question-sets/${id}`);
       return handleResponse<QuestionSet>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -249,8 +248,12 @@ export const questionSetService = {
     try {
       const response = await api.post('/question-sets', questionSetData);
       return handleResponse<QuestionSet>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -259,8 +262,12 @@ export const questionSetService = {
     try {
       const response = await api.put(`/question-sets/${id}`, questionSetData);
       return handleResponse<QuestionSet>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -269,8 +276,12 @@ export const questionSetService = {
     try {
       const response = await api.delete(`/question-sets/${id}`);
       return handleResponse<void>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -279,8 +290,12 @@ export const questionSetService = {
     try {
       const response = await api.post('/question-sets/upload', { questionSets });
       return handleResponse<QuestionSet[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -289,8 +304,12 @@ export const questionSetService = {
     try {
       const response = await api.get('/question-sets/featured');
       return handleResponse<QuestionSet[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -299,8 +318,12 @@ export const questionSetService = {
     try {
       const response = await api.put(`/question-sets/${id}/featured`, { isFeatured, featuredCategory });
       return handleResponse<QuestionSet>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
@@ -312,8 +335,12 @@ export const questionService = {
     try {
       const response = await api.get(`/questions?questionSetId=${questionSetId}`);
       return handleResponse<Question[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -322,8 +349,12 @@ export const questionService = {
     try {
       const response = await api.post('/questions', { ...question, questionSetId });
       return handleResponse<Question>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -332,8 +363,12 @@ export const questionService = {
     try {
       const response = await api.put(`/questions/${questionId}`, question);
       return handleResponse<Question>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -342,8 +377,12 @@ export const questionService = {
     try {
       const response = await api.delete(`/questions/${questionId}`);
       return handleResponse<void>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -352,48 +391,68 @@ export const questionService = {
     try {
       const response = await api.post('/questions/upload', { questionSetId, questions });
       return handleResponse<Question[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
-  // Add a new option to a question
+  // 添加选项
   async addOption(questionId: string, optionData: Partial<Option>): Promise<ApiResponse<Option>> {
     try {
       const response = await api.post(`/questions/${questionId}/options`, optionData);
       return handleResponse<Option>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
-  // Update an existing option
+  // 更新选项
   async updateOption(optionId: string, optionData: Partial<Option>): Promise<ApiResponse<Option>> {
     try {
       const response = await api.put(`/options/${optionId}`, optionData);
       return handleResponse<Option>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
-  // Delete an option
+  // 删除选项
   async deleteOption(optionId: string): Promise<ApiResponse<void>> {
     try {
       const response = await api.delete(`/options/${optionId}`);
       return handleResponse<void>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
-  // Bulk add options to a question
+  // 批量添加选项
   async bulkAddOptions(questionId: string, options: Partial<Option>[]): Promise<ApiResponse<Option[]>> {
     try {
       const response = await api.post(`/questions/${questionId}/options/bulk`, { options });
       return handleResponse<Option[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
@@ -405,8 +464,12 @@ export const userProgressService = {
     try {
       const response = await api.get('/user-progress');
       return handleResponse<Record<string, UserProgress>>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -415,27 +478,26 @@ export const userProgressService = {
     try {
       const response = await api.get(`/user-progress/${questionSetId}`);
       return handleResponse<UserProgress>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
   // 更新用户进度
   async updateProgress(progress: Partial<UserProgress>): Promise<ApiResponse<UserProgress>> {
     try {
-      // 确保questionSetId存在于请求体中
-      if (!progress.questionSetId) {
-        return {
-          success: false,
-          error: '题库ID (questionSetId) 不能为空'
-        };
-      }
-      
-      // 使用POST请求发送进度更新
       const response = await api.post('/user-progress', progress);
       return handleResponse<UserProgress>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
@@ -443,32 +505,86 @@ export const userProgressService = {
 // 购买API服务
 export const purchaseService = {
   // 创建购买
-  async createPurchase(purchase: Partial<Purchase>): Promise<ApiResponse<Purchase>> {
+  async createPurchase(questionSetId: string, paymentMethod: string, amount: number): Promise<ApiResponse<Purchase>> {
     try {
-      const response = await api.post('/purchases', purchase);
+      const response = await api.post('/purchases', { questionSetId, paymentMethod, amount });
       return handleResponse<Purchase>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
   // 获取用户的所有购买
   async getUserPurchases(): Promise<ApiResponse<Purchase[]>> {
     try {
-      const response = await api.get('/purchases/user');
+      const response = await api.get('/purchases');
       return handleResponse<Purchase[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
   // 检查用户是否有权限访问题库
-  async checkAccess(questionSetId: string): Promise<ApiResponse<{hasAccess: boolean, expiryDate?: string, remainingDays?: number}>> {
+  async checkAccess(questionSetId: string): Promise<ApiResponse<AccessCheckResult>> {
     try {
       const response = await api.get(`/purchases/check/${questionSetId}`);
-      return handleResponse<{hasAccess: boolean, expiryDate?: string, remainingDays?: number}>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+      return handleResponse<AccessCheckResult>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
+  },
+
+  // 获取购买详情
+  async getPurchaseById(purchaseId: string): Promise<ApiResponse<Purchase>> {
+    try {
+      const response = await api.get(`/purchases/${purchaseId}`);
+      return handleResponse<Purchase>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
+  },
+
+  // 取消购买
+  async cancelPurchase(purchaseId: string): Promise<ApiResponse<Purchase>> {
+    try {
+      const response = await api.post(`/purchases/${purchaseId}/cancel`);
+      return handleResponse<Purchase>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
+  },
+
+  // 延长购买有效期
+  async extendPurchase(purchaseId: string, months: number): Promise<ApiResponse<Purchase>> {
+    try {
+      const response = await api.post(`/purchases/${purchaseId}/extend`, { months });
+      return handleResponse<Purchase>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
@@ -480,8 +596,12 @@ export const redeemCodeService = {
     try {
       const response = await api.post('/redeem-codes/redeem', { code });
       return handleResponse<{purchase: Purchase}>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -490,8 +610,12 @@ export const redeemCodeService = {
     try {
       const response = await api.post('/redeem-codes/generate', { questionSetId, validityDays, quantity });
       return handleResponse<RedeemCode[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -500,8 +624,12 @@ export const redeemCodeService = {
     try {
       const response = await api.get('/redeem-codes');
       return handleResponse<RedeemCode[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -510,8 +638,12 @@ export const redeemCodeService = {
     try {
       const response = await api.delete(`/redeem-codes/${codeId}`);
       return handleResponse<void>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
@@ -523,8 +655,12 @@ export const homepageService = {
     try {
       const response = await api.get('/homepage/content');
       return handleResponse<any>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -533,8 +669,12 @@ export const homepageService = {
     try {
       const response = await api.put('/homepage/content', content);
       return handleResponse<any>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -543,8 +683,12 @@ export const homepageService = {
     try {
       const response = await api.get('/homepage/featured-categories');
       return handleResponse<string[]>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   },
   
@@ -553,8 +697,12 @@ export const homepageService = {
     try {
       const response = await api.put('/homepage/featured-categories', { featuredCategories });
       return handleResponse<any>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
     }
   }
 };
