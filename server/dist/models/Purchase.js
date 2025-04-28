@@ -3,11 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initPurchaseAssociations = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
-const QuestionSet_1 = __importDefault(require("./QuestionSet"));
-const User_1 = __importDefault(require("./User"));
 // 购买记录模型类
 class Purchase extends sequelize_1.Model {
     id;
@@ -87,10 +84,4 @@ Purchase.init({
         { fields: ['status'] }
     ]
 });
-// 声明关联
-const initPurchaseAssociations = () => {
-    Purchase.belongsTo(User_1.default, { foreignKey: 'userId' });
-    Purchase.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId' });
-};
-exports.initPurchaseAssociations = initPurchaseAssociations;
 exports.default = Purchase;

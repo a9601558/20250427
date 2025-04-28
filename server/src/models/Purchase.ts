@@ -106,10 +106,4 @@ Purchase.init(
   }
 );
 
-// 声明关联
-export const initPurchaseAssociations = () => {
-  Purchase.belongsTo(User, { foreignKey: 'userId' });
-  Purchase.belongsTo(QuestionSet, { foreignKey: 'questionSetId' });
-};
-
 export default Purchase; 

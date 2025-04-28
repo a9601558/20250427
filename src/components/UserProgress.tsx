@@ -53,37 +53,9 @@ const UserProgressComponent: React.FC = () => {
       
       try {
         setLoading(true);
-        const response = await userProgressService.getUserProgress();
+        const response = await userProgressService.getUserStats();
         if (response.success && response.data) {
-          // 转换数据格式以匹配组件期望的结构
-          const progressData = response.data as Record<string, UserProgressType>;
-          const transformedStats: ProgressStats = {
-            overall: {
-              totalQuestions: Object.values(progressData).reduce((sum, p) => sum + (p.totalQuestions || 0), 0),
-              correctAnswers: Object.values(progressData).reduce((sum, p) => sum + (p.correctAnswers || 0), 0),
-              accuracy: Object.values(progressData).reduce((sum, p) => {
-                const acc = p.totalQuestions ? (p.correctAnswers / p.totalQuestions) * 100 : 0;
-                return sum + acc;
-              }, 0) / Math.max(Object.keys(progressData).length, 1),
-              averageTimeSpent: 0 // UserProgress doesn't have averageTimeSpent property
-            },
-            bySet: {},
-            byType: {}
-          };
-
-          // 按题库和类型组织数据
-          Object.entries(progressData).forEach(([setId, setProgress]) => {
-            transformedStats.bySet[setId] = {
-              title: setProgress.questionSetId || `题库 ${setId}`,
-              total: setProgress.totalQuestions || 0,
-              correct: setProgress.correctAnswers || 0,
-              timeSpent: 0,
-              accuracy: Math.round((setProgress.correctAnswers / setProgress.totalQuestions) * 100) || 0,
-              averageTime: 0
-            };
-          });
-
-          setStats(transformedStats);
+          setStats(response.data);
           setError(null);
         } else {
           setError(response.message || '获取进度数据失败');
@@ -105,7 +77,6 @@ const UserProgressComponent: React.FC = () => {
         fetchProgress(); // 重新获取最新数据
       };
 
-      // 使用正确的事件名称
       socket.on('progress_updated', handleProgressUpdate);
 
       socket.on('disconnect', (reason) => {

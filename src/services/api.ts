@@ -495,20 +495,32 @@ export const userProgressService = {
   
   // 获取用户答题统计
   getUserStats: async (): Promise<ApiResponse<{
-    totalQuestions: number;
-    correctAnswers: number;
-    accuracy: number;
-    averageTimeSpent: number;
+    overall: {
+      totalQuestions: number;
+      correctAnswers: number;
+      accuracy: number;
+      averageTimeSpent: number;
+    };
+    bySet: Record<string, {
+      title?: string;
+      total: number;
+      correct: number;
+      timeSpent: number;
+      accuracy?: number;
+      averageTime?: number;
+    }>;
+    byType: Record<string, {
+      total: number;
+      correct: number;
+      timeSpent: number;
+      accuracy?: number;
+      averageTime?: number;
+    }>;
   }>> => {
     try {
       const userId = (await userService.getCurrentUser()).data?.id;
       const response = await api.get(`/user-progress/stats/${userId}`);
-      return handleResponse<{
-        totalQuestions: number;
-        correctAnswers: number;
-        accuracy: number;
-        averageTimeSpent: number;
-      }>(response);
+      return handleResponse(response);
     } catch (error: any) {
       return {
         success: false,

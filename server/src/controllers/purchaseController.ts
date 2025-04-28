@@ -182,7 +182,7 @@ export const getPurchaseById = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'QuestionSet'
+          as: 'questionSet'
         }
       ]
     });
