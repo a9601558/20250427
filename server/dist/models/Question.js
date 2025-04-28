@@ -17,6 +17,8 @@ class Question extends sequelize_1.Model {
     // 时间戳
     createdAt;
     updatedAt;
+    // 关联
+    options;
 }
 // 初始化模型
 Question.init({

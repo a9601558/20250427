@@ -79,5 +79,6 @@ QuestionSet.init({
 QuestionSet.hasMany(Question_1.default, {
     foreignKey: 'questionSetId',
     as: 'questions',
+    onDelete: 'CASCADE'
 });
 exports.default = QuestionSet;

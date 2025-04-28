@@ -196,7 +196,14 @@ exports.getAllQuestionSets = getAllQuestionSets;
 const getQuestionSetById = async (req, res) => {
     try {
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
-            include: ['questions']
+            include: [{
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{
+                            model: Option_1.default,
+                            as: 'options'
+                        }]
+                }]
         });
         if (questionSet) {
             sendResponse(res, 200, questionSet);

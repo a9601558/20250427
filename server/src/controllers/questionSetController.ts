@@ -268,7 +268,14 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
 export const getQuestionSetById = async (req: Request, res: Response) => {
   try {
     const questionSet = await QuestionSet.findByPk(req.params.id, {
-      include: ['questions']
+      include: [{
+        model: Question,
+        as: 'questions',
+        include: [{
+          model: Option,
+          as: 'options'
+        }]
+      }]
     });
 
     if (questionSet) {
