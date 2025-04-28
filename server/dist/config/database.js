@@ -6,8 +6,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
-// 加载 src/.env 文件
-dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
+const fs_1 = __importDefault(require("fs"));
+// 使用相对路径指向项目根目录的.env文件
+const envPath = path_1.default.join(process.cwd(), '.env');
+// 检查并加载 .env 文件
+if (fs_1.default.existsSync(envPath)) {
+    console.log(`加载环境变量文件: ${envPath}`);
+    dotenv_1.default.config({ path: envPath });
+}
+else {
+    console.warn(`警告: 环境变量文件不存在: ${envPath}`);
+}
 // 数据库配置
 const dbConfig = {
     dialect: 'mysql',

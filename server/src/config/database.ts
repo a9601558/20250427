@@ -1,9 +1,18 @@
 import { Sequelize, Dialect } from 'sequelize';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
-// 加载 src/.env 文件
-dotenv.config({ path: path.join(__dirname, '../.env') });
+// 使用相对路径指向项目根目录的.env文件
+const envPath = path.join(process.cwd(), '.env');
+
+// 检查并加载 .env 文件
+if (fs.existsSync(envPath)) {
+  console.log(`加载环境变量文件: ${envPath}`);
+  dotenv.config({ path: envPath });
+} else {
+  console.warn(`警告: 环境变量文件不存在: ${envPath}`);
+}
 
 // 数据库配置
 const dbConfig = {
