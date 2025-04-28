@@ -70,8 +70,9 @@ const initializeSocket = (io) => {
             try {
                 const user = await User_1.default.findByPk(data.userId);
                 if (user) {
-                    user.socketId = socket.id;
-                    await user.save();
+                    // 将socket加入用户房间
+                    socket.join(user.id);
+                    console.log(`用户 ${user.id} 已连接并加入房间`);
                 }
             }
             catch (error) {
@@ -80,16 +81,6 @@ const initializeSocket = (io) => {
         });
         // 监听用户断开连接事件
         socket.on('disconnect', async () => {
-            try {
-                const user = await User_1.default.findOne({ where: { socketId: socket.id } });
-                if (user) {
-                    user.socketId = null;
-                    await user.save();
-                }
-            }
-            catch (error) {
-                console.error('Error handling user disconnection:', error);
-            }
             console.log('Client disconnected:', socket.id);
         });
         // 监听用户购买事件

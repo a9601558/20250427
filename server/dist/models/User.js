@@ -87,10 +87,6 @@ User.init({
         type: sequelize_1.DataTypes.JSON,
         defaultValue: [],
     },
-    socketId: {
-        type: sequelize_1.DataTypes.STRING,
-        defaultValue: null,
-    },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
         allowNull: false,

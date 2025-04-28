@@ -75,8 +75,9 @@ export const initializeSocket = (io: Server) => {
       try {
         const user = await User.findByPk(data.userId);
         if (user) {
-          user.socketId = socket.id;
-          await user.save();
+          // 将socket加入用户房间
+          socket.join(user.id);
+          console.log(`用户 ${user.id} 已连接并加入房间`);
         }
       } catch (error) {
         console.error('Error handling user connection:', error);
@@ -85,15 +86,6 @@ export const initializeSocket = (io: Server) => {
 
     // 监听用户断开连接事件
     socket.on('disconnect', async () => {
-      try {
-        const user = await User.findOne({ where: { socketId: socket.id } });
-        if (user) {
-          user.socketId = null;
-          await user.save();
-        }
-      } catch (error) {
-        console.error('Error handling user disconnection:', error);
-      }
       console.log('Client disconnected:', socket.id);
     });
 

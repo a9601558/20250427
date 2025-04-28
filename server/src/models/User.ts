@@ -103,10 +103,6 @@ User.init(
       type: DataTypes.JSON,
       defaultValue: [],
     },
-    socketId: {
-      type: DataTypes.STRING,
-      defaultValue: null,
-    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
