@@ -10,60 +10,20 @@ import Option from './Option';
 import HomepageSettings from './HomepageSettings';
 
 // 设置模型关联
-User.hasMany(Purchase, {
-  foreignKey: 'userId',
-  as: 'userPurchases'
-});
-
-QuestionSet.hasMany(Question, {
-  foreignKey: 'questionSetId',
-  as: 'questions',
-  onDelete: 'CASCADE'
-});
-Question.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'questionSet'
-});
-
-Question.hasMany(Option, {
-  foreignKey: 'questionId',
-  as: 'options',
-  onDelete: 'CASCADE'
-});
-Option.belongsTo(Question, {
-  foreignKey: 'questionId',
-  as: 'question'
-});
-
-QuestionSet.hasMany(Purchase, {
-  foreignKey: 'quizId',
-  as: 'purchases'
-});
-Purchase.belongsTo(QuestionSet, {
-  foreignKey: 'quizId',
-  as: 'questionSet'
-});
-
-QuestionSet.hasMany(RedeemCode, {
-  foreignKey: 'questionSetId',
-  as: 'redeemCodes'
-});
-RedeemCode.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'questionSet'
-});
-
-Purchase.belongsTo(User, {
-  foreignKey: 'userId',
-  as: 'user'
-});
-
-// Define associations between models
 export const setupAssociations = () => {
-  // User has many QuestionSets
-  // This is handled by JSON fields in User model for now
+  console.log('设置模型关联...');
+  
+  // User与Purchase的关联
+  User.hasMany(Purchase, {
+    foreignKey: 'userId',
+    as: 'userPurchases'
+  });
+  Purchase.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'user'
+  });
 
-  // QuestionSet has many Questions
+  // QuestionSet与Question的关联
   QuestionSet.hasMany(Question, {
     foreignKey: 'questionSetId',
     as: 'questions',
@@ -74,7 +34,7 @@ export const setupAssociations = () => {
     as: 'questionSet'
   });
 
-  // Question has many Options
+  // Question与Option的关联
   Question.hasMany(Option, {
     foreignKey: 'questionId',
     as: 'options',
@@ -85,12 +45,33 @@ export const setupAssociations = () => {
     as: 'question'
   });
 
-  console.log('Model associations setup complete');
+  // QuestionSet与Purchase的关联
+  QuestionSet.hasMany(Purchase, {
+    foreignKey: 'quizId',
+    as: 'purchases'
+  });
+  Purchase.belongsTo(QuestionSet, {
+    foreignKey: 'quizId',
+    as: 'questionSet'
+  });
+
+  // QuestionSet与RedeemCode的关联
+  QuestionSet.hasMany(RedeemCode, {
+    foreignKey: 'questionSetId',
+    as: 'redeemCodes'
+  });
+  RedeemCode.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
+  });
+
+  console.log('模型关联设置完成');
 };
 
 // Sync models with database
 export const syncModels = async () => {
   try {
+    // 首先设置模型关联
     setupAssociations();
     
     // 在同步前确保所有模型已经正确加载
