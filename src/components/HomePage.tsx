@@ -62,7 +62,7 @@ const HomePage: React.FC = () => {
           // 为每个题库获取题目
           for (const set of questionSetsData) {
             try {
-              const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}`);
+              const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}&include=options`);
               if (questionsResponse.data && questionsResponse.data.success) {
                 console.log(`题库 ${set.id} 包含 ${questionsResponse.data.data.length} 个题目`);
                 // 更新题库中的题目数据
@@ -139,7 +139,7 @@ const HomePage: React.FC = () => {
         // 为每个题库获取题目
         for (const set of questionSetsData) {
           try {
-            const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}`);
+            const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}&include=options`);
             if (questionsResponse.data && questionsResponse.data.success) {
               set.questions = questionsResponse.data.data;
             }

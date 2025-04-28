@@ -6,17 +6,24 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getRandomQuestion = exports.deleteQuestion = exports.updateQuestion = exports.createQuestion = exports.getQuestionById = exports.getQuestions = void 0;
 const Question_1 = __importDefault(require("../models/Question"));
 const responseUtils_1 = require("../utils/responseUtils");
+const Option_1 = __importDefault(require("../models/Option"));
 /**
  * @route GET /api/v1/questions
  * @access Public
  */
 const getQuestions = async (req, res) => {
     try {
-        const { questionSetId, page = 1, limit = 10 } = req.query;
+        const { questionSetId, page = 1, limit = 10, include } = req.query;
         const offset = (Number(page) - 1) * Number(limit);
         const where = questionSetId ? { questionSetId: String(questionSetId) } : {};
+        const includeOptions = include === 'options' ? [{
+                model: Option_1.default,
+                as: 'options',
+                attributes: ['id', 'text', 'isCorrect', 'optionIndex']
+            }] : [];
         const { count, rows: questions } = await Question_1.default.findAndCountAll({
             where,
+            include: includeOptions,
             limit: Number(limit),
             offset,
             order: [['orderIndex', 'ASC']]

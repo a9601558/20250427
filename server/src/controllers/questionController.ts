@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Question from '../models/Question';
 import { sendResponse, sendError } from '../utils/responseUtils';
+import Option from '../models/Option';
 
 /**
  * @route GET /api/v1/questions
@@ -8,13 +9,20 @@ import { sendResponse, sendError } from '../utils/responseUtils';
  */
 export const getQuestions = async (req: Request, res: Response) => {
   try {
-    const { questionSetId, page = 1, limit = 10 } = req.query;
+    const { questionSetId, page = 1, limit = 10, include } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     const where = questionSetId ? { questionSetId: String(questionSetId) } : {};
 
+    const includeOptions = include === 'options' ? [{
+      model: Option,
+      as: 'options',
+      attributes: ['id', 'text', 'isCorrect', 'optionIndex']
+    }] : [];
+
     const { count, rows: questions } = await Question.findAndCountAll({
       where,
+      include: includeOptions,
       limit: Number(limit),
       offset,
       order: [['orderIndex', 'ASC']]
