@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO连接测试</title>
+    <meta charset="utf-8">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        #log {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button, input {
+            padding: 8px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Socket.IO连接测试</h1>
+    <div id="status">状态: 未连接</div>
+    <div id="log"></div>
+    
+    <div>
+        <button id="connect">连接</button>
+        <button id="disconnect" disabled>断开</button>
+    </div>
+    
+    <div>
+        <input type="text" id="message" placeholder="输入消息..." disabled>
+        <button id="send" disabled>发送</button>
+    </div>
+
+    <script>
+        // DOM元素
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const connectBtn = document.getElementById('connect');
+        const disconnectBtn = document.getElementById('disconnect');
+        const messageInput = document.getElementById('message');
+        const sendBtn = document.getElementById('send');
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            entry.className = type;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        let socket;
+        
+        // 连接函数
+        function connect() {
+            // 使用当前域名
+            const serverUrl = window.location.origin;
+            
+            log(`尝试连接到 ${serverUrl}`, 'info');
+            
+            // 连接配置
+            const options = {
+                path: '/socket.io',
+                transports: ['polling', 'websocket'],
+                reconnectionAttempts: 3,
+                reconnectionDelay: 1000,
+                timeout: 20000
+            };
+            
+            // 创建连接
+            socket = io(serverUrl, options);
+            
+            // 监听连接事件
+            socket.on('connect', () => {
+                log(`连接成功! Socket ID: ${socket.id}`, 'success');
+                log(`传输方式: ${socket.io.engine.transport.name}`, 'success');
+                
+                statusEl.textContent = `状态: 已连接 (ID: ${socket.id})`;
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+            });
+            
+            // 监听消息
+            socket.on('message', (data) => {
+                log(`收到消息: ${data}`, 'success');
+            });
+            
+            // 监听连接错误
+            socket.on('connect_error', (error) => {
+                log(`连接错误: ${error.message}`, 'error');
+                statusEl.textContent = `状态: 连接错误 (${error.message})`;
+            });
+            
+            // 监听断开连接
+            socket.on('disconnect', (reason) => {
+                log(`连接断开: ${reason}`, 'error');
+                statusEl.textContent = `状态: 未连接`;
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+            });
+            
+            // 监听重连尝试
+            socket.on('reconnect_attempt', (attempt) => {
+                log(`重连尝试 #${attempt}`, 'info');
+                statusEl.textContent = `状态: 正在重连...`;
+            });
+            
+            // 监听重连成功
+            socket.on('reconnect', (attempt) => {
+                log(`重连成功，尝试次数: ${attempt}`, 'success');
+            });
+        }
+        
+        // 断开连接
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                log('手动断开连接', 'info');
+            }
+        }
+        
+        // 发送消息
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && socket && socket.connected) {
+                socket.emit('message', message);
+                log(`发送消息: ${message}`, 'info');
+                messageInput.value = '';
+            }
+        }
+        
+        // 事件监听
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            log('页面加载完成，点击"连接"按钮开始测试', 'info');
+        });
+    </script>
+</body>
+</html> 

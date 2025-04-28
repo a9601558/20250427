@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { UserProgress } from '../types';
 
-// 获取正确的Socket.IO服务器URL
+// Socket连接URL - 使用绝对URL而不是相对路径
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || window.location.origin;
 
 // 创建Socket实例
@@ -18,23 +18,25 @@ export const initSocket = (): Socket => {
     
     // 配置Socket.IO客户端
     socket = io(SOCKET_URL, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'], // 先尝试WebSocket，失败后回退到polling
+      path: '/socket.io', // 确保路径正确
+      transports: ['polling', 'websocket'], // 先尝试polling，再尝试websocket
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
-      timeout: 15000,
+      timeout: 20000,
       forceNew: true,
       autoConnect: true,
-      withCredentials: true, // 允许跨域请求携带凭证
-      extraHeaders: { // 添加额外的头部信息
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': 'true'
-      }
+      withCredentials: false, // 通常为false，除非需要跨域携带cookies
     });
 
+    // 添加请求日志记录连接过程
+    socket.io.on("packet", ({type, data}) => {
+      console.log(`Socket.IO传输包: 类型=${type}`, data ? `数据=${JSON.stringify(data)}` : '');
+    });
+    
     // 监听连接事件
     socket.on('connect', () => {
       console.log('Socket.IO连接成功，ID:', socket.id);
+      console.log('Socket.IO传输方式:', socket.io.engine.transport.name);
       reconnectAttempts = 0;
     });
 
@@ -50,7 +52,6 @@ export const initSocket = (): Socket => {
       
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.warn(`Socket.IO已尝试重连${MAX_RECONNECT_ATTEMPTS}次，停止自动重连`);
-        // 可以在这里添加提示用户手动重连的逻辑
       }
     });
 
