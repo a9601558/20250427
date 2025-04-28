@@ -27,7 +27,7 @@ models.forEach(model => {
 // User-Purchase关联
 User.hasMany(Purchase, {
   foreignKey: 'userId',
-  as: 'userPurchases'
+  as: 'purchasesMade'
 });
 Purchase.belongsTo(User, {
   foreignKey: 'userId',
