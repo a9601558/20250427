@@ -47,20 +47,24 @@ const createPurchase = async (req, res) => {
         const existingPurchase = await models_1.Purchase.findOne({
             where: {
                 userId: req.user.id,
-                questionSetId: questionSetId
+                questionSetId: questionSetId,
+                status: 'completed',
+                expiryDate: {
+                    [sequelize_1.Op.gt]: new Date()
+                }
             }
         });
         if (existingPurchase) {
-            return sendError(res, 400, '您已经购买过该题库');
+            return sendError(res, 400, '您已经购买过该题库且仍在有效期内');
         }
         // 创建购买记录
         const purchase = await models_1.Purchase.create({
             id: (0, uuid_1.v4)(),
             userId: req.user.id,
-            questionSetId: questionSetId,
-            paymentMethod,
+            questionSetId,
             amount,
-            status: 'completed',
+            status: 'pending',
+            paymentMethod,
             purchaseDate: new Date(),
             expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
             createdAt: new Date(),
@@ -70,11 +74,18 @@ const createPurchase = async (req, res) => {
         // 这里应该调用实际的支付接口，比如微信支付、支付宝等
         // 支付成功后更新购买状态
         await purchase.update({ status: 'completed' });
-        sendResponse(res, 201, purchase, '购买成功');
+        const purchaseWithQuestionSet = await models_1.Purchase.findByPk(purchase.id, {
+            include: [{
+                    model: models_1.QuestionSet,
+                    as: 'questionSet',
+                    attributes: ['id', 'title', 'category', 'icon']
+                }]
+        });
+        sendResponse(res, 201, purchaseWithQuestionSet);
     }
     catch (error) {
         console.error('Create purchase error:', error);
-        sendError(res, 500, '创建购买记录失败', error);
+        sendError(res, 500, '创建购买记录失败');
     }
 };
 exports.createPurchase = createPurchase;
@@ -85,27 +96,18 @@ const getUserPurchases = async (req, res) => {
     try {
         const purchases = await models_1.Purchase.findAll({
             where: { userId: req.user.id },
-            include: [
-                {
+            include: [{
                     model: models_1.QuestionSet,
                     as: 'questionSet',
-                    required: false // 设置为 false 以避免关联失败时整个查询失败
-                }
-            ],
+                    attributes: ['id', 'title', 'category', 'icon']
+                }],
             order: [['purchaseDate', 'DESC']]
         });
-        // 检查每个购买记录是否有关联的题库
-        const validPurchases = purchases.map(purchase => {
-            if (!purchase.questionSetId) {
-                console.warn(`Purchase ${purchase.id} has no associated question set ID`);
-            }
-            return purchase;
-        });
-        sendResponse(res, 200, validPurchases);
+        sendResponse(res, 200, purchases);
     }
     catch (error) {
         console.error('Get purchases error:', error);
-        sendError(res, 500, '获取购买记录失败', error);
+        sendError(res, 500, '获取购买记录失败');
     }
 };
 exports.getUserPurchases = getUserPurchases;

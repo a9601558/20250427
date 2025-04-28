@@ -54,22 +54,26 @@ export const createPurchase = async (req: Request, res: Response) => {
     const existingPurchase = await Purchase.findOne({
       where: {
         userId: req.user.id,
-        questionSetId: questionSetId
+        questionSetId: questionSetId,
+        status: 'completed',
+        expiryDate: {
+          [Op.gt]: new Date()
+        }
       }
     });
 
     if (existingPurchase) {
-      return sendError(res, 400, '您已经购买过该题库');
+      return sendError(res, 400, '您已经购买过该题库且仍在有效期内');
     }
 
     // 创建购买记录
     const purchase = await Purchase.create({
       id: uuidv4(),
       userId: req.user.id,
-      questionSetId: questionSetId,
-      paymentMethod,
+      questionSetId,
       amount,
-      status: 'completed',
+      status: 'pending',
+      paymentMethod,
       purchaseDate: new Date(),
       expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
       createdAt: new Date(),
@@ -81,10 +85,18 @@ export const createPurchase = async (req: Request, res: Response) => {
     // 支付成功后更新购买状态
     await purchase.update({ status: 'completed' });
 
-    sendResponse(res, 201, purchase, '购买成功');
+    const purchaseWithQuestionSet = await Purchase.findByPk(purchase.id, {
+      include: [{
+        model: QuestionSet,
+        as: 'questionSet',
+        attributes: ['id', 'title', 'category', 'icon']
+      }]
+    });
+
+    sendResponse(res, 201, purchaseWithQuestionSet);
   } catch (error) {
     console.error('Create purchase error:', error);
-    sendError(res, 500, '创建购买记录失败', error);
+    sendError(res, 500, '创建购买记录失败');
   }
 };
 
@@ -95,28 +107,18 @@ export const getUserPurchases = async (req: Request, res: Response) => {
   try {
     const purchases = await Purchase.findAll({
       where: { userId: req.user.id },
-      include: [
-        {
-          model: QuestionSet,
-          as: 'questionSet',
-          required: false // 设置为 false 以避免关联失败时整个查询失败
-        }
-      ],
+      include: [{
+        model: QuestionSet,
+        as: 'questionSet',
+        attributes: ['id', 'title', 'category', 'icon']
+      }],
       order: [['purchaseDate', 'DESC']]
     });
 
-    // 检查每个购买记录是否有关联的题库
-    const validPurchases = purchases.map(purchase => {
-      if (!purchase.questionSetId) {
-        console.warn(`Purchase ${purchase.id} has no associated question set ID`);
-      }
-      return purchase;
-    });
-
-    sendResponse(res, 200, validPurchases);
+    sendResponse(res, 200, purchases);
   } catch (error) {
     console.error('Get purchases error:', error);
-    sendError(res, 500, '获取购买记录失败', error);
+    sendError(res, 500, '获取购买记录失败');
   }
 };
 

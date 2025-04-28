@@ -25,7 +25,7 @@ export const setupAssociations = () => {
   console.log('设置 User 和 Purchase 的关联');
   User.hasMany(Purchase, {
     foreignKey: 'userId',
-    as: 'userPurchases'
+    as: 'purchases'
   });
   Purchase.belongsTo(User, {
     foreignKey: 'userId',
@@ -36,8 +36,7 @@ export const setupAssociations = () => {
   console.log('设置 QuestionSet 和 Question 的关联');
   QuestionSet.hasMany(Question, {
     foreignKey: 'questionSetId',
-    as: 'questions',
-    onDelete: 'CASCADE'
+    as: 'questions'
   });
   Question.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
@@ -48,8 +47,7 @@ export const setupAssociations = () => {
   console.log('设置 Question 和 Option 的关联');
   Question.hasMany(Option, {
     foreignKey: 'questionId',
-    as: 'options',
-    onDelete: 'CASCADE'
+    as: 'options'
   });
   Option.belongsTo(Question, {
     foreignKey: 'questionId',
@@ -60,7 +58,7 @@ export const setupAssociations = () => {
   console.log('设置 QuestionSet 和 Purchase 的关联');
   QuestionSet.hasMany(Purchase, {
     foreignKey: 'questionSetId',
-    as: 'questionSetPurchases'
+    as: 'purchases'
   });
   Purchase.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
@@ -82,7 +80,7 @@ export const setupAssociations = () => {
   console.log('设置 User 和 UserProgress 的关联');
   User.hasMany(UserProgress, {
     foreignKey: 'userId',
-    as: 'userProgresses'
+    as: 'progress'
   });
   UserProgress.belongsTo(User, {
     foreignKey: 'userId',
@@ -93,7 +91,7 @@ export const setupAssociations = () => {
   console.log('设置 QuestionSet 和 UserProgress 的关联');
   QuestionSet.hasMany(UserProgress, {
     foreignKey: 'questionSetId',
-    as: 'userProgresses'
+    as: 'progress'
   });
   UserProgress.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
@@ -104,7 +102,7 @@ export const setupAssociations = () => {
   console.log('设置 Question 和 UserProgress 的关联');
   Question.hasMany(UserProgress, {
     foreignKey: 'questionId',
-    as: 'userProgresses'
+    as: 'progress'
   });
   UserProgress.belongsTo(Question, {
     foreignKey: 'questionId',

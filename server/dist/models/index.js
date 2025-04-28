@@ -36,7 +36,7 @@ const setupAssociations = () => {
     console.log('设置 User 和 Purchase 的关联');
     User_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'userId',
-        as: 'userPurchases'
+        as: 'purchases'
     });
     Purchase_1.default.belongsTo(User_1.default, {
         foreignKey: 'userId',
@@ -46,8 +46,7 @@ const setupAssociations = () => {
     console.log('设置 QuestionSet 和 Question 的关联');
     QuestionSet_1.default.hasMany(Question_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questions',
-        onDelete: 'CASCADE'
+        as: 'questions'
     });
     Question_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
@@ -57,8 +56,7 @@ const setupAssociations = () => {
     console.log('设置 Question 和 Option 的关联');
     Question_1.default.hasMany(Option_1.default, {
         foreignKey: 'questionId',
-        as: 'options',
-        onDelete: 'CASCADE'
+        as: 'options'
     });
     Option_1.default.belongsTo(Question_1.default, {
         foreignKey: 'questionId',
@@ -68,7 +66,7 @@ const setupAssociations = () => {
     console.log('设置 QuestionSet 和 Purchase 的关联');
     QuestionSet_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSetPurchases'
+        as: 'purchases'
     });
     Purchase_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
@@ -88,7 +86,7 @@ const setupAssociations = () => {
     console.log('设置 User 和 UserProgress 的关联');
     User_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'userId',
-        as: 'userProgresses'
+        as: 'progress'
     });
     UserProgress_1.default.belongsTo(User_1.default, {
         foreignKey: 'userId',
@@ -98,7 +96,7 @@ const setupAssociations = () => {
     console.log('设置 QuestionSet 和 UserProgress 的关联');
     QuestionSet_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'questionSetId',
-        as: 'userProgresses'
+        as: 'progress'
     });
     UserProgress_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
@@ -108,7 +106,7 @@ const setupAssociations = () => {
     console.log('设置 Question 和 UserProgress 的关联');
     Question_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'questionId',
-        as: 'userProgresses'
+        as: 'progress'
     });
     UserProgress_1.default.belongsTo(Question_1.default, {
         foreignKey: 'questionId',
