@@ -2,6 +2,7 @@ import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
 import { IPurchase } from '../types';
 import QuestionSet from './QuestionSet';
+import User from './User';
 
 interface PurchaseAttributes extends IPurchase {
   id: string;
@@ -31,6 +32,7 @@ class Purchase extends Model<PurchaseAttributes> implements PurchaseAttributes {
   public readonly updatedAt!: Date;
 
   // 关联
+  public readonly user?: User;
   public readonly questionSet?: QuestionSet;
 }
 

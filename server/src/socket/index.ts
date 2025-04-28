@@ -6,8 +6,8 @@ import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 
 interface PurchaseWithUser extends Purchase {
-  User?: User;
-  QuestionSet?: QuestionSet;
+  user?: User;
+  questionSet?: QuestionSet;
 }
 
 export const initializeSocket = (io: Server) => {
@@ -55,8 +55,8 @@ export const initializeSocket = (io: Server) => {
 
             // 向有购买权限的用户发送更新
             purchases.forEach((purchase: PurchaseWithUser) => {
-              if (purchase.User && purchase.User.socketId) {
-                io.to(purchase.User.socketId).emit('questionSet:accessUpdate', {
+              if (purchase.user && purchase.user.socketId) {
+                io.to(purchase.user.socketId).emit('questionSet:accessUpdate', {
                   questionSetId: questionSet.id,
                   hasAccess: true,
                   remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
@@ -180,7 +180,7 @@ export const initializeSocket = (io: Server) => {
       }
     });
 
-    // 监听获取所有购买记录请求
+    // 获取用户的所有购买记录
     socket.on('purchase:getAll', async (data: { userId: string }) => {
       try {
         const purchases = await Purchase.findAll({
@@ -189,6 +189,10 @@ export const initializeSocket = (io: Server) => {
             {
               model: QuestionSet,
               as: 'questionSet'
+            },
+            {
+              model: User,
+              as: 'user'
             }
           ],
           order: [['purchaseDate', 'DESC']]
@@ -199,26 +203,28 @@ export const initializeSocket = (io: Server) => {
         }
       } catch (error) {
         console.error('Error getting purchases:', error);
-        socket.emit('purchase:list', { success: false, message: '获取购买记录失败', error });
+        if (socket.connected) {
+          socket.emit('error', { message: '获取购买记录失败' });
+        }
       }
     });
 
-    // 监听购买记录更新事件
+    // 更新购买记录
     socket.on('purchase:update', async (data: { purchaseId: string, updates: Partial<Purchase> }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
           include: [
-            { model: User, as: 'User' },
-            { model: QuestionSet, as: 'QuestionSet' }
+            { model: User, as: 'user' },
+            { model: QuestionSet, as: 'questionSet' }
           ]
-        }) as PurchaseWithUser;
+        });
 
         if (purchase) {
           await purchase.update(data.updates);
           
           // 向用户发送更新通知
-          if (purchase.User?.socketId) {
-            io.to(purchase.User.socketId).emit('purchase:update', purchase);
+          if (purchase.user?.socketId) {
+            io.to(purchase.user.socketId).emit('purchase:update', purchase);
           }
         }
       } catch (error) {
@@ -226,20 +232,20 @@ export const initializeSocket = (io: Server) => {
       }
     });
 
-    // 监听购买记录删除事件
+    // 删除购买记录
     socket.on('purchase:delete', async (data: { purchaseId: string }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
-          include: [{ model: User, as: 'User' }]
-        }) as PurchaseWithUser;
+          include: [{ model: User, as: 'user' }]
+        });
 
         if (purchase) {
           const userId = purchase.userId;
           await purchase.destroy();
           
           // 向用户发送删除通知
-          if (purchase.User?.socketId) {
-            io.to(purchase.User.socketId).emit('purchase:delete', data.purchaseId);
+          if (purchase.user?.socketId) {
+            io.to(purchase.user.socketId).emit('purchase:delete', data.purchaseId);
           }
         }
       } catch (error) {
@@ -247,15 +253,15 @@ export const initializeSocket = (io: Server) => {
       }
     });
 
-    // 监听购买记录过期事件
+    // 处理购买记录过期
     socket.on('purchase:expire', async (data: { purchaseId: string }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
-          include: [{ model: User, as: 'User' }]
-        }) as PurchaseWithUser;
+          include: [{ model: User, as: 'user' }]
+        });
 
-        if (purchase && purchase.User?.socketId) {
-          io.to(purchase.User.socketId).emit('purchase:expire', {
+        if (purchase && purchase.user?.socketId) {
+          io.to(purchase.user.socketId).emit('purchase:expire', {
             purchaseId: purchase.id,
             expiryDate: purchase.expiryDate
           });
@@ -275,12 +281,12 @@ export const initializeSocket = (io: Server) => {
               [Op.gt]: new Date(Date.now() - 24 * 60 * 60 * 1000) // 过去24小时内过期的
             }
           },
-          include: [{ model: User, as: 'User' }]
-        }) as PurchaseWithUser[];
+          include: [{ model: User, as: 'user' }]
+        });
 
         expiredPurchases.forEach(purchase => {
-          if (purchase.User?.socketId) {
-            io.to(purchase.User.socketId).emit('purchase:expire', {
+          if (purchase.user?.socketId) {
+            io.to(purchase.user.socketId).emit('purchase:expire', {
               purchaseId: purchase.id,
               expiryDate: purchase.expiryDate
             });

@@ -69,7 +69,7 @@ export const setupAssociations = () => {
   // User 和 Purchase 的关联
   User.hasMany(Purchase, {
     foreignKey: 'userId',
-    as: 'purchases',
+    as: 'userPurchases',
     onDelete: 'CASCADE'
   });
 
