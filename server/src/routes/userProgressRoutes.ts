@@ -7,7 +7,8 @@ import {
   createDetailedProgress,
   getDetailedProgress,
   getProgressStats,
-  deleteProgressRecord
+  deleteProgressRecord,
+  getUserProgressStats
 } from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 
@@ -17,18 +18,19 @@ const router = express.Router();
 router.use(protect);
 
 // 用户整体进度路由
-router.get('/', getUserProgress);
+router.get('/:userId', getUserProgress);
 router.post('/', updateProgress);
 
 // 特定题库进度路由
-router.get('/:questionSetId', getProgressByQuestionSetId);
-router.put('/:questionSetId', updateProgress);
-router.delete('/:questionSetId', resetProgress);
+router.get('/:userId/:questionSetId', getProgressByQuestionSetId);
+router.post('/:questionSetId', updateProgress);
+router.delete('/:userId/:questionSetId', resetProgress);
 
 // 详细进度记录路由
 router.post('/record', createDetailedProgress);
 router.get('/detailed', getDetailedProgress);
 router.get('/stats', getProgressStats);
+router.get('/stats/:userId', getUserProgressStats);
 router.delete('/record/:id', deleteProgressRecord);
 
 export default router; 

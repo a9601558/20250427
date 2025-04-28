@@ -11,12 +11,17 @@ const responseUtils_1 = require("../utils/responseUtils");
 const sequelize_1 = require("sequelize");
 /**
  * @desc    获取用户进度
- * @route   GET /api/user-progress
+ * @route   GET /api/user-progress/:userId
  * @access  Private
  */
 const getUserProgress = async (req, res) => {
     try {
         const { userId } = req.params;
+        // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
+        const currentUserId = req.user.id;
+        if (userId !== currentUserId && req.user.role !== 'admin') {
+            return (0, responseUtils_1.sendError)(res, 403, '无权访问此用户的进度');
+        }
         const progress = await UserProgress_1.default.findAll({
             where: { userId },
             include: [
@@ -41,16 +46,25 @@ const getUserProgress = async (req, res) => {
 exports.getUserProgress = getUserProgress;
 /**
  * @desc    获取特定题库的用户进度
- * @route   GET /api/user-progress/:questionSetId
+ * @route   GET /api/user-progress/:userId/:questionSetId
  * @access  Private
  */
 const getProgressByQuestionSetId = async (req, res) => {
     try {
         const { userId, questionSetId } = req.params;
-        const progress = await UserProgress_1.default.findOne({
+        // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
+        const currentUserId = req.user.id;
+        if (userId !== currentUserId && req.user.role !== 'admin') {
+            return (0, responseUtils_1.sendError)(res, 403, '无权访问此用户的进度');
+        }
+        const progress = await UserProgress_1.default.findAll({
             where: { userId, questionSetId },
+            include: [
+                { model: QuestionSet_1.default, as: 'questionSet' },
+                { model: Question_1.default, as: 'question' }
+            ]
         });
-        if (!progress) {
+        if (!progress || progress.length === 0) {
             return (0, responseUtils_1.sendError)(res, 404, 'Progress not found');
         }
         return (0, responseUtils_1.sendResponse)(res, 200, '获取进度成功', progress);
@@ -63,12 +77,18 @@ exports.getProgressByQuestionSetId = getProgressByQuestionSetId;
 /**
  * @desc    更新用户进度
  * @route   POST /api/user-progress
+ * @route   POST /api/user-progress/:questionSetId
  * @access  Private
  */
 const updateProgress = async (req, res) => {
     try {
-        const { userId, questionSetId, questionId } = req.params;
-        const { isCorrect, timeSpent } = req.body;
+        const userId = req.user.id;
+        // 优先使用 URL 参数中的 questionSetId，如果没有则使用请求体中的
+        const questionSetId = req.params.questionSetId || req.body.questionSetId;
+        const { questionId, isCorrect, timeSpent } = req.body;
+        if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
+            return (0, responseUtils_1.sendError)(res, 400, '缺少必要参数');
+        }
         const [updatedProgress] = await UserProgress_1.default.upsert({
             userId,
             questionSetId,
@@ -79,22 +99,28 @@ const updateProgress = async (req, res) => {
         return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', updatedProgress);
     }
     catch (error) {
+        console.error('更新进度失败:', error);
         return (0, responseUtils_1.sendError)(res, 500, 'Error updating progress', error);
     }
 };
 exports.updateProgress = updateProgress;
 /**
  * @desc    重置用户进度
- * @route   DELETE /api/user-progress/:questionSetId
+ * @route   DELETE /api/user-progress/:userId/:questionSetId
  * @access  Private
  */
 const resetProgress = async (req, res) => {
     try {
         const { userId, questionSetId } = req.params;
+        // 验证用户权限：只能重置自己的或管理员有权限重置所有人的
+        const currentUserId = req.user.id;
+        if (userId !== currentUserId && req.user.role !== 'admin') {
+            return (0, responseUtils_1.sendError)(res, 403, '无权重置此用户的进度');
+        }
         await UserProgress_1.default.destroy({
             where: { userId, questionSetId },
         });
-        return (0, responseUtils_1.sendResponse)(res, 200, 'Progress reset successfully');
+        return (0, responseUtils_1.sendResponse)(res, 200, '进度重置成功');
     }
     catch (error) {
         return (0, responseUtils_1.sendError)(res, 500, 'Error resetting progress', error);
@@ -237,12 +263,17 @@ const deleteProgressRecord = async (req, res) => {
 exports.deleteProgressRecord = deleteProgressRecord;
 /**
  * @desc    获取用户进度统计
- * @route   GET /api/user-progress/stats
+ * @route   GET /api/user-progress/stats/:userId
  * @access  Private
  */
 const getUserProgressStats = async (req, res) => {
     try {
         const { userId } = req.params;
+        // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
+        const currentUserId = req.user.id;
+        if (userId !== currentUserId && req.user.role !== 'admin') {
+            return (0, responseUtils_1.sendError)(res, 403, '无权访问此用户的进度统计');
+        }
         // 获取用户的所有进度记录，包括关联的题目集和题目信息
         const progressRecords = await UserProgress_1.default.findAll({
             where: { userId },
@@ -310,7 +341,7 @@ const getUserProgressStats = async (req, res) => {
             stat.accuracy = (stat.correct / stat.total) * 100;
             stat.averageTime = stat.timeSpent / stat.total;
         });
-        res.json({
+        return (0, responseUtils_1.sendResponse)(res, 200, '获取用户进度统计成功', {
             overall: {
                 totalQuestions,
                 correctAnswers,
@@ -323,7 +354,7 @@ const getUserProgressStats = async (req, res) => {
     }
     catch (error) {
         console.error('Error getting user progress stats:', error);
-        res.status(500).json({ error: 'Failed to get user progress statistics' });
+        return (0, responseUtils_1.sendError)(res, 500, 'Failed to get user progress statistics', error);
     }
 };
 exports.getUserProgressStats = getUserProgressStats;
