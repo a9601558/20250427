@@ -19,6 +19,18 @@ const getUserProgress = async (req, res) => {
         const { userId } = req.params;
         const progress = await UserProgress_1.default.findAll({
             where: { userId },
+            include: [
+                {
+                    model: QuestionSet_1.default,
+                    as: 'questionSet',
+                    attributes: ['id', 'title']
+                },
+                {
+                    model: Question_1.default,
+                    as: 'question',
+                    attributes: ['id', 'type']
+                }
+            ]
         });
         return (0, responseUtils_1.sendResponse)(res, 200, '获取用户进度成功', progress);
     }
