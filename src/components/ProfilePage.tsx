@@ -28,7 +28,19 @@ const ProfilePage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired'>('all');
 
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">请先登录</h2>
+          <Link
+            to="/login"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+          >
+            去登录
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // 加载题库数据
@@ -62,76 +74,40 @@ const ProfilePage: React.FC = () => {
     fetchData();
   }, []);
 
-  // 设置 Socket 监听
+  // 获取购买记录
   useEffect(() => {
-    if (!socket || !user) return;
-
-    // 监听购买记录列表
-    const handlePurchaseList = (purchaseList: any[]) => {
-      setPurchases(purchaseList);
-    };
-
-    // 监听购买记录更新
-    const handlePurchaseUpdate = (updatedPurchase: any) => {
-      setPurchases(prevPurchases => {
-        const index = prevPurchases.findIndex(p => p.id === updatedPurchase.id);
-        if (index === -1) {
-          return [...prevPurchases, updatedPurchase];
+    const fetchPurchases = async () => {
+      if (!user) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch('/api/purchases', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('获取购买记录失败');
         }
-        const newPurchases = [...prevPurchases];
-        newPurchases[index] = updatedPurchase;
-        return newPurchases;
-      });
+        
+        const data = await response.json();
+        if (data.success) {
+          setPurchases(data.data);
+        } else {
+          throw new Error(data.message || '获取购买记录失败');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '获取购买记录失败');
+      } finally {
+        setLoading(false);
+      }
     };
 
-    // 监听购买记录删除
-    const handlePurchaseDelete = (purchaseId: string) => {
-      setPurchases(prevPurchases => 
-        prevPurchases.filter(p => p.id !== purchaseId)
-      );
-    };
-
-    // 监听购买记录过期
-    const handlePurchaseExpire = (data: { purchaseId: string, expiryDate: string }) => {
-      setPurchases(prevPurchases => 
-        prevPurchases.map(p => 
-          p.id === data.purchaseId 
-            ? { ...p, expiryDate: data.expiryDate, isActive: false }
-            : p
-        )
-      );
-    };
-
-    // 监听题库更新
-    const handleQuestionSetUpdate = (updatedQuestionSet: QuestionSet) => {
-      setQuestionSets(prevSets => {
-        const index = prevSets.findIndex(set => set.id === updatedQuestionSet.id);
-        if (index === -1) return prevSets;
-        const newSets = [...prevSets];
-        newSets[index] = updatedQuestionSet;
-        return newSets;
-      });
-    };
-
-    // 注册事件监听
-    socket.on('purchase:list', handlePurchaseList);
-    socket.on('purchase:update', handlePurchaseUpdate);
-    socket.on('purchase:delete', handlePurchaseDelete);
-    socket.on('purchase:expire', handlePurchaseExpire);
-    socket.on('questionSet:update', handleQuestionSetUpdate);
-
-    // 请求初始购买记录
-    socket.emit('purchase:getAll', { userId: user.id });
-
-    // 清理函数
-    return () => {
-      socket.off('purchase:list', handlePurchaseList);
-      socket.off('purchase:update', handlePurchaseUpdate);
-      socket.off('purchase:delete', handlePurchaseDelete);
-      socket.off('purchase:expire', handlePurchaseExpire);
-      socket.off('questionSet:update', handleQuestionSetUpdate);
-    };
-  }, [socket, user]);
+    fetchPurchases();
+  }, [user]);
 
   // 整理用户进度数据
   const progressData = questionSets.map(questionSet => {
@@ -184,37 +160,6 @@ const ProfilePage: React.FC = () => {
     };
   });
 
-  // 退出登录
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
-  // 格式化日期
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '未知';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return '无效日期';
-    }
-  };
-
-  // 计算剩余天数
-  const calculateRemainingDays = (dateString: string | null) => {
-    if (!dateString) return 0;
-    try {
-      const expiryDate = new Date(dateString);
-      const today = new Date();
-      const diffTime = expiryDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays > 0 ? diffDays : 0;
-    } catch (e) {
-      return 0;
-    }
-  };
-
   // 处理排序和筛选后的购买记录
   const getFilteredAndSortedPurchases = () => {
     let filtered = purchaseData;
@@ -245,6 +190,37 @@ const ProfilePage: React.FC = () => {
     } else {
       setSortBy(field);
       setSortOrder('desc');
+    }
+  };
+
+  // 处理退出登录
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  // 格式化日期
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '未知';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '无效日期';
+    }
+  };
+
+  // 计算剩余天数
+  const calculateRemainingDays = (dateString: string | null) => {
+    if (!dateString) return 0;
+    try {
+      const expiryDate = new Date(dateString);
+      const today = new Date();
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 0;
+    } catch (e) {
+      return 0;
     }
   };
 
