@@ -7,11 +7,12 @@ const userSocketMap = new Map<string, string>();
 export const initializeSocket = (httpServer: http.Server) => {
   const io = new Server(httpServer, {
     cors: {
-      origin: '*',
+      origin: process.env.FRONTEND_URL || 'http://exam7.jp', // 明确指定允许的来源
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true,
       allowedHeaders: ['Authorization', 'Content-Type']
     },
+    path: '/socket.io/', // 明确指定Socket.IO路径
     transports: ['websocket', 'polling'], // 优先使用WebSocket
     connectTimeout: 30000,
     pingTimeout: 30000,

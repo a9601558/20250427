@@ -1,8 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import { UserProgress } from '../types';
 
-// Socket连接URL - 使用指定的WebSocket地址
-const SOCKET_URL = 'ws://localhost:10000/Servers';
+// Socket连接URL - 使用相对地址，自动跟随当前域名
+const SOCKET_URL = '';  // 空字符串表示使用当前域名
 
 // 创建Socket实例
 let socket: Socket;
@@ -14,7 +14,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 // 初始化Socket连接
 export const initSocket = (): Socket => {
   if (!socket) {
-    console.log('初始化Socket.IO连接到:', SOCKET_URL);
+    console.log('初始化Socket.IO连接，使用当前域名');
     
     // 配置Socket.IO客户端
     socket = io(SOCKET_URL, {
