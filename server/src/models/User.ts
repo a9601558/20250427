@@ -63,7 +63,18 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   
   // Password comparison method
   async comparePassword(candidatePassword: string): Promise<boolean> {
-    return bcrypt.compare(candidatePassword, this.password);
+    // 添加防御性检查，确保密码存在
+    if (!this.password || !candidatePassword) {
+      console.error('密码比较错误: 密码为空');
+      return false;
+    }
+    
+    try {
+      return await bcrypt.compare(candidatePassword, this.password);
+    } catch (error) {
+      console.error('密码比较错误:', error);
+      return false;
+    }
   }
 }
 
@@ -140,10 +151,23 @@ User.init(
     hooks: {
       // Before saving, encrypt password
       beforeSave: async (user: User) => {
-        if (user.password && user.changed('password')) {
-          const salt = await bcrypt.genSalt(10);
-          user.password = await bcrypt.hash(user.password, salt);
+        try {
+          // 只有当密码被修改且不为undefined/null/空字符串时才进行哈希处理
+          if (user.password && user.changed('password')) {
+            console.log(`加密用户密码 (用户: ${user.username})`);
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(user.password, salt);
+          }
+        } catch (error) {
+          console.error('密码加密失败:', error);
+          throw new Error('密码处理失败，请再次尝试');
         }
+      },
+      // 确保新创建的用户有必要的初始值
+      beforeCreate: async (user: User) => {
+        if (!user.progress) user.progress = {};
+        if (!user.purchases) user.purchases = [];
+        if (!user.redeemCodes) user.redeemCodes = [];
       }
     }
   }

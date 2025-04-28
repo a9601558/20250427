@@ -103,9 +103,28 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user exists and password matches
-    if (user && (await user.comparePassword(password))) {
-      res.json({
+    // 检查用户是否存在
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: '用户名/邮箱或密码错误'
+      });
+    }
+
+    // 检查密码是否存在
+    if (!user.password) {
+      console.error('用户密码字段为空:', username);
+      return res.status(500).json({
+        success: false,
+        message: '账户数据异常，请联系管理员'
+      });
+    }
+
+    // 比较密码
+    const isPasswordMatch = await user.comparePassword(password);
+    
+    if (isPasswordMatch) {
+      return res.json({
         success: true,
         data: {
           id: user.id,
@@ -116,7 +135,7 @@ export const loginUser = async (req: Request, res: Response) => {
         }
       });
     } else {
-      res.status(401).json({
+      return res.status(401).json({
         success: false,
         message: '用户名/邮箱或密码错误'
       });
@@ -125,7 +144,8 @@ export const loginUser = async (req: Request, res: Response) => {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: '登录失败，请稍后再试',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

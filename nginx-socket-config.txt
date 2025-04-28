@@ -155,4 +155,67 @@ location = /socket-test {
     </body>
     </html>
     ';
-} 
+}
+
+# Socket.IO WebSocket 配置
+# 将此配置添加到 Nginx 服务器配置中
+
+# HTTP服务器配置
+server {
+    listen 80;
+    server_name exam7.jp;
+
+    # Socket.IO支持
+    location /socket.io/ {
+        proxy_pass http://backend/socket.io/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        
+        # 优化WebSocket连接
+        proxy_read_timeout 86400;    # 1天
+        proxy_connect_timeout 7d;    # 7天
+        proxy_send_timeout 7d;       # 7天
+        
+        # 缓冲区设置
+        proxy_buffering off;
+        
+        # 禁用缓存
+        proxy_cache off;
+        
+        # 增加header大小限制
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        
+        # 保持长连接
+        keepalive_timeout 65;
+        keepalive_requests 100000;
+    }
+
+    # 其他常规配置
+    location / {
+        proxy_pass http://backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# 后端服务器定义
+upstream backend {
+    server 127.0.0.1:5000;
+    keepalive 64;  # 保持连接池
+}
+
+# 系统级TCP优化 (需要在 /etc/sysctl.conf 中添加)
+# 以下配置需要添加到系统配置文件中并应用
+# net.ipv4.tcp_keepalive_time = 60
+# net.ipv4.tcp_keepalive_intvl = 10
+# net.ipv4.tcp_keepalive_probes = 6
+# net.ipv4.ip_local_port_range = 1024 65000
+# net.ipv4.tcp_fin_timeout = 30 
