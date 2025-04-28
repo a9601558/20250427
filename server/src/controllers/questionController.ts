@@ -62,9 +62,9 @@ export const createQuestion = async (req: Request, res: Response) => {
       return sendError(res, 400, '缺少必要字段');
     }
 
-    const question = await Question.create({
-      questionSetId,
-      text,
+      const question = await Question.create({
+        questionSetId,
+        text,
       questionType,
       explanation,
       orderIndex: orderIndex || 0
@@ -88,7 +88,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
     }
 
     const { text, questionType, explanation, orderIndex } = req.body;
-    await question.update({
+      await question.update({
       text,
       questionType,
       explanation,

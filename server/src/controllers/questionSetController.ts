@@ -222,7 +222,7 @@ const sendResponse = <T>(res: Response, status: number, data: T, message?: strin
 // 统一错误响应
 const sendError = (res: Response, status: number, message: string, error?: any) => {
   res.status(status).json({
-    success: false,
+      success: false,
     message,
     error: process.env.NODE_ENV === 'development' ? error?.message : undefined
   });
@@ -299,10 +299,10 @@ export const createQuestionSet = async (req: Request, res: Response) => {
       return sendError(res, 400, '请提供标题、描述和分类');
     }
 
-    const questionSet = await QuestionSet.create({
-      title,
-      description,
-      category,
+      const questionSet = await QuestionSet.create({
+        title,
+        description,
+        category,
       icon: 'default',
       isPaid: false,
       isFeatured: isFeatured || false,
@@ -353,7 +353,7 @@ export const deleteQuestionSet = async (req: Request, res: Response) => {
     if (questionSet) {
       await questionSet.destroy();
       sendResponse(res, 200, null, '题库删除成功');
-    } else {
+            } else {
       sendError(res, 404, '题库不存在');
     }
   } catch (error) {
