@@ -32,6 +32,10 @@ import userProgressRoutes from './routes/userProgressRoutes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// 设置trust proxy，但使用具体的IP段或本地地址，避免信任所有代理
+// 只信任本地反向代理和内网IP
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
 // Create HTTP server
 const httpServer = createServer(app);
 
@@ -39,14 +43,13 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: '*', // 允许所有来源，也可以指定具体域名
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Authorization', 'Content-Type']
   },
-  path: '/socket.io',
-  transports: ['websocket', 'polling'], // 先尝试 WebSocket，失败后回退到 polling
-  connectTimeout: 15000, // 连接超时设置
-  pingTimeout: 20000, // ping 超时设置
+  transports: ['polling', 'websocket'], // 先尝试polling，然后尝试websocket
+  connectTimeout: 30000, // 连接超时设置
+  pingTimeout: 30000, // ping 超时设置
   pingInterval: 25000, // ping 间隔设置
   allowUpgrades: true, // 允许升级传输
   serveClient: false, // 不提供客户端文件
@@ -138,6 +141,17 @@ const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per IP
   standardHeaders: true,
+  // 配置IP提取方式，使用X-Forwarded-For，但限制标头数量
+  keyGenerator: (req) => {
+    // 通过X-Forwarded-For获取第一个IP（最可信的代理IP）
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    const clientIp = Array.isArray(xForwardedFor) 
+      ? xForwardedFor[0] 
+      : (typeof xForwardedFor === 'string' ? xForwardedFor.split(',')[0].trim() : req.ip);
+    
+    // 确保返回一个字符串，避免undefined
+    return clientIp || req.ip || 'unknown-ip';
+  },
   message: {
     success: false,
     message: '请求过于频繁，请稍后再试'
@@ -149,6 +163,17 @@ const loginLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // 10 login attempts per IP
   standardHeaders: true,
+  // 配置IP提取方式，使用X-Forwarded-For，但限制标头数量
+  keyGenerator: (req) => {
+    // 通过X-Forwarded-For获取第一个IP（最可信的代理IP）
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    const clientIp = Array.isArray(xForwardedFor) 
+      ? xForwardedFor[0] 
+      : (typeof xForwardedFor === 'string' ? xForwardedFor.split(',')[0].trim() : req.ip);
+    
+    // 确保返回一个字符串，避免undefined
+    return clientIp || req.ip || 'unknown-ip';
+  },
   message: {
     success: false,
     message: '登录尝试次数过多，请稍后再试'
