@@ -32,7 +32,13 @@ const ProfilePage: React.FC = () => {
       setError(null);
       try {
         // 获取题库列表
-        const response = await fetch('http://exam7.jp/api/question-sets');
+        const response = await fetch('http://exam7.jp/api/question-sets', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
         const data = await response.json();
         if (data.success && data.data) {
           setQuestionSets(data.data);
@@ -42,13 +48,51 @@ const ProfilePage: React.FC = () => {
 
         // 获取购买记录
         const purchaseResponse = await fetch('http://exam7.jp/api/purchases', {
-          credentials: 'include', // 确保发送 cookies
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
         
         if (!purchaseResponse.ok) {
+          if (purchaseResponse.status === 401) {
+            // 如果 token 无效，尝试刷新 token
+            const refreshResponse = await fetch('http://exam7.jp/api/auth/refresh', {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (refreshResponse.ok) {
+              const refreshData = await refreshResponse.json();
+              if (refreshData.success && refreshData.data.token) {
+                localStorage.setItem('token', refreshData.data.token);
+                // 重试获取购买记录
+                const retryResponse = await fetch('http://exam7.jp/api/purchases', {
+                  credentials: 'include',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${refreshData.data.token}`
+                  }
+                });
+                
+                if (retryResponse.ok) {
+                  const retryData = await retryResponse.json();
+                  if (retryData.success && retryData.data) {
+                    setPurchases(retryData.data);
+                    return;
+                  }
+                }
+              }
+            }
+            // 如果刷新 token 失败，重定向到登录页
+            logout();
+            navigate('/login');
+            return;
+          }
           throw new Error(`HTTP error! status: ${purchaseResponse.status}`);
         }
         

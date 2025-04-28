@@ -155,6 +155,11 @@ function QuizPage(): React.ReactNode {
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
+    // 如果试用已结束且没有购买，不允许继续答题
+    if (trialEnded && !hasAccessToFullQuiz) {
+      return;
+    }
+    
     const currentQuestion = questions[currentQuestionIndex];
     
     if (currentQuestion.questionType === 'single') {

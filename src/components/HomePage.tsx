@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { QuestionSet } from '../types';
 import UserMenu from './UserMenu';
@@ -44,6 +44,7 @@ const HomePage: React.FC = () => {
   });
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [showUserInfo, setShowUserInfo] = useState(false);
+  const navigate = useNavigate();
 
   // 获取首页设置、分类和题库列表
   useEffect(() => {
@@ -188,6 +189,28 @@ const HomePage: React.FC = () => {
     
     // 否则显示所有题库
     return questionSets;
+  };
+
+  // 检查用户是否有权限访问付费题库
+  const hasAccessToQuestionSet = (questionSetId: string): boolean => {
+    if (!user) return false;
+    return user.purchases?.some(purchase => 
+      purchase.questionSetId === questionSetId && 
+      new Date(purchase.expiryDate) > new Date()
+    ) || false;
+  };
+
+  // 获取题库访问状态
+  const getQuestionSetAccessStatus = (questionSet: QuestionSet) => {
+    if (!questionSet.isPaid) return { hasAccess: true, isTrial: false };
+    
+    if (!user) return { hasAccess: false, isTrial: false };
+    
+    const purchase = user.purchases?.find(p => p.questionSetId === questionSet.id);
+    if (!purchase) return { hasAccess: false, isTrial: false };
+    
+    const hasAccess = new Date(purchase.expiryDate) > new Date();
+    return { hasAccess, isTrial: false };
   };
 
   if (loading) {
@@ -366,103 +389,122 @@ const HomePage: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
-              {getFilteredQuestionSets().map(questionSet => (
-                <div 
-                  key={questionSet.id}
-                  className={`border ${homeContent.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} rounded-lg shadow-md overflow-hidden transition-transform hover:shadow-lg hover:-translate-y-1`}
-                >
-                  <div className="p-5">
-                    <div className="flex items-center mb-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${homeContent.theme === 'dark' ? 'bg-gray-600' : 'bg-blue-100'}`}>
-                        <span className={`text-xl ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
-                          {questionSet.icon || '📚'}
-                        </span>
-                      </div>
-                      <div className="flex-1 ml-3">
-                        <div className="flex items-center justify-between">
-                          <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} truncate`}>
-                            {questionSet.title}
-                          </h3>
-                          {questionSet.isPaid ? (
-                            <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
-                              ¥{questionSet.price}
-                            </span>
-                          ) : (
-                            <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800'}`}>
-                              免费
-                            </span>
-                          )}
+              {getFilteredQuestionSets().map(questionSet => {
+                const { hasAccess, isTrial } = getQuestionSetAccessStatus(questionSet);
+                const isPaid = questionSet.isPaid;
+                const canAccess = !isPaid || hasAccess;
+                
+                return (
+                  <div 
+                    key={questionSet.id}
+                    className={`border ${homeContent.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} rounded-lg shadow-md overflow-hidden transition-transform hover:shadow-lg hover:-translate-y-1`}
+                  >
+                    <div className="p-5">
+                      <div className="flex items-center mb-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${homeContent.theme === 'dark' ? 'bg-gray-600' : 'bg-blue-100'}`}>
+                          <span className={`text-xl ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
+                            {questionSet.icon || '📚'}
+                          </span>
+                        </div>
+                        <div className="flex-1 ml-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} truncate`}>
+                              {questionSet.title}
+                            </h3>
+                            {isPaid ? (
+                              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
+                                ¥{questionSet.price}
+                              </span>
+                            ) : (
+                              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800'}`}>
+                                免费
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} mb-4 line-clamp-2`}>
-                      {questionSet.description}
-                    </p>
-                    
-                    <div className="flex items-center justify-between mb-4">
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-blue-50 text-blue-600'}`}>
-                        {questionSet.category}
-                      </span>
                       
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-green-50 text-green-600'}`}>
-                        {questionSet.questions ? `${questionSet.questions.length} 题` : `${questionSet.questionCount || 0} 题`}
-                      </span>
+                      <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} mb-4 line-clamp-2`}>
+                        {questionSet.description}
+                      </p>
                       
-                      {user && questionSet.isPaid && (
-                        <span className={`text-xs px-2.5 py-0.5 rounded-full ${
-                          user.purchases?.some(p => p.questionSetId === questionSet.id)
-                            ? `${homeContent.theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-50 text-green-600'}`
-                            : `${homeContent.theme === 'dark' ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-50 text-yellow-600'}`
-                        }`}>
-                          {user.purchases?.some(p => p.questionSetId === questionSet.id) 
-                            ? `已购买 ${calculateRemainingDaysText(getRemainingAccessDays(questionSet.id))}`
-                            : `¥${questionSet.price || 0}`}
+                      <div className="flex items-center justify-between mb-4">
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-blue-50 text-blue-600'}`}>
+                          {questionSet.category}
                         </span>
+                        
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-green-50 text-green-600'}`}>
+                          {questionSet.questions ? `${questionSet.questions.length} 题` : `${questionSet.questionCount || 0} 题`}
+                        </span>
+                        
+                        {isPaid && user && (
+                          <span className={`text-xs px-2.5 py-0.5 rounded-full ${
+                            hasAccess
+                              ? `${homeContent.theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-50 text-green-600'}`
+                              : `${homeContent.theme === 'dark' ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-50 text-yellow-600'}`
+                          }`}>
+                            {hasAccess 
+                              ? `已购买 ${calculateRemainingDaysText(getRemainingAccessDays(questionSet.id))}`
+                              : `¥${questionSet.price || 0}`}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* 用户进度指示器 */}
+                      {user && user.progress && user.progress[questionSet.id] && (
+                        <div className="mb-4">
+                          <div className="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>完成进度</span>
+                            <span>
+                              {Math.round((user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div 
+                              className="bg-blue-600 h-1.5 rounded-full" 
+                              style={{ width: `${(user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className={`${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {user.progress[questionSet.id].completedQuestions}/{user.progress[questionSet.id].totalQuestions} 题
+                            </span>
+                            {user.progress[questionSet.id].correctAnswers > 0 && (
+                              <span className={`font-medium ${homeContent.theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                                正确率: {Math.round((user.progress[questionSet.id].correctAnswers / user.progress[questionSet.id].completedQuestions) * 100)}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {canAccess ? (
+                        <Link 
+                          to={`/quiz/${questionSet.id}`}
+                          className={`block w-full px-4 py-2 text-center rounded-md text-white font-medium ${
+                            homeContent.theme === 'dark'
+                              ? 'bg-blue-600 hover:bg-blue-700'
+                              : 'bg-blue-600 hover:bg-blue-700'
+                          }`}
+                        >
+                          {user && user.progress && user.progress[questionSet.id] ? '继续练习' : '开始练习'}
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/login')}
+                          className={`block w-full px-4 py-2 text-center rounded-md text-white font-medium ${
+                            homeContent.theme === 'dark'
+                              ? 'bg-yellow-600 hover:bg-yellow-700'
+                              : 'bg-yellow-600 hover:bg-yellow-700'
+                          }`}
+                        >
+                          登录后购买
+                        </button>
                       )}
                     </div>
-                    
-                    {/* 用户进度指示器 */}
-                    {user && user.progress && user.progress[questionSet.id] && (
-                      <div className="mb-4">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>完成进度</span>
-                          <span>
-                            {Math.round((user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
-                            className="bg-blue-600 h-1.5 rounded-full" 
-                            style={{ width: `${(user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs mt-1">
-                          <span className={`${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {user.progress[questionSet.id].completedQuestions}/{user.progress[questionSet.id].totalQuestions} 题
-                          </span>
-                          {user.progress[questionSet.id].correctAnswers > 0 && (
-                            <span className={`font-medium ${homeContent.theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                              正确率: {Math.round((user.progress[questionSet.id].correctAnswers / user.progress[questionSet.id].completedQuestions) * 100)}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <Link 
-                      to={`/quiz/${questionSet.id}`}
-                      className={`block w-full px-4 py-2 text-center rounded-md text-white font-medium ${
-                        homeContent.theme === 'dark'
-                          ? 'bg-blue-600 hover:bg-blue-700'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
-                    >
-                      {user && user.progress && user.progress[questionSet.id] ? '继续练习' : '开始练习'}
-                    </Link>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           
