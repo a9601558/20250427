@@ -1,4 +1,9 @@
 import { Sequelize, Dialect } from 'sequelize';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// 加载 src/.env 文件
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // 数据库配置
 const dbConfig = {
