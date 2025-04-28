@@ -32,17 +32,16 @@ import userProgressRoutes from './routes/userProgressRoutes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 设置trust proxy，但使用具体的IP段或本地地址，避免信任所有代理
-// 只信任本地反向代理和内网IP
-app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+// 设置trust proxy为1，只信任第一级代理（通常是Nginx）
+app.set('trust proxy', 1);
 
 // Create HTTP server
-const httpServer = createServer(app);
+const server = createServer(app);
 
 // Initialize Socket.IO
-const io = new Server(httpServer, {
+const io = new Server(server, {
   cors: {
-    origin: '*', // 允许所有来源，也可以指定具体域名
+    origin: '*', // 允许所有来源
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Authorization', 'Content-Type']
@@ -50,15 +49,14 @@ const io = new Server(httpServer, {
   transports: ['polling', 'websocket'], // 先尝试polling，然后尝试websocket
   connectTimeout: 30000, // 连接超时设置
   pingTimeout: 30000, // ping 超时设置
-  pingInterval: 25000, // ping 间隔设置
-  allowUpgrades: true, // 允许升级传输
-  serveClient: false, // 不提供客户端文件
-  maxHttpBufferSize: 1e8 // 最大 HTTP 缓冲区大小
+  pingInterval: 25000 // ping 间隔设置
 });
 
 // 添加中间件以记录所有连接相关事件
 io.use((socket, next) => {
   console.log('Socket.IO 中间件处理连接:', socket.id);
+  const transport = socket.conn.transport.name;
+  console.log(`Socket.IO 连接使用传输方式: ${transport}`);
   next();
 });
 
@@ -141,17 +139,7 @@ const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per IP
   standardHeaders: true,
-  // 配置IP提取方式，使用X-Forwarded-For，但限制标头数量
-  keyGenerator: (req) => {
-    // 通过X-Forwarded-For获取第一个IP（最可信的代理IP）
-    const xForwardedFor = req.headers['x-forwarded-for'];
-    const clientIp = Array.isArray(xForwardedFor) 
-      ? xForwardedFor[0] 
-      : (typeof xForwardedFor === 'string' ? xForwardedFor.split(',')[0].trim() : req.ip);
-    
-    // 确保返回一个字符串，避免undefined
-    return clientIp || req.ip || 'unknown-ip';
-  },
+  legacyHeaders: false,
   message: {
     success: false,
     message: '请求过于频繁，请稍后再试'
@@ -163,17 +151,7 @@ const loginLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // 10 login attempts per IP
   standardHeaders: true,
-  // 配置IP提取方式，使用X-Forwarded-For，但限制标头数量
-  keyGenerator: (req) => {
-    // 通过X-Forwarded-For获取第一个IP（最可信的代理IP）
-    const xForwardedFor = req.headers['x-forwarded-for'];
-    const clientIp = Array.isArray(xForwardedFor) 
-      ? xForwardedFor[0] 
-      : (typeof xForwardedFor === 'string' ? xForwardedFor.split(',')[0].trim() : req.ip);
-    
-    // 确保返回一个字符串，避免undefined
-    return clientIp || req.ip || 'unknown-ip';
-  },
+  legacyHeaders: false,
   message: {
     success: false,
     message: '登录尝试次数过多，请稍后再试'
@@ -282,11 +260,8 @@ const startServer = async () => {
     // 尝试同步数据库
     await ensureDatabaseSync();
     
-    // 使用httpServer替代app来启动服务器
-    httpServer.listen({
-      port: Number(PORT),
-      host: '0.0.0.0'
-    }, () => {
+    // 使用server替代app来启动服务器
+    server.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`服务器运行在 http://0.0.0.0:${PORT}`);
       console.log(`Socket.IO 服务已启动`);
     });
