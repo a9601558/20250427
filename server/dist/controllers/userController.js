@@ -63,6 +63,12 @@ const registerUser = async (req, res) => {
                 },
             });
         }
+        else {
+            res.status(500).json({
+                success: false,
+                message: '用户创建失败，请稍后再试'
+            });
+        }
     }
     catch (error) {
         console.error('Register error:', error);
@@ -80,13 +86,14 @@ exports.registerUser = registerUser;
 const loginUser = async (req, res) => {
     try {
         const { username, password } = req.body;
+        // 检查输入是否为空
         if (!username || !password) {
             return res.status(400).json({
                 success: false,
                 message: '用户名/邮箱和密码不能为空'
             });
         }
-        // 避免使用Op.or，使用两次查询代替
+        // 先尝试按用户名查找
         let user = await User_1.default.findOne({
             where: { username: username }
         });
@@ -96,7 +103,7 @@ const loginUser = async (req, res) => {
                 where: { email: username }
             });
         }
-        // 检查用户是否存在
+        // 如果用户不存在，返回错误
         if (!user) {
             return res.status(401).json({
                 success: false,
@@ -106,33 +113,57 @@ const loginUser = async (req, res) => {
         // 检查密码是否存在
         if (!user.password) {
             console.error('用户密码字段为空:', username);
+            // 尝试更新用户密码为默认值以修复数据问题
+            if (process.env.NODE_ENV === 'development') {
+                try {
+                    user.password = 'temporary_password';
+                    await user.save();
+                    console.log('已为用户创建临时密码，请用户重置密码');
+                }
+                catch (e) {
+                    console.error('无法修复密码字段:', e);
+                }
+            }
             return res.status(500).json({
                 success: false,
-                message: '账户数据异常，请联系管理员'
+                message: '账户数据异常，请联系管理员或重置密码'
             });
         }
-        // 比较密码
-        const isPasswordMatch = await user.comparePassword(password);
-        if (isPasswordMatch) {
-            return res.json({
-                success: true,
-                data: {
-                    id: user.id,
-                    username: user.username,
-                    email: user.email,
-                    isAdmin: user.isAdmin,
-                    token: generateToken(user.id)
-                }
-            });
+        // 比较密码 - 添加额外的错误处理
+        try {
+            const isPasswordMatch = await user.comparePassword(password);
+            if (isPasswordMatch) {
+                // 密码正确，返回用户信息和令牌
+                return res.json({
+                    success: true,
+                    data: {
+                        id: user.id,
+                        username: user.username,
+                        email: user.email,
+                        isAdmin: user.isAdmin,
+                        token: generateToken(user.id)
+                    }
+                });
+            }
+            else {
+                // 密码不匹配
+                return res.status(401).json({
+                    success: false,
+                    message: '用户名/邮箱或密码错误'
+                });
+            }
         }
-        else {
-            return res.status(401).json({
+        catch (passwordError) {
+            // 密码比较过程出错
+            console.error('密码比较过程出错:', passwordError);
+            return res.status(500).json({
                 success: false,
-                message: '用户名/邮箱或密码错误'
+                message: '登录时发生错误，请稍后再试'
             });
         }
     }
     catch (error) {
+        // 捕获所有其他错误
         console.error('Login error:', error);
         res.status(500).json({
             success: false,
