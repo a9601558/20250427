@@ -86,11 +86,6 @@ const AddQuestionSet: React.FC = () => {
       return;
     }
     
-    if (questions.length === 0) {
-      setErrorMessage('请至少添加一个问题');
-      return;
-    }
-
     setIsSubmitting(true);
     setErrorMessage('');
     setSuccessMessage('');
