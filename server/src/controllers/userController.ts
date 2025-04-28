@@ -55,15 +55,11 @@ export const registerUser = async (req: Request, res: Response) => {
       return sendError(res, 400, '该邮箱已被注册');
     }
 
-    // 加密密码
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // 创建新用户
+    // 创建新用户 - 不需要在此处加密密码，密码会在User模型的beforeSave钩子中自动加密
     const user = await User.create({
       username,
       email,
-      password: hashedPassword,
+      password, // 直接使用明文密码，让模型的钩子去处理加密
       isAdmin: false,
       progress: {},
       purchases: [],
