@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addQuestionToQuestionSet = exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
+const database_1 = __importDefault(require("../config/database"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
@@ -635,32 +636,36 @@ const addQuestionToQuestionSet = async (req, res) => {
         if (!questionSet) {
             return sendError(res, 404, '题库不存在');
         }
-        // 创建新题目
-        const question = await Question_1.default.create({
-            text: questionData.text,
-            explanation: questionData.explanation || '',
-            questionSetId: id,
-            questionType: questionData.questionType || 'single',
-            orderIndex: questionData.orderIndex || 0
-        });
-        // 创建选项
-        const optionPromises = questionData.options.map((option, index) => {
-            return Option_1.default.create({
-                questionId: question.id,
-                text: option.text || '',
-                isCorrect: option.isCorrect || false,
-                optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+        // 使用事务确保数据一致性
+        const result = await database_1.default.transaction(async (t) => {
+            // 创建新题目
+            const question = await Question_1.default.create({
+                text: questionData.text,
+                explanation: questionData.explanation || '',
+                questionSetId: id,
+                questionType: questionData.questionType || 'single',
+                orderIndex: questionData.orderIndex || 0
+            }, { transaction: t });
+            console.log('Created question with ID:', question.id);
+            // 创建选项
+            for (const [index, option] of questionData.options.entries()) {
+                await Option_1.default.create({
+                    questionId: question.id,
+                    text: option.text || '',
+                    isCorrect: option.isCorrect || false,
+                    optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+                }, { transaction: t });
+            }
+            // 获取完整的题目信息，包括选项
+            return await Question_1.default.findByPk(question.id, {
+                include: [{
+                        model: Option_1.default,
+                        as: 'options'
+                    }],
+                transaction: t
             });
         });
-        await Promise.all(optionPromises);
-        // 获取完整的题目信息，包括选项
-        const createdQuestion = await Question_1.default.findByPk(question.id, {
-            include: [{
-                    model: Option_1.default,
-                    as: 'options'
-                }]
-        });
-        sendResponse(res, 201, createdQuestion, '题目添加成功');
+        sendResponse(res, 201, result, '题目添加成功');
     }
     catch (error) {
         console.error('Add question error:', error);

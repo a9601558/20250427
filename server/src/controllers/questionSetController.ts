@@ -745,36 +745,40 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       return sendError(res, 404, '题库不存在');
     }
     
-    // 创建新题目
-    const question = await Question.create({
-      text: questionData.text,
-      explanation: questionData.explanation || '',
-      questionSetId: id,
-      questionType: questionData.questionType || 'single',
-      orderIndex: questionData.orderIndex || 0
-    });
-    
-    // 创建选项
-    const optionPromises = questionData.options.map((option: any, index: number) => {
-      return Option.create({
-        questionId: question.id,
-        text: option.text || '',
-        isCorrect: option.isCorrect || false,
-        optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+    // 使用事务确保数据一致性
+    const result = await sequelize.transaction(async (t) => {
+      // 创建新题目
+      const question = await Question.create({
+        text: questionData.text,
+        explanation: questionData.explanation || '',
+        questionSetId: id,
+        questionType: questionData.questionType || 'single',
+        orderIndex: questionData.orderIndex || 0
+      }, { transaction: t });
+      
+      console.log('Created question with ID:', question.id);
+      
+      // 创建选项
+      for (const [index, option] of questionData.options.entries()) {
+        await Option.create({
+          questionId: question.id,
+          text: option.text || '',
+          isCorrect: option.isCorrect || false,
+          optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+        }, { transaction: t });
+      }
+      
+      // 获取完整的题目信息，包括选项
+      return await Question.findByPk(question.id, {
+        include: [{
+          model: Option,
+          as: 'options'
+        }],
+        transaction: t
       });
     });
     
-    await Promise.all(optionPromises);
-    
-    // 获取完整的题目信息，包括选项
-    const createdQuestion = await Question.findByPk(question.id, {
-      include: [{
-        model: Option,
-        as: 'options'
-      }]
-    });
-    
-    sendResponse(res, 201, createdQuestion, '题目添加成功');
+    sendResponse(res, 201, result, '题目添加成功');
   } catch (error) {
     console.error('Add question error:', error);
     sendError(res, 500, '添加题目失败', error);
