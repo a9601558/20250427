@@ -13,7 +13,7 @@ const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const socket_1 = require("./config/socket");
-const associations_1 = require("./models/associations");
+const models_1 = require("./models");
 const appstate_1 = require("./utils/appstate");
 // Load environment variables
 dotenv_1.default.config();
@@ -22,7 +22,6 @@ require("./models/HomepageSettings");
 require("./models/User");
 require("./models/QuestionSet");
 require("./models/Question");
-require("./models/Option");
 require("./models/Purchase");
 require("./models/RedeemCode");
 require("./models/UserProgress");
@@ -79,7 +78,7 @@ const io = new socket_io_1.Server(server, {
 (0, socket_1.initializeSocket)(io);
 // 初始化模型关联
 console.log('正在初始化模型关联...');
-(0, associations_1.setupAssociations)();
+(0, models_1.setupAssociations)();
 console.log(`模型关联初始化状态: ${appstate_1.appState.associationsInitialized ? '已完成' : '未完成'}`);
 database_1.default.sync().then(() => {
     server.listen(PORT, () => {
