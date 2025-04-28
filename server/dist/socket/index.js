@@ -174,7 +174,12 @@ const initializeSocket = (io) => {
             try {
                 const purchases = await Purchase_1.default.findAll({
                     where: { userId: data.userId },
-                    include: [QuestionSet_1.default],
+                    include: [
+                        {
+                            model: QuestionSet_1.default,
+                            as: 'questionSet'
+                        }
+                    ],
                     order: [['purchaseDate', 'DESC']]
                 });
                 if (socket.connected) {
@@ -183,6 +188,7 @@ const initializeSocket = (io) => {
             }
             catch (error) {
                 console.error('Error getting purchases:', error);
+                socket.emit('purchase:list', { success: false, message: '获取购买记录失败', error });
             }
         });
         // 监听购买记录更新事件

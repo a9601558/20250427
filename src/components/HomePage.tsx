@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { QuestionSet } from '../types';
+import { QuestionSet } from '../types/index';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import RecentlyStudiedQuestionSets from './RecentlyStudiedQuestionSets';

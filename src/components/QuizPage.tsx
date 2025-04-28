@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QuestionSet, Question } from '../types';
+import { QuestionSet, Question, Option } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi, purchaseApi, userProgressApi } from '../utils/api';
@@ -134,14 +134,32 @@ function QuizPage(): React.ReactNode {
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
         if (response.success && response.data) {
-          setQuestionSet(response.data);
+          const questionSetData: QuestionSet = {
+            id: response.data.id,
+            title: response.data.title,
+            description: response.data.description,
+            category: response.data.category,
+            icon: response.data.icon,
+            questions: response.data.questions || [],
+            isPaid: response.data.isPaid || false,
+            price: response.data.price || 0,
+            isFeatured: response.data.isFeatured || false,
+            featuredCategory: response.data.featuredCategory,
+            hasAccess: false,
+            remainingDays: null,
+            trialQuestions: response.data.trialQuestions,
+            questionCount: response.data.questions?.length || 0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          setQuestionSet(questionSetData);
           
           // 使用题库中包含的题目数据
-          if (response.data.questions && response.data.questions.length > 0) {
-            console.log("获取到题目:", response.data.questions.length);
+          if (questionSetData.questions && questionSetData.questions.length > 0) {
+            console.log("获取到题目:", questionSetData.questions.length);
             
             // 处理题目选项并设置数据
-            const processedQuestions = response.data.questions.map(q => {
+            const processedQuestions = questionSetData.questions.map(q => {
               // 确保选项存在
               if (!q.options || !Array.isArray(q.options)) {
                 console.warn("题目缺少选项:", q.id);

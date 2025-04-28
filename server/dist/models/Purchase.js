@@ -17,6 +17,8 @@ class Purchase extends sequelize_1.Model {
     expiryDate;
     createdAt;
     updatedAt;
+    // 关联
+    questionSet;
 }
 Purchase.init({
     id: {

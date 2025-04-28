@@ -185,7 +185,12 @@ export const initializeSocket = (io: Server) => {
       try {
         const purchases = await Purchase.findAll({
           where: { userId: data.userId },
-          include: [QuestionSet],
+          include: [
+            {
+              model: QuestionSet,
+              as: 'questionSet'
+            }
+          ],
           order: [['purchaseDate', 'DESC']]
         });
 
@@ -194,6 +199,7 @@ export const initializeSocket = (io: Server) => {
         }
       } catch (error) {
         console.error('Error getting purchases:', error);
+        socket.emit('purchase:list', { success: false, message: '获取购买记录失败', error });
       }
     });
 

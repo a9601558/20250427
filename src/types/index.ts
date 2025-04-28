@@ -21,6 +21,7 @@ export interface QuestionSet {
   description: string;
   category: string;
   icon: string;
+  questions: Question[];
   isPaid: boolean;
   price: number;
   isFeatured: boolean;
@@ -28,8 +29,29 @@ export interface QuestionSet {
   hasAccess: boolean;
   remainingDays?: number | null;
   trialQuestions?: number;
+  questionCount?: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Question {
+  id: string | number;
+  text: string;
+  question?: string;
+  options: Option[];
+  explanation: string;
+  questionType?: 'single' | 'multiple';
+  correctAnswer?: string | string[];
+  orderIndex?: number;
+}
+
+export interface Option {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+  optionIndex?: string;
+  label?: string;
+  orderIndex?: number;
 }
 
 export interface IQuestion {
