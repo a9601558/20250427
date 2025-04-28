@@ -21,6 +21,11 @@ const ProfilePage: React.FC = () => {
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // 添加排序和筛选状态
+  const [sortBy, setSortBy] = useState<'purchaseDate' | 'expiryDate' | 'amount'>('purchaseDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired'>('all');
 
   if (!user) {
     return null;
@@ -207,6 +212,39 @@ const ProfilePage: React.FC = () => {
       return diffDays > 0 ? diffDays : 0;
     } catch (e) {
       return 0;
+    }
+  };
+
+  // 处理排序和筛选后的购买记录
+  const getFilteredAndSortedPurchases = () => {
+    let filtered = purchaseData;
+    
+    // 应用状态筛选
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(purchase => 
+        filterStatus === 'active' ? purchase.isActive : !purchase.isActive
+      );
+    }
+    
+    // 应用排序
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'purchaseDate' || sortBy === 'expiryDate') {
+        comparison = new Date(a[sortBy]).getTime() - new Date(b[sortBy]).getTime();
+      } else {
+        comparison = a[sortBy] - b[sortBy];
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  // 切换排序
+  const handleSort = (field: 'purchaseDate' | 'expiryDate' | 'amount') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
     }
   };
 
@@ -401,11 +439,42 @@ const ProfilePage: React.FC = () => {
           {/* 购买记录标签页 */}
           {activeTab === ProfileTab.PURCHASES && (
             <div>
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                购买记录
-              </h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  购买记录
+                </h3>
+                <div className="flex space-x-2">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'expired')}
+                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  >
+                    <option value="all">全部状态</option>
+                    <option value="active">有效</option>
+                    <option value="expired">已过期</option>
+                  </select>
+                </div>
+              </div>
               
-              {purchaseData.length === 0 ? (
+              {loading ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : error ? (
+                <div className="text-center py-10">
+                  <div className="text-red-500 mb-4">{error}</div>
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setLoading(true);
+                      socket?.emit('purchase:getAll', { userId: user?.id });
+                    }}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : getFilteredAndSortedPurchases().length === 0 ? (
                 <div className="text-center py-10">
                   <h3 className="mt-2 text-sm font-medium text-gray-900">暂无购买记录</h3>
                   <p className="mt-1 text-sm text-gray-500">浏览并购买题库以获取完整内容</p>
@@ -419,74 +488,99 @@ const ProfilePage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-lg border border-gray-200">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          题库信息
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          订单信息
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          状态
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          操作
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {purchaseData.map((purchase) => (
-                        <tr key={purchase.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center text-xl bg-blue-100 rounded-full">
-                                {purchase.icon}
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{purchase.title}</div>
-                                <div className="text-sm text-gray-500">{purchase.category}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">¥{purchase.amount.toFixed(2)}</div>
-                            <div className="text-sm text-gray-500">{formatDate(purchase.purchaseDate)}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {purchase.isActive ? (
-                              <div>
-                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                  有效
-                                </span>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  剩余 {calculateRemainingDays(purchase.expiryDate)} 天
+                <div className="overflow-x-auto">
+                  <div className="min-w-full divide-y divide-gray-200">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            题库信息
+                          </th>
+                          <th 
+                            scope="col" 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort('amount')}
+                          >
+                            金额 {sortBy === 'amount' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          <th 
+                            scope="col" 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort('purchaseDate')}
+                          >
+                            购买日期 {sortBy === 'purchaseDate' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          <th 
+                            scope="col" 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort('expiryDate')}
+                          >
+                            过期日期 {sortBy === 'expiryDate' && (sortOrder === 'asc' ? '↑' : '↓')}
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            状态
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            操作
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {getFilteredAndSortedPurchases().map((purchase) => (
+                          <tr key={purchase.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center text-xl bg-blue-100 rounded-full">
+                                  {purchase.icon}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">{purchase.title}</div>
+                                  <div className="text-sm text-gray-500">{purchase.category}</div>
                                 </div>
                               </div>
-                            ) : (
-                              <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                已过期
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {purchase.isActive ? (
-                              <Link
-                                to={`/quiz/${purchase.questionSetId}`}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                开始学习
-                              </Link>
-                            ) : (
-                              <span className="text-gray-400">已过期</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">¥{purchase.amount.toFixed(2)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">{formatDate(purchase.purchaseDate)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">{formatDate(purchase.expiryDate)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {purchase.isActive ? (
+                                <div>
+                                  <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    有效
+                                  </span>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    剩余 {calculateRemainingDays(purchase.expiryDate)} 天
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                  已过期
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              {purchase.isActive ? (
+                                <Link
+                                  to={`/quiz/${purchase.questionSetId}`}
+                                  className="text-blue-600 hover:text-blue-900"
+                                >
+                                  开始学习
+                                </Link>
+                              ) : (
+                                <span className="text-gray-400">已过期</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
