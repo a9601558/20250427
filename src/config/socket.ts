@@ -1,8 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import { UserProgress } from '../types';
 
-// Socket连接URL - 使用绝对URL而不是相对路径
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+// Socket连接URL - 使用指定的WebSocket地址
+const SOCKET_URL = 'ws://localhost:10000/Servers';
 
 // 创建Socket实例
 let socket: Socket;

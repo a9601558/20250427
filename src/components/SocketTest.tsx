@@ -118,7 +118,7 @@ const SocketTest: React.FC = () => {
       <div className="mt-4 text-xs text-gray-600">
         <p>Socket ID: {socket?.id || 'N/A'}</p>
         <p>
-          连接URL: {process.env.REACT_APP_SOCKET_URL || window.location.origin}
+          连接URL: ws://localhost:10000/Servers
         </p>
       </div>
     </div>
