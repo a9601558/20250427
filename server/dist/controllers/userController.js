@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteUser = exports.updateUser = exports.getUserById = exports.getUsers = exports.updateUserProfile = exports.getUserProfile = exports.loginUser = exports.registerUser = void 0;
 const User_1 = __importDefault(require("../models/User"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
 // 生成JWT令牌函数
 const generateToken = (id) => {
     return jsonwebtoken_1.default.sign({ id }, process.env.JWT_SECRET || 'default_secret', {
@@ -50,8 +49,13 @@ const registerUser = async (req, res) => {
         if (existingUser) {
             return sendError(res, 400, '该邮箱已被注册');
         }
+        // 打印密码确保它存在并且有效（仅在开发环境）
+        if (process.env.NODE_ENV === 'development') {
+            console.log('Password before creation:', password ? 'Password exists (not showing value)' : 'Password is empty');
+        }
         // 创建新用户 - 不需要在此处加密密码，密码会在User模型的beforeSave钩子中自动加密
-        const user = await User_1.default.create({
+        // 使用unscoped()确保所有字段都包含在模型中，防止默认scope排除了password字段
+        const user = await User_1.default.unscoped().create({
             username,
             email,
             password, // 直接使用明文密码，让模型的钩子去处理加密
@@ -176,8 +180,8 @@ const updateUserProfile = async (req, res) => {
             user.username = req.body.username || user.username;
             user.email = req.body.email || user.email;
             if (req.body.password) {
-                const salt = await bcrypt_1.default.genSalt(10);
-                user.password = await bcrypt_1.default.hash(req.body.password, salt);
+                // 直接设置密码，让模型的钩子处理加密
+                user.password = req.body.password;
             }
             const updatedUser = await user.save();
             const userResponse = {

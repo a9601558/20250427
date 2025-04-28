@@ -55,8 +55,14 @@ export const registerUser = async (req: Request, res: Response) => {
       return sendError(res, 400, '该邮箱已被注册');
     }
 
+    // 打印密码确保它存在并且有效（仅在开发环境）
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Password before creation:', password ? 'Password exists (not showing value)' : 'Password is empty');
+    }
+
     // 创建新用户 - 不需要在此处加密密码，密码会在User模型的beforeSave钩子中自动加密
-    const user = await User.create({
+    // 使用unscoped()确保所有字段都包含在模型中，防止默认scope排除了password字段
+    const user = await User.unscoped().create({
       username,
       email,
       password, // 直接使用明文密码，让模型的钩子去处理加密
@@ -189,8 +195,8 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       user.email = req.body.email || user.email;
 
       if (req.body.password) {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(req.body.password, salt);
+        // 直接设置密码，让模型的钩子处理加密
+        user.password = req.body.password;
       }
 
       const updatedUser = await user.save();

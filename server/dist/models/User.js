@@ -7,16 +7,6 @@ const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 class User extends sequelize_1.Model {
-    id;
-    username;
-    email;
-    password;
-    isAdmin;
-    progress;
-    purchases;
-    redeemCodes;
-    createdAt;
-    updatedAt;
     async comparePassword(candidatePassword) {
         try {
             if (!this.password || !candidatePassword) {
@@ -120,17 +110,23 @@ User.init({
 // 密码加密钩子
 User.beforeSave(async (user) => {
     try {
+        // 记录当前状态以便调试
+        console.log('beforeSave hook called, password changed:', user.changed('password'));
         if (user.changed('password')) {
             // 确保密码不为空或undefined
             if (!user.password) {
+                console.log('Password is empty in beforeSave hook');
                 throw new Error('密码不能为空');
             }
+            console.log('Password exists and will be hashed');
             // 确保密码是字符串类型
             if (typeof user.password !== 'string') {
+                console.log('Password is not a string, converting from type:', typeof user.password);
                 user.password = String(user.password);
             }
             const salt = await bcrypt_1.default.genSalt(10);
             user.password = await bcrypt_1.default.hash(user.password, salt);
+            console.log('Password successfully hashed');
         }
     }
     catch (error) {

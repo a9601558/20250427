@@ -6,16 +6,16 @@ import { IUser } from '../types';
 type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt'>;
 
 class User extends Model<IUser, UserCreationAttributes> implements IUser {
-  public id!: string;
-  public username!: string;
-  public email!: string;
-  public password!: string;
-  public isAdmin!: boolean;
-  public progress!: IUser['progress'];
-  public purchases!: IUser['purchases'];
-  public redeemCodes!: IUser['redeemCodes'];
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare username: string;
+  declare email: string;
+  declare password: string;
+  declare isAdmin: boolean;
+  declare progress: IUser['progress'];
+  declare purchases: IUser['purchases'];
+  declare redeemCodes: IUser['redeemCodes'];
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   async comparePassword(candidatePassword: string): Promise<boolean> {
     try {
@@ -125,19 +125,27 @@ User.init(
 // 密码加密钩子
 User.beforeSave(async (user: User) => {
   try {
+    // 记录当前状态以便调试
+    console.log('beforeSave hook called, password changed:', user.changed('password'));
+    
     if (user.changed('password')) {
       // 确保密码不为空或undefined
       if (!user.password) {
+        console.log('Password is empty in beforeSave hook');
         throw new Error('密码不能为空');
       }
       
+      console.log('Password exists and will be hashed');
+      
       // 确保密码是字符串类型
       if (typeof user.password !== 'string') {
+        console.log('Password is not a string, converting from type:', typeof user.password);
         user.password = String(user.password);
       }
       
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(user.password, salt);
+      console.log('Password successfully hashed');
     }
   } catch (error: any) {
     console.error('Password hashing error:', error.message, error.stack);
