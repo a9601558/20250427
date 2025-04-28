@@ -24,7 +24,14 @@ router.get('/categories', questionSetController_1.getQuestionSetCategories);
 // Admin routes
 router.post('/upload', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.uploadQuestionSets);
 // File upload route
-router.post('/upload/file', authMiddleware_1.protect, authMiddleware_1.admin, questionsUploadController_1.upload.single('file'), questionsUploadController_1.uploadQuestionSetFile);
+router.post('/upload/file', authMiddleware_1.protect, authMiddleware_1.admin, (req, res, next) => {
+    questionsUploadController_1.upload.single('file')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        next();
+    });
+}, questionsUploadController_1.uploadQuestionSetFile);
 // Admin routes with ID parameters
 router.put('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.updateQuestionSet);
 router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.deleteQuestionSet);

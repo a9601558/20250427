@@ -34,7 +34,14 @@ router.get('/categories', getQuestionSetCategories);
 router.post('/upload', protect, admin, uploadQuestionSets);
 
 // File upload route
-router.post('/upload/file', protect, admin, upload.single('file'), uploadQuestionSetFile);
+router.post('/upload/file', protect, admin, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, uploadQuestionSetFile);
 
 // Admin routes with ID parameters
 router.put('/:id', protect, admin, updateQuestionSet);
