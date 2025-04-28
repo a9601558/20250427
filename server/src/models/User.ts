@@ -19,10 +19,21 @@ class User extends Model<IUser, UserCreationAttributes> implements IUser {
 
   async comparePassword(candidatePassword: string): Promise<boolean> {
     try {
-      if (!this.password || !candidatePassword) {
+      if (!this.password) {
+        console.error('Cannot compare password: User password is empty or undefined');
         return false;
       }
-      return bcrypt.compare(candidatePassword, this.password);
+      
+      if (!candidatePassword) {
+        console.error('Cannot compare password: Candidate password is empty or undefined');
+        return false;
+      }
+      
+      console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
+      
+      const isMatch = await bcrypt.compare(candidatePassword, this.password);
+      console.log('Password comparison result:', isMatch);
+      return isMatch;
     } catch (error) {
       console.error('Password comparison error:', error);
       return false;

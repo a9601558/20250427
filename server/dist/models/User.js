@@ -9,10 +9,18 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 class User extends sequelize_1.Model {
     async comparePassword(candidatePassword) {
         try {
-            if (!this.password || !candidatePassword) {
+            if (!this.password) {
+                console.error('Cannot compare password: User password is empty or undefined');
                 return false;
             }
-            return bcrypt_1.default.compare(candidatePassword, this.password);
+            if (!candidatePassword) {
+                console.error('Cannot compare password: Candidate password is empty or undefined');
+                return false;
+            }
+            console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
+            const isMatch = await bcrypt_1.default.compare(candidatePassword, this.password);
+            console.log('Password comparison result:', isMatch);
+            return isMatch;
         }
         catch (error) {
             console.error('Password comparison error:', error);

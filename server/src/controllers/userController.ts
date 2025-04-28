@@ -107,14 +107,14 @@ export const loginUser = async (req: Request, res: Response) => {
       return sendError(res, 400, '用户名/邮箱和密码不能为空');
     }
 
-    // 先尝试按用户名查找
-    let user = await User.findOne({
+    // 先尝试按用户名查找，使用withPassword作用域以包含密码字段
+    let user = await User.scope('withPassword').findOne({
       where: { username: username }
     });
 
     // 如果按用户名找不到，再按邮箱查找
     if (!user) {
-      user = await User.findOne({
+      user = await User.scope('withPassword').findOne({
         where: { email: username }
       });
     }
@@ -127,11 +127,13 @@ export const loginUser = async (req: Request, res: Response) => {
     // 检查密码是否存在
     if (!user.password) {
       console.error('用户密码字段为空:', username);
+      console.error('用户对象:', JSON.stringify(user, null, 2));
       return sendError(res, 500, '账户数据异常，请联系管理员或重置密码');
     }
 
     // 比较密码
     try {
+      console.log('准备比较密码，用户密码字段存在:', !!user.password);
       const isPasswordMatch = await user.comparePassword(password);
       
       if (isPasswordMatch) {
