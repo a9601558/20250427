@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { QuestionSet, Question } from '../types';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
-import { questionSetApi, questionApi, purchaseApi, userProgressApi } from '../utils/api';
-import { getSocket, sendProgressUpdate } from '../config/socket';
-import io from 'socket.io-client';
+import { questionSetApi, purchaseApi, userProgressApi } from '../utils/api';
+import { sendProgressUpdate } from '../config/socket';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -176,6 +175,11 @@ function QuizPage(): React.ReactNode {
   
   // 提交答案检查
   const checkAnswer = () => {
+    // 如果试用已结束且没有购买，不允许提交答案
+    if (trialEnded && !hasAccessToFullQuiz) {
+      return;
+    }
+    
     if (selectedOptions.length === 0) return;
     
     const currentQuestion = questions[currentQuestionIndex];
@@ -499,7 +503,7 @@ function QuizPage(): React.ReactNode {
               <div 
                 key={option.id}
                 onClick={() => {
-                  if (!showExplanation) {
+                  if (!showExplanation && !(trialEnded && !hasAccessToFullQuiz)) {
                     handleOptionSelect(option.id);
                   }
                 }}
@@ -554,9 +558,9 @@ function QuizPage(): React.ReactNode {
           {!showExplanation ? (
             <button
               onClick={checkAnswer}
-              disabled={selectedOptions.length === 0}
+              disabled={selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz)}
               className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
-                selectedOptions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               提交答案
@@ -564,7 +568,10 @@ function QuizPage(): React.ReactNode {
           ) : (
             <button
               onClick={goToNextQuestion}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              disabled={trialEnded && !hasAccessToFullQuiz}
+              className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${
+                trialEnded && !hasAccessToFullQuiz ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               {currentQuestionIndex < questions.length - 1 ? '下一题' : '完成测试'}
             </button>

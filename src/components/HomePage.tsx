@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { QuestionSet } from '../types';
@@ -32,7 +32,7 @@ const defaultHomeContent: HomeContentData = {
 };
 
 const HomePage: React.FC = () => {
-  const { user, isAdmin, getRemainingAccessDays } = useUser();
+  const { user, isAdmin } = useUser();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -116,59 +116,6 @@ const HomePage: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  // 切换分类
-  const handleCategoryChange = useCallback(async (category: string) => {
-    setActiveCategory(category);
-    
-    try {
-      setCategoryLoading(true);
-      let response;
-      
-      // 获取题库数据
-      if (category === 'all') {
-        // 获取所有题库
-        response = await axios.get('/api/question-sets');
-      } else {
-        // 获取特定分类的题库
-        const encodedCategory = encodeURIComponent(category);
-        response = await axios.get(`/api/question-sets/by-category/${encodedCategory}`);
-      }
-      
-      if (response.data && response.data.success && response.data.data) {
-        const questionSetsData = response.data.data;
-        
-        // 为每个题库获取题目
-        for (const set of questionSetsData) {
-          try {
-            const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}&include=options`);
-            if (questionsResponse.data && questionsResponse.data.success) {
-              set.questions = questionsResponse.data.data;
-            }
-          } catch (err) {
-            console.warn(`获取题库 ${set.id} 的题目失败:`, err);
-          }
-        }
-        
-        setQuestionSets(questionSetsData);
-      } else {
-        setErrorMessage('获取题库数据失败');
-      }
-    } catch (error) {
-      console.error(`获取分类 ${category} 的题库失败:`, error);
-      setErrorMessage('获取分类题库失败');
-    } finally {
-      setCategoryLoading(false);
-    }
-  }, []);
-
-  // 获取剩余天数的文字描述
-  const calculateRemainingDaysText = (days: number | null): string => {
-    if (days === null) return '';
-    if (days <= 0) return '已过期';
-    if (days === 1) return '剩余1天';
-    return `剩余${days}天`;
-  };
-
   // 根据主题设置页面背景色
   const bgClass = homeContent.theme === 'dark' 
     ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
@@ -191,26 +138,67 @@ const HomePage: React.FC = () => {
     return questionSets;
   };
 
-  // 检查用户是否有权限访问付费题库
-  const hasAccessToQuestionSet = (questionSetId: string): boolean => {
-    if (!user) return false;
-    return user.purchases?.some(purchase => 
-      purchase.questionSetId === questionSetId && 
-      new Date(purchase.expiryDate) > new Date()
-    ) || false;
-  };
-
   // 获取题库访问状态
   const getQuestionSetAccessStatus = (questionSet: QuestionSet) => {
-    if (!questionSet.isPaid) return { hasAccess: true, isTrial: false };
+    if (!questionSet.isPaid) {
+      return { hasAccess: true, remainingDays: null };
+    }
     
-    if (!user) return { hasAccess: false, isTrial: false };
+    if (!user) {
+      return { hasAccess: false, remainingDays: null };
+    }
     
     const purchase = user.purchases?.find(p => p.questionSetId === questionSet.id);
-    if (!purchase) return { hasAccess: false, isTrial: false };
+    if (!purchase) {
+      return { hasAccess: false, remainingDays: null };
+    }
     
-    const hasAccess = new Date(purchase.expiryDate) > new Date();
-    return { hasAccess, isTrial: false };
+    const expiryDate = new Date(purchase.expiryDate);
+    const now = new Date();
+    const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return {
+      hasAccess: expiryDate > now,
+      remainingDays: remainingDays > 0 ? remainingDays : 0
+    };
+  };
+
+  // 处理开始答题
+  const handleStartQuiz = (questionSet: QuestionSet) => {
+    if (!questionSet.isPaid) {
+      navigate(`/quiz/${questionSet.id}`);
+      return;
+    }
+    
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    const { hasAccess } = getQuestionSetAccessStatus(questionSet);
+    if (hasAccess) {
+      navigate(`/quiz/${questionSet.id}`);
+    } else {
+      // 显示购买提示
+      alert('您需要购买此题库才能访问完整内容');
+    }
+  };
+
+  // 处理分类切换
+  const handleCategoryChange = async (category: string) => {
+    setActiveCategory(category);
+    setCategoryLoading(true);
+    
+    try {
+      const response = await axios.get(`/api/question-sets?category=${category}`);
+      if (response.data.success) {
+        setQuestionSets(response.data.data);
+      }
+    } catch (error) {
+      console.error('获取分类题库失败:', error);
+    } finally {
+      setCategoryLoading(false);
+    }
   };
 
   if (loading) {
@@ -388,64 +376,39 @@ const HomePage: React.FC = () => {
               <p className="mt-2 text-sm text-gray-500">加载中...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {getFilteredQuestionSets().map(questionSet => {
-                const { hasAccess, isTrial } = getQuestionSetAccessStatus(questionSet);
+                const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
                 const isPaid = questionSet.isPaid;
-                const canAccess = !isPaid || hasAccess;
                 
                 return (
                   <div 
                     key={questionSet.id}
-                    className={`border ${homeContent.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} rounded-lg shadow-md overflow-hidden transition-transform hover:shadow-lg hover:-translate-y-1`}
+                    className={`bg-white rounded-lg shadow-md overflow-hidden ${
+                      !hasAccess && isPaid ? 'opacity-75' : ''
+                    }`}
                   >
-                    <div className="p-5">
-                      <div className="flex items-center mb-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${homeContent.theme === 'dark' ? 'bg-gray-600' : 'bg-blue-100'}`}>
-                          <span className={`text-xl ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
-                            {questionSet.icon || '📚'}
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-xl font-semibold text-gray-900">
+                          {questionSet.title}
+                        </h3>
+                        {isPaid && (
+                          <span className="px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-full">
+                            ¥{questionSet.price}
                           </span>
-                        </div>
-                        <div className="flex-1 ml-3">
-                          <div className="flex items-center justify-between">
-                            <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} truncate`}>
-                              {questionSet.title}
-                            </h3>
-                            {isPaid ? (
-                              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
-                                ¥{questionSet.price}
-                              </span>
-                            ) : (
-                              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800'}`}>
-                                免费
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        )}
                       </div>
                       
-                      <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} mb-4 line-clamp-2`}>
-                        {questionSet.description}
-                      </p>
+                      <p className="text-gray-600 mb-4">{questionSet.description}</p>
                       
                       <div className="flex items-center justify-between mb-4">
-                        <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-blue-50 text-blue-600'}`}>
-                          {questionSet.category}
+                        <span className="text-sm text-gray-500">
+                          {questionSet.questions?.length || 0} 道题目
                         </span>
-                        
-                        <span className={`text-xs px-2.5 py-0.5 rounded-full ${homeContent.theme === 'dark' ? 'bg-gray-600 text-gray-300' : 'bg-green-50 text-green-600'}`}>
-                          {questionSet.questions ? `${questionSet.questions.length} 题` : `${questionSet.questionCount || 0} 题`}
-                        </span>
-                        
-                        {isPaid && user && (
-                          <span className={`text-xs px-2.5 py-0.5 rounded-full ${
-                            hasAccess
-                              ? `${homeContent.theme === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-50 text-green-600'}`
-                              : `${homeContent.theme === 'dark' ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-50 text-yellow-600'}`
-                          }`}>
-                            {hasAccess 
-                              ? `已购买 ${calculateRemainingDaysText(getRemainingAccessDays(questionSet.id))}`
-                              : `¥${questionSet.price || 0}`}
+                        {isPaid && user && hasAccess && remainingDays !== null && (
+                          <span className="text-sm text-green-600">
+                            剩余 {remainingDays} 天
                           </span>
                         )}
                       </div>
@@ -453,54 +416,40 @@ const HomePage: React.FC = () => {
                       {/* 用户进度指示器 */}
                       {user && user.progress && user.progress[questionSet.id] && (
                         <div className="mb-4">
-                          <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <div className="flex justify-between text-sm text-gray-500 mb-1">
                             <span>完成进度</span>
                             <span>
-                              {Math.round((user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100)}%
+                              {Math.round((user.progress[questionSet.id].completedQuestions / 
+                                user.progress[questionSet.id].totalQuestions) * 100)}%
                             </span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
                             <div 
-                              className="bg-blue-600 h-1.5 rounded-full" 
-                              style={{ width: `${(user.progress[questionSet.id].completedQuestions / user.progress[questionSet.id].totalQuestions) * 100}%` }}
+                              className="bg-blue-600 h-2 rounded-full" 
+                              style={{ 
+                                width: `${(user.progress[questionSet.id].completedQuestions / 
+                                  user.progress[questionSet.id].totalQuestions) * 100}%` 
+                              }}
                             />
-                          </div>
-                          <div className="flex justify-between text-xs mt-1">
-                            <span className={`${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {user.progress[questionSet.id].completedQuestions}/{user.progress[questionSet.id].totalQuestions} 题
-                            </span>
-                            {user.progress[questionSet.id].correctAnswers > 0 && (
-                              <span className={`font-medium ${homeContent.theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                                正确率: {Math.round((user.progress[questionSet.id].correctAnswers / user.progress[questionSet.id].completedQuestions) * 100)}%
-                              </span>
-                            )}
                           </div>
                         </div>
                       )}
                       
-                      {canAccess ? (
-                        <Link 
-                          to={`/quiz/${questionSet.id}`}
-                          className={`block w-full px-4 py-2 text-center rounded-md text-white font-medium ${
-                            homeContent.theme === 'dark'
-                              ? 'bg-blue-600 hover:bg-blue-700'
-                              : 'bg-blue-600 hover:bg-blue-700'
-                          }`}
-                        >
-                          {user && user.progress && user.progress[questionSet.id] ? '继续练习' : '开始练习'}
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => navigate('/login')}
-                          className={`block w-full px-4 py-2 text-center rounded-md text-white font-medium ${
-                            homeContent.theme === 'dark'
-                              ? 'bg-yellow-600 hover:bg-yellow-700'
-                              : 'bg-yellow-600 hover:bg-yellow-700'
-                          }`}
-                        >
-                          登录后购买
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleStartQuiz(questionSet)}
+                        className={`w-full py-2 px-4 rounded-md text-white font-medium ${
+                          !hasAccess && isPaid
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                        disabled={!hasAccess && isPaid}
+                      >
+                        {!hasAccess && isPaid
+                          ? '需要购买'
+                          : user && user.progress && user.progress[questionSet.id]
+                            ? '继续练习'
+                            : '开始练习'}
+                      </button>
                     </div>
                   </div>
                 );

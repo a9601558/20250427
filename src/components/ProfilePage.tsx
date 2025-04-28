@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import api from '../services/api';
 import { QuestionSet } from '../types';
 
 // 定义标签页枚举

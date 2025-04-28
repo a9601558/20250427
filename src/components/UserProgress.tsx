@@ -3,7 +3,6 @@ import { useUser } from '../contexts/UserContext';
 import { Progress, Card, Typography, Row, Col, Statistic, Spin, message } from 'antd';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService } from '../services/api';
-import { UserProgress as UserProgressType } from '../types';
 
 const { Title, Text } = Typography;
 
