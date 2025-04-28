@@ -11,6 +11,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { initializeSocket } from './config/socket';
 import { setupAssociations } from './models';
+import { appState } from './utils/appstate';
 
 // Load environment variables
 dotenv.config();
@@ -84,8 +85,11 @@ const io = new SocketIOServer(server, {
 // Initialize socket
 initializeSocket(io);
 
-// Setup associations and sync database
+// 初始化模型关联
+console.log('正在初始化模型关联...');
 setupAssociations();
+console.log(`模型关联初始化状态: ${appState.associationsInitialized ? '已完成' : '未完成'}`);
+
 sequelize.sync().then(() => {
   server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

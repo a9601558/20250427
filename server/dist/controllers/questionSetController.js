@@ -10,7 +10,6 @@ const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
-const models_1 = require("../models");
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
     res.status(status).json({
@@ -63,8 +62,7 @@ exports.getAllQuestionSets = getAllQuestionSets;
 // @access  Public
 const getQuestionSetById = async (req, res) => {
     try {
-        // 确保关联已正确设置
-        (0, models_1.setupAssociations)();
+        // 记录日志，但不再显式调用关联设置
         console.log(`尝试获取题库，ID: ${req.params.id}`);
         try {
             // 使用原始 SQL 查询获取题库
@@ -500,8 +498,8 @@ exports.getQuestionSetCategories = getQuestionSetCategories;
 const getQuestionSetsByCategory = async (req, res) => {
     const { category } = req.params;
     try {
-        // 确保关联已正确设置
-        (0, models_1.setupAssociations)();
+        // 记录日志，但不再显式调用关联设置
+        console.log(`尝试获取分类题库，分类: ${category}`);
         const decodedCategory = decodeURIComponent(category);
         try {
             // 使用原始 SQL 查询获取分类题库
@@ -557,8 +555,8 @@ exports.getQuestionSetsByCategory = getQuestionSetsByCategory;
 // @access  Private/Admin
 const addQuestionToQuestionSet = async (req, res) => {
     try {
-        // 确保关联已正确设置
-        (0, models_1.setupAssociations)();
+        // 记录日志，但不再显式调用关联设置
+        console.log(`尝试向题库添加题目，题库ID: ${req.params.id}`);
         const { id } = req.params;
         const questionData = req.body;
         // 验证必要的字段

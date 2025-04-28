@@ -129,9 +129,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
 // @access  Public
 export const getQuestionSetById = async (req: Request, res: Response) => {
   try {
-    // 确保关联已正确设置
-    setupAssociations();
-    
+    // 记录日志，但不再显式调用关联设置
     console.log(`尝试获取题库，ID: ${req.params.id}`);
     
     try {
@@ -613,8 +611,8 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
   const { category } = req.params;
   
   try {
-    // 确保关联已正确设置
-    setupAssociations();
+    // 记录日志，但不再显式调用关联设置
+    console.log(`尝试获取分类题库，分类: ${category}`);
     
     const decodedCategory = decodeURIComponent(category);
     
@@ -687,8 +685,8 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
 // @access  Private/Admin
 export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
   try {
-    // 确保关联已正确设置
-    setupAssociations();
+    // 记录日志，但不再显式调用关联设置
+    console.log(`尝试向题库添加题目，题库ID: ${req.params.id}`);
     
     const { id } = req.params;
     const questionData = req.body;

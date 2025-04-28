@@ -3,12 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initUserProgressAssociations = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
-const User_1 = __importDefault(require("./User"));
-const QuestionSet_1 = __importDefault(require("./QuestionSet"));
-const Question_1 = __importDefault(require("./Question"));
 // 用户进度模型类
 class UserProgress extends sequelize_1.Model {
     id;
@@ -82,13 +78,4 @@ UserProgress.init({
         { fields: ['userId', 'questionSetId'] }
     ]
 });
-// 声明关联
-const initUserProgressAssociations = () => {
-    console.log('开始设置 UserProgress 关联...');
-    UserProgress.belongsTo(User_1.default, { foreignKey: 'userId', as: 'user' });
-    UserProgress.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'questionSet' });
-    UserProgress.belongsTo(Question_1.default, { foreignKey: 'questionId', as: 'question' });
-    console.log('UserProgress 关联设置完成');
-};
-exports.initUserProgressAssociations = initUserProgressAssociations;
 exports.default = UserProgress;

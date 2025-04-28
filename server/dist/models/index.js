@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sequelize = exports.UserProgress = exports.RedeemCode = exports.Purchase = exports.HomepageSettings = exports.Option = exports.Question = exports.QuestionSet = exports.User = exports.syncModels = exports.setupAssociations = void 0;
 const database_1 = __importDefault(require("../config/database"));
 exports.sequelize = database_1.default;
+const appstate_1 = require("../utils/appstate");
 // 导入模型
 const User_1 = __importDefault(require("./User"));
 exports.User = User_1.default;
@@ -23,9 +24,13 @@ const HomepageSettings_1 = __importDefault(require("./HomepageSettings"));
 exports.HomepageSettings = HomepageSettings_1.default;
 const UserProgress_1 = __importDefault(require("./UserProgress"));
 exports.UserProgress = UserProgress_1.default;
-const UserProgress_2 = require("./UserProgress");
 // 设置模型关联
 const setupAssociations = () => {
+    // 如果关联已初始化，则跳过
+    if (appstate_1.appState.associationsInitialized) {
+        console.log('模型关联已经初始化，跳过重复初始化');
+        return;
+    }
     console.log('设置模型关联开始...');
     // User与Purchase的关联
     console.log('设置 User 和 Purchase 的关联');
@@ -63,7 +68,7 @@ const setupAssociations = () => {
     console.log('设置 QuestionSet 和 Purchase 的关联');
     QuestionSet_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'quizId',
-        as: 'purchases'
+        as: 'questionSetPurchases'
     });
     Purchase_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'quizId',
@@ -79,10 +84,39 @@ const setupAssociations = () => {
         foreignKey: 'questionSetId',
         as: 'questionSet'
     });
-    // UserProgress 关联
-    console.log('初始化 UserProgress 关联');
-    (0, UserProgress_2.initUserProgressAssociations)();
+    // User与UserProgress的关联
+    console.log('设置 User 和 UserProgress 的关联');
+    User_1.default.hasMany(UserProgress_1.default, {
+        foreignKey: 'userId',
+        as: 'userProgresses'
+    });
+    UserProgress_1.default.belongsTo(User_1.default, {
+        foreignKey: 'userId',
+        as: 'user'
+    });
+    // QuestionSet与UserProgress的关联
+    console.log('设置 QuestionSet 和 UserProgress 的关联');
+    QuestionSet_1.default.hasMany(UserProgress_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'userProgresses'
+    });
+    UserProgress_1.default.belongsTo(QuestionSet_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'questionSet'
+    });
+    // Question与UserProgress的关联
+    console.log('设置 Question 和 UserProgress 的关联');
+    Question_1.default.hasMany(UserProgress_1.default, {
+        foreignKey: 'questionId',
+        as: 'userProgresses'
+    });
+    UserProgress_1.default.belongsTo(Question_1.default, {
+        foreignKey: 'questionId',
+        as: 'question'
+    });
     console.log('模型关联设置完成');
+    // 标记关联已初始化
+    appstate_1.appState.associationsInitialized = true;
 };
 exports.setupAssociations = setupAssociations;
 // Sync models with database

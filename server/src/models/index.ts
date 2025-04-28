@@ -1,4 +1,5 @@
 import sequelize from '../config/database';
+import { appState } from '../utils/appstate';
 
 // 导入模型
 import User from './User';
@@ -9,10 +10,15 @@ import RedeemCode from './RedeemCode';
 import Option from './Option';
 import HomepageSettings from './HomepageSettings';
 import UserProgress from './UserProgress';
-import { initUserProgressAssociations } from './UserProgress';
 
 // 设置模型关联
 export const setupAssociations = () => {
+  // 如果关联已初始化，则跳过
+  if (appState.associationsInitialized) {
+    console.log('模型关联已经初始化，跳过重复初始化');
+    return;
+  }
+
   console.log('设置模型关联开始...');
   
   // User与Purchase的关联
@@ -54,7 +60,7 @@ export const setupAssociations = () => {
   console.log('设置 QuestionSet 和 Purchase 的关联');
   QuestionSet.hasMany(Purchase, {
     foreignKey: 'quizId',
-    as: 'purchases'
+    as: 'questionSetPurchases'
   });
   Purchase.belongsTo(QuestionSet, {
     foreignKey: 'quizId',
@@ -72,11 +78,43 @@ export const setupAssociations = () => {
     as: 'questionSet'
   });
 
-  // UserProgress 关联
-  console.log('初始化 UserProgress 关联');
-  initUserProgressAssociations();
+  // User与UserProgress的关联
+  console.log('设置 User 和 UserProgress 的关联');
+  User.hasMany(UserProgress, {
+    foreignKey: 'userId',
+    as: 'userProgresses'
+  });
+  UserProgress.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'user'
+  });
+
+  // QuestionSet与UserProgress的关联
+  console.log('设置 QuestionSet 和 UserProgress 的关联');
+  QuestionSet.hasMany(UserProgress, {
+    foreignKey: 'questionSetId',
+    as: 'userProgresses'
+  });
+  UserProgress.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
+  });
+
+  // Question与UserProgress的关联
+  console.log('设置 Question 和 UserProgress 的关联');
+  Question.hasMany(UserProgress, {
+    foreignKey: 'questionId',
+    as: 'userProgresses'
+  });
+  UserProgress.belongsTo(Question, {
+    foreignKey: 'questionId',
+    as: 'question'
+  });
 
   console.log('模型关联设置完成');
+  
+  // 标记关联已初始化
+  appState.associationsInitialized = true;
 };
 
 // Sync models with database
