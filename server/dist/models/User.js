@@ -170,5 +170,6 @@ User.beforeCreate((user) => {
         user.purchases = [];
     if (!user.redeemCodes)
         user.redeemCodes = [];
+    console.log('用户初始化默认值完成');
 });
 exports.default = User;

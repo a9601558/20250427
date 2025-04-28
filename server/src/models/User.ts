@@ -188,6 +188,7 @@ User.beforeCreate((user: User) => {
   if (!user.progress) user.progress = {};
   if (!user.purchases) user.purchases = [];
   if (!user.redeemCodes) user.redeemCodes = [];
+  console.log('用户初始化默认值完成');
 });
 
 export default User; 

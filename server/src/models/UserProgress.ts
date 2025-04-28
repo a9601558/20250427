@@ -100,9 +100,11 @@ UserProgress.init(
 
 // 声明关联
 export const initUserProgressAssociations = () => {
-  UserProgress.belongsTo(User, { foreignKey: 'userId' });
-  UserProgress.belongsTo(QuestionSet, { foreignKey: 'questionSetId' });
-  UserProgress.belongsTo(Question, { foreignKey: 'questionId' });
+  console.log('开始设置 UserProgress 关联...');
+  UserProgress.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+  UserProgress.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'questionSet' });
+  UserProgress.belongsTo(Question, { foreignKey: 'questionId', as: 'question' });
+  console.log('UserProgress 关联设置完成');
 };
 
 export default UserProgress; 

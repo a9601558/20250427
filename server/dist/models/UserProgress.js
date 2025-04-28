@@ -84,9 +84,11 @@ UserProgress.init({
 });
 // 声明关联
 const initUserProgressAssociations = () => {
-    UserProgress.belongsTo(User_1.default, { foreignKey: 'userId' });
-    UserProgress.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId' });
-    UserProgress.belongsTo(Question_1.default, { foreignKey: 'questionId' });
+    console.log('开始设置 UserProgress 关联...');
+    UserProgress.belongsTo(User_1.default, { foreignKey: 'userId', as: 'user' });
+    UserProgress.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'questionSet' });
+    UserProgress.belongsTo(Question_1.default, { foreignKey: 'questionId', as: 'question' });
+    console.log('UserProgress 关联设置完成');
 };
 exports.initUserProgressAssociations = initUserProgressAssociations;
 exports.default = UserProgress;

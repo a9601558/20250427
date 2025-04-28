@@ -73,145 +73,6 @@ interface QuestionSetUploadData {
   questions?: QuestionData[];
 }
 
-// 添加一个预处理函数来标准化前端传来的数据格式
-function normalizeQuestionData(questions: any[]) {
-  if (!Array.isArray(questions)) {
-    console.warn('questions is not an array:', questions);
-    return [];
-  }
-  
-  console.log('正在标准化问题数据，数量:', questions.length);
-  console.log('原始问题数据:', JSON.stringify(questions));
-  
-  return questions.map((q, index) => {
-    // Handle potential null question object
-    if (!q) {
-      console.warn(`Question at index ${index} is null or undefined`);
-      return null;
-    }
-    
-    // 记录原始问题数据以帮助调试
-    console.log(`处理原始问题 ${index}:`, JSON.stringify(q));
-    
-    // 处理请求中不同的数据格式
-    // 如果是 {id: 1, question: "text"} 格式但没有text字段
-    if (q.question !== undefined && q.text === undefined) {
-      console.log(`问题 ${index}: 使用 'question' 字段 "${q.question}" 设置为 'text'`);
-      q.text = q.question; // 确保text字段存在
-    }
-    
-    // 确保text字段不为null，如果是null或空字符串则提供默认值
-    let questionText = '';
-    if (q.text !== undefined && q.text !== null) {
-      questionText = String(q.text);
-    } else if (q.question !== undefined && q.question !== null) {
-      questionText = String(q.question);
-      // 同时设置q.text，防止后续处理丢失
-      q.text = questionText;
-    } else {
-      questionText = `问题 #${index + 1}`;  // 默认文本
-      // 同时设置q.text
-      q.text = questionText;
-    }
-    
-    console.log(`问题 ${index} 标准化后的text:`, questionText);
-    
-    // 确保其他字段不为null
-    const explanation = q.explanation !== undefined && q.explanation !== null 
-      ? String(q.explanation) 
-      : '暂无解析';
-      
-    const questionType = q.questionType || 'single';
-    const orderIndex = q.orderIndex !== undefined ? q.orderIndex : index;
-    
-    // 标准化问题数据
-    const normalizedQuestion = {
-      text: questionText.trim(),
-      explanation: explanation.trim(),
-      questionType,
-      orderIndex,
-      options: [] as Array<{text: string, isCorrect: boolean, optionIndex: string}>
-    };
-    
-    // 处理选项
-    if (Array.isArray(q.options)) {
-      console.log(`处理问题 ${index} 的选项数组:`, JSON.stringify(q.options));
-      normalizedQuestion.options = q.options
-        .filter((opt: any) => opt) // 移除null或undefined选项
-        .map((opt: any, j: number) => {
-          // 确保选项文本不为null
-          let optionText = '';
-          if (opt.text !== undefined && opt.text !== null) {
-            optionText = String(opt.text);
-          } else if (typeof opt === 'object') {
-            // 特殊处理可能的格式 {"id":"D", "text":"3333"} 或 {"D":"3333"}
-            if (opt.id && typeof opt.id === 'string') {
-              // 如果是 {"id":"D"} 格式，尝试找到文本
-              if (opt.text) {
-                optionText = String(opt.text);
-              } else {
-                // 检查是否有键与id相同
-                const idKey = opt.id;
-                if (opt[idKey]) {
-                  optionText = String(opt[idKey]);
-                  console.log(`从键 ${idKey} 获取选项文本: ${optionText}`);
-                }
-              }
-            } else {
-              // 检查是否是 {A: "text"} 格式
-              const keys = Object.keys(opt);
-              if (keys.length === 1 && keys[0].length === 1) {
-                optionText = String(opt[keys[0]]);
-                console.log(`从键值对 {${keys[0]}: "${optionText}"} 获取选项文本`);
-              }
-            }
-          }
-          
-          // 如果还是没有文本，使用默认值
-          if (!optionText) {
-            optionText = `选项 ${String.fromCharCode(65 + j)}`; // A, B, C...
-            console.log(`选项 ${j} 没有找到有效文本，使用默认值: ${optionText}`);
-          }
-          
-          // 选项ID处理
-          let optionIndex = '';
-          if (typeof opt.optionIndex === 'string') {
-            optionIndex = opt.optionIndex;
-          } else if (typeof opt.id === 'string') {
-            optionIndex = opt.id;
-          } else {
-            optionIndex = String.fromCharCode(65 + j); // A, B, C...
-          }
-          
-          // 判断是否为正确选项
-          let isCorrect = false;
-          if (opt.isCorrect === true) {
-            isCorrect = true;
-          } else if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
-            isCorrect = true;
-          } else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
-            isCorrect = true;
-          }
-          
-          return {
-            text: optionText.trim(),
-            isCorrect,
-            optionIndex
-          };
-        });
-    } else {
-      console.warn(`Question ${index+1} has no options array, creating default options`);
-      // 创建默认选项
-      normalizedQuestion.options = [
-        { text: '选项 A', isCorrect: true, optionIndex: 'A' },
-        { text: '选项 B', isCorrect: false, optionIndex: 'B' }
-      ];
-    }
-    
-    return normalizedQuestion;
-  }).filter(q => q !== null); // 移除null的问题
-}
-
 // 统一响应格式
 const sendResponse = <T>(res: Response, status: number, data: T, message?: string) => {
   res.status(status).json({
@@ -224,7 +85,7 @@ const sendResponse = <T>(res: Response, status: number, data: T, message?: strin
 // 统一错误响应
 const sendError = (res: Response, status: number, message: string, error?: any) => {
   res.status(status).json({
-      success: false,
+    success: false,
     message,
     error: process.env.NODE_ENV === 'development' ? error?.message : undefined
   });
@@ -271,22 +132,63 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
     // 确保关联已正确设置
     setupAssociations();
     
-    const questionSet = await QuestionSet.findOne({
-      where: { id: req.params.id },
-      include: [{
-        model: Question,
-        as: 'questions',
-        include: [{
-          model: Option,
-          as: 'options'
-        }]
-      }]
-    });
-
-    if (questionSet) {
-      sendResponse(res, 200, questionSet);
-    } else {
-      sendError(res, 404, '题库不存在');
+    console.log(`尝试获取题库，ID: ${req.params.id}`);
+    
+    try {
+      // 使用原始 SQL 查询获取题库
+      const [questionSetRows] = await sequelize.query(
+        `SELECT * FROM question_sets WHERE id = ?`,
+        {
+          replacements: [req.params.id],
+          type: QueryTypes.SELECT
+        }
+      ) as any[];
+      
+      if (!questionSetRows) {
+        console.log(`未找到题库，ID: ${req.params.id}`);
+        return sendError(res, 404, '题库不存在');
+      }
+      
+      // 获取题库关联的题目
+      const [questionRows] = await sequelize.query(
+        `SELECT q.* FROM questions q WHERE q.questionSetId = ?`,
+        {
+          replacements: [req.params.id],
+          type: QueryTypes.SELECT
+        }
+      );
+      
+      const questions: any[] = [];
+      
+      // 如果有题目，获取每个题目的选项
+      if (questionRows && Array.isArray(questionRows)) {
+        for (const question of questionRows) {
+          const [optionRows] = await sequelize.query(
+            `SELECT o.* FROM options o WHERE o.questionId = ?`,
+            {
+              replacements: [question.id],
+              type: QueryTypes.SELECT
+            }
+          );
+          
+          questions.push({
+            ...question,
+            options: optionRows || []
+          });
+        }
+      }
+      
+      // 构建完整的题库对象
+      const fullQuestionSet = {
+        ...questionSetRows,
+        questions
+      };
+      
+      console.log(`题库获取成功，ID: ${(fullQuestionSet as any).id}，包含 ${questions.length} 个问题`);
+      sendResponse(res, 200, fullQuestionSet);
+    } catch (sqlError) {
+      console.error('SQL查询错误:', sqlError);
+      sendError(res, 500, 'SQL查询错误', sqlError);
     }
   } catch (error) {
     console.error('Get question set error:', error);
@@ -306,10 +208,10 @@ export const createQuestionSet = async (req: Request, res: Response) => {
       return sendError(res, 400, '请提供标题、描述和分类');
     }
 
-      const questionSet = await QuestionSet.create({
-        title,
-        description,
-        category,
+    const questionSet = await QuestionSet.create({
+      title,
+      description,
+      category,
       icon: 'default',
       isPaid: false,
       isFeatured: isFeatured || false,
@@ -360,7 +262,7 @@ export const deleteQuestionSet = async (req: Request, res: Response) => {
     if (questionSet) {
       await questionSet.destroy();
       sendResponse(res, 200, null, '题库删除成功');
-            } else {
+    } else {
       sendError(res, 404, '题库不存在');
     }
   } catch (error) {
@@ -716,36 +618,64 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
     
     const decodedCategory = decodeURIComponent(category);
     
-    const questionSets = await QuestionSet.findAll({
-      where: { category: decodedCategory },
-      include: [{
-        model: Question,
-        as: 'questions',
-        include: [{
-          model: Option,
-          as: 'options'
-        }]
-      }],
-      order: [['createdAt', 'DESC']]
-    });
-
-    const formattedQuestionSets = questionSets.map(set => ({
-      id: set.id,
-      title: set.title,
-      description: set.description,
-      category: set.category,
-      icon: set.icon,
-      isPaid: set.isPaid,
-      price: set.price,
-      trialQuestions: set.trialQuestions,
-      isFeatured: set.isFeatured,
-      questionCount: set.questions?.length || 0,
-      questions: set.questions,
-      createdAt: set.createdAt,
-      updatedAt: set.updatedAt
-    }));
-
-    sendResponse(res, 200, formattedQuestionSets);
+    try {
+      // 使用原始 SQL 查询获取分类题库
+      const [questionSets] = await sequelize.query(
+        `SELECT * FROM question_sets WHERE category = ? ORDER BY createdAt DESC`,
+        {
+          replacements: [decodedCategory],
+          type: QueryTypes.SELECT
+        }
+      ) as any[];
+      
+      const formattedQuestionSets = [];
+      
+      if (Array.isArray(questionSets)) {
+        for (const set of questionSets) {
+          // 获取题目数量
+          const [questions] = await sequelize.query(
+            `SELECT * FROM questions WHERE questionSetId = ?`,
+            {
+              replacements: [set.id],
+              type: QueryTypes.SELECT
+            }
+          ) as any[];
+          
+          const questionsArray = Array.isArray(questions) ? questions : [questions].filter(Boolean);
+          
+          // 为每个题目获取选项
+          const questionsWithOptions = [];
+          
+          for (const question of questionsArray) {
+            if (question && question.id) {
+              const [options] = await sequelize.query(
+                `SELECT * FROM options WHERE questionId = ?`,
+                {
+                  replacements: [question.id],
+                  type: QueryTypes.SELECT
+                }
+              ) as any[];
+              
+              questionsWithOptions.push({
+                ...question,
+                options: Array.isArray(options) ? options : [options].filter(Boolean)
+              });
+            }
+          }
+          
+          formattedQuestionSets.push({
+            ...set,
+            questionCount: questionsArray.length,
+            questions: questionsWithOptions
+          });
+        }
+      }
+      
+      sendResponse(res, 200, formattedQuestionSets);
+    } catch (sqlError) {
+      console.error('SQL查询错误:', sqlError);
+      sendError(res, 500, '获取分类题库SQL查询错误', sqlError);
+    }
   } catch (error: any) {
     console.error('获取分类题库失败:', error);
     sendError(res, 500, '获取分类题库失败', error);

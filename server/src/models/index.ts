@@ -13,12 +13,13 @@ import { initUserProgressAssociations } from './UserProgress';
 
 // 设置模型关联
 export const setupAssociations = () => {
-  console.log('设置模型关联...');
+  console.log('设置模型关联开始...');
   
   // User与Purchase的关联
+  console.log('设置 User 和 Purchase 的关联');
   User.hasMany(Purchase, {
     foreignKey: 'userId',
-    as: 'userPurchases'
+    as: 'purchases'
   });
   Purchase.belongsTo(User, {
     foreignKey: 'userId',
@@ -26,6 +27,7 @@ export const setupAssociations = () => {
   });
 
   // QuestionSet与Question的关联
+  console.log('设置 QuestionSet 和 Question 的关联');
   QuestionSet.hasMany(Question, {
     foreignKey: 'questionSetId',
     as: 'questions',
@@ -37,6 +39,7 @@ export const setupAssociations = () => {
   });
 
   // Question与Option的关联
+  console.log('设置 Question 和 Option 的关联');
   Question.hasMany(Option, {
     foreignKey: 'questionId',
     as: 'options',
@@ -48,6 +51,7 @@ export const setupAssociations = () => {
   });
 
   // QuestionSet与Purchase的关联
+  console.log('设置 QuestionSet 和 Purchase 的关联');
   QuestionSet.hasMany(Purchase, {
     foreignKey: 'quizId',
     as: 'purchases'
@@ -58,6 +62,7 @@ export const setupAssociations = () => {
   });
 
   // QuestionSet与RedeemCode的关联
+  console.log('设置 QuestionSet 和 RedeemCode 的关联');
   QuestionSet.hasMany(RedeemCode, {
     foreignKey: 'questionSetId',
     as: 'redeemCodes'
@@ -68,6 +73,7 @@ export const setupAssociations = () => {
   });
 
   // UserProgress 关联
+  console.log('初始化 UserProgress 关联');
   initUserProgressAssociations();
 
   console.log('模型关联设置完成');
