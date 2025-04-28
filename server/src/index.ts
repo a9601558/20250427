@@ -10,6 +10,7 @@ import sequelize from './config/database';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { initializeSocket } from './config/socket';
+import { setupAssociations } from './models';
 
 // Load environment variables
 dotenv.config();
@@ -83,7 +84,8 @@ const io = new SocketIOServer(server, {
 // Initialize socket
 initializeSocket(io);
 
-// Sync database and start server
+// Setup associations and sync database
+setupAssociations();
 sequelize.sync().then(() => {
   server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

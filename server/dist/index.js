@@ -13,6 +13,7 @@ const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const socket_1 = require("./config/socket");
+const models_1 = require("./models");
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
@@ -74,7 +75,8 @@ const io = new socket_io_1.Server(server, {
 });
 // Initialize socket
 (0, socket_1.initializeSocket)(io);
-// Sync database and start server
+// Setup associations and sync database
+(0, models_1.setupAssociations)();
 database_1.default.sync().then(() => {
     server.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
