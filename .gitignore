@@ -20,6 +20,3 @@ node_modules
 # *.njsproj
 # *.sln
 # *.sw?
-
-# 取消对 dist 目录的忽略
-!dist/
