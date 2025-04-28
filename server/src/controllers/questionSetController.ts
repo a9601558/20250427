@@ -5,8 +5,8 @@ import sequelize from '../config/database';
 import Question from '../models/Question';
 import { RowDataPacket, ResultSetHeader, OkPacket } from 'mysql2';
 import Option from '../models/Option';
-import { Op } from 'sequelize';
-import { v4 as uuidv4 } from 'uuid';
+import { Op, QueryTypes } from 'sequelize';
+import { v1 as uuidv1 } from 'uuid';
 
 // 定义数据库查询结果的接口
 interface QuestionSetRow extends RowDataPacket {
@@ -756,19 +756,13 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       return sendError(res, 404, '题库不存在');
     }
     
-    // 日志输入数据
-    console.log('添加题目到题库:', {
-      题库ID: id,
-      题目: questionData.text,
-      选项数量: questionData.options.length
-    });
+    // 生成一个基于时间的UUID (v1)
+    const questionId = uuidv1();
+    console.log('生成基于时间的UUID:', questionId);
     
-    // 显式生成UUID，而不是依赖于模型默认值
-    const questionId = uuidv4();
-    
-    // 1. 首先创建题目，显式指定ID
+    // 创建题目对象
     const questionObj = {
-      id: questionId, // 显式设置ID
+      id: questionId,
       questionSetId: id,
       text: questionData.text,
       explanation: questionData.explanation || '',
@@ -776,62 +770,131 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       orderIndex: questionData.orderIndex || 0
     };
     
-    console.log('创建题目对象:', questionObj);
+    console.log('准备创建题目:', JSON.stringify(questionObj, null, 2));
     
     // 创建题目
     let question;
     try {
-      question = await Question.create(questionObj);
-      console.log('题目创建成功，ID:', question.id);
-    } catch (error: unknown) {
-      console.error('题目创建失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      throw new Error(`题目创建失败: ${errorMessage}`);
-    }
-    
-    if (!question || !question.id) {
-      throw new Error('题目创建成功但无法获取ID');
-    }
-    
-    // 2. 创建选项
-    const createdOptions = [];
-    for (let i = 0; i < questionData.options.length; i++) {
-      const option = questionData.options[i];
-      const optionIndex = option.optionIndex || String.fromCharCode(65 + i); // A, B, C...
+      // 直接使用原始SQL插入确保ID被正确设置
+      const result = await sequelize.query(
+        `INSERT INTO questions (id, questionSetId, text, explanation, questionType, orderIndex, createdAt, updatedAt) 
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        {
+          replacements: [
+            questionId,
+            id,
+            questionData.text,
+            questionData.explanation || '',
+            questionData.questionType || 'single',
+            questionData.orderIndex || 0
+          ],
+          type: QueryTypes.INSERT
+        }
+      );
       
-      try {
-        const createdOption = await Option.create({
-          questionId: questionId, // 使用显式生成的UUID
+      console.log('SQL插入结果:', result);
+      
+      // 再次查询确认题目已创建
+      question = await Question.findByPk(questionId);
+      
+      if (!question) {
+        throw new Error(`题目插入成功但无法检索，ID: ${questionId}`);
+      }
+      
+      console.log('题目创建成功，ID:', question.id);
+    } catch (error: any) {
+      console.error('题目创建SQL错误:', error);
+      return sendError(res, 500, `创建题目SQL错误: ${error.message}`, error);
+    }
+    
+    // 创建选项
+    const createdOptions = [];
+    try {
+      for (let i = 0; i < questionData.options.length; i++) {
+        const option = questionData.options[i];
+        const optionIndex = option.optionIndex || String.fromCharCode(65 + i); // A, B, C...
+        
+        // 生成选项ID
+        const optionId = uuidv1();
+        
+        // 使用原始SQL插入选项
+        await sequelize.query(
+          `INSERT INTO options (id, questionId, text, isCorrect, optionIndex, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+          {
+            replacements: [
+              optionId,
+              questionId,
+              option.text || '',
+              option.isCorrect ? 1 : 0,
+              optionIndex
+            ],
+            type: QueryTypes.INSERT
+          }
+        );
+        
+        console.log(`选项 ${optionIndex} 创建成功, ID: ${optionId}`);
+        createdOptions.push({
+          id: optionId,
+          questionId,
           text: option.text || '',
           isCorrect: !!option.isCorrect,
-          optionIndex: optionIndex
+          optionIndex
         });
-        
-        console.log(`选项 ${optionIndex} 创建成功, ID: ${createdOption.id}`);
-        createdOptions.push(createdOption);
-      } catch (error: any) {
-        console.error(`选项 ${optionIndex} 创建失败:`, error);
-        // 继续创建其他选项，不立即失败
       }
+    } catch (error: any) {
+      console.error('创建选项错误:', error);
+      // 如果创建选项失败，删除已创建的题目
+      if (question) {
+        await sequelize.query(
+          `DELETE FROM questions WHERE id = ?`,
+          {
+            replacements: [questionId],
+            type: QueryTypes.DELETE
+          }
+        );
+      }
+      return sendError(res, 500, `创建选项失败: ${error.message}`, error);
     }
     
-    // 如果没有成功创建任何选项，返回错误
     if (createdOptions.length === 0) {
-      await question.destroy(); // 删除题目，保持数据一致性
-      throw new Error('所有选项创建失败');
+      // 如果没有创建任何选项，删除题目
+      await sequelize.query(
+        `DELETE FROM questions WHERE id = ?`,
+        {
+          replacements: [questionId],
+          type: QueryTypes.DELETE
+        }
+      );
+      return sendError(res, 500, '未能创建任何选项');
     }
     
-    // 3. 获取完整题目（带选项）
-    const completeQuestion = await Question.findByPk(questionId, {
-      include: [{
-        model: Option,
-        as: 'options'
-      }]
-    });
-    
-    sendResponse(res, 201, completeQuestion, '题目添加成功');
+    // 获取完整的题目和选项
+    try {
+      const completeQuestion = await Question.findByPk(questionId, {
+        include: [{
+          model: Option,
+          as: 'options'
+        }]
+      });
+      
+      if (!completeQuestion) {
+        throw new Error(`无法检索完整题目，ID: ${questionId}`);
+      }
+      
+      // 不尝试直接访问options属性，直接使用简单日志
+      console.log('成功检索完整题目:', {
+        id: completeQuestion.id,
+        text: completeQuestion.text
+      });
+      
+      return sendResponse(res, 201, completeQuestion, '题目添加成功');
+    } catch (error: any) {
+      console.error('检索完整题目错误:', error);
+      return sendError(res, 500, `检索完整题目失败: ${error.message}`, error);
+    }
   } catch (error: any) {
-    console.error('添加题目错误:', error);
-    sendError(res, 500, `添加题目失败: ${error.message}`, error);
+    console.error('添加题目整体错误:', error);
+    return sendError(res, 500, `添加题目失败: ${error.message}`, error);
   }
 }; 
