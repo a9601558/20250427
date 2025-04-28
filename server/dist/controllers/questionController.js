@@ -28,10 +28,23 @@ const getQuestions = async (req, res) => {
             offset,
             order: [['orderIndex', 'ASC']]
         });
-        (0, responseUtils_1.sendResponse)(res, 200, '获取问题列表成功', questions);
+        console.log(`Found ${questions.length} questions with options: ${include === 'options' ? 'yes' : 'no'}`);
+        if (questions.length > 0 && include === 'options') {
+            console.log(`First question options count: ${questions[0].options?.length || 0}`);
+        }
+        // Return response in the format expected by the frontend
+        res.status(200).json({
+            success: true,
+            data: questions
+        });
     }
     catch (error) {
-        (0, responseUtils_1.sendError)(res, 500, '获取问题列表失败', error);
+        console.error('获取问题列表失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '获取问题列表失败',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
 exports.getQuestions = getQuestions;

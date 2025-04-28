@@ -8,15 +8,18 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-*.local
+# *.local
 
 # Editor directories and files
 # .vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# !.vscode/extensions.json
+# .idea
+# .DS_Store
+# *.suo
+# *.ntvs*
+# *.njsproj
+# *.sln
+# *.sw?
+
+# 取消对 dist 目录的忽略
+!dist/
