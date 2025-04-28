@@ -195,14 +195,14 @@ exports.getAllQuestionSets = getAllQuestionSets;
 // @access  Public
 const getQuestionSetById = async (req, res) => {
     try {
-        const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
+        const questionSet = await QuestionSet_1.default.findOne({
+            where: { id: req.params.id },
             include: [{
                     model: Question_1.default,
                     as: 'questions',
                     include: [{
                             model: Option_1.default,
-                            as: 'options',
-                            required: false
+                            as: 'options'
                         }]
                 }]
         });
