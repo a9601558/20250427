@@ -1,51 +1,51 @@
 import { Server } from 'socket.io';
-import { Server as HttpServer } from 'http';
-import { User } from '../models/User';
+import http from 'http';
 
 // 存储用户ID和Socket ID的映射
 const userSocketMap = new Map<string, string>();
 
-export const initializeSocket = (httpServer: HttpServer) => {
+export const initializeSocket = (httpServer: http.Server) => {
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
-      methods: ['GET', 'POST']
-    }
+      origin: '*',
+      methods: ['GET', 'POST'],
+      credentials: true,
+      allowedHeaders: ['Authorization', 'Content-Type']
+    },
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+    connectTimeout: 15000,
+    pingTimeout: 20000,
+    pingInterval: 25000
   });
 
-  // 连接处理
-  io.on('connection', (socket) => {
-    console.log('用户已连接:', socket.id);
+  // 添加中间件记录连接
+  io.use((socket, next) => {
+    console.log('Socket.IO 中间件处理连接:', socket.id);
+    next();
+  });
 
-    // 用户认证和房间加入
-    socket.on('authenticate', async (userId: string) => {
-      try {
-        const user = await User.findByPk(userId);
-        if (user) {
-          // 将用户ID和Socket ID关联
-          userSocketMap.set(userId, socket.id);
-          // 加入用户特定的房间
-          socket.join(`user_${userId}`);
-          // 加入主页房间
-          socket.join('homepage');
-          
-          console.log(`用户 ${userId} 已认证并加入房间`);
-        }
-      } catch (error) {
-        console.error('Socket认证错误:', error);
-      }
+  // 处理连接
+  io.on('connection', (socket) => {
+    const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    console.log(`Socket.IO 新连接: ID=${socket.id}, IP=${clientIP}, 传输方式=${socket.conn.transport.name}`);
+
+    // 用户认证
+    socket.on('authenticate', (userId: string) => {
+      console.log(`Socket.IO 用户认证: ID=${socket.id}, UserID=${userId}`);
+      socket.join(`user:${userId}`);
+      socket.emit('authenticated', { userId, success: true });
     });
 
-    // 断开连接处理
-    socket.on('disconnect', () => {
-      // 清理用户映射
-      for (const [userId, socketId] of userSocketMap.entries()) {
-        if (socketId === socket.id) {
-          userSocketMap.delete(userId);
-          break;
-        }
-      }
-      console.log('用户已断开连接:', socket.id);
+    // 测试消息
+    socket.on('message', (data) => {
+      console.log(`Socket.IO 收到消息: ID=${socket.id}, 数据=`, data);
+      socket.emit('message', `服务器收到消息: ${data} (${new Date().toISOString()})`);
+    });
+
+    // 断开连接
+    socket.on('disconnect', (reason) => {
+      console.log(`Socket.IO 断开连接: ID=${socket.id}, 原因=${reason}`);
     });
   });
 

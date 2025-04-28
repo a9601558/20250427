@@ -258,8 +258,11 @@ const startServer = async () => {
     await ensureDatabaseSync();
     
     // 使用httpServer替代app来启动服务器
-    httpServer.listen(PORT, () => {
-      console.log(`服务器运行在 http://localhost:${PORT}`);
+    httpServer.listen({
+      port: Number(PORT),
+      host: '0.0.0.0'
+    }, () => {
+      console.log(`服务器运行在 http://0.0.0.0:${PORT}`);
       console.log(`Socket.IO 服务已启动`);
     });
   } catch (error) {
