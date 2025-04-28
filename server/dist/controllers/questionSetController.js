@@ -8,6 +8,7 @@ const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
+const uuid_1 = require("uuid");
 // 添加一个预处理函数来标准化前端传来的数据格式
 function normalizeQuestionData(questions) {
     if (!Array.isArray(questions)) {
@@ -651,9 +652,11 @@ const addQuestionToQuestionSet = async (req, res) => {
             题目: questionData.text,
             选项数量: questionData.options.length
         });
-        // 不使用事务，按顺序执行操作
-        // 1. 首先创建题目
+        // 显式生成UUID，而不是依赖于模型默认值
+        const questionId = (0, uuid_1.v4)();
+        // 1. 首先创建题目，显式指定ID
         const questionObj = {
+            id: questionId, // 显式设置ID
             questionSetId: id,
             text: questionData.text,
             explanation: questionData.explanation || '',
@@ -682,7 +685,7 @@ const addQuestionToQuestionSet = async (req, res) => {
             const optionIndex = option.optionIndex || String.fromCharCode(65 + i); // A, B, C...
             try {
                 const createdOption = await Option_1.default.create({
-                    questionId: question.id,
+                    questionId: questionId, // 使用显式生成的UUID
                     text: option.text || '',
                     isCorrect: !!option.isCorrect,
                     optionIndex: optionIndex
@@ -701,7 +704,7 @@ const addQuestionToQuestionSet = async (req, res) => {
             throw new Error('所有选项创建失败');
         }
         // 3. 获取完整题目（带选项）
-        const completeQuestion = await Question_1.default.findByPk(question.id, {
+        const completeQuestion = await Question_1.default.findByPk(questionId, {
             include: [{
                     model: Option_1.default,
                     as: 'options'

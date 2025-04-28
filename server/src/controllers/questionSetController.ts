@@ -6,6 +6,7 @@ import Question from '../models/Question';
 import { RowDataPacket, ResultSetHeader, OkPacket } from 'mysql2';
 import Option from '../models/Option';
 import { Op } from 'sequelize';
+import { v4 as uuidv4 } from 'uuid';
 
 // 定义数据库查询结果的接口
 interface QuestionSetRow extends RowDataPacket {
@@ -762,9 +763,12 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       选项数量: questionData.options.length
     });
     
-    // 不使用事务，按顺序执行操作
-    // 1. 首先创建题目
+    // 显式生成UUID，而不是依赖于模型默认值
+    const questionId = uuidv4();
+    
+    // 1. 首先创建题目，显式指定ID
     const questionObj = {
+      id: questionId, // 显式设置ID
       questionSetId: id,
       text: questionData.text,
       explanation: questionData.explanation || '',
@@ -797,7 +801,7 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       
       try {
         const createdOption = await Option.create({
-          questionId: question.id,
+          questionId: questionId, // 使用显式生成的UUID
           text: option.text || '',
           isCorrect: !!option.isCorrect,
           optionIndex: optionIndex
@@ -818,7 +822,7 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
     }
     
     // 3. 获取完整题目（带选项）
-    const completeQuestion = await Question.findByPk(question.id, {
+    const completeQuestion = await Question.findByPk(questionId, {
       include: [{
         model: Option,
         as: 'options'
