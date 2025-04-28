@@ -270,11 +270,11 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
     const questionSet = await QuestionSet.findByPk(req.params.id, {
       include: [{
         model: Question,
-        as: 'questions',
+        as: 'questionSetQuestions',
         include: [{
           model: Option,
           as: 'options',
-          required: false // 确保即使没有选项也会返回题目
+          required: false
         }]
       }]
     });

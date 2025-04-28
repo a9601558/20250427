@@ -198,11 +198,11 @@ const getQuestionSetById = async (req, res) => {
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
             include: [{
                     model: Question_1.default,
-                    as: 'questions',
+                    as: 'questionSetQuestions',
                     include: [{
                             model: Option_1.default,
                             as: 'options',
-                            required: false // 确保即使没有选项也会返回题目
+                            required: false
                         }]
                 }]
         });
