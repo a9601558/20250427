@@ -90,13 +90,35 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
 export const updateProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
     const userId = req.user.id;
+    // 打印请求信息，便于调试
+    console.log('Update Progress Request:', {
+      params: req.params,
+      body: req.body,
+      userId: userId
+    });
+
     // 优先使用 URL 参数中的 questionSetId，如果没有则使用请求体中的
     const questionSetId = req.params.questionSetId || req.body.questionSetId;
     const { questionId, isCorrect, timeSpent } = req.body;
 
-    if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
-      return sendError(res, 400, '缺少必要参数');
+    // 详细的参数验证
+    const missingParams = [];
+    if (!questionSetId) missingParams.push('questionSetId');
+    if (!questionId) missingParams.push('questionId');
+    if (typeof isCorrect !== 'boolean') missingParams.push('isCorrect');
+
+    if (missingParams.length > 0) {
+      return sendError(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
     }
+
+    // 记录即将插入的数据
+    console.log('Upserting progress with data:', {
+      userId,
+      questionSetId,
+      questionId,
+      isCorrect,
+      timeSpent: timeSpent || 0
+    });
 
     const [updatedProgress] = await UserProgress.upsert({
       userId,
@@ -146,9 +168,30 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     const { questionSetId, questionId, isCorrect, timeSpent } = req.body;
     const userId = req.user.id;
 
-    if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
-      return sendError(res, 400, '缺少必要参数');
+    // 打印请求信息，便于调试
+    console.log('Create Detailed Progress Request:', {
+      body: req.body,
+      userId: userId
+    });
+
+    // 详细的参数验证
+    const missingParams = [];
+    if (!questionSetId) missingParams.push('questionSetId');
+    if (!questionId) missingParams.push('questionId');
+    if (typeof isCorrect !== 'boolean') missingParams.push('isCorrect');
+
+    if (missingParams.length > 0) {
+      return sendError(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
     }
+
+    // 记录即将插入的数据
+    console.log('Creating progress with data:', {
+      userId,
+      questionSetId,
+      questionId,
+      isCorrect,
+      timeSpent: timeSpent || 0
+    });
 
     const progress = await UserProgress.create({
       userId,
