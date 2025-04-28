@@ -14,13 +14,16 @@ const generateToken = (id: string | number) => {
 // @access  Public
 export const registerUser = async (req: Request, res: Response) => {
   try {
-    const { username, email, password } = req.body;
+    const { email, password } = req.body;
+    
+    // 使用邮箱的@前面部分作为用户名
+    const username = email.split('@')[0];
     
     // 验证必要字段
-    if (!username || !email || !password) {
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: '请提供用户名、邮箱和密码'
+        message: '请提供邮箱和密码'
       });
     }
 
@@ -34,29 +37,30 @@ export const registerUser = async (req: Request, res: Response) => {
 
     console.log(`开始注册新用户: ${username}, ${email}`);
 
-    // 检查用户名是否已存在
-    const userExistsByUsername = await User.findOne({
-      where: { username },
-    });
-
     // 检查邮箱是否已存在
     const userExistsByEmail = await User.findOne({
       where: { email },
     });
 
-    if (userExistsByUsername) {
-      return res.status(400).json({ success: false, message: '用户名已被使用' });
-    }
-
     if (userExistsByEmail) {
       return res.status(400).json({ success: false, message: '邮箱已被注册' });
+    }
+
+    // 检查用户名是否已存在，如果存在则添加随机数
+    let finalUsername = username;
+    let userExistsByUsername = await User.findOne({
+      where: { username: finalUsername },
+    });
+    
+    if (userExistsByUsername) {
+      finalUsername = `${username}${Math.floor(Math.random() * 1000)}`;
     }
 
     console.log(`开始创建用户记录, 原始密码长度: ${password.length}`);
 
     // 创建新用户
     const user = await User.create({
-      username,
+      username: finalUsername,
       email,
       password,
       isAdmin: false,
