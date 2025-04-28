@@ -121,81 +121,51 @@ const ManageQuestionSets: React.FC = () => {
     setError(null);
     
     try {
-      // 获取当前最新的题库数据
-      const response = await axios.get(`/api/question-sets/${currentQuestionSet.id}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      let latestQuestionSet = currentQuestionSet;
-      
-      // 处理不同的响应格式
-      if (response.data) {
-        if (response.data.success && response.data.data) {
-          latestQuestionSet = response.data.data;
-        } else if (response.data.id) {
-          latestQuestionSet = response.data;
-        } else if (response.data.questionSet) {
-          latestQuestionSet = response.data.questionSet;
-        }
-      }
-      
       // 创建新题目对象
       const newQuestion = {
-        id: `${Date.now()}`, // 生成唯一ID
         text: question.text,
         explanation: question.explanation || '',
         questionType: question.questionType || 'single',
-        orderIndex: latestQuestionSet.questions ? latestQuestionSet.questions.length : 0,
+        orderIndex: currentQuestionSet.questions ? currentQuestionSet.questions.length : 0,
         options: question.options.map((opt, index) => ({
-          id: opt.id || `opt_${index}`,
           text: opt.text,
           isCorrect: opt.isCorrect,
           optionIndex: opt.optionIndex || String.fromCharCode(65 + index) // A, B, C...
         }))
       };
       
-      // 确保题库的questions是数组
-      const questions = Array.isArray(latestQuestionSet.questions) 
-        ? [...latestQuestionSet.questions, newQuestion] 
-        : [newQuestion];
-      
-      // 创建更新后的题库对象
-      const updatedQuestionSet = {
-        ...latestQuestionSet,
-        questions
-      };
-      
-      // 发送更新请求
-      const updateResponse = await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
+      // 使用新的API端点直接添加题目
+      const response = await axios.post(`/api/question-sets/${currentQuestionSet.id}/questions`, newQuestion, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       
-      let updatedData = updatedQuestionSet;
-      
-      // 处理不同的响应格式
-      if (updateResponse.data) {
-        if (updateResponse.data.success && updateResponse.data.data) {
-          updatedData = updateResponse.data.data;
-        } else if (updateResponse.data.id) {
-          updatedData = updateResponse.data;
-        }
-      }
+      // 获取添加的题目
+      const addedQuestion = response.data.data;
       
       // 更新本地状态
-      setQuestionSets(prev => 
-        prev.map(set => 
-          set.id === currentQuestionSet.id ? updatedData : set
-        )
-      );
-      
-      // 更新当前题库
-      setCurrentQuestionSet(updatedData);
+      if (addedQuestion) {
+        // 1. 更新当前题库的questions数组
+        const updatedQuestions = Array.isArray(currentQuestionSet.questions) 
+          ? [...currentQuestionSet.questions, addedQuestion] 
+          : [addedQuestion];
+          
+        const updatedCurrentSet = {
+          ...currentQuestionSet,
+          questions: updatedQuestions
+        };
+        
+        setCurrentQuestionSet(updatedCurrentSet);
+        
+        // 2. 更新题库列表中的对应题库
+        setQuestionSets(prev => 
+          prev.map(set => 
+            set.id === currentQuestionSet.id ? updatedCurrentSet : set
+          )
+        );
+      }
       
       // 重置添加题目状态
       setIsAddingQuestion(false);

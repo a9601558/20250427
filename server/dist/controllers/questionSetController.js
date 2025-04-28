@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
+exports.addQuestionToQuestionSet = exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
@@ -616,3 +616,55 @@ const getQuestionSetsByCategory = async (req, res) => {
     }
 };
 exports.getQuestionSetsByCategory = getQuestionSetsByCategory;
+// @desc    Add a question to a question set
+// @route   POST /api/v1/question-sets/:id/questions
+// @access  Private/Admin
+const addQuestionToQuestionSet = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const questionData = req.body;
+        // 验证必要的字段
+        if (!questionData.text) {
+            return sendError(res, 400, '题目文本是必填项');
+        }
+        if (!Array.isArray(questionData.options) || questionData.options.length === 0) {
+            return sendError(res, 400, '题目至少需要包含一个选项');
+        }
+        // 查找题库
+        const questionSet = await QuestionSet_1.default.findByPk(id);
+        if (!questionSet) {
+            return sendError(res, 404, '题库不存在');
+        }
+        // 创建新题目
+        const question = await Question_1.default.create({
+            text: questionData.text,
+            explanation: questionData.explanation || '',
+            questionSetId: id,
+            questionType: questionData.questionType || 'single',
+            orderIndex: questionData.orderIndex || 0
+        });
+        // 创建选项
+        const optionPromises = questionData.options.map((option, index) => {
+            return Option_1.default.create({
+                questionId: question.id,
+                text: option.text || '',
+                isCorrect: option.isCorrect || false,
+                optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+            });
+        });
+        await Promise.all(optionPromises);
+        // 获取完整的题目信息，包括选项
+        const createdQuestion = await Question_1.default.findByPk(question.id, {
+            include: [{
+                    model: Option_1.default,
+                    as: 'options'
+                }]
+        });
+        sendResponse(res, 201, createdQuestion, '题目添加成功');
+    }
+    catch (error) {
+        console.error('Add question error:', error);
+        sendError(res, 500, '添加题目失败', error);
+    }
+};
+exports.addQuestionToQuestionSet = addQuestionToQuestionSet;

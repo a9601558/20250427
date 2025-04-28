@@ -719,4 +719,64 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
     console.error('获取分类题库失败:', error);
     sendError(res, 500, '获取分类题库失败', error);
   }
+};
+
+// @desc    Add a question to a question set
+// @route   POST /api/v1/question-sets/:id/questions
+// @access  Private/Admin
+export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const questionData = req.body;
+    
+    // 验证必要的字段
+    if (!questionData.text) {
+      return sendError(res, 400, '题目文本是必填项');
+    }
+    
+    if (!Array.isArray(questionData.options) || questionData.options.length === 0) {
+      return sendError(res, 400, '题目至少需要包含一个选项');
+    }
+    
+    // 查找题库
+    const questionSet = await QuestionSet.findByPk(id);
+    
+    if (!questionSet) {
+      return sendError(res, 404, '题库不存在');
+    }
+    
+    // 创建新题目
+    const question = await Question.create({
+      text: questionData.text,
+      explanation: questionData.explanation || '',
+      questionSetId: id,
+      questionType: questionData.questionType || 'single',
+      orderIndex: questionData.orderIndex || 0
+    });
+    
+    // 创建选项
+    const optionPromises = questionData.options.map((option: any, index: number) => {
+      return Option.create({
+        questionId: question.id,
+        text: option.text || '',
+        isCorrect: option.isCorrect || false,
+        optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+      });
+    });
+    
+    await Promise.all(optionPromises);
+    
+    // 获取完整的题目信息，包括选项
+    const createdQuestion = await Question.findByPk(question.id, {
+      include: [{
+        model: Option,
+        as: 'options'
+      }]
+    });
+    
+    sendResponse(res, 201, createdQuestion, '题目添加成功');
+  } catch (error) {
+    console.error('Add question error:', error);
+    sendError(res, 500, '添加题目失败', error);
+  }
 }; 

@@ -7,7 +7,8 @@ import {
   deleteQuestionSet,
   uploadQuestionSets,
   getQuestionSetCategories,
-  getQuestionSetsByCategory
+  getQuestionSetsByCategory,
+  addQuestionToQuestionSet
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -38,6 +39,9 @@ router.post('/upload/file', protect, admin, upload.single('file'), uploadQuestio
 // Admin routes with ID parameters
 router.put('/:id', protect, admin, updateQuestionSet);
 router.delete('/:id', protect, admin, deleteQuestionSet);
+
+// 题目相关路由
+router.post('/:id/questions', protect, admin, addQuestionToQuestionSet);
 
 // Featured status update route
 router.put('/:id/featured', protect, admin, updateQuestionSetFeaturedStatus);
