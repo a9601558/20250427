@@ -198,7 +198,7 @@ const getQuestionSetById = async (req, res) => {
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
             include: [{
                     model: Question_1.default,
-                    as: 'questionSetQuestions',
+                    as: 'questions',
                     include: [{
                             model: Option_1.default,
                             as: 'options',
@@ -610,6 +610,7 @@ const getQuestionSetsByCategory = async (req, res) => {
             where: { category: decodedCategory },
             include: [{
                     model: Question_1.default,
+                    as: 'questions',
                     attributes: ['id']
                 }],
             order: [['createdAt', 'DESC']]

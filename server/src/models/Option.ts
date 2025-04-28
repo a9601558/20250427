@@ -1,5 +1,6 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
+import Question from './Question';
 
 // 选项接口
 export interface OptionAttributes {

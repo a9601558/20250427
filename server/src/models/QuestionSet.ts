@@ -98,16 +98,4 @@ QuestionSet.init(
   }
 );
 
-// 设置关联
-QuestionSet.hasMany(Question, {
-  foreignKey: 'questionSetId',
-  as: 'questions',
-  onDelete: 'CASCADE'
-});
-
-Question.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'questionSet'
-});
-
 export default QuestionSet; 

@@ -333,7 +333,7 @@ export const questionService = {
   // 获取题库中的所有题目
   async getQuestionsByQuestionSetId(questionSetId: string): Promise<ApiResponse<Question[]>> {
     try {
-      const response = await api.get(`/questions?questionSetId=${questionSetId}`);
+      const response = await api.get(`/questions?questionSetId=${questionSetId}&include=options`);
       return handleResponse<Question[]>(response);
     } catch (error: any) {
       return {

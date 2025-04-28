@@ -270,7 +270,7 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
     const questionSet = await QuestionSet.findByPk(req.params.id, {
       include: [{
         model: Question,
-        as: 'questionSetQuestions',
+        as: 'questions',
         include: [{
           model: Option,
           as: 'options',
@@ -713,6 +713,7 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
       where: { category: decodedCategory },
       include: [{
         model: Question,
+        as: 'questions',
         attributes: ['id']
       }],
       order: [['createdAt', 'DESC']]
