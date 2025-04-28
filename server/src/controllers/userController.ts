@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import User from '../models/User';
-import { generateToken } from '../middleware/authMiddleware';
+import jwt from 'jsonwebtoken';
+
+// 生成JWT令牌函数
+const generateToken = (id: string | number) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET || 'default_secret', {
+    expiresIn: '30d',
+  });
+};
 
 // @desc    Register a new user
 // @route   POST /api/users
@@ -8,24 +15,34 @@ import { generateToken } from '../middleware/authMiddleware';
 export const registerUser = async (req: Request, res: Response) => {
   try {
     const { username, email, password } = req.body;
-
-    // 避免使用Op.or，分别检查用户名和邮箱
-    const userExistsByUsername = await User.findOne({ 
-      where: { username }
-    });
     
-    const userExistsByEmail = await User.findOne({ 
-      where: { email }
-    });
-
-    if (userExistsByUsername || userExistsByEmail) {
+    // 验证必要字段
+    if (!username || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists'
+        message: '请提供用户名、邮箱和密码'
       });
     }
 
-    // Create user
+    // 检查用户名是否已存在
+    const userExistsByUsername = await User.findOne({
+      where: { username },
+    });
+
+    // 检查邮箱是否已存在
+    const userExistsByEmail = await User.findOne({
+      where: { email },
+    });
+
+    if (userExistsByUsername) {
+      return res.status(400).json({ success: false, message: '用户名已被使用' });
+    }
+
+    if (userExistsByEmail) {
+      return res.status(400).json({ success: false, message: '邮箱已被注册' });
+    }
+
+    // 创建新用户
     const user = await User.create({
       username,
       email,
@@ -36,28 +53,26 @@ export const registerUser = async (req: Request, res: Response) => {
       redeemCodes: []
     });
 
+    // 返回成功响应和用户信息（不包含密码）
     if (user) {
       res.status(201).json({
         success: true,
-        data: {
+        message: '注册成功',
+        user: {
           id: user.id,
           username: user.username,
           email: user.email,
           isAdmin: user.isAdmin,
-          token: generateToken(user.id)
-        }
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid user data'
+          token: generateToken(user.id),
+        },
       });
     }
   } catch (error: any) {
     console.error('Register error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: '注册失败',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };

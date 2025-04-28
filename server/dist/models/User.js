@@ -74,7 +74,17 @@ User.init({
         type: sequelize_1.DataTypes.JSON,
         allowNull: false,
         defaultValue: []
-    }
+    },
+    createdAt: {
+        type: sequelize_1.DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize_1.DataTypes.NOW,
+    },
+    updatedAt: {
+        type: sequelize_1.DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize_1.DataTypes.NOW,
+    },
 }, {
     sequelize: db_1.sequelize,
     tableName: 'users',
@@ -85,7 +95,7 @@ User.init({
     hooks: {
         // Before saving, encrypt password
         beforeSave: async (user) => {
-            if (user.changed('password')) {
+            if (user.password && user.changed('password')) {
                 const salt = await bcryptjs_1.default.genSalt(10);
                 user.password = await bcryptjs_1.default.hash(user.password, salt);
             }
