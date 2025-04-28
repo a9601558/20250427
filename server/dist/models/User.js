@@ -78,37 +78,16 @@ User.init({
         defaultValue: false,
     },
     progress: {
-        type: sequelize_1.DataTypes.JSONB,
+        type: sequelize_1.DataTypes.JSON,
         defaultValue: {},
-        validate: {
-            isValidProgress(value) {
-                if (typeof value !== 'object' || value === null) {
-                    throw new Error('进度数据必须是一个对象');
-                }
-            }
-        }
     },
     purchases: {
-        type: sequelize_1.DataTypes.JSONB,
+        type: sequelize_1.DataTypes.JSON,
         defaultValue: [],
-        validate: {
-            isValidPurchases(value) {
-                if (!Array.isArray(value)) {
-                    throw new Error('购买记录必须是一个数组');
-                }
-            }
-        }
     },
     redeemCodes: {
-        type: sequelize_1.DataTypes.JSONB,
+        type: sequelize_1.DataTypes.JSON,
         defaultValue: [],
-        validate: {
-            isValidRedeemCodes(value) {
-                if (!Array.isArray(value)) {
-                    throw new Error('兑换码记录必须是一个数组');
-                }
-            }
-        }
     },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
