@@ -27,7 +27,7 @@ const homepageRoutes_1 = __importDefault(require("./routes/homepageRoutes"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 // 信任代理，解决X-Forwarded-For头问题
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 // Body parsing middleware
 // 确保最先配置body解析中间件，防止请求体解析问题
 app.use(express_1.default.json({
