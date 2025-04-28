@@ -1,11 +1,11 @@
 import { Sequelize } from 'sequelize';
 
 const sequelize = new Sequelize({
-  dialect: 'postgres',
+  dialect: 'mysql',
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  username: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'quiz_app',
   logging: false,
   pool: {
