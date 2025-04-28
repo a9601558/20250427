@@ -10,11 +10,9 @@ const Question_1 = __importDefault(require("./Question"));
 exports.Question = Question_1.default;
 const Option_1 = __importDefault(require("./Option"));
 exports.Option = Option_1.default;
-// 设置问题集和问题之间的关联
-QuestionSet_1.default.hasMany(Question_1.default, {
-    foreignKey: 'questionSetId',
-    as: 'questions'
-});
+// 注意：QuestionSet.hasMany(Question) 已经在 QuestionSet.ts 中定义
+// 我们只需添加还没有定义的关联
+// 设置问题和题库之间的关联（题库->问题已在QuestionSet.ts中定义）
 Question_1.default.belongsTo(QuestionSet_1.default, {
     foreignKey: 'questionSetId',
     as: 'questionSet'
