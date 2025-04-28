@@ -636,40 +636,64 @@ const addQuestionToQuestionSet = async (req, res) => {
         if (!questionSet) {
             return sendError(res, 404, '题库不存在');
         }
-        // 使用事务确保数据一致性
-        const result = await database_1.default.transaction(async (t) => {
-            // 创建新题目
-            const question = await Question_1.default.create({
-                text: questionData.text,
-                explanation: questionData.explanation || '',
-                questionSetId: id,
-                questionType: questionData.questionType || 'single',
-                orderIndex: questionData.orderIndex || 0
-            }, { transaction: t });
-            console.log('Created question with ID:', question.id);
-            // 创建选项
-            for (const [index, option] of questionData.options.entries()) {
-                await Option_1.default.create({
-                    questionId: question.id,
-                    text: option.text || '',
-                    isCorrect: option.isCorrect || false,
-                    optionIndex: option.optionIndex || String.fromCharCode(65 + index) // A, B, C...
+        // 记录输入数据，帮助调试
+        console.log('添加题目，题库ID:', id);
+        console.log('题目数据:', JSON.stringify(questionData, null, 2));
+        let createdQuestion = null;
+        let questionId = '';
+        try {
+            // 使用事务确保数据一致性
+            await database_1.default.transaction(async (t) => {
+                // 创建新题目
+                createdQuestion = await Question_1.default.create({
+                    questionSetId: id,
+                    text: questionData.text || '题目文本',
+                    explanation: questionData.explanation || '',
+                    questionType: questionData.questionType || 'single',
+                    orderIndex: questionData.orderIndex || 0
                 }, { transaction: t });
-            }
-            // 获取完整的题目信息，包括选项
-            return await Question_1.default.findByPk(question.id, {
-                include: [{
-                        model: Option_1.default,
-                        as: 'options'
-                    }],
-                transaction: t
+                // 保存题目ID以便后续使用
+                questionId = createdQuestion.id;
+                console.log('成功创建题目，ID:', questionId);
+                // 确保题目ID已创建并可用
+                if (!questionId) {
+                    throw new Error('创建题目失败，无法获取题目ID');
+                }
+                // 创建选项
+                for (let i = 0; i < questionData.options.length; i++) {
+                    const option = questionData.options[i];
+                    const optionIndex = option.optionIndex || String.fromCharCode(65 + i); // A, B, C...
+                    console.log(`创建选项 ${optionIndex}，题目ID: ${questionId}`);
+                    await Option_1.default.create({
+                        questionId: questionId,
+                        text: option.text || '',
+                        isCorrect: !!option.isCorrect,
+                        optionIndex: optionIndex
+                    }, { transaction: t });
+                }
             });
-        });
-        sendResponse(res, 201, result, '题目添加成功');
+            // 事务成功完成后，获取创建的题目（包含选项）
+            if (questionId) {
+                const result = await Question_1.default.findByPk(questionId, {
+                    include: [{
+                            model: Option_1.default,
+                            as: 'options'
+                        }]
+                });
+                sendResponse(res, 201, result, '题目添加成功');
+            }
+            else {
+                throw new Error('无法获取创建的题目数据');
+            }
+        }
+        catch (error) {
+            console.error('事务处理错误:', error);
+            throw error; // 重新抛出错误以便外层捕获
+        }
     }
     catch (error) {
-        console.error('Add question error:', error);
-        sendError(res, 500, '添加题目失败', error);
+        console.error('添加题目错误:', error);
+        sendError(res, 500, `添加题目失败: ${error.message}`, error);
     }
 };
 exports.addQuestionToQuestionSet = addQuestionToQuestionSet;

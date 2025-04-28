@@ -23,6 +23,8 @@ require("./models/Question");
 require("./models/Purchase");
 require("./models/RedeemCode");
 require("./models/UserProgress");
+// Import model associations
+require("./models/associations");
 // Import routes
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const questionSetRoutes_1 = __importDefault(require("./routes/questionSetRoutes"));
