@@ -474,8 +474,18 @@ export const questionService = {
 // 用户进度API服务
 export const userProgressService = {
   // 获取用户进度统计
-  getUserProgress: (): Promise<ApiResponse<Record<string, UserProgress>>> => {
-    return api.get('/user-progress/stats');
+  getUserProgress: async (): Promise<ApiResponse<Record<string, UserProgress>>> => {
+    try {
+      const userId = (await userService.getCurrentUser()).data?.id;
+      const response = await api.get(`/user-progress/${userId}`);
+      return handleResponse<Record<string, UserProgress>>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
   },
   
   // 获取用户答题历史
@@ -484,19 +494,35 @@ export const userProgressService = {
   },
   
   // 获取用户答题统计
-  getUserStats: (): Promise<ApiResponse<{
+  getUserStats: async (): Promise<ApiResponse<{
     totalQuestions: number;
     correctAnswers: number;
     accuracy: number;
     averageTimeSpent: number;
   }>> => {
-    return api.get('/user-progress/stats');
+    try {
+      const userId = (await userService.getCurrentUser()).data?.id;
+      const response = await api.get(`/user-progress/stats/${userId}`);
+      return handleResponse<{
+        totalQuestions: number;
+        correctAnswers: number;
+        accuracy: number;
+        averageTimeSpent: number;
+      }>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
   },
   
   // 获取特定题库的进度
   async getProgressByQuestionSetId(questionSetId: string): Promise<ApiResponse<UserProgress>> {
     try {
-      const response = await api.get(`/user-progress/${questionSetId}`);
+      const userId = (await userService.getCurrentUser()).data?.id;
+      const response = await api.get(`/user-progress/${userId}/${questionSetId}`);
       return handleResponse<UserProgress>(response);
     } catch (error: any) {
       return {

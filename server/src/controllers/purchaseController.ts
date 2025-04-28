@@ -95,7 +95,12 @@ export const getUserPurchases = async (req: Request, res: Response) => {
   try {
     const purchases = await Purchase.findAll({
       where: { userId: req.user.id },
-      include: ['questionSet'],
+      include: [
+        {
+          model: QuestionSet,
+          as: 'QuestionSet'
+        }
+      ],
       order: [['purchaseDate', 'DESC']]
     });
 
@@ -174,7 +179,12 @@ export const getPurchaseById = async (req: Request, res: Response) => {
         id: req.params.id,
         userId: req.user.id
       },
-      include: ['questionSet']
+      include: [
+        {
+          model: QuestionSet,
+          as: 'QuestionSet'
+        }
+      ]
     });
 
     if (!purchase) {

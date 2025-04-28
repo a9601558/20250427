@@ -85,7 +85,12 @@ const getUserPurchases = async (req, res) => {
     try {
         const purchases = await models_1.Purchase.findAll({
             where: { userId: req.user.id },
-            include: ['questionSet'],
+            include: [
+                {
+                    model: models_1.QuestionSet,
+                    as: 'QuestionSet'
+                }
+            ],
             order: [['purchaseDate', 'DESC']]
         });
         sendResponse(res, 200, purchases);
@@ -159,7 +164,12 @@ const getPurchaseById = async (req, res) => {
                 id: req.params.id,
                 userId: req.user.id
             },
-            include: ['questionSet']
+            include: [
+                {
+                    model: models_1.QuestionSet,
+                    as: 'QuestionSet'
+                }
+            ]
         });
         if (!purchase) {
             return sendError(res, 404, '购买记录不存在');
