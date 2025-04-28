@@ -9,6 +9,7 @@ const Option_1 = __importDefault(require("./Option"));
 const QuestionSet_1 = __importDefault(require("./QuestionSet"));
 const User_1 = __importDefault(require("./User"));
 const UserProgress_1 = __importDefault(require("./UserProgress"));
+const Purchase_1 = __importDefault(require("./Purchase"));
 const setupAssociations = () => {
     // QuestionSet 和 Question 的关联
     QuestionSet_1.default.hasMany(Question_1.default, {
@@ -59,6 +60,26 @@ const setupAssociations = () => {
     UserProgress_1.default.belongsTo(Question_1.default, {
         foreignKey: 'questionId',
         as: 'question'
+    });
+    // User 和 Purchase 的关联
+    User_1.default.hasMany(Purchase_1.default, {
+        foreignKey: 'userId',
+        as: 'purchases',
+        onDelete: 'CASCADE'
+    });
+    Purchase_1.default.belongsTo(User_1.default, {
+        foreignKey: 'userId',
+        as: 'user'
+    });
+    // QuestionSet 和 Purchase 的关联
+    QuestionSet_1.default.hasMany(Purchase_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'purchases',
+        onDelete: 'CASCADE'
+    });
+    Purchase_1.default.belongsTo(QuestionSet_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'questionSet'
     });
 };
 exports.setupAssociations = setupAssociations;

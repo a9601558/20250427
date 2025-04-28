@@ -12,12 +12,12 @@ import { Server as SocketIOServer } from 'socket.io';
 import { initializeSocket } from './config/socket';
 import { setupAssociations } from './models/associations';
 import { appState } from './utils/appstate';
+import HomepageSettings from './models/HomepageSettings';
 
 // Load environment variables
 dotenv.config();
 
 // Import models to ensure they are initialized
-import './models/HomepageSettings';
 import './models/User';
 import './models/QuestionSet';
 import './models/Question';
@@ -83,11 +83,32 @@ initializeSocket(server);
 // 初始化模型关联
 console.log('正在初始化模型关联...');
 setupAssociations();
-console.log(`模型关联初始化状态: ${appState.associationsInitialized ? '已完成' : '未完成'}`);
+appState.associationsInitialized = true;
+console.log('模型关联初始化完成');
 
-sequelize.sync().then(() => {
-  server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+// 同步数据库并启动服务器
+sequelize.sync({ alter: true }).then(() => {
+  console.log('数据库同步完成');
+  
+  // 确保 HomepageSettings 表有初始数据
+  HomepageSettings.findByPk(1).then((homepageSettings: HomepageSettings | null) => {
+    if (!homepageSettings) {
+      console.log('创建 HomepageSettings 初始数据...');
+      return HomepageSettings.create({
+        id: 1,
+        welcome_title: "ExamTopics 模拟练习",
+        welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
+        featured_categories: ["网络协议", "编程语言", "计算机基础"],
+        announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
+        footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
+        banner_image: "/images/banner.jpg",
+        theme: 'light'
+      });
+    }
+  }).then(() => {
+    server.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
   });
 });
 

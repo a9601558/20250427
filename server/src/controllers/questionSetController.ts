@@ -7,7 +7,7 @@ import { RowDataPacket, ResultSetHeader, OkPacket } from 'mysql2';
 import Option from '../models/Option';
 import { Op, QueryTypes } from 'sequelize';
 import { v1 as uuidv1 } from 'uuid';
-import { setupAssociations } from '../models';
+import { setupAssociations } from '../models/associations';
 
 // 定义数据库查询结果的接口
 interface QuestionSetRow extends RowDataPacket {

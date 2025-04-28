@@ -3,6 +3,7 @@ import Option from './Option';
 import QuestionSet from './QuestionSet';
 import User from './User';
 import UserProgress from './UserProgress';
+import Purchase from './Purchase';
 
 export const setupAssociations = () => {
   // QuestionSet 和 Question 的关联
@@ -63,5 +64,29 @@ export const setupAssociations = () => {
   UserProgress.belongsTo(Question, {
     foreignKey: 'questionId',
     as: 'question'
+  });
+
+  // User 和 Purchase 的关联
+  User.hasMany(Purchase, {
+    foreignKey: 'userId',
+    as: 'purchases',
+    onDelete: 'CASCADE'
+  });
+
+  Purchase.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'user'
+  });
+
+  // QuestionSet 和 Purchase 的关联
+  QuestionSet.hasMany(Purchase, {
+    foreignKey: 'questionSetId',
+    as: 'purchases',
+    onDelete: 'CASCADE'
+  });
+
+  Purchase.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
   });
 }; 

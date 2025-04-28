@@ -14,10 +14,10 @@ const http_1 = require("http");
 const socket_1 = require("./config/socket");
 const associations_1 = require("./models/associations");
 const appstate_1 = require("./utils/appstate");
+const HomepageSettings_1 = __importDefault(require("./models/HomepageSettings"));
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
-require("./models/HomepageSettings");
 require("./models/User");
 require("./models/QuestionSet");
 require("./models/Question");
@@ -73,10 +73,30 @@ const server = (0, http_1.createServer)(app);
 // 初始化模型关联
 console.log('正在初始化模型关联...');
 (0, associations_1.setupAssociations)();
-console.log(`模型关联初始化状态: ${appstate_1.appState.associationsInitialized ? '已完成' : '未完成'}`);
-database_1.default.sync().then(() => {
-    server.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+appstate_1.appState.associationsInitialized = true;
+console.log('模型关联初始化完成');
+// 同步数据库并启动服务器
+database_1.default.sync({ alter: true }).then(() => {
+    console.log('数据库同步完成');
+    // 确保 HomepageSettings 表有初始数据
+    HomepageSettings_1.default.findByPk(1).then((homepageSettings) => {
+        if (!homepageSettings) {
+            console.log('创建 HomepageSettings 初始数据...');
+            return HomepageSettings_1.default.create({
+                id: 1,
+                welcome_title: "ExamTopics 模拟练习",
+                welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
+                featured_categories: ["网络协议", "编程语言", "计算机基础"],
+                announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
+                footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
+                banner_image: "/images/banner.jpg",
+                theme: 'light'
+            });
+        }
+    }).then(() => {
+        server.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
     });
 });
 exports.default = app;

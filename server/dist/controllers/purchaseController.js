@@ -105,11 +105,16 @@ const getUserPurchases = async (req, res) => {
             include: [{
                     model: models_1.QuestionSet,
                     as: 'questionSet',
-                    attributes: ['id', 'title', 'category', 'icon']
+                    attributes: ['id', 'title', 'category', 'icon', 'isPaid', 'price']
                 }],
             order: [['purchaseDate', 'DESC']]
         });
         console.log('Found purchases:', purchases.length);
+        // 确保关联关系存在
+        if (purchases.some(p => !p.questionSet)) {
+            console.error('Some purchases are missing QuestionSet association');
+            return sendError(res, 500, '获取购买记录失败', 'QuestionSet association is missing');
+        }
         sendResponse(res, 200, purchases);
     }
     catch (error) {
