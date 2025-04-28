@@ -5,7 +5,6 @@ import {
   createQuestionSet,
   updateQuestionSet,
   deleteQuestionSet,
-  saveProgress,
   uploadQuestionSets,
   getQuestionSetCategories,
   getQuestionSetsByCategory
@@ -35,9 +34,6 @@ router.post('/upload', protect, admin, uploadQuestionSets);
 
 // File upload route
 router.post('/upload/file', protect, admin, upload.single('file'), uploadQuestionSetFile);
-
-// Protected routes that use ID parameters
-router.post('/:id/progress', protect, saveProgress);
 
 // Admin routes with ID parameters
 router.put('/:id', protect, admin, updateQuestionSet);

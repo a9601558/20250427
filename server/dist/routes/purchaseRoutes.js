@@ -9,8 +9,7 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
 // All purchase routes require authentication
 router.use(authMiddleware_1.protect);
+// Purchase routes
 router.post('/', purchaseController_1.createPurchase);
-router.post('/complete', purchaseController_1.completePurchase);
-router.get('/user', purchaseController_1.getUserPurchases);
-router.get('/check/:questionSetId', purchaseController_1.checkPurchaseAccess);
+router.get('/', purchaseController_1.getUserPurchases);
 exports.default = router;

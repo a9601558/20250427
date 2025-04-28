@@ -4,9 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const db_1 = require("../config/db");
-// User model type
+const database_1 = __importDefault(require("../config/database"));
+const bcrypt_1 = __importDefault(require("bcrypt"));
 class User extends sequelize_1.Model {
     id;
     username;
@@ -16,38 +15,26 @@ class User extends sequelize_1.Model {
     progress;
     purchases;
     redeemCodes;
-    // Time stamps
     createdAt;
     updatedAt;
-    // Password comparison method
     async comparePassword(candidatePassword) {
         try {
-            // 防御性检查，确保两个参数都存在且有效
             if (!this.password || !candidatePassword) {
-                console.error(`密码比较错误: ${!this.password ? '存储密码' : '候选密码'}为空`);
                 return false;
             }
-            // 防止密码为空字符串
-            if (this.password.trim() === '' || candidatePassword.trim() === '') {
-                console.error('密码比较错误: 存储密码或候选密码为空字符串');
-                return false;
-            }
-            // 检查密码是否已经被加密（以$2a$开头）
-            if (!this.password.startsWith('$2a$')) {
-                console.error('密码比较错误: 存储的密码未被加密');
-                return false;
-            }
-            // 使用bcrypt比较密码，并确保处理异常
-            const isMatch = await bcryptjs_1.default.compare(candidatePassword, this.password);
-            return isMatch;
+            return bcrypt_1.default.compare(candidatePassword, this.password);
         }
         catch (error) {
-            console.error('密码比较错误:', error);
+            console.error('Password comparison error:', error);
             return false;
         }
     }
+    // 用于安全地返回用户数据（不包含敏感信息）
+    toSafeObject() {
+        const { password, ...safeUser } = this.toJSON();
+        return safeUser;
+    }
 }
-// Initialize model
 User.init({
     id: {
         type: sequelize_1.DataTypes.UUID,
@@ -55,48 +42,73 @@ User.init({
         primaryKey: true,
     },
     username: {
-        type: sequelize_1.DataTypes.STRING(50),
+        type: sequelize_1.DataTypes.STRING,
         allowNull: false,
         unique: true,
         validate: {
-            len: [3, 50],
-            notEmpty: true
+            notEmpty: { msg: '用户名不能为空' },
+            len: {
+                args: [3, 30],
+                msg: '用户名长度必须在3-30个字符之间'
+            }
         }
     },
     email: {
-        type: sequelize_1.DataTypes.STRING(100),
+        type: sequelize_1.DataTypes.STRING,
         allowNull: false,
         unique: true,
         validate: {
-            isEmail: true
+            isEmail: { msg: '请输入有效的邮箱地址' },
+            notEmpty: { msg: '邮箱不能为空' }
         }
     },
     password: {
-        type: sequelize_1.DataTypes.STRING(100),
+        type: sequelize_1.DataTypes.STRING,
         allowNull: false,
         validate: {
-            len: [6, 100]
+            notEmpty: { msg: '密码不能为空' },
+            len: {
+                args: [6, 100],
+                msg: '密码长度必须在6-100个字符之间'
+            }
         }
     },
     isAdmin: {
         type: sequelize_1.DataTypes.BOOLEAN,
-        allowNull: false,
-        defaultValue: false
+        defaultValue: false,
     },
     progress: {
-        type: sequelize_1.DataTypes.JSON,
-        allowNull: false,
-        defaultValue: {}
+        type: sequelize_1.DataTypes.JSONB,
+        defaultValue: {},
+        validate: {
+            isValidProgress(value) {
+                if (typeof value !== 'object' || value === null) {
+                    throw new Error('进度数据必须是一个对象');
+                }
+            }
+        }
     },
     purchases: {
-        type: sequelize_1.DataTypes.JSON,
-        allowNull: false,
-        defaultValue: []
+        type: sequelize_1.DataTypes.JSONB,
+        defaultValue: [],
+        validate: {
+            isValidPurchases(value) {
+                if (!Array.isArray(value)) {
+                    throw new Error('购买记录必须是一个数组');
+                }
+            }
+        }
     },
     redeemCodes: {
-        type: sequelize_1.DataTypes.JSON,
-        allowNull: false,
-        defaultValue: []
+        type: sequelize_1.DataTypes.JSONB,
+        defaultValue: [],
+        validate: {
+            isValidRedeemCodes(value) {
+                if (!Array.isArray(value)) {
+                    throw new Error('兑换码记录必须是一个数组');
+                }
+            }
+        }
     },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
@@ -109,78 +121,54 @@ User.init({
         defaultValue: sequelize_1.DataTypes.NOW,
     },
 }, {
-    sequelize: db_1.sequelize,
+    sequelize: database_1.default,
+    modelName: 'User',
     tableName: 'users',
+    timestamps: true,
     indexes: [
         { unique: true, fields: ['email'] },
         { unique: true, fields: ['username'] }
     ],
-    hooks: {
-        // 统一的密码加密方法
-        beforeValidate: async (user) => {
-            // 确保密码字段存在且有效
-            if (!user.password || user.password.trim() === '') {
-                throw new Error('密码不能为空');
-            }
-        },
-        // 在保存前处理密码加密
-        beforeSave: async (user) => {
-            try {
-                // 检查密码是否已经被加密（以$2a$开头）
-                if (user.password && !user.password.startsWith('$2a$')) {
-                    console.log(`对用户 ${user.username} 进行密码加密...`);
-                    // 记录原始密码长度（仅显示前几个字符）
-                    console.log(`密码加密前 (${user.username}): ${user.password.substring(0, 3)}*** (长度: ${user.password.length})`);
-                    // 进行密码加密
-                    const salt = await bcryptjs_1.default.genSalt(10);
-                    const hashedPassword = await bcryptjs_1.default.hash(user.password, salt);
-                    user.password = hashedPassword;
-                    console.log(`密码加密后 (${user.username}): ${user.password.substring(0, 10)}... (长度: ${user.password.length})`);
-                }
-                else if (user.password && user.password.startsWith('$2a$')) {
-                    console.log(`用户 ${user.username} 的密码已经加密，无需再次处理`);
-                }
-            }
-            catch (error) {
-                console.error('密码加密失败:', error);
-                throw new Error('密码处理失败，请再次尝试');
-            }
-        },
-        // 在创建用户之前进行额外检查
-        beforeCreate: async (user) => {
-            // 初始化必要的字段
-            if (!user.progress)
-                user.progress = {};
-            if (!user.purchases)
-                user.purchases = [];
-            if (!user.redeemCodes)
-                user.redeemCodes = [];
-            // 确保密码字段有效
-            if (!user.password || user.password.trim() === '') {
-                throw new Error('新用户必须设置有效的密码');
-            }
-            // 确保密码被加密（即使这个逻辑已经在beforeSave中实现）
-            if (!user.password.startsWith('$2a$')) {
-                console.log(`创建用户前确认密码加密 (${user.username})...`);
-                const salt = await bcryptjs_1.default.genSalt(10);
-                user.password = await bcryptjs_1.default.hash(user.password, salt);
-                console.log(`创建用户前密码已加密: ${user.password.substring(0, 10)}...`);
-            }
-        },
-        // 在查询后检查密码字段
-        afterFind: async (result) => {
-            // 处理查询结果为数组或单个对象的情况
-            const users = Array.isArray(result) ? result : result ? [result] : [];
-            // 检查每个用户的密码字段
-            for (const user of users) {
-                if (user && (!user.password || user.password.trim() === '')) {
-                    console.warn(`发现无效密码: 用户 ${user.username || user.email}`);
-                }
-                else if (user && user.password && !user.password.startsWith('$2a$')) {
-                    console.warn(`警告: 用户 ${user.username || user.email} 的密码未加密`);
-                }
-            }
+    defaultScope: {
+        attributes: { exclude: ['password'] }
+    },
+    scopes: {
+        withPassword: {
+            attributes: { include: ['password'] }
         }
     }
+});
+// 密码加密钩子
+User.beforeSave(async (user) => {
+    try {
+        if (user.changed('password')) {
+            const salt = await bcrypt_1.default.genSalt(10);
+            user.password = await bcrypt_1.default.hash(user.password, salt);
+        }
+    }
+    catch (error) {
+        console.error('Password hashing error:', error);
+        throw new Error('密码加密失败');
+    }
+});
+// 数据验证钩子
+User.beforeValidate((user) => {
+    // 清理用户输入
+    if (user.username) {
+        user.username = user.username.trim();
+    }
+    if (user.email) {
+        user.email = user.email.trim().toLowerCase();
+    }
+});
+// 创建用户时的初始化钩子
+User.beforeCreate((user) => {
+    // 初始化默认值
+    if (!user.progress)
+        user.progress = {};
+    if (!user.purchases)
+        user.purchases = [];
+    if (!user.redeemCodes)
+        user.redeemCodes = [];
 });
 exports.default = User;

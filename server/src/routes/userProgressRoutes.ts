@@ -1,19 +1,20 @@
 import express from 'express';
-import { getUserProgress, updateUserProgress } from '../controllers/userProgressController';
+import { getUserProgress, updateProgress } from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// 获取用户所有进度
-router.get('/', protect, getUserProgress);
+// All progress routes require authentication
+router.use(protect);
 
-// 更新用户进度 - POST方式 (ID在请求体中)
-router.post('/', protect, updateUserProgress);
+// Progress routes
+router.get('/', getUserProgress);
+router.post('/', updateProgress);
 
 // 更新用户进度 - PUT方式 (ID在URL参数中)
-router.put('/:questionSetId', protect, updateUserProgress);
+router.put('/:questionSetId', getUserProgress);
 
 // 获取特定题库的进度
-router.get('/:questionSetId', protect, getUserProgress);
+router.get('/:questionSetId', getUserProgress);
 
 export default router; 

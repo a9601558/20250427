@@ -25,8 +25,6 @@ router.get('/categories', questionSetController_1.getQuestionSetCategories);
 router.post('/upload', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.uploadQuestionSets);
 // File upload route
 router.post('/upload/file', authMiddleware_1.protect, authMiddleware_1.admin, questionsUploadController_1.upload.single('file'), questionsUploadController_1.uploadQuestionSetFile);
-// Protected routes that use ID parameters
-router.post('/:id/progress', authMiddleware_1.protect, questionSetController_1.saveProgress);
 // Admin routes with ID parameters
 router.put('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.updateQuestionSet);
 router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.deleteQuestionSet);

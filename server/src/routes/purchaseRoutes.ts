@@ -1,9 +1,7 @@
 import express from 'express';
 import {
   createPurchase,
-  completePurchase,
-  getUserPurchases,
-  checkPurchaseAccess
+  getUserPurchases
 } from '../controllers/purchaseController';
 import { protect } from '../middleware/authMiddleware';
 
@@ -12,9 +10,8 @@ const router = express.Router();
 // All purchase routes require authentication
 router.use(protect);
 
+// Purchase routes
 router.post('/', createPurchase);
-router.post('/complete', completePurchase);
-router.get('/user', getUserPurchases);
-router.get('/check/:questionSetId', checkPurchaseAccess);
+router.get('/', getUserPurchases);
 
 export default router; 

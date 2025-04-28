@@ -4,34 +4,7 @@ import http from 'http';
 // 存储用户ID和Socket ID的映射
 const userSocketMap = new Map<string, string>();
 
-export const initializeSocket = (httpServer: http.Server) => {
-  const io = new Server(httpServer, {
-    cors: {
-      origin: process.env.FRONTEND_URL || 'http://exam7.jp', // 明确指定允许的来源
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      credentials: true,
-      allowedHeaders: ['Authorization', 'Content-Type']
-    },
-    path: '/socket.io/', // 明确指定Socket.IO路径
-    transports: ['websocket', 'polling'], // 优先尝试WebSocket
-    allowUpgrades: true, // 允许传输升级
-    pingTimeout: 120000, // 增加ping超时到120秒，防止网络波动导致断开
-    pingInterval: 30000, // 30秒发送一次ping，保持连接活跃
-    connectTimeout: 60000, // 增加连接超时到60秒
-    maxHttpBufferSize: 1e8, // 增加HTTP缓冲区大小
-    // 添加引擎IO选项
-    perMessageDeflate: {
-      threshold: 1024, // 超过1kb的消息将被压缩
-    },
-    // 添加cookie设置
-    cookie: {
-      name: "io",
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax" // 或者"none"如果需要跨站点访问
-    }
-  });
-
+export const initializeSocket = (io: Server) => {
   // 添加中间件记录连接
   io.use((socket, next) => {
     console.log('Socket.IO 中间件处理连接:', socket.id);
