@@ -105,6 +105,14 @@ export const createPurchase = async (req: Request, res: Response) => {
 // @access  Private
 export const getUserPurchases = async (req: Request, res: Response) => {
   try {
+    // 检查用户是否已登录
+    if (!req.user || !req.user.id) {
+      console.error('User not authenticated');
+      return sendError(res, 401, '用户未登录');
+    }
+
+    console.log('Fetching purchases for user:', req.user.id);
+
     const purchases = await Purchase.findAll({
       where: { userId: req.user.id },
       include: [{
@@ -115,10 +123,12 @@ export const getUserPurchases = async (req: Request, res: Response) => {
       order: [['purchaseDate', 'DESC']]
     });
 
+    console.log('Found purchases:', purchases.length);
+
     sendResponse(res, 200, purchases);
   } catch (error) {
     console.error('Get purchases error:', error);
-    sendError(res, 500, '获取购买记录失败');
+    sendError(res, 500, '获取购买记录失败', error);
   }
 };
 
