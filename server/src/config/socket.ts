@@ -12,7 +12,7 @@ export const initializeSocket = (httpServer: http.Server) => {
       credentials: true,
       allowedHeaders: ['Authorization', 'Content-Type']
     },
-    transports: ['polling', 'websocket'], // 确保首先尝试polling
+    transports: ['websocket', 'polling'], // 优先使用WebSocket
     connectTimeout: 30000,
     pingTimeout: 30000,
     pingInterval: 25000

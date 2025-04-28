@@ -1,4 +1,4 @@
-#!/bin/bash
+48#!/bin/bash
 
 # Socket.IO服务器重启脚本
 # 此脚本重启Node.js服务和Nginx服务

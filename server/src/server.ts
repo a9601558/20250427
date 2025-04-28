@@ -45,4 +45,37 @@ sequelize.sync({ alter: true }).then(() => {
 const PORT = parseInt(process.env.PORT || '5000', 10);
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`服务器运行在 0.0.0.0:${PORT}`);
+});
+
+// 添加服务器错误事件处理
+httpServer.on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`端口 ${PORT} 已被占用，请尝试其他端口`);
+  } else {
+    console.error('服务器错误:', error);
+  }
+  process.exit(1);
+});
+
+// 优雅关闭进程
+process.on('SIGTERM', () => {
+  console.log('SIGTERM 信号收到，优雅关闭中...');
+  httpServer.close(() => {
+    console.log('HTTP 服务器已关闭');
+    sequelize.close().then(() => {
+      console.log('数据库连接已关闭');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT 信号收到，优雅关闭中...');
+  httpServer.close(() => {
+    console.log('HTTP 服务器已关闭');
+    sequelize.close().then(() => {
+      console.log('数据库连接已关闭');
+      process.exit(0);
+    });
+  });
 }); 
