@@ -7,6 +7,7 @@ import { RowDataPacket, ResultSetHeader, OkPacket } from 'mysql2';
 import Option from '../models/Option';
 import { Op, QueryTypes } from 'sequelize';
 import { v1 as uuidv1 } from 'uuid';
+import { setupAssociations } from '../models';
 
 // 定义数据库查询结果的接口
 interface QuestionSetRow extends RowDataPacket {
@@ -267,6 +268,9 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
 // @access  Public
 export const getQuestionSetById = async (req: Request, res: Response) => {
   try {
+    // 确保关联已正确设置
+    setupAssociations();
+    
     const questionSet = await QuestionSet.findOne({
       where: { id: req.params.id },
       include: [{
@@ -707,6 +711,9 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
   const { category } = req.params;
   
   try {
+    // 确保关联已正确设置
+    setupAssociations();
+    
     const decodedCategory = decodeURIComponent(category);
     
     const questionSets = await QuestionSet.findAll({
@@ -750,6 +757,9 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
 // @access  Private/Admin
 export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
   try {
+    // 确保关联已正确设置
+    setupAssociations();
+    
     const { id } = req.params;
     const questionData = req.body;
     

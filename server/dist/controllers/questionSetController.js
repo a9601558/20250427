@@ -10,6 +10,7 @@ const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
+const models_1 = require("../models");
 // 添加一个预处理函数来标准化前端传来的数据格式
 function normalizeQuestionData(questions) {
     if (!Array.isArray(questions)) {
@@ -195,6 +196,8 @@ exports.getAllQuestionSets = getAllQuestionSets;
 // @access  Public
 const getQuestionSetById = async (req, res) => {
     try {
+        // 确保关联已正确设置
+        (0, models_1.setupAssociations)();
         const questionSet = await QuestionSet_1.default.findOne({
             where: { id: req.params.id },
             include: [{
@@ -605,6 +608,8 @@ exports.getQuestionSetCategories = getQuestionSetCategories;
 const getQuestionSetsByCategory = async (req, res) => {
     const { category } = req.params;
     try {
+        // 确保关联已正确设置
+        (0, models_1.setupAssociations)();
         const decodedCategory = decodeURIComponent(category);
         const questionSets = await QuestionSet_1.default.findAll({
             where: { category: decodedCategory },
@@ -646,6 +651,8 @@ exports.getQuestionSetsByCategory = getQuestionSetsByCategory;
 // @access  Private/Admin
 const addQuestionToQuestionSet = async (req, res) => {
     try {
+        // 确保关联已正确设置
+        (0, models_1.setupAssociations)();
         const { id } = req.params;
         const questionData = req.body;
         // 验证必要的字段
