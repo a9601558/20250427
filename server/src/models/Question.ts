@@ -1,7 +1,6 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
-import Option from './Option';
 
 // 问题接口
 export interface QuestionAttributes {
@@ -30,9 +29,6 @@ class Question extends Model<QuestionAttributes, QuestionCreationAttributes> imp
   // 时间戳
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
-
-  // 关联
-  public readonly options?: Option[];
 }
 
 // 初始化模型
@@ -95,12 +91,5 @@ Question.init(
     ]
   }
 );
-
-// 定义关联关系
-Question.hasMany(Option, {
-  foreignKey: 'questionId',
-  as: 'options',
-  onDelete: 'CASCADE'
-});
 
 export default Question; 

@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const uuid_1 = require("uuid");
-const Option_1 = __importDefault(require("./Option"));
 // 问题模型类
 class Question extends sequelize_1.Model {
     id;
@@ -18,8 +17,6 @@ class Question extends sequelize_1.Model {
     // 时间戳
     createdAt;
     updatedAt;
-    // 关联
-    options;
 }
 // 初始化模型
 Question.init({
@@ -78,11 +75,5 @@ Question.init({
         { fields: ['questionSetId'] },
         { fields: ['questionSetId', 'orderIndex'] }
     ]
-});
-// 定义关联关系
-Question.hasMany(Option_1.default, {
-    foreignKey: 'questionId',
-    as: 'options',
-    onDelete: 'CASCADE'
 });
 exports.default = Question;

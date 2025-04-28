@@ -10,7 +10,7 @@ import sequelize from './config/database';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { initializeSocket } from './config/socket';
-import { setupAssociations } from './models';
+import { setupAssociations } from './models/associations';
 import { appState } from './utils/appstate';
 
 // Load environment variables
@@ -21,6 +21,7 @@ import './models/HomepageSettings';
 import './models/User';
 import './models/QuestionSet';
 import './models/Question';
+import './models/Option';
 import './models/Purchase';
 import './models/RedeemCode';
 import './models/UserProgress';

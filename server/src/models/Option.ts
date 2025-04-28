@@ -1,6 +1,5 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
-import Question from './Question';
 
 // 选项接口
 export interface OptionAttributes {
@@ -67,11 +66,5 @@ Option.init(
     ]
   }
 );
-
-// 定义关联关系
-Option.belongsTo(Question, {
-  foreignKey: 'questionId',
-  as: 'question'
-});
 
 export default Option; 
