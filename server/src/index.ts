@@ -23,9 +23,6 @@ import './models/Purchase';
 import './models/RedeemCode';
 import './models/UserProgress';
 
-// Import model associations
-import './models/associations';
-
 // Import routes
 import userRoutes from './routes/userRoutes';
 import questionSetRoutes from './routes/questionSetRoutes';
