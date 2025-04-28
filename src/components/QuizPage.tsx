@@ -5,6 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi, purchaseApi, userProgressApi } from '../utils/api';
 import { sendProgressUpdate } from '../config/socket';
+import { useSocket } from '../contexts/SocketContext';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -21,6 +22,7 @@ function QuizPage(): React.ReactNode {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const { user, addProgress, hasAccessToQuestionSet } = useUser();
+  const { socket } = useSocket();
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -35,6 +37,87 @@ function QuizPage(): React.ReactNode {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState(false);
   const [trialEnded, setTrialEnded] = useState(false);
+  const [remainingDays, setRemainingDays] = useState<number | null>(null);
+  
+  // 添加 Socket 监听
+  useEffect(() => {
+    if (!socket || !questionSet) return;
+
+    // 监听题库访问状态更新
+    const handleQuestionSetAccessUpdate = (data: { 
+      questionSetId: string;
+      hasAccess: boolean;
+      remainingDays: number | null;
+    }) => {
+      if (data.questionSetId === questionSet.id) {
+        setHasAccessToFullQuiz(data.hasAccess);
+        setRemainingDays(data.remainingDays);
+        if (!data.hasAccess && questionSet.trialQuestions) {
+          setTrialEnded(answeredQuestions.length >= questionSet.trialQuestions);
+        }
+      }
+    };
+
+    // 监听购买成功事件
+    const handlePurchaseSuccess = (data: {
+      questionSetId: string;
+      purchaseId: string;
+      expiryDate: string;
+    }) => {
+      if (data.questionSetId === questionSet.id) {
+        setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+        setRemainingDays(Math.ceil((new Date(data.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+      }
+    };
+
+    socket.on('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
+    socket.on('purchase:success', handlePurchaseSuccess);
+
+    return () => {
+      socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
+      socket.off('purchase:success', handlePurchaseSuccess);
+    };
+  }, [socket, questionSet, answeredQuestions.length]);
+
+  // 检查访问权限
+  const checkAccess = async () => {
+    if (!questionSet) return;
+    
+    // 如果是免费题库，直接授权访问
+    if (!questionSet.isPaid) {
+      setHasAccessToFullQuiz(true);
+      return;
+    }
+    
+    // 未登录用户不检查权限，在需要时会提示登录
+    if (!user) {
+      setHasAccessToFullQuiz(false);
+      return;
+    }
+    
+    // 检查用户是否有访问权限
+    const hasAccess = hasAccessToQuestionSet(questionSet.id);
+    setHasAccessToFullQuiz(hasAccess);
+    
+    // 如果没有访问权限，检查试用状态
+    if (!hasAccess && questionSet.trialQuestions) {
+      setTrialEnded(answeredQuestions.length >= questionSet.trialQuestions);
+    }
+
+    // 通过 Socket 检查访问权限
+    if (socket && user) {
+      socket.emit('questionSet:checkAccess', {
+        userId: user.id,
+        questionSetId: questionSet.id
+      });
+    }
+  };
+  
+  // 在获取题库数据后检查访问权限
+  useEffect(() => {
+    checkAccess();
+  }, [questionSet, user, answeredQuestions.length]);
   
   // 获取题库和题目数据
   useEffect(() => {
@@ -98,59 +181,23 @@ function QuizPage(): React.ReactNode {
     fetchQuestionSet();
   }, [questionSetId]);
   
-  // 检查用户访问权限
+  // 监听题库更新
   useEffect(() => {
-    const checkUserAccess = async () => {
-      if (!questionSet) return;
-      
-      try {
-        // 如果是免费题库，直接授权访问
-        if (!questionSet.isPaid) {
-          setHasAccessToFullQuiz(true);
-          return;
-        }
-        
-        // 未登录用户不检查权限，在需要时会提示登录
-        if (!user) {
-          setHasAccessToFullQuiz(false);
-          return;
-        }
-        
-        // 使用API检查访问权限
-        const accessResponse = await purchaseApi.checkAccess(questionSet.id);
-        
-        if (accessResponse.success && accessResponse.data) {
-          setHasAccessToFullQuiz(accessResponse.data.hasAccess);
-        } else {
-          // 如果API请求失败，使用本地检查方法作为后备
-          setHasAccessToFullQuiz(hasAccessToQuestionSet(questionSet.id));
-        }
-      } catch (error) {
-        console.error('检查访问权限失败:', error);
-        // 如果API失败，使用本地方法作为后备
-        if (user) {
-          setHasAccessToFullQuiz(hasAccessToQuestionSet(questionSet.id));
-        }
+    if (!socket || !questionSetId) return;
+    
+    const handleQuestionSetUpdate = (updatedQuestionSet: QuestionSet) => {
+      if (updatedQuestionSet.id === questionSetId) {
+        setQuestionSet(updatedQuestionSet);
+        checkAccess();
       }
     };
-
-    checkUserAccess();
-  }, [questionSet, user, hasAccessToQuestionSet]);
-  
-  // 处理试用题目限制
-  useEffect(() => {
-    if (!questionSet || !questions.length || hasAccessToFullQuiz) return;
     
-    // 如果用户已回答的题目数量超过试用题数限制，显示付费提示
-    if (
-      questionSet.isPaid && 
-      questionSet.trialQuestions && 
-      answeredQuestions.length >= questionSet.trialQuestions &&
-      !hasAccessToFullQuiz
-    ) {
-      setTrialEnded(true);
-    }
-  }, [answeredQuestions, questionSet, hasAccessToFullQuiz, questions]);
+    socket.on('questionSet:update', handleQuestionSetUpdate);
+    
+    return () => {
+      socket.off('questionSet:update', handleQuestionSetUpdate);
+    };
+  }, [socket, questionSetId, questionSet]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {

@@ -4,10 +4,10 @@ import axios from 'axios';
 import { QuestionSet } from '../types';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
-import UserProgressDisplay from './UserProgressDisplay';
 import RecentlyStudiedQuestionSets from './RecentlyStudiedQuestionSets';
 import StudySuggestions from './StudySuggestions';
 import SocketTest from './SocketTest';
+import { useSocket } from '../contexts/SocketContext';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -33,6 +33,7 @@ const defaultHomeContent: HomeContentData = {
 
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
+  const { socket } = useSocket();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,99 @@ const HomePage: React.FC = () => {
   const [showUserInfo, setShowUserInfo] = useState(false);
   const navigate = useNavigate();
 
+  // 添加 Socket 监听
+  useEffect(() => {
+    if (!socket) return;
+
+    // 监听题库更新事件
+    const handleQuestionSetUpdate = (updatedQuestionSet: QuestionSet) => {
+      setQuestionSets(prevSets => {
+        const index = prevSets.findIndex(set => set.id === updatedQuestionSet.id);
+        if (index === -1) return prevSets;
+        
+        const newSets = [...prevSets];
+        newSets[index] = {
+          ...newSets[index],
+          isFeatured: updatedQuestionSet.isFeatured,
+          isPaid: updatedQuestionSet.isPaid,
+          price: updatedQuestionSet.price
+        };
+        return newSets;
+      });
+    };
+
+    // 监听题库访问状态更新
+    const handleQuestionSetAccessUpdate = (data: { 
+      questionSetId: string;
+      hasAccess: boolean;
+      remainingDays: number | null;
+    }) => {
+      setQuestionSets(prevSets => {
+        const index = prevSets.findIndex(set => set.id === data.questionSetId);
+        if (index === -1) return prevSets;
+        
+        const newSets = [...prevSets];
+        newSets[index] = {
+          ...newSets[index],
+          hasAccess: data.hasAccess,
+          remainingDays: data.remainingDays
+        };
+        return newSets;
+      });
+    };
+
+    // 监听购买成功事件
+    const handlePurchaseSuccess = (data: {
+      questionSetId: string;
+      purchaseId: string;
+      expiryDate: string;
+    }) => {
+      setQuestionSets(prevSets => {
+        const index = prevSets.findIndex(set => set.id === data.questionSetId);
+        if (index === -1) return prevSets;
+        
+        const newSets = [...prevSets];
+        newSets[index] = {
+          ...newSets[index],
+          hasAccess: true,
+          remainingDays: Math.ceil((new Date(data.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+        };
+        return newSets;
+      });
+    };
+
+    socket.on('questionSet:update', handleQuestionSetUpdate);
+    socket.on('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
+    socket.on('purchase:success', handlePurchaseSuccess);
+
+    return () => {
+      socket.off('questionSet:update', handleQuestionSetUpdate);
+      socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
+      socket.off('purchase:success', handlePurchaseSuccess);
+    };
+  }, [socket]);
+
+  // 检查题库访问权限
+  const checkQuestionSetAccess = (questionSetId: string) => {
+    if (!socket || !user) return;
+    
+    socket.emit('questionSet:checkAccess', {
+      userId: user.id,
+      questionSetId
+    });
+  };
+
+  // 在获取题库列表后检查访问权限
+  useEffect(() => {
+    if (user && questionSets.length > 0) {
+      questionSets.forEach(set => {
+        if (set.isPaid) {
+          checkQuestionSetAccess(set.id);
+        }
+      });
+    }
+  }, [user, questionSets]);
+
   // 获取首页设置、分类和题库列表
   useEffect(() => {
     const fetchData = async () => {
@@ -53,32 +147,7 @@ const HomePage: React.FC = () => {
         setLoading(true);
         setErrorMessage(null);
 
-        // 获取所有题库列表
-        const quizResponse = await axios.get('/api/question-sets');
-        if (quizResponse.data && quizResponse.data.success && quizResponse.data.data) {
-          const questionSetsData = quizResponse.data.data;
-          console.log('获取到题库列表:', questionSetsData.length);
-          setQuestionSets(questionSetsData);
-          
-          // 为每个题库获取题目
-          for (const set of questionSetsData) {
-            try {
-              const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}&include=options`);
-              if (questionsResponse.data && questionsResponse.data.success) {
-                console.log(`题库 ${set.id} 包含 ${questionsResponse.data.data.length} 个题目`);
-                // 更新题库中的题目数据
-                set.questions = questionsResponse.data.data;
-              }
-            } catch (err) {
-              console.warn(`获取题库 ${set.id} 的题目失败:`, err);
-            }
-          }
-          
-          // 使用更新后的题库数据
-          setQuestionSets([...questionSetsData]);
-        } else {
-          setErrorMessage('获取题库列表失败');
-        }
+        await fetchQuestionSets();
 
         // 获取首页设置
         const settingsResponse = await axios.get('/api/homepage/content');
@@ -121,7 +190,35 @@ const HomePage: React.FC = () => {
     ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
     : 'min-h-screen bg-gray-50 py-6 flex flex-col justify-center sm:py-12';
 
-  // 获取要显示的题库
+  // 修改获取题库列表的函数
+  const fetchQuestionSets = async () => {
+    try {
+      const response = await axios.get('/api/question-sets');
+      if (response.data && response.data.success && response.data.data) {
+        const questionSetsData = response.data.data;
+        setQuestionSets(questionSetsData);
+        
+        // 为每个题库获取题目
+        for (const set of questionSetsData) {
+          try {
+            const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}&include=options`);
+            if (questionsResponse.data && questionsResponse.data.success) {
+              set.questions = questionsResponse.data.data;
+            }
+          } catch (err) {
+            console.warn(`获取题库 ${set.id} 的题目失败:`, err);
+          }
+        }
+        
+        setQuestionSets([...questionSetsData]);
+      }
+    } catch (error) {
+      console.error('获取题库列表失败:', error);
+      setErrorMessage('获取题库列表失败，请稍后重试');
+    }
+  };
+
+  // 修改获取要显示的题库的函数
   const getFilteredQuestionSets = (): QuestionSet[] => {
     if (!questionSets || questionSets.length === 0) {
       return [];
@@ -130,7 +227,7 @@ const HomePage: React.FC = () => {
     // 如果有精选分类，优先显示精选分类的题库
     if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
       return questionSets.filter(set => 
-        homeContent.featuredCategories.includes(set.category)
+        homeContent.featuredCategories.includes(set.category) || set.isFeatured
       );
     }
     
@@ -278,11 +375,6 @@ const HomePage: React.FC = () => {
             {user && questionSets.length > 0 && (
               <>
                 <div className="mt-6 mx-auto max-w-2xl grid md:grid-cols-2 gap-4">
-                  <UserProgressDisplay
-                    questionSets={questionSets}
-                    limit={3}
-                    className={homeContent.theme === 'dark' ? 'bg-gray-700 text-white border-gray-600' : 'bg-white'}
-                  />
                   <RecentlyStudiedQuestionSets
                     questionSets={questionSets}
                     limit={4}

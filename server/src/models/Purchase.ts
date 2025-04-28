@@ -1,47 +1,35 @@
-import { Model, DataTypes, Optional } from 'sequelize';
+import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
-import QuestionSet from './QuestionSet';
-import User from './User';
+import { IPurchase } from '../types';
 
-// 购买记录接口
-export interface PurchaseAttributes {
+interface PurchaseAttributes extends IPurchase {
   id: string;
   userId: string;
   questionSetId: string;
+  amount: number;
+  status: string;
+  paymentMethod?: string;
+  transactionId?: string;
   purchaseDate: Date;
   expiryDate: Date;
-  transactionId: string;
-  amount: number;
-  paymentMethod: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-// 创建时可选的属性
-interface PurchaseCreationAttributes extends Optional<PurchaseAttributes, 'id' | 'purchaseDate' | 'paymentMethod' | 'status'> {}
-
-// 购买记录模型类
-class Purchase extends Model<PurchaseAttributes, PurchaseCreationAttributes> implements PurchaseAttributes {
+class Purchase extends Model<PurchaseAttributes> implements PurchaseAttributes {
   public id!: string;
   public userId!: string;
   public questionSetId!: string;
+  public amount!: number;
+  public status!: string;
+  public paymentMethod?: string;
+  public transactionId?: string;
   public purchaseDate!: Date;
   public expiryDate!: Date;
-  public transactionId!: string;
-  public amount!: number;
-  public paymentMethod!: string;
-  public status!: 'pending' | 'completed' | 'failed' | 'refunded';
-  
-  // 关联属性
-  public questionSet?: QuestionSet;
-  
-  // 时间戳
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
 
-// 初始化模型
 Purchase.init(
   {
     id: {
@@ -52,60 +40,53 @@ Purchase.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
-      references: {
-        model: 'users',
-        key: 'id'
-      }
     },
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
-      references: {
-        model: 'question_sets',
-        key: 'id'
-      }
-    },
-    purchaseDate: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW
-    },
-    expiryDate: {
-      type: DataTypes.DATE,
-      allowNull: false
-    },
-    transactionId: {
-      type: DataTypes.STRING(100),
-      allowNull: false,
-      unique: true
     },
     amount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      validate: {
-        min: 0
-      }
-    },
-    paymentMethod: {
-      type: DataTypes.STRING(20),
-      allowNull: false,
-      defaultValue: 'card'
     },
     status: {
-      type: DataTypes.ENUM('pending', 'completed', 'failed', 'refunded'),
+      type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: 'pending'
-    }
+      defaultValue: 'pending',
+    },
+    paymentMethod: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    transactionId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    purchaseDate: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    expiryDate: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
   },
   {
     sequelize,
+    modelName: 'Purchase',
     tableName: 'purchases',
-    indexes: [
-      { fields: ['userId'] },
-      { fields: ['questionSetId'] },
-      { unique: true, fields: ['transactionId'] },
-      { fields: ['status'] }
-    ]
+    timestamps: true,
   }
 );
 

@@ -14,6 +14,7 @@ class User extends Model<IUser, UserCreationAttributes> implements IUser {
   declare progress: IUser['progress'];
   declare purchases: IUser['purchases'];
   declare redeemCodes: IUser['redeemCodes'];
+  declare socketId: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
@@ -101,6 +102,10 @@ User.init(
     redeemCodes: {
       type: DataTypes.JSON,
       defaultValue: [],
+    },
+    socketId: {
+      type: DataTypes.STRING,
+      defaultValue: null,
     },
     createdAt: {
       type: DataTypes.DATE,

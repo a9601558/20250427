@@ -1,4 +1,4 @@
-export interface UserProgress {
+export interface IUserProgress {
   id: string;
   userId: string;
   questionSetId: string;
@@ -25,11 +25,14 @@ export interface QuestionSet {
   price: number;
   isFeatured: boolean;
   featuredCategory?: string;
+  hasAccess: boolean;
+  remainingDays?: number | null;
+  trialQuestions?: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface Question {
+export interface IQuestion {
   id: string;
   questionSetId: string;
   text: string;
@@ -40,7 +43,7 @@ export interface Question {
   updatedAt: Date;
 }
 
-export interface User {
+export interface IUser {
   id: string;
   username: string;
   email: string;
@@ -50,17 +53,21 @@ export interface User {
   updatedAt: Date;
 }
 
-export interface Purchase {
+export interface IPurchase {
   id: string;
   userId: string;
   questionSetId: string;
   amount: number;
   status: string;
+  paymentMethod?: string;
+  transactionId?: string;
+  purchaseDate: Date;
+  expiryDate: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface RedeemCode {
+export interface IRedeemCode {
   id: string;
   code: string;
   questionSetId: string;
@@ -71,7 +78,7 @@ export interface RedeemCode {
   updatedAt: Date;
 }
 
-export interface Option {
+export interface IOption {
   id: string;
   questionId: string;
   text: string;

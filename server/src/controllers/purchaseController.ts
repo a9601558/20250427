@@ -31,7 +31,7 @@ export const createPurchase = async (req: Request, res: Response) => {
 
     // 验证必填字段
     if (!questionSetId || !paymentMethod || !amount) {
-      return sendError(res, 400, '请提供题库ID、支付方式和支付金额');
+      return sendError(res, 400, '缺少必要参数');
     }
 
     // 检查题库是否存在
@@ -50,30 +50,30 @@ export const createPurchase = async (req: Request, res: Response) => {
       return sendError(res, 400, '支付金额不正确');
     }
 
-    // 检查用户是否已购买
+    // 检查用户是否已经购买过该题库
     const existingPurchase = await Purchase.findOne({
       where: {
         userId: req.user.id,
-        questionSetId,
-        status: 'completed'
+        questionSetId: questionSetId
       }
     });
 
     if (existingPurchase) {
-      return sendError(res, 400, '您已购买过该题库');
+      return sendError(res, 400, '您已经购买过该题库');
     }
 
     // 创建购买记录
     const purchase = await Purchase.create({
       id: uuidv4(),
       userId: req.user.id,
-      questionSetId,
+      questionSetId: questionSetId,
       paymentMethod,
       amount,
-      status: 'pending',
-      expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 有效期一年
-      transactionId: uuidv4(),
-      purchaseDate: new Date()
+      status: 'completed',
+      purchaseDate: new Date(),
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
     // TODO: 调用支付接口处理支付
@@ -107,8 +107,8 @@ export const getUserPurchases = async (req: Request, res: Response) => {
 
     // 检查每个购买记录是否有关联的题库
     const validPurchases = purchases.map(purchase => {
-      if (!purchase.questionSet) {
-        console.warn(`Purchase ${purchase.id} has no associated question set`);
+      if (!purchase.questionSetId) {
+        console.warn(`Purchase ${purchase.id} has no associated question set ID`);
       }
       return purchase;
     });

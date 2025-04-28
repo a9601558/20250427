@@ -6,11 +6,14 @@ export interface IUserProgress {
 }
 
 export interface IPurchase {
-  quizId: string;
+  id: string;
+  userId: string;
+  questionSetId: string;
   purchaseDate: Date;
   expiryDate: Date;
-  transactionId: string;
   amount: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IRedeemCode {
@@ -31,6 +34,7 @@ export interface IUser {
   progress: Record<string, IUserProgress>;
   purchases: IPurchase[];
   redeemCodes: IRedeemCode[];
+  socketId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

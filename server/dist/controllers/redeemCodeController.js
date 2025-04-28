@@ -189,14 +189,16 @@ const redeemCode = async (req, res) => {
             // Create new purchase
             await models_1.Purchase.create({
                 id: (0, uuid_1.v4)(),
-                userId,
-                questionSetId: redeemCode.questionSetId,
+                userId: user.id,
+                questionSetId: questionSet.id,
                 purchaseDate: new Date(),
-                expiryDate,
-                transactionId: `redeem_${redeemCode.code}`,
+                expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+                transactionId: (0, uuid_1.v4)(),
                 amount: 0,
                 paymentMethod: 'redeem_code',
-                status: 'completed'
+                status: 'completed',
+                createdAt: new Date(),
+                updatedAt: new Date()
             }, { transaction });
         }
         // Commit transaction

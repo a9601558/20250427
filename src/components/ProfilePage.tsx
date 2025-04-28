@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
+import { useSocket } from '../contexts/SocketContext';
 import { QuestionSet } from '../types';
 
 // 定义标签页枚举
@@ -13,6 +14,7 @@ enum ProfileTab {
 
 const ProfilePage: React.FC = () => {
   const { user, logout } = useUser();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemCodes' | 'settings'>('progress');
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
@@ -44,64 +46,6 @@ const ProfilePage: React.FC = () => {
         } else {
           setError('获取题库数据失败');
         }
-
-        // 获取购买记录
-        const purchaseResponse = await fetch('http://exam7.jp/api/purchases', {
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (!purchaseResponse.ok) {
-          if (purchaseResponse.status === 401) {
-            // 如果 token 无效，尝试刷新 token
-            const refreshResponse = await fetch('http://exam7.jp/api/auth/refresh', {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (refreshResponse.ok) {
-              const refreshData = await refreshResponse.json();
-              if (refreshData.success && refreshData.data.token) {
-                localStorage.setItem('token', refreshData.data.token);
-                // 重试获取购买记录
-                const retryResponse = await fetch('http://exam7.jp/api/purchases', {
-                  credentials: 'include',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${refreshData.data.token}`
-                  }
-                });
-                
-                if (retryResponse.ok) {
-                  const retryData = await retryResponse.json();
-                  if (retryData.success && retryData.data) {
-                    setPurchases(retryData.data);
-                    return;
-                  }
-                }
-              }
-            }
-            // 如果刷新 token 失败，重定向到登录页
-            logout();
-            navigate('/login');
-            return;
-          }
-          throw new Error(`HTTP error! status: ${purchaseResponse.status}`);
-        }
-        
-        const purchaseData = await purchaseResponse.json();
-        if (purchaseData.success && purchaseData.data) {
-          setPurchases(purchaseData.data);
-        } else {
-          console.error('获取购买记录失败:', purchaseData.message);
-          setError('获取购买记录失败');
-        }
       } catch (err) {
         console.error('获取数据失败:', err);
         setError('获取数据失败，请稍后重试');
@@ -112,6 +56,77 @@ const ProfilePage: React.FC = () => {
 
     fetchData();
   }, []);
+
+  // 设置 Socket 监听
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    // 监听购买记录列表
+    const handlePurchaseList = (purchaseList: any[]) => {
+      setPurchases(purchaseList);
+    };
+
+    // 监听购买记录更新
+    const handlePurchaseUpdate = (updatedPurchase: any) => {
+      setPurchases(prevPurchases => {
+        const index = prevPurchases.findIndex(p => p.id === updatedPurchase.id);
+        if (index === -1) {
+          return [...prevPurchases, updatedPurchase];
+        }
+        const newPurchases = [...prevPurchases];
+        newPurchases[index] = updatedPurchase;
+        return newPurchases;
+      });
+    };
+
+    // 监听购买记录删除
+    const handlePurchaseDelete = (purchaseId: string) => {
+      setPurchases(prevPurchases => 
+        prevPurchases.filter(p => p.id !== purchaseId)
+      );
+    };
+
+    // 监听购买记录过期
+    const handlePurchaseExpire = (data: { purchaseId: string, expiryDate: string }) => {
+      setPurchases(prevPurchases => 
+        prevPurchases.map(p => 
+          p.id === data.purchaseId 
+            ? { ...p, expiryDate: data.expiryDate, isActive: false }
+            : p
+        )
+      );
+    };
+
+    // 监听题库更新
+    const handleQuestionSetUpdate = (updatedQuestionSet: QuestionSet) => {
+      setQuestionSets(prevSets => {
+        const index = prevSets.findIndex(set => set.id === updatedQuestionSet.id);
+        if (index === -1) return prevSets;
+        const newSets = [...prevSets];
+        newSets[index] = updatedQuestionSet;
+        return newSets;
+      });
+    };
+
+    // 注册事件监听
+    socket.on('purchase:list', handlePurchaseList);
+    socket.on('purchase:update', handlePurchaseUpdate);
+    socket.on('purchase:delete', handlePurchaseDelete);
+    socket.on('purchase:expire', handlePurchaseExpire);
+    socket.on('questionSet:update', handleQuestionSetUpdate);
+
+    // 请求初始购买记录
+    socket.emit('purchase:getAll', { userId: user.id });
+
+    // 清理函数
+    return () => {
+      socket.off('purchase:list', handlePurchaseList);
+      socket.off('purchase:update', handlePurchaseUpdate);
+      socket.off('purchase:delete', handlePurchaseDelete);
+      socket.off('purchase:expire', handlePurchaseExpire);
+      socket.off('questionSet:update', handleQuestionSetUpdate);
+    };
+  }, [socket, user]);
 
   // 整理用户进度数据
   const progressData = questionSets.map(questionSet => {
@@ -149,13 +164,18 @@ const ProfilePage: React.FC = () => {
 
   // 整理用户购买记录
   const purchaseData = purchases.map(purchase => {
-    const quizSet = questionSets.find(set => set.id === purchase.questionSetId);
+    const questionSet = purchase.QuestionSet || {};
     return {
-      ...purchase,
-      title: quizSet ? quizSet.title : `题库 ${purchase.questionSetId}`,
-      category: quizSet ? quizSet.category : '未知分类',
-      icon: quizSet ? quizSet.icon : '📝',
-      isActive: new Date(purchase.expiryDate) > new Date()
+      id: purchase.id || '',
+      questionSetId: purchase.questionSetId || '',
+      title: questionSet?.title || `题库 ${purchase.questionSetId || '未知'}`,
+      category: questionSet?.category || '未知分类',
+      icon: questionSet?.icon || '📝',
+      amount: purchase.amount || 0,
+      purchaseDate: purchase.purchaseDate || new Date().toISOString(),
+      expiryDate: purchase.expiryDate || new Date().toISOString(),
+      isActive: purchase.expiryDate ? new Date(purchase.expiryDate) > new Date() : false,
+      status: purchase.status || '未知'
     };
   });
 
@@ -166,7 +186,8 @@ const ProfilePage: React.FC = () => {
   };
 
   // 格式化日期
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '未知';
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -178,13 +199,15 @@ const ProfilePage: React.FC = () => {
   // 计算剩余天数
   const calculateRemainingDays = (dateString: string | null) => {
     if (!dateString) return 0;
-    
-    const expiryDate = new Date(dateString);
-    const today = new Date();
-    const diffTime = expiryDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays > 0 ? diffDays : 0;
+    try {
+      const expiryDate = new Date(dateString);
+      const today = new Date();
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 0;
+    } catch (e) {
+      return 0;
+    }
   };
 
   if (loading) {
@@ -415,8 +438,8 @@ const ProfilePage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {purchaseData.map((purchase, index) => (
-                        <tr key={index}>
+                      {purchaseData.map((purchase) => (
+                        <tr key={purchase.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center text-xl bg-blue-100 rounded-full">
@@ -429,7 +452,7 @@ const ProfilePage: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">¥{purchase.amount}</div>
+                            <div className="text-sm text-gray-900">¥{purchase.amount.toFixed(2)}</div>
                             <div className="text-sm text-gray-500">{formatDate(purchase.purchaseDate)}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -449,12 +472,16 @@ const ProfilePage: React.FC = () => {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Link
-                              to={`/quiz/${purchase.questionSetId}`}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              开始学习
-                            </Link>
+                            {purchase.isActive ? (
+                              <Link
+                                to={`/quiz/${purchase.questionSetId}`}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                开始学习
+                              </Link>
+                            ) : (
+                              <span className="text-gray-400">已过期</span>
+                            )}
                           </td>
                         </tr>
                       ))}
