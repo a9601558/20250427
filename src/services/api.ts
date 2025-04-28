@@ -2,8 +2,8 @@ import axios from 'axios';
 import { Question, User, QuestionSet, Purchase, RedeemCode, UserProgress, Option } from '../types';
 import { AccessCheckResult } from './purchaseService';
 
-// API基础URL - 确保这里指向了正确的后端服务地址
-export const API_BASE_URL = '/api/v1';
+// API基础URL
+export const API_BASE_URL = '/api';
 
 // 创建axios实例
 const api = axios.create({

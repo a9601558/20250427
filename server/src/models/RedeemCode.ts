@@ -1,5 +1,5 @@
 import { Model, DataTypes, Optional } from 'sequelize';
-import { sequelize } from '../config/db';
+import sequelize from '../config/database';
 import crypto from 'crypto';
 
 // 兑换码接口

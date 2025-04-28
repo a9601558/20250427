@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
-import { sequelize, syncModels } from './models';
+import sequelize from './config/database';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { initializeSocket } from './config/socket';
@@ -14,11 +14,14 @@ import { initializeSocket } from './config/socket';
 // Load environment variables
 dotenv.config();
 
-// Import database connection
-import pool from './config/db';
-
 // Import models to ensure they are initialized
 import './models/HomepageSettings';
+import './models/User';
+import './models/QuestionSet';
+import './models/Question';
+import './models/Purchase';
+import './models/RedeemCode';
+import './models/UserProgress';
 
 // Import routes
 import userRoutes from './routes/userRoutes';
@@ -50,13 +53,13 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // API routes
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/question-sets', questionSetRoutes);
-app.use('/api/v1/questions', questionRoutes);
-app.use('/api/v1/purchases', purchaseRoutes);
-app.use('/api/v1/redeem-codes', redeemCodeRoutes);
-app.use('/api/v1/homepage', homepageRoutes);
-app.use('/api/v1/user-progress', userProgressRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/question-sets', questionSetRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/purchases', purchaseRoutes);
+app.use('/api/redeem-codes', redeemCodeRoutes);
+app.use('/api/homepage', homepageRoutes);
+app.use('/api/user-progress', userProgressRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -81,7 +84,7 @@ const io = new SocketIOServer(server, {
 initializeSocket(io);
 
 // Sync database and start server
-syncModels().then(() => {
+sequelize.sync().then(() => {
   server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });

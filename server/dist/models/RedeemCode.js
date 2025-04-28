@@ -1,7 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
 // 兑换码模型类
 class RedeemCode extends sequelize_1.Model {
     id;
@@ -90,7 +93,7 @@ RedeemCode.init({
         }
     }
 }, {
-    sequelize: db_1.sequelize,
+    sequelize: database_1.default,
     tableName: 'redeem_codes',
     indexes: [
         { unique: true, fields: ['code'] },

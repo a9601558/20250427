@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initPurchaseAssociations = void 0;
 const sequelize_1 = require("sequelize");
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
 const QuestionSet_1 = __importDefault(require("./QuestionSet"));
 const User_1 = __importDefault(require("./User"));
 // 购买记录模型类
@@ -78,7 +78,7 @@ Purchase.init({
         defaultValue: 'pending'
     }
 }, {
-    sequelize: db_1.sequelize,
+    sequelize: database_1.default,
     tableName: 'purchases',
     indexes: [
         { fields: ['userId'] },

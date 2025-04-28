@@ -3,18 +3,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 async function debugTables() {
     try {
         // 查询所有表
         console.log('正在查询所有数据库表...');
-        const tables = await db_1.sequelize.getQueryInterface().showAllTables();
+        const tables = await database_1.default.getQueryInterface().showAllTables();
         console.log('数据库中的表:', tables);
         // 查询 question_sets 表结构
         if (tables.includes('question_sets')) {
             console.log('\n正在查询 question_sets 表结构...');
-            const describe = await db_1.sequelize.getQueryInterface().describeTable('question_sets');
+            const describe = await database_1.default.getQueryInterface().describeTable('question_sets');
             console.log('question_sets 表结构:');
             console.log(JSON.stringify(describe, null, 2));
         }

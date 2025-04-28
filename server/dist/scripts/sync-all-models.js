@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
 const User_1 = __importDefault(require("../models/User"));
 const Question_1 = __importDefault(require("../models/Question"));
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
@@ -95,7 +95,7 @@ async function syncAllModels() {
         console.log('开始同步所有模型到数据库...');
         console.log('同步模式: force=true (将删除并重新创建所有表)');
         // 使用force:true重新创建所有表
-        await db_1.sequelize.sync({ force: true });
+        await database_1.default.sync({ force: true });
         console.log('所有数据库表已成功创建!');
         // 创建一条默认的HomepageSettings记录
         try {
@@ -122,7 +122,7 @@ async function syncAllModels() {
             console.error('创建首页设置时出错:', error);
         }
         // 打印所有创建的表
-        const tables = await db_1.sequelize.getQueryInterface().showAllTables();
+        const tables = await database_1.default.getQueryInterface().showAllTables();
         console.log('已创建的表:');
         tables.forEach((table) => {
             console.log(` - ${table}`);

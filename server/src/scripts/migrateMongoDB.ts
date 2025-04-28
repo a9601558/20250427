@@ -8,7 +8,7 @@
 import dotenv from 'dotenv';
 import { MongoClient } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
-import { sequelize } from '../config/db';
+import sequelize from '../config/database';
 import { User, QuestionSet, Question, Option, Purchase, RedeemCode } from '../models';
 
 dotenv.config();

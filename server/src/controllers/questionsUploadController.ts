@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import QuestionSet from '../models/QuestionSet';
 import Question from '../models/Question';
 import Option from '../models/Option';
-import db from '../config/db';
+import sequelize from '../config/database';
 
 // Use the Express Request with multer typings
 import { Request as ExpressRequest } from 'express';

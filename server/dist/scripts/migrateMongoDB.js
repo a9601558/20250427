@@ -12,7 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 const mongodb_1 = require("mongodb");
 const uuid_1 = require("uuid");
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
 const models_1 = require("../models");
 dotenv_1.default.config();
 // MongoDB连接URL (从旧系统获取)
@@ -26,15 +26,15 @@ async function migrateData() {
         console.log('MongoDB连接成功');
         const db = mongoClient.db();
         // 确保MySQL数据库已连接
-        await db_1.sequelize.authenticate();
+        await database_1.default.authenticate();
         console.log('MySQL连接成功');
         // 同步模型到MySQL (谨慎使用，会重置数据)
         if (process.env.RESET_DB === 'true') {
-            await db_1.sequelize.sync({ force: true });
+            await database_1.default.sync({ force: true });
             console.log('MySQL数据库已重置');
         }
         else {
-            await db_1.sequelize.sync({ alter: true });
+            await database_1.default.sync({ alter: true });
             console.log('MySQL数据库模型已同步');
         }
         // 映射MongoDB ID到MySQL UUID的映射表
@@ -187,7 +187,7 @@ async function migrateData() {
     finally {
         // 关闭连接
         await mongoClient.close();
-        await db_1.sequelize.close();
+        await database_1.default.close();
     }
 }
 // 执行迁移

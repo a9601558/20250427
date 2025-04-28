@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
-const db_1 = __importDefault(require("../config/db"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
@@ -577,13 +576,11 @@ exports.uploadQuestionSets = uploadQuestionSets;
  */
 const getQuestionSetCategories = async (req, res) => {
     try {
-        // 执行SQL查询获取所有不同的分类
-        const [categories] = await db_1.default.execute(`
-      SELECT DISTINCT category
-      FROM question_sets
-      ORDER BY category
-    `);
-        // 提取分类列表
+        const categories = await QuestionSet_1.default.findAll({
+            attributes: ['category'],
+            group: ['category'],
+            order: [['category', 'ASC']]
+        });
         const categoryList = categories.map(row => row.category);
         res.status(200).json({
             success: true,
@@ -608,35 +605,15 @@ exports.getQuestionSetCategories = getQuestionSetCategories;
 const getQuestionSetsByCategory = async (req, res) => {
     const { category } = req.params;
     try {
-        // 解码分类名称
         const decodedCategory = decodeURIComponent(category);
-        // 执行SQL查询，获取指定分类的题库及其题目数量
-        const [questionSets] = await db_1.default.execute(`
-      SELECT 
-        qs.id, 
-        qs.title, 
-        qs.description, 
-        qs.category, 
-        qs.icon, 
-        qs.isPaid, 
-        qs.price, 
-        qs.trialQuestions,
-        qs.isFeatured,
-        qs.createdAt,
-        qs.updatedAt,
-        COUNT(q.id) AS questionCount
-      FROM 
-        question_sets qs
-      LEFT JOIN 
-        questions q ON qs.id = q.questionSetId
-      WHERE 
-        qs.category = ?
-      GROUP BY 
-        qs.id
-      ORDER BY 
-        qs.createdAt DESC
-    `, [decodedCategory]);
-        // 确保返回的数据格式正确
+        const questionSets = await QuestionSet_1.default.findAll({
+            where: { category: decodedCategory },
+            include: [{
+                    model: Question_1.default,
+                    attributes: ['id']
+                }],
+            order: [['createdAt', 'DESC']]
+        });
         const formattedQuestionSets = questionSets.map(set => ({
             id: set.id,
             title: set.title,
@@ -647,7 +624,7 @@ const getQuestionSetsByCategory = async (req, res) => {
             price: set.price,
             trialQuestions: set.trialQuestions,
             isFeatured: set.isFeatured,
-            questionCount: set.questionCount,
+            questionCount: set.questions?.length || 0,
             createdAt: set.createdAt,
             updatedAt: set.updatedAt
         }));

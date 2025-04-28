@@ -1,7 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
 // 问题模型类
 class Question extends sequelize_1.Model {
     id;
@@ -65,7 +68,7 @@ Question.init({
         defaultValue: 0
     }
 }, {
-    sequelize: db_1.sequelize,
+    sequelize: database_1.default,
     tableName: 'questions',
     indexes: [
         { fields: ['questionSetId'] },

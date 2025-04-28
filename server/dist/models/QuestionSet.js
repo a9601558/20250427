@@ -1,7 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
-const db_1 = require("../config/db");
+const database_1 = __importDefault(require("../config/database"));
+const Question_1 = __importDefault(require("./Question"));
 // 题集模型类
 class QuestionSet extends sequelize_1.Model {
     id;
@@ -17,6 +21,8 @@ class QuestionSet extends sequelize_1.Model {
     // 时间戳
     createdAt;
     updatedAt;
+    // 关联
+    questions;
 }
 // 初始化模型
 QuestionSet.init({
@@ -26,67 +32,52 @@ QuestionSet.init({
         primaryKey: true,
     },
     title: {
-        type: sequelize_1.DataTypes.STRING(100),
+        type: sequelize_1.DataTypes.STRING,
         allowNull: false,
-        validate: {
-            notEmpty: true
-        }
     },
     description: {
         type: sequelize_1.DataTypes.TEXT,
-        allowNull: false
+        allowNull: false,
     },
     category: {
-        type: sequelize_1.DataTypes.STRING(50),
-        allowNull: false
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: false,
     },
     icon: {
-        type: sequelize_1.DataTypes.STRING(50),
-        allowNull: false
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'default',
     },
     isPaid: {
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: false
+        defaultValue: false,
     },
     price: {
         type: sequelize_1.DataTypes.DECIMAL(10, 2),
         allowNull: true,
-        validate: {
-            min: 0
-        }
     },
     trialQuestions: {
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: true,
-        defaultValue: 0,
-        validate: {
-            min: 0
-        }
     },
     isFeatured: {
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: false
+        defaultValue: false,
     },
     featuredCategory: {
-        type: sequelize_1.DataTypes.STRING(50),
-        allowNull: true
-    }
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: true,
+    },
 }, {
-    sequelize: db_1.sequelize,
+    sequelize: database_1.default,
+    modelName: 'QuestionSet',
     tableName: 'question_sets',
-    indexes: [
-        { fields: ['category'] },
-        { fields: ['isFeatured'] }
-    ],
-    hooks: {
-        beforeValidate: (questionSet) => {
-            // 如果是付费题集，价格必须大于0
-            if (questionSet.isPaid && (!questionSet.price || questionSet.price <= 0)) {
-                throw new Error('Paid question sets must have a price greater than 0');
-            }
-        }
-    }
+});
+// 设置关联
+QuestionSet.hasMany(Question_1.default, {
+    foreignKey: 'questionSetId',
+    as: 'questions',
 });
 exports.default = QuestionSet;

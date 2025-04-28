@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
 import QuestionSet from '../models/QuestionSet';
 import User from '../models/User';
-import db from '../config/db';
+import sequelize from '../config/database';
 import Question from '../models/Question';
 import { RowDataPacket, ResultSetHeader, OkPacket } from 'mysql2';
 import Option from '../models/Option';
-import { sequelize } from '../config/db';
 import { Op } from 'sequelize';
 
 // 定义数据库查询结果的接口
@@ -39,19 +38,7 @@ interface OptionRow extends RowDataPacket {
 
 // 新增关联类型接口
 interface QuestionSetWithQuestions extends QuestionSet {
-  questions?: Array<{
-    id: string;
-    text: string;
-    explanation: string;
-    questionType: string;
-    orderIndex: number;
-    options: Array<{
-      id: string;
-      text: string;
-      isCorrect: boolean;
-      optionIndex: string;
-    }>;
-  }>;
+  questions?: Question[];
 }
 
 // 定义上传请求的数据结构
@@ -689,15 +676,13 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
  */
 export const getQuestionSetCategories = async (req: Request, res: Response) => {
   try {
-    // 执行SQL查询获取所有不同的分类
-    const [categories] = await db.execute(`
-      SELECT DISTINCT category
-      FROM question_sets
-      ORDER BY category
-    `);
+    const categories = await QuestionSet.findAll({
+      attributes: ['category'],
+      group: ['category'],
+      order: [['category', 'ASC']]
+    });
     
-    // 提取分类列表
-    const categoryList = (categories as RowDataPacket[]).map(row => row.category);
+    const categoryList = categories.map(row => row.category);
     
     res.status(200).json({
       success: true,
@@ -722,37 +707,17 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
   const { category } = req.params;
   
   try {
-    // 解码分类名称
     const decodedCategory = decodeURIComponent(category);
     
-    // 执行SQL查询，获取指定分类的题库及其题目数量
-    const [questionSets] = await db.execute<QuestionSetRow[]>(`
-      SELECT 
-        qs.id, 
-        qs.title, 
-        qs.description, 
-        qs.category, 
-        qs.icon, 
-        qs.isPaid, 
-        qs.price, 
-        qs.trialQuestions,
-        qs.isFeatured,
-        qs.createdAt,
-        qs.updatedAt,
-        COUNT(q.id) AS questionCount
-      FROM 
-        question_sets qs
-      LEFT JOIN 
-        questions q ON qs.id = q.questionSetId
-      WHERE 
-        qs.category = ?
-      GROUP BY 
-        qs.id
-      ORDER BY 
-        qs.createdAt DESC
-    `, [decodedCategory]);
+    const questionSets = await QuestionSet.findAll({
+      where: { category: decodedCategory },
+      include: [{
+        model: Question,
+        attributes: ['id']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
 
-    // 确保返回的数据格式正确
     const formattedQuestionSets = questionSets.map(set => ({
       id: set.id,
       title: set.title,
@@ -763,7 +728,7 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
       price: set.price,
       trialQuestions: set.trialQuestions,
       isFeatured: set.isFeatured,
-      questionCount: set.questionCount,
+      questionCount: set.questions?.length || 0,
       createdAt: set.createdAt,
       updatedAt: set.updatedAt
     }));

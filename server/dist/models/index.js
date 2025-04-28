@@ -4,8 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sequelize = exports.RedeemCode = exports.Purchase = exports.HomepageSettings = exports.Option = exports.Question = exports.QuestionSet = exports.User = exports.syncModels = exports.setupAssociations = void 0;
-const db_1 = require("../config/db");
-Object.defineProperty(exports, "sequelize", { enumerable: true, get: function () { return db_1.sequelize; } });
+const database_1 = __importDefault(require("../config/database"));
+exports.sequelize = database_1.default;
 // 导入模型
 const User_1 = __importDefault(require("./User"));
 exports.User = User_1.default;
@@ -90,7 +90,7 @@ const syncModels = async () => {
         }
         // 同步模型到数据库，但不强制重新创建表
         // alter: true 允许添加新列但不删除现有数据
-        await db_1.sequelize.sync({ alter: true });
+        await database_1.default.sync({ alter: true });
         console.log('数据库同步完成');
         // 确保 HomepageSettings 表有初始数据
         const homepageSettings = await HomepageSettings_1.default.findByPk(1);

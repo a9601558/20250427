@@ -9,7 +9,7 @@ const morgan_1 = __importDefault(require("morgan"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-const models_1 = require("./models");
+const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const socket_1 = require("./config/socket");
@@ -17,6 +17,12 @@ const socket_1 = require("./config/socket");
 dotenv_1.default.config();
 // Import models to ensure they are initialized
 require("./models/HomepageSettings");
+require("./models/User");
+require("./models/QuestionSet");
+require("./models/Question");
+require("./models/Purchase");
+require("./models/RedeemCode");
+require("./models/UserProgress");
 // Import routes
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const questionSetRoutes_1 = __importDefault(require("./routes/questionSetRoutes"));
@@ -42,13 +48,13 @@ const limiter = (0, express_rate_limit_1.default)({
 });
 app.use(limiter);
 // API routes
-app.use('/api/v1/users', userRoutes_1.default);
-app.use('/api/v1/question-sets', questionSetRoutes_1.default);
-app.use('/api/v1/questions', questionRoutes_1.default);
-app.use('/api/v1/purchases', purchaseRoutes_1.default);
-app.use('/api/v1/redeem-codes', redeemCodeRoutes_1.default);
-app.use('/api/v1/homepage', homepageRoutes_1.default);
-app.use('/api/v1/user-progress', userProgressRoutes_1.default);
+app.use('/api/users', userRoutes_1.default);
+app.use('/api/question-sets', questionSetRoutes_1.default);
+app.use('/api/questions', questionRoutes_1.default);
+app.use('/api/purchases', purchaseRoutes_1.default);
+app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
+app.use('/api/homepage', homepageRoutes_1.default);
+app.use('/api/user-progress', userProgressRoutes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -69,7 +75,7 @@ const io = new socket_io_1.Server(server, {
 // Initialize socket
 (0, socket_1.initializeSocket)(io);
 // Sync database and start server
-(0, models_1.syncModels)().then(() => {
+database_1.default.sync().then(() => {
     server.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });

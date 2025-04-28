@@ -1,6 +1,6 @@
 import { Model, DataTypes, Optional } from 'sequelize';
-import db from '../config/db';
-import { sequelize } from '../config/db';
+import sequelize from '../config/database';
+import Question from './Question';
 
 // 题集接口
 export interface QuestionSetAttributes {
@@ -37,6 +37,9 @@ class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttrib
   // 时间戳
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+
+  // 关联
+  public readonly questions?: Question[];
 }
 
 // 初始化模型
@@ -48,70 +51,56 @@ QuestionSet.init(
       primaryKey: true,
     },
     title: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        notEmpty: true
-      }
     },
     description: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     },
     category: {
-      type: DataTypes.STRING(50),
-      allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     icon: {
-      type: DataTypes.STRING(50),
-      allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'default',
     },
     isPaid: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
     },
     price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
-      validate: {
-        min: 0
-      }
     },
     trialQuestions: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      defaultValue: 0,
-      validate: {
-        min: 0
-      }
     },
     isFeatured: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
     },
     featuredCategory: {
-      type: DataTypes.STRING(50),
-      allowNull: true
-    }
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     sequelize,
+    modelName: 'QuestionSet',
     tableName: 'question_sets',
-    indexes: [
-      { fields: ['category'] },
-      { fields: ['isFeatured'] }
-    ],
-    hooks: {
-      beforeValidate: (questionSet: QuestionSet) => {
-        // 如果是付费题集，价格必须大于0
-        if (questionSet.isPaid && (!questionSet.price || questionSet.price <= 0)) {
-          throw new Error('Paid question sets must have a price greater than 0');
-        }
-      }
-    }
   }
 );
+
+// 设置关联
+QuestionSet.hasMany(Question, {
+  foreignKey: 'questionSetId',
+  as: 'questions',
+});
 
 export default QuestionSet; 

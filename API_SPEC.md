@@ -6,7 +6,6 @@
 - 所有 API 路径以 `/api` 开头
 - 使用小写字母和连字符（-）分隔单词
 - 资源使用复数形式
-- 版本控制：目前使用 v1，路径格式为 `/api/v1/...`
 
 ### 1.2 请求方法规范
 - GET: 获取资源
@@ -63,56 +62,56 @@ interface ApiResponse<T> {
 
 ### 4.1 用户相关
 ```
-POST   /api/v1/users/register     - 用户注册
-POST   /api/v1/users/login       - 用户登录
-GET    /api/v1/users/profile     - 获取当前用户信息
-PUT    /api/v1/users/profile     - 更新当前用户信息
-GET    /api/v1/users             - 获取所有用户（管理员）
-GET    /api/v1/users/:id         - 获取指定用户（管理员）
-PUT    /api/v1/users/:id         - 更新指定用户（管理员）
-DELETE /api/v1/users/:id         - 删除指定用户（管理员）
+POST   /api/users/register     - 用户注册
+POST   /api/users/login       - 用户登录
+GET    /api/users/profile     - 获取当前用户信息
+PUT    /api/users/profile     - 更新当前用户信息
+GET    /api/users             - 获取所有用户（管理员）
+GET    /api/users/:id         - 获取指定用户（管理员）
+PUT    /api/users/:id         - 更新指定用户（管理员）
+DELETE /api/users/:id         - 删除指定用户（管理员）
 ```
 
 ### 4.2 题库相关
 ```
-GET    /api/v1/question-sets              - 获取所有题库
-GET    /api/v1/question-sets/:id          - 获取指定题库
-POST   /api/v1/question-sets              - 创建题库（管理员）
-PUT    /api/v1/question-sets/:id          - 更新题库（管理员）
-DELETE /api/v1/question-sets/:id          - 删除题库（管理员）
-GET    /api/v1/question-sets/categories   - 获取所有分类
-GET    /api/v1/question-sets/by-category/:category - 按分类获取题库
+GET    /api/question-sets              - 获取所有题库
+GET    /api/question-sets/:id          - 获取指定题库
+POST   /api/question-sets              - 创建题库（管理员）
+PUT    /api/question-sets/:id          - 更新题库（管理员）
+DELETE /api/question-sets/:id          - 删除题库（管理员）
+GET    /api/question-sets/categories   - 获取所有分类
+GET    /api/question-sets/by-category/:category - 按分类获取题库
 ```
 
 ### 4.3 题目相关
 ```
-GET    /api/v1/questions                  - 获取题目列表
-GET    /api/v1/questions/:id              - 获取指定题目
-POST   /api/v1/questions                  - 创建题目（管理员）
-PUT    /api/v1/questions/:id              - 更新题目（管理员）
-DELETE /api/v1/questions/:id              - 删除题目（管理员）
+GET    /api/questions                  - 获取题目列表
+GET    /api/questions/:id              - 获取指定题目
+POST   /api/questions                  - 创建题目（管理员）
+PUT    /api/questions/:id              - 更新题目（管理员）
+DELETE /api/questions/:id              - 删除题目（管理员）
 ```
 
 ### 4.4 用户进度相关
 ```
-GET    /api/v1/user-progress              - 获取用户进度
-GET    /api/v1/user-progress/:questionSetId - 获取指定题库进度
-POST   /api/v1/user-progress              - 更新用户进度
+GET    /api/user-progress              - 获取用户进度
+GET    /api/user-progress/:questionSetId - 获取指定题库进度
+POST   /api/user-progress              - 更新用户进度
 ```
 
 ### 4.5 购买相关
 ```
-POST   /api/v1/purchases                  - 创建购买
-GET    /api/v1/purchases                  - 获取用户购买记录
-GET    /api/v1/purchases/check/:questionSetId - 检查题库访问权限
+POST   /api/purchases                  - 创建购买
+GET    /api/purchases                  - 获取用户购买记录
+GET    /api/purchases/check/:questionSetId - 检查题库访问权限
 ```
 
 ### 4.6 兑换码相关
 ```
-POST   /api/v1/redeem-codes/redeem        - 兑换代码
-POST   /api/v1/redeem-codes/generate      - 生成兑换码（管理员）
-GET    /api/v1/redeem-codes               - 获取所有兑换码（管理员）
-DELETE /api/v1/redeem-codes/:id           - 删除兑换码（管理员）
+POST   /api/redeem-codes/redeem        - 兑换代码
+POST   /api/redeem-codes/generate      - 生成兑换码（管理员）
+GET    /api/redeem-codes               - 获取所有兑换码（管理员）
+DELETE /api/redeem-codes/:id           - 删除兑换码（管理员）
 ```
 
 ## 5. 数据格式规范
@@ -124,11 +123,8 @@ interface User {
   username: string;
   email: string;
   isAdmin: boolean;
-  progress: Record<string, UserProgress>;
-  purchases: Purchase[];
-  redeemCodes: RedeemCode[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -139,11 +135,10 @@ interface QuestionSet {
   title: string;
   description: string;
   category: string;
-  isFeatured: boolean;
-  featuredCategory?: string;
-  questions: Question[];
-  createdAt: string;
-  updatedAt: string;
+  isPaid: boolean;
+  price: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -152,12 +147,12 @@ interface QuestionSet {
 interface Question {
   id: string;
   questionSetId: string;
-  content: string;
-  options: Option[];
-  correctAnswer: string;
+  text: string;
+  questionType: string;
   explanation: string;
-  createdAt: string;
-  updatedAt: string;
+  orderIndex: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -165,7 +160,7 @@ interface Question {
 
 ### 6.1 请求参数
 ```
-GET /api/v1/resource?page=1&limit=10
+GET /api/resource?page=1&limit=10
 ```
 
 ### 6.2 响应格式
@@ -174,10 +169,12 @@ interface PaginatedResponse<T> {
   success: boolean;
   data: {
     items: T[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }
+  }
 }
 ``` 

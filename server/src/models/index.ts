@@ -1,4 +1,4 @@
-import { sequelize } from '../config/db';
+import sequelize from '../config/database';
 
 // 导入模型
 import User from './User';

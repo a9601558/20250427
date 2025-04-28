@@ -1,4 +1,4 @@
-import { sequelize } from '../config/db';
+import sequelize from '../config/database';
 import QuestionSet from '../models/QuestionSet';
 
 async function debugTables() {

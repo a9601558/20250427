@@ -1,4 +1,4 @@
-import { sequelize } from '../config/db';
+import sequelize from '../config/database';
 import User from '../models/User';
 import Question from '../models/Question';
 import QuestionSet from '../models/QuestionSet';
