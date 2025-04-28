@@ -42,7 +42,7 @@ export const getUserProgress = async (req: Request, res: Response): Promise<Resp
         {
           model: Question,
           as: 'question',
-          attributes: ['id', 'type']
+          attributes: ['id', 'questionType']
         }
       ]
     });
@@ -434,7 +434,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
         },
         {
           model: Question,
-          attributes: ['id', 'type']
+          attributes: ['id', 'questionType']
         }
       ]
     });
@@ -450,7 +450,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
     // 按题目集统计
     const setStats = progressRecords.reduce<Record<string, ProgressStats>>((acc, record) => {
       const setId = record.questionSetId.toString();
-      const questionSet = record.get('QuestionSet') as { id: string; title: string } | undefined;
+      const questionSet = record.get('questionSet') as { id: string; title: string } | undefined;
       if (!acc[setId]) {
         acc[setId] = {
           title: questionSet?.title,
@@ -467,8 +467,8 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
 
     // 按题目类型统计
     const typeStats = progressRecords.reduce<Record<string, ProgressStats>>((acc, record) => {
-      const question = record.get('Question') as { id: string; type: string } | undefined;
-      const type = question?.type;
+      const question = record.get('question') as { id: string; questionType: string } | undefined;
+      const type = question?.questionType;
       if (!type) return acc;
       if (!acc[type]) {
         acc[type] = {

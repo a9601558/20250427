@@ -88,7 +88,7 @@ const getUserPurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'QuestionSet'
+                    as: 'questionSet'
                 }
             ],
             order: [['purchaseDate', 'DESC']]

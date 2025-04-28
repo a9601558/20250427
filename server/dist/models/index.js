@@ -67,11 +67,11 @@ const setupAssociations = () => {
     // QuestionSet与Purchase的关联
     console.log('设置 QuestionSet 和 Purchase 的关联');
     QuestionSet_1.default.hasMany(Purchase_1.default, {
-        foreignKey: 'quizId',
+        foreignKey: 'questionSetId',
         as: 'questionSetPurchases'
     });
     Purchase_1.default.belongsTo(QuestionSet_1.default, {
-        foreignKey: 'quizId',
+        foreignKey: 'questionSetId',
         as: 'questionSet'
     });
     // QuestionSet与RedeemCode的关联

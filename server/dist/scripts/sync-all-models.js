@@ -55,11 +55,11 @@ Option_1.default.belongsTo(Question_1.default, {
 });
 // QuestionSet-Purchase关联
 QuestionSet_1.default.hasMany(Purchase_1.default, {
-    foreignKey: 'quizId',
-    as: 'purchases'
+    foreignKey: 'questionSetId',
+    as: 'questionSetPurchases'
 });
 Purchase_1.default.belongsTo(QuestionSet_1.default, {
-    foreignKey: 'quizId',
+    foreignKey: 'questionSetId',
     as: 'questionSet'
 });
 // QuestionSet-RedeemCode关联

@@ -34,7 +34,7 @@ const getUserProgress = async (req, res) => {
                 {
                     model: Question_1.default,
                     as: 'question',
-                    attributes: ['id', 'type']
+                    attributes: ['id', 'questionType']
                 }
             ]
         });
@@ -405,7 +405,7 @@ const getUserProgressStats = async (req, res) => {
                 },
                 {
                     model: Question_1.default,
-                    attributes: ['id', 'type']
+                    attributes: ['id', 'questionType']
                 }
             ]
         });
@@ -419,7 +419,7 @@ const getUserProgressStats = async (req, res) => {
         // 按题目集统计
         const setStats = progressRecords.reduce((acc, record) => {
             const setId = record.questionSetId.toString();
-            const questionSet = record.get('QuestionSet');
+            const questionSet = record.get('questionSet');
             if (!acc[setId]) {
                 acc[setId] = {
                     title: questionSet?.title,
@@ -436,8 +436,8 @@ const getUserProgressStats = async (req, res) => {
         }, {});
         // 按题目类型统计
         const typeStats = progressRecords.reduce((acc, record) => {
-            const question = record.get('Question');
-            const type = question?.type;
+            const question = record.get('question');
+            const type = question?.questionType;
             if (!type)
                 return acc;
             if (!acc[type]) {

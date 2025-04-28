@@ -56,11 +56,11 @@ Option.belongsTo(Question, {
 
 // QuestionSet-Purchase关联
 QuestionSet.hasMany(Purchase, {
-  foreignKey: 'quizId',
-  as: 'purchases'
+  foreignKey: 'questionSetId',
+  as: 'questionSetPurchases'
 });
 Purchase.belongsTo(QuestionSet, {
-  foreignKey: 'quizId',
+  foreignKey: 'questionSetId',
   as: 'questionSet'
 });
 
