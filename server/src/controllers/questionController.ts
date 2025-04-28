@@ -20,15 +20,7 @@ export const getQuestions = async (req: Request, res: Response) => {
       order: [['orderIndex', 'ASC']]
     });
 
-    sendResponse(res, 200, '获取问题列表成功', {
-      questions,
-      pagination: {
-        total: count,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(count / Number(limit))
-      }
-    });
+    sendResponse(res, 200, '获取问题列表成功', questions);
   } catch (error) {
     sendError(res, 500, '获取问题列表失败', error);
   }

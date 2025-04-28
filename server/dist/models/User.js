@@ -121,13 +121,30 @@ User.init({
 User.beforeSave(async (user) => {
     try {
         if (user.changed('password')) {
+            // 确保密码不为空或undefined
+            if (!user.password) {
+                throw new Error('密码不能为空');
+            }
+            // 确保密码是字符串类型
+            if (typeof user.password !== 'string') {
+                user.password = String(user.password);
+            }
             const salt = await bcrypt_1.default.genSalt(10);
             user.password = await bcrypt_1.default.hash(user.password, salt);
         }
     }
     catch (error) {
-        console.error('Password hashing error:', error);
-        throw new Error('密码加密失败');
+        console.error('Password hashing error:', error.message, error.stack);
+        // 提供更具体的错误信息
+        if (error.message?.includes('illegal arguments')) {
+            throw new Error('密码格式不正确，无法加密');
+        }
+        else if (error.message?.includes('密码不能为空')) {
+            throw new Error('密码不能为空');
+        }
+        else {
+            throw new Error(`密码加密失败: ${error.message}`);
+        }
     }
 });
 // 数据验证钩子
