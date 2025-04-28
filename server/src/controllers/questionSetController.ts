@@ -273,7 +273,8 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
         as: 'questions',
         include: [{
           model: Option,
-          as: 'options'
+          as: 'options',
+          required: false // 确保即使没有选项也会返回题目
         }]
       }]
     });

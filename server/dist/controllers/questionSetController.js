@@ -201,7 +201,8 @@ const getQuestionSetById = async (req, res) => {
                     as: 'questions',
                     include: [{
                             model: Option_1.default,
-                            as: 'options'
+                            as: 'options',
+                            required: false // 确保即使没有选项也会返回题目
                         }]
                 }]
         });

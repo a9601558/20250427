@@ -96,4 +96,11 @@ Question.init(
   }
 );
 
+// 设置关联
+Question.hasMany(Option, {
+  foreignKey: 'questionId',
+  as: 'options',
+  onDelete: 'CASCADE'
+});
+
 export default Question; 

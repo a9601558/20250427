@@ -81,4 +81,8 @@ QuestionSet.hasMany(Question_1.default, {
     as: 'questions',
     onDelete: 'CASCADE'
 });
+Question_1.default.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
+});
 exports.default = QuestionSet;

@@ -16,6 +16,7 @@ export interface QuestionSetAttributes {
   featuredCategory?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  questions?: Question[];
 }
 
 // 创建时可选的属性
@@ -102,6 +103,11 @@ QuestionSet.hasMany(Question, {
   foreignKey: 'questionSetId',
   as: 'questions',
   onDelete: 'CASCADE'
+});
+
+Question.belongsTo(QuestionSet, {
+  foreignKey: 'questionSetId',
+  as: 'questionSet'
 });
 
 export default QuestionSet; 
