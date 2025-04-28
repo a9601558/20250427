@@ -1,33 +1,108 @@
-import mongoose from 'mongoose';
+import { Model, DataTypes, Optional } from 'sequelize';
+import sequelize from '../config/database';
+import User from './User';
+import QuestionSet from './QuestionSet';
+import Question from './Question';
 
-const userProgressSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-  questionSetId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'QuestionSet',
-    required: true,
-  },
-  questionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Question',
-    required: true,
-  },
-  isCorrect: {
-    type: Boolean,
-    required: true,
-  },
-  timeSpent: {
-    type: Number,
-    default: 0,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+// 定义接口
+export interface UserProgressAttributes {
+  id: string;
+  userId: string;
+  questionSetId: string;
+  questionId: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
-export const UserProgress = mongoose.model('UserProgress', userProgressSchema); 
+// 创建时可选的属性
+interface UserProgressCreationAttributes extends Optional<UserProgressAttributes, 'id' | 'timeSpent'> {}
+
+// 用户进度模型类
+class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAttributes> implements UserProgressAttributes {
+  public id!: string;
+  public userId!: string;
+  public questionSetId!: string;
+  public questionId!: string;
+  public isCorrect!: boolean;
+  public timeSpent!: number;
+  
+  // 时间戳
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+UserProgress.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    userId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
+    },
+    questionSetId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'question_sets',
+        key: 'id'
+      }
+    },
+    questionId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'questions',
+        key: 'id'
+      }
+    },
+    isCorrect: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false
+    },
+    timeSpent: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    }
+  },
+  {
+    sequelize,
+    modelName: 'UserProgress',
+    tableName: 'user_progress',
+    timestamps: true,
+    indexes: [
+      { fields: ['userId'] },
+      { fields: ['questionSetId'] },
+      { fields: ['questionId'] },
+      { fields: ['userId', 'questionSetId'] }
+    ]
+  }
+);
+
+// 声明关联
+export const initUserProgressAssociations = () => {
+  UserProgress.belongsTo(User, { foreignKey: 'userId' });
+  UserProgress.belongsTo(QuestionSet, { foreignKey: 'questionSetId' });
+  UserProgress.belongsTo(Question, { foreignKey: 'questionId' });
+};
+
+export default UserProgress; 

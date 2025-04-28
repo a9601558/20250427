@@ -8,6 +8,8 @@ import Purchase from './Purchase';
 import RedeemCode from './RedeemCode';
 import Option from './Option';
 import HomepageSettings from './HomepageSettings';
+import UserProgress from './UserProgress';
+import { initUserProgressAssociations } from './UserProgress';
 
 // 设置模型关联
 export const setupAssociations = () => {
@@ -64,6 +66,9 @@ export const setupAssociations = () => {
     foreignKey: 'questionSetId',
     as: 'questionSet'
   });
+
+  // UserProgress 关联
+  initUserProgressAssociations();
 
   console.log('模型关联设置完成');
 };
@@ -122,5 +127,6 @@ export {
   HomepageSettings,
   Purchase,
   RedeemCode,
+  UserProgress,
   sequelize
 }; 

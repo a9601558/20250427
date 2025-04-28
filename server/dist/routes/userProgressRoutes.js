@@ -9,11 +9,16 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
 // All progress routes require authentication
 router.use(authMiddleware_1.protect);
-// Progress routes
+// 用户整体进度路由
 router.get('/', userProgressController_1.getUserProgress);
 router.post('/', userProgressController_1.updateProgress);
-// 更新用户进度 - PUT方式 (ID在URL参数中)
-router.put('/:questionSetId', userProgressController_1.getUserProgress);
-// 获取特定题库的进度
-router.get('/:questionSetId', userProgressController_1.getUserProgress);
+// 特定题库进度路由
+router.get('/:questionSetId', userProgressController_1.getProgressByQuestionSetId);
+router.put('/:questionSetId', userProgressController_1.updateProgress);
+router.delete('/:questionSetId', userProgressController_1.resetProgress);
+// 详细进度记录路由
+router.post('/record', userProgressController_1.createDetailedProgress);
+router.get('/detailed', userProgressController_1.getDetailedProgress);
+router.get('/stats', userProgressController_1.getProgressStats);
+router.delete('/record/:id', userProgressController_1.deleteProgressRecord);
 exports.default = router;

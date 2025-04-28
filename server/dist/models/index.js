@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sequelize = exports.RedeemCode = exports.Purchase = exports.HomepageSettings = exports.Option = exports.Question = exports.QuestionSet = exports.User = exports.syncModels = exports.setupAssociations = void 0;
+exports.sequelize = exports.UserProgress = exports.RedeemCode = exports.Purchase = exports.HomepageSettings = exports.Option = exports.Question = exports.QuestionSet = exports.User = exports.syncModels = exports.setupAssociations = void 0;
 const database_1 = __importDefault(require("../config/database"));
 exports.sequelize = database_1.default;
 // 导入模型
@@ -21,6 +21,9 @@ const Option_1 = __importDefault(require("./Option"));
 exports.Option = Option_1.default;
 const HomepageSettings_1 = __importDefault(require("./HomepageSettings"));
 exports.HomepageSettings = HomepageSettings_1.default;
+const UserProgress_1 = __importDefault(require("./UserProgress"));
+exports.UserProgress = UserProgress_1.default;
+const UserProgress_2 = require("./UserProgress");
 // 设置模型关联
 const setupAssociations = () => {
     console.log('设置模型关联...');
@@ -71,6 +74,8 @@ const setupAssociations = () => {
         foreignKey: 'questionSetId',
         as: 'questionSet'
     });
+    // UserProgress 关联
+    (0, UserProgress_2.initUserProgressAssociations)();
     console.log('模型关联设置完成');
 };
 exports.setupAssociations = setupAssociations;
