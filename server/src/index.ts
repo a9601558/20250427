@@ -9,6 +9,7 @@ import fs from 'fs';
 import { sequelize, syncModels } from './models';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { initializeSocket } from './config/socket';
 
 // Load environment variables
 dotenv.config();
@@ -38,67 +39,8 @@ app.set('trust proxy', 1);
 // Create HTTP server
 const server = createServer(app);
 
-// Initialize Socket.IO
-const io = new Server(server, {
-  cors: {
-    origin: "http://exam7.jp", // 明确指定允许的来源
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type']
-  },
-  path: "/socket.io/", // 确保路径正确
-  transports: ['polling', 'websocket'], // 先尝试polling，然后尝试websocket
-  connectTimeout: 30000, // 连接超时设置
-  pingTimeout: 30000, // ping 超时设置
-  pingInterval: 25000 // ping 间隔设置
-});
-
-// 添加中间件以记录所有连接相关事件
-io.use((socket, next) => {
-  console.log('Socket.IO 中间件处理连接:', socket.id);
-  const transport = socket.conn.transport.name;
-  console.log(`Socket.IO 连接使用传输方式: ${transport}`);
-  console.log(`Socket.IO 连接路径: ${socket.nsp.name}`);
-  next();
-});
-
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
-  console.log(`Socket.IO 新连接: ID=${socket.id}, IP=${clientIP}, 传输方式=${socket.conn.transport.name}`);
-
-  // 处理握手数据
-  console.log('Socket.IO 握手信息:', {
-    headers: socket.handshake.headers,
-    query: socket.handshake.query,
-    time: socket.handshake.time
-  });
-
-  // 用户认证
-  socket.on('authenticate', (userId: string) => {
-    console.log(`Socket.IO 用户认证: ID=${socket.id}, UserID=${userId}`);
-    socket.join(`user:${userId}`);
-    // 发送认证成功的确认
-    socket.emit('authenticated', { userId, success: true });
-  });
-
-  // 断开连接
-  socket.on('disconnect', (reason) => {
-    console.log(`Socket.IO 断开连接: ID=${socket.id}, 原因=${reason}`);
-  });
-
-  // 错误处理
-  socket.on('error', (error) => {
-    console.error(`Socket.IO 错误: ID=${socket.id}`, error);
-  });
-
-  // 测试消息响应
-  socket.on('message', (data) => {
-    console.log(`Socket.IO 收到消息: ID=${socket.id}, 数据=`, data);
-    // 回复消息，测试双向通信
-    socket.emit('message', `服务器收到消息: ${data} (${new Date().toISOString()})`);
-  });
-});
+// Initialize Socket.IO using our enhanced configuration
+const io = initializeSocket(server);
 
 // Export io instance for use in other files
 export { io };

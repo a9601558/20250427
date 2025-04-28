@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { Question, User, QuestionSet, Purchase, RedeemCode, UserProgress, Option } from '../types';
 
-// API基础URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+// API基础URL - 确保这里指向了正确的后端服务地址
+const API_BASE_URL = '/api';
 
 // 创建axios实例
 const api = axios.create({
@@ -10,6 +10,10 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // 添加超时设置
+  timeout: 10000,
+  // 添加凭证配置
+  withCredentials: true,
 });
 
 // 请求拦截器 - 添加令牌
@@ -19,16 +23,41 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // 添加调试日志
+    console.log(`发送请求 ${config.method?.toUpperCase()}: ${config.url}`, config.data);
     return config;
   },
-  error => Promise.reject(error)
+  error => {
+    console.error('请求拦截器错误:', error);
+    return Promise.reject(error);
+  }
 );
 
 // 响应拦截器 - 统一处理错误
 api.interceptors.response.use(
-  response => response,
+  response => {
+    console.log(`接收响应 ${response.status}: ${response.config.url}`, response.data);
+    return response;
+  },
   error => {
-    console.error('API错误', error.response?.data || error.message);
+    if (error.response) {
+      // 服务器返回了错误状态码
+      console.error('API错误响应:', {
+        url: error.config?.url,
+        status: error.response.status,
+        data: error.response.data
+      });
+    } else if (error.request) {
+      // 请求发送成功，但没有收到响应
+      console.error('API请求无响应:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        message: error.message
+      });
+    } else {
+      // 请求设置过程中发生错误
+      console.error('API请求配置错误:', error.message);
+    }
     return Promise.reject(error);
   }
 );
@@ -58,10 +87,29 @@ export const userService = {
   // 用户登录
   async login(username: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
+      // 修正路径，移除了多余的 /api 前缀，因为 axios 实例已经配置了 baseURL
       const response = await api.post('/users/login', { username, password });
       return handleResponse<{ user: User; token: string }>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      // 增强错误处理，提供更具体的错误消息
+      let errorMessage = '登录失败';
+      
+      if (error.response) {
+        // 服务器返回了具体错误信息
+        errorMessage = error.response.data?.message || errorMessage;
+      } else if (error.request) {
+        // 请求发送了但没有收到响应
+        errorMessage = '服务器未响应，请检查网络连接';
+      } else {
+        // 发送请求时出错
+        errorMessage = error.message || errorMessage;
+      }
+      
+      return { 
+        success: false, 
+        error: errorMessage,
+        message: errorMessage 
+      };
     }
   },
 
@@ -70,8 +118,22 @@ export const userService = {
     try {
       const response = await api.post('/users', userData);
       return handleResponse<{ user: User; token: string }>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      let errorMessage = '注册失败';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+      } else if (error.request) {
+        errorMessage = '服务器未响应，请检查网络连接';
+      } else {
+        errorMessage = error.message || errorMessage;
+      }
+      
+      return { 
+        success: false, 
+        error: errorMessage,
+        message: errorMessage 
+      };
     }
   },
 
@@ -80,8 +142,22 @@ export const userService = {
     try {
       const response = await api.get('/users/profile');
       return handleResponse<User>(response);
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
+    } catch (error: any) {
+      let errorMessage = '获取用户信息失败';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+      } else if (error.request) {
+        errorMessage = '服务器未响应，请检查网络连接';
+      } else {
+        errorMessage = error.message || errorMessage;
+      }
+      
+      return { 
+        success: false, 
+        error: errorMessage,
+        message: errorMessage 
+      };
     }
   },
 

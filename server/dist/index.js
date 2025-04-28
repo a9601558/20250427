@@ -14,7 +14,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const models_1 = require("./models");
 const http_1 = require("http");
-const socket_io_1 = require("socket.io");
+const socket_1 = require("./config/socket");
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
@@ -34,61 +34,9 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 // Create HTTP server
 const server = (0, http_1.createServer)(app);
-// Initialize Socket.IO
-const io = new socket_io_1.Server(server, {
-    cors: {
-        origin: "http://exam7.jp", // 明确指定允许的来源
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        credentials: true,
-        allowedHeaders: ['Authorization', 'Content-Type']
-    },
-    path: "/socket.io/", // 确保路径正确
-    transports: ['polling', 'websocket'], // 先尝试polling，然后尝试websocket
-    connectTimeout: 30000, // 连接超时设置
-    pingTimeout: 30000, // ping 超时设置
-    pingInterval: 25000 // ping 间隔设置
-});
+// Initialize Socket.IO using our enhanced configuration
+const io = (0, socket_1.initializeSocket)(server);
 exports.io = io;
-// 添加中间件以记录所有连接相关事件
-io.use((socket, next) => {
-    console.log('Socket.IO 中间件处理连接:', socket.id);
-    const transport = socket.conn.transport.name;
-    console.log(`Socket.IO 连接使用传输方式: ${transport}`);
-    console.log(`Socket.IO 连接路径: ${socket.nsp.name}`);
-    next();
-});
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-    const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
-    console.log(`Socket.IO 新连接: ID=${socket.id}, IP=${clientIP}, 传输方式=${socket.conn.transport.name}`);
-    // 处理握手数据
-    console.log('Socket.IO 握手信息:', {
-        headers: socket.handshake.headers,
-        query: socket.handshake.query,
-        time: socket.handshake.time
-    });
-    // 用户认证
-    socket.on('authenticate', (userId) => {
-        console.log(`Socket.IO 用户认证: ID=${socket.id}, UserID=${userId}`);
-        socket.join(`user:${userId}`);
-        // 发送认证成功的确认
-        socket.emit('authenticated', { userId, success: true });
-    });
-    // 断开连接
-    socket.on('disconnect', (reason) => {
-        console.log(`Socket.IO 断开连接: ID=${socket.id}, 原因=${reason}`);
-    });
-    // 错误处理
-    socket.on('error', (error) => {
-        console.error(`Socket.IO 错误: ID=${socket.id}`, error);
-    });
-    // 测试消息响应
-    socket.on('message', (data) => {
-        console.log(`Socket.IO 收到消息: ID=${socket.id}, 数据=`, data);
-        // 回复消息，测试双向通信
-        socket.emit('message', `服务器收到消息: ${data} (${new Date().toISOString()})`);
-    });
-});
 // Body parsing middleware
 // 确保最先配置body解析中间件，防止请求体解析问题
 app.use(express_1.default.json({

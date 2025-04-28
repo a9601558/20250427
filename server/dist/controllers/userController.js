@@ -25,6 +25,14 @@ const registerUser = async (req, res) => {
                 message: '请提供用户名、邮箱和密码'
             });
         }
+        // 密码长度验证
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: '密码长度必须至少为6个字符'
+            });
+        }
+        console.log(`开始注册新用户: ${username}, ${email}`);
         // 检查用户名是否已存在
         const userExistsByUsername = await User_1.default.findOne({
             where: { username },
@@ -39,6 +47,7 @@ const registerUser = async (req, res) => {
         if (userExistsByEmail) {
             return res.status(400).json({ success: false, message: '邮箱已被注册' });
         }
+        console.log(`开始创建用户记录, 原始密码长度: ${password.length}`);
         // 创建新用户
         const user = await User_1.default.create({
             username,
@@ -49,6 +58,11 @@ const registerUser = async (req, res) => {
             purchases: [],
             redeemCodes: []
         });
+        console.log(`用户创建完成, 密码长度: ${user.password.length}, 密码前缀: ${user.password.substring(0, 10)}...`);
+        // 简单验证密码是否已被加密（加密后应该很长且包含$字符）
+        if (!user.password.includes('$') || user.password.length < 20) {
+            console.warn(`警告: 用户密码可能未被正确加密! 密码长度:${user.password.length}`);
+        }
         // 返回成功响应和用户信息（不包含密码）
         if (user) {
             res.status(201).json({

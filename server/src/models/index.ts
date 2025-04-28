@@ -17,7 +17,8 @@ User.hasMany(Purchase, {
 
 QuestionSet.hasMany(Question, {
   foreignKey: 'questionSetId',
-  as: 'questions'
+  as: 'questions',
+  onDelete: 'CASCADE'
 });
 Question.belongsTo(QuestionSet, {
   foreignKey: 'questionSetId',
@@ -26,7 +27,8 @@ Question.belongsTo(QuestionSet, {
 
 Question.hasMany(Option, {
   foreignKey: 'questionId',
-  as: 'options'
+  as: 'options',
+  onDelete: 'CASCADE'
 });
 Option.belongsTo(Question, {
   foreignKey: 'questionId',
@@ -56,36 +58,60 @@ Purchase.belongsTo(User, {
   as: 'user'
 });
 
-// 数据库同步函数
-const syncModels = async () => {
+// Define associations between models
+export const setupAssociations = () => {
+  // User has many QuestionSets
+  // This is handled by JSON fields in User model for now
+
+  // QuestionSet has many Questions
+  QuestionSet.hasMany(Question, {
+    foreignKey: 'questionSetId',
+    as: 'questions',
+    onDelete: 'CASCADE'
+  });
+  Question.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
+  });
+
+  // Question has many Options
+  Question.hasMany(Option, {
+    foreignKey: 'questionId',
+    as: 'options',
+    onDelete: 'CASCADE'
+  });
+  Option.belongsTo(Question, {
+    foreignKey: 'questionId',
+    as: 'question'
+  });
+
+  console.log('Model associations setup complete');
+};
+
+// Sync models with database
+export const syncModels = async () => {
   try {
-    console.log('开始同步数据库模型...');
-    console.log('同步 User 模型...');
-    await User.sync({ alter: true });
+    setupAssociations();
     
-    console.log('同步 QuestionSet 模型...');
-    await QuestionSet.sync({ alter: true });
+    // 在同步前确保所有模型已经正确加载
+    console.log('准备同步数据库模型...');
     
-    console.log('同步 Question 模型...');
-    await Question.sync({ alter: true });
+    // 记录User模型是否已加载
+    if (User) {
+      console.log('User 模型已加载，含hooks:', Object.keys(User.options.hooks || {}).join(', '));
+    } else {
+      console.warn('警告: User模型可能未正确加载!');
+    }
+
+    // 同步模型到数据库，但不强制重新创建表
+    // alter: true 允许添加新列但不删除现有数据
+    await sequelize.sync({ alter: true });
     
-    console.log('同步 Option 模型...');
-    await Option.sync({ alter: true });
-    
-    console.log('同步 Purchase 模型...');
-    await Purchase.sync({ alter: true });
-    
-    console.log('同步 RedeemCode 模型...');
-    await RedeemCode.sync({ alter: true });
-    
-    console.log('同步 HomepageSettings 模型...');
-    await HomepageSettings.sync({ alter: true });
-    
-    console.log('所有模型同步完成');
+    console.log('数据库同步完成');
     
     // 确保 HomepageSettings 表有初始数据
-    const homeSettings = await HomepageSettings.findByPk(1);
-    if (!homeSettings) {
+    const homepageSettings = await HomepageSettings.findByPk(1);
+    if (!homepageSettings) {
       console.log('创建 HomepageSettings 初始数据...');
       await HomepageSettings.create({
         id: 1,
@@ -97,68 +123,23 @@ const syncModels = async () => {
         banner_image: "/images/banner.jpg",
         theme: 'light'
       });
-      console.log('HomepageSettings 初始数据创建成功');
     }
     
     return true;
   } catch (error) {
-    console.error('数据库模型同步错误:', error);
-    
-    // 尝试强制同步（谨慎使用，会重建表结构）
-    try {
-      console.log('尝试使用force模式同步模型...');
-      
-      console.log('同步 HomepageSettings 模型...');
-      await HomepageSettings.sync({ force: true });
-      
-      console.log('同步 User 模型...');
-      await User.sync({ force: true });
-      
-      console.log('同步 QuestionSet 模型...');
-      await QuestionSet.sync({ force: true });
-      
-      console.log('同步 Question 模型...');
-      await Question.sync({ force: true });
-      
-      console.log('同步 Option 模型...');
-      await Option.sync({ force: true });
-      
-      console.log('同步 Purchase 模型...');
-      await Purchase.sync({ force: true });
-      
-      console.log('同步 RedeemCode 模型...');
-      await RedeemCode.sync({ force: true });
-      
-      console.log('创建 HomepageSettings 初始数据...');
-      await HomepageSettings.create({
-        id: 1,
-        welcome_title: "ExamTopics 模拟练习",
-        welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
-        featured_categories: ["网络协议", "编程语言", "计算机基础"],
-        announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-        footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-        banner_image: "/images/banner.jpg",
-        theme: 'light'
-      });
-      
-      console.log('强制模式同步完成');
-      return true;
-    } catch (forceError) {
-      console.error('强制同步数据库模型失败:', forceError);
-      throw forceError;
-    }
+    console.error('数据库同步失败:', error);
+    throw error;
   }
 };
 
-// 导出所有模型和函数
+// Export models
 export {
-  sequelize,
   User,
-  Question,
   QuestionSet,
-  Purchase,
-  RedeemCode,
+  Question,
   Option,
   HomepageSettings,
-  syncModels
+  Purchase,
+  RedeemCode,
+  sequelize
 }; 
