@@ -611,7 +611,10 @@ const getQuestionSetsByCategory = async (req, res) => {
             include: [{
                     model: Question_1.default,
                     as: 'questions',
-                    attributes: ['id']
+                    include: [{
+                            model: Option_1.default,
+                            as: 'options'
+                        }]
                 }],
             order: [['createdAt', 'DESC']]
         });
@@ -626,6 +629,7 @@ const getQuestionSetsByCategory = async (req, res) => {
             trialQuestions: set.trialQuestions,
             isFeatured: set.isFeatured,
             questionCount: set.questions?.length || 0,
+            questions: set.questions,
             createdAt: set.createdAt,
             updatedAt: set.updatedAt
         }));
