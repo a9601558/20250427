@@ -210,7 +210,6 @@ exports.getAllQuestionSets = getAllQuestionSets;
  * @access  Public/Private (部分内容需要购买)
  */
 const getQuestionSetById = async (req, res) => {
-    var _a;
     const { id } = req.params;
     try {
         // 使用Sequelize的关联查询获取题库及其问题和选项
@@ -238,7 +237,7 @@ const getQuestionSetById = async (req, res) => {
         const plainData = questionSet.get({ plain: true });
         const result = {
             ...plainData,
-            questions: ((_a = plainData.questions) === null || _a === void 0 ? void 0 : _a.map(q => ({
+            questions: plainData.questions?.map(q => ({
                 id: q.id,
                 text: q.text,
                 explanation: q.explanation,
@@ -250,7 +249,7 @@ const getQuestionSetById = async (req, res) => {
                     isCorrect: o.isCorrect,
                     optionIndex: o.optionIndex
                 }))
-            }))) || []
+            })) || []
         };
         res.status(200).json({
             success: true,
@@ -300,59 +299,33 @@ const createQuestionSet = async (req, res) => {
                 trialQuestions: isPaid ? trialQuestions : null,
                 isFeatured: false
             }, { transaction: t });
-            // 如果有问题数据，则创建问题和选项
+            // 如果提供了题目，则创建题目和选项
             if (Array.isArray(questions) && questions.length > 0) {
-                console.log(`处理 ${questions.length} 个问题`);
-                for (let i = 0; i < questions.length; i++) {
-                    const q = questions[i];
-                    // 适配前端数据格式，处理question/text字段差异
-                    const questionText = q.text || q.question || '';
-                    if (!questionText) {
-                        console.warn(`问题 ${i + 1} 缺少文本内容，跳过`);
-                        continue;
-                    }
-                    console.log(`创建问题 ${i + 1}: ${questionText.substring(0, 30)}...`);
-                    // 创建问题
-                    const questionRecord = await Question_1.default.create({
-                        text: questionText,
-                        explanation: q.explanation || '暂无解析',
+                for (const q of questions) {
+                    // 创建题目
+                    const question = await Question_1.default.create({
                         questionSetId: questionSet.id,
+                        text: q.text,
+                        explanation: q.explanation || '暂无解析',
                         questionType: q.questionType || 'single',
-                        orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+                        orderIndex: q.orderIndex || 0
                     }, { transaction: t });
                     // 如果有选项数据，则创建选项
                     if (Array.isArray(q.options) && q.options.length > 0) {
-                        console.log(`处理问题 ${i + 1} 的 ${q.options.length} 个选项`);
-                        const optionPromises = q.options.map((opt, j) => {
-                            const optionIndex = opt.id || String.fromCharCode(65 + j); // 使用前端提供的ID或生成 A, B, C...
-                            // 处理正确答案标记
-                            let isCorrect = false;
-                            if (q.questionType === 'single' && q.correctAnswer === optionIndex) {
-                                isCorrect = true;
-                            }
-                            else if (q.questionType === 'multiple' && Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optionIndex)) {
-                                isCorrect = true;
-                            }
-                            else if (opt.isCorrect) {
-                                isCorrect = true;
-                            }
-                            console.log(`- 选项 ${optionIndex}: ${opt.text.substring(0, 20)}... 正确: ${isCorrect}`);
+                        const optionPromises = q.options.map((opt, index) => {
                             return Option_1.default.create({
-                                questionId: questionRecord.id,
+                                questionId: question.id,
                                 text: opt.text,
-                                isCorrect: isCorrect,
-                                optionIndex: optionIndex
+                                isCorrect: !!opt.isCorrect,
+                                optionIndex: opt.optionIndex || String.fromCharCode(65 + index)
                             }, { transaction: t });
                         });
                         await Promise.all(optionPromises);
                     }
-                    else {
-                        console.warn(`问题 ${i + 1} 没有选项数据`);
-                    }
                 }
             }
             // 获取新创建的题库（包含问题和选项）
-            const createdQuestionSet = await QuestionSet_1.default.findByPk(questionSet.id, {
+            return QuestionSet_1.default.findByPk(questionSet.id, {
                 include: [
                     {
                         model: Question_1.default,
@@ -362,7 +335,6 @@ const createQuestionSet = async (req, res) => {
                 ],
                 transaction: t
             });
-            return createdQuestionSet;
         });
         res.status(201).json({
             success: true,
@@ -374,8 +346,7 @@ const createQuestionSet = async (req, res) => {
         console.error('创建题库失败:', error);
         res.status(500).json({
             success: false,
-            message: '创建题库失败',
-            error: error.message
+            message: error.message || '服务器错误'
         });
     }
 };
@@ -386,7 +357,6 @@ exports.createQuestionSet = createQuestionSet;
  * @access  Admin
  */
 const updateQuestionSet = async (req, res) => {
-    var _a, _b;
     const { id } = req.params;
     let { title, description, category, icon, isPaid, price, trialQuestions, questions, isFeatured, featuredCategory } = req.body;
     try {
@@ -395,7 +365,7 @@ const updateQuestionSet = async (req, res) => {
             title,
             description,
             category,
-            questionCount: (questions === null || questions === void 0 ? void 0 : questions.length) || 0
+            questionCount: questions?.length || 0
         }));
         // 特殊处理: 如果前端传来的请求体包含格式为 {question: "xxx"} 的问题，转换为 {text: "xxx"}
         if (Array.isArray(questions)) {
@@ -545,7 +515,7 @@ const updateQuestionSet = async (req, res) => {
                 message: '题库不存在'
             });
         }
-        console.log(`Building safe response for question set ${result} with ${((_a = updatedQuestionSet.questions) === null || _a === void 0 ? void 0 : _a.length) || 0} questions`);
+        console.log(`Building safe response for question set ${result} with ${updatedQuestionSet.questions?.length || 0} questions`);
         // 手动构建安全的响应对象，避免可能的循环引用
         const safeResponse = {
             id: updatedQuestionSet.id,
@@ -558,22 +528,19 @@ const updateQuestionSet = async (req, res) => {
             trialQuestions: updatedQuestionSet.trialQuestions,
             isFeatured: updatedQuestionSet.isFeatured,
             featuredCategory: updatedQuestionSet.featuredCategory,
-            questions: (_b = updatedQuestionSet.questions) === null || _b === void 0 ? void 0 : _b.map((q) => {
-                var _a;
-                return ({
-                    id: q.id,
-                    text: q.text,
-                    explanation: q.explanation,
-                    questionType: q.questionType,
-                    orderIndex: q.orderIndex,
-                    options: (_a = q.options) === null || _a === void 0 ? void 0 : _a.map((o) => ({
-                        id: o.id,
-                        text: o.text,
-                        isCorrect: o.isCorrect,
-                        optionIndex: o.optionIndex
-                    }))
-                });
-            })
+            questions: updatedQuestionSet.questions?.map((q) => ({
+                id: q.id,
+                text: q.text,
+                explanation: q.explanation,
+                questionType: q.questionType,
+                orderIndex: q.orderIndex,
+                options: q.options?.map((o) => ({
+                    id: o.id,
+                    text: o.text,
+                    isCorrect: o.isCorrect,
+                    optionIndex: o.optionIndex
+                }))
+            }))
         };
         console.log(`Successfully updated question set ${result}`);
         return res.status(200).json({
@@ -684,7 +651,6 @@ exports.saveProgress = saveProgress;
  * @access  Private/Admin
  */
 const uploadQuestionSets = async (req, res) => {
-    var _a, _b, _c, _d;
     try {
         const { questionSets } = req.body;
         if (!questionSets || !Array.isArray(questionSets) || questionSets.length === 0) {
@@ -745,7 +711,7 @@ const uploadQuestionSets = async (req, res) => {
                         });
                         if (existingQuestion) {
                             // 更新现有题目
-                            console.log(`更新题目 ${q.id}: ${(_a = q.text) === null || _a === void 0 ? void 0 : _a.substring(0, 30)}...`);
+                            console.log(`更新题目 ${q.id}: ${q.text?.substring(0, 30)}...`);
                             await existingQuestion.update({
                                 text: q.text || '',
                                 explanation: q.explanation || '',
@@ -772,7 +738,7 @@ const uploadQuestionSets = async (req, res) => {
                         }
                         else {
                             // ID存在但题目不存在，创建新题目
-                            console.log(`创建指定ID的题目 ${q.id}: ${(_b = q.text) === null || _b === void 0 ? void 0 : _b.substring(0, 30)}...`);
+                            console.log(`创建指定ID的题目 ${q.id}: ${q.text?.substring(0, 30)}...`);
                             const newQuestion = await Question_1.default.create({
                                 id: q.id,
                                 text: q.text,
@@ -798,7 +764,7 @@ const uploadQuestionSets = async (req, res) => {
                     // 创建没有ID的新题目
                     for (let i = 0; i < questionsWithoutId.length; i++) {
                         const q = questionsWithoutId[i];
-                        console.log(`创建新题目 ${i + 1}: ${(_c = q.text) === null || _c === void 0 ? void 0 : _c.substring(0, 30)}...`);
+                        console.log(`创建新题目 ${i + 1}: ${q.text?.substring(0, 30)}...`);
                         const newQuestion = await Question_1.default.create({
                             text: q.text,
                             explanation: q.explanation,
@@ -847,7 +813,7 @@ const uploadQuestionSets = async (req, res) => {
                 if (setData.questions && setData.questions.length > 0) {
                     for (let i = 0; i < setData.questions.length; i++) {
                         const q = setData.questions[i];
-                        console.log(`创建新题库的题目 ${i + 1}: ${(_d = q.text) === null || _d === void 0 ? void 0 : _d.substring(0, 30)}...`);
+                        console.log(`创建新题库的题目 ${i + 1}: ${q.text?.substring(0, 30)}...`);
                         // 创建问题
                         const question = await Question_1.default.create({
                             id: q.id || undefined, // 如果未提供ID，让Sequelize生成

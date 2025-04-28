@@ -8,6 +8,7 @@ const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const db_1 = require("../config/db");
+const socket_1 = require("../config/socket");
 // @desc    获取所有题库
 // @route   GET /api/question-sets
 // @access  Public
@@ -257,7 +258,7 @@ const createQuestion = async (req, res) => {
                     questionId: question.id,
                     text: option.text || `选项 ${index + 1}`,
                     isCorrect: !!option.isCorrect,
-                    optionIndex: option.optionIndex || option.id || String.fromCharCode(65 + index) // A, B, C...
+                    optionIndex: option.optionIndex || String.fromCharCode(65 + index)
                 }, { transaction: t });
             });
             await Promise.all(optionPromises);
@@ -267,6 +268,18 @@ const createQuestion = async (req, res) => {
                 transaction: t
             });
         });
+        // 获取最新的题目数量
+        const questionCount = await Question_1.default.count({
+            where: { questionSetId }
+        });
+        // 通过Socket.IO通知所有客户端更新题目数量
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('question_count_updated', {
+                questionSetId,
+                count: questionCount
+            });
+        }
         res.status(201).json({
             success: true,
             message: '题目创建成功',
@@ -277,8 +290,7 @@ const createQuestion = async (req, res) => {
         console.error('创建题目失败:', error);
         res.status(500).json({
             success: false,
-            message: '创建题目失败',
-            error: error.message
+            message: error.message || '服务器错误'
         });
     }
 };
@@ -389,6 +401,7 @@ exports.getQuestionById = getQuestionById;
 const deleteQuestion = async (req, res) => {
     try {
         const { id } = req.params;
+        // 查找题目
         const question = await Question_1.default.findByPk(id);
         if (!question) {
             return res.status(404).json({
@@ -396,8 +409,27 @@ const deleteQuestion = async (req, res) => {
                 message: '题目不存在'
             });
         }
-        // 删除题目（关联的选项会通过外键级联删除）
-        await question.destroy();
+        const questionSetId = question.questionSetId;
+        // 使用事务删除题目和选项
+        await db_1.sequelize.transaction(async (t) => {
+            // 先删除选项
+            await Option_1.default.destroy({
+                where: { questionId: id },
+                transaction: t
+            });
+            // 删除题目
+            await question.destroy({ transaction: t });
+        });
+        // 获取最新的题目数量
+        const questionCount = await Question_1.default.count({
+            where: { questionSetId }
+        });
+        // 通过Socket.IO通知所有客户端更新题目数量
+        const io = req.app.get('io');
+        (0, socket_1.emitToHomepage)(io, 'question_count_updated', {
+            questionSetId,
+            count: questionCount
+        });
         res.status(200).json({
             success: true,
             message: '题目删除成功'
@@ -407,8 +439,7 @@ const deleteQuestion = async (req, res) => {
         console.error('删除题目失败:', error);
         res.status(500).json({
             success: false,
-            message: '删除题目失败',
-            error: error.message
+            message: error.message || '服务器错误'
         });
     }
 };

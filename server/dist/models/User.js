@@ -8,6 +8,17 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_1 = require("../config/db");
 // User model type
 class User extends sequelize_1.Model {
+    id;
+    username;
+    email;
+    password;
+    isAdmin;
+    progress;
+    purchases;
+    redeemCodes;
+    // Time stamps
+    createdAt;
+    updatedAt;
     // Password comparison method
     async comparePassword(candidatePassword) {
         return bcryptjs_1.default.compare(candidatePassword, this.password);

@@ -41,11 +41,12 @@ const server = createServer(app);
 // Initialize Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: '*', // 允许所有来源
+    origin: "http://exam7.jp", // 明确指定允许的来源
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Authorization', 'Content-Type']
   },
+  path: "/socket.io/", // 确保路径正确
   transports: ['polling', 'websocket'], // 先尝试polling，然后尝试websocket
   connectTimeout: 30000, // 连接超时设置
   pingTimeout: 30000, // ping 超时设置
@@ -57,6 +58,7 @@ io.use((socket, next) => {
   console.log('Socket.IO 中间件处理连接:', socket.id);
   const transport = socket.conn.transport.name;
   console.log(`Socket.IO 连接使用传输方式: ${transport}`);
+  console.log(`Socket.IO 连接路径: ${socket.nsp.name}`);
   next();
 });
 

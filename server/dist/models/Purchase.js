@@ -10,6 +10,18 @@ const QuestionSet_1 = __importDefault(require("./QuestionSet"));
 const User_1 = __importDefault(require("./User"));
 // 购买记录模型类
 class Purchase extends sequelize_1.Model {
+    id;
+    userId;
+    questionSetId;
+    purchaseDate;
+    expiryDate;
+    transactionId;
+    amount;
+    paymentMethod;
+    status;
+    // 时间戳
+    createdAt;
+    updatedAt;
 }
 // 初始化模型
 Purchase.init({

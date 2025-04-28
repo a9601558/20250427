@@ -7,9 +7,9 @@ exports.constructEvent = exports.verifyPaymentIntent = exports.stripePaymentInte
 const stripe_1 = __importDefault(require("stripe"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-// Initialize Stripe with secret key from env
+// Initialize Stripe with your secret key
 const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2023-10-16', // Use the latest API version
+    apiVersion: '2022-11-15', // Use the compatible API version
 });
 /**
  * Create a payment intent with Stripe

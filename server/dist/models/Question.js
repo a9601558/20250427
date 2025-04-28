@@ -4,6 +4,15 @@ const sequelize_1 = require("sequelize");
 const db_1 = require("../config/db");
 // 问题模型类
 class Question extends sequelize_1.Model {
+    id;
+    questionSetId;
+    text;
+    questionType;
+    explanation;
+    orderIndex;
+    // 时间戳
+    createdAt;
+    updatedAt;
 }
 // 初始化模型
 Question.init({

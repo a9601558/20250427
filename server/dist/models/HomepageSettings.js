@@ -3,6 +3,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const db_1 = require("../config/db");
 class HomepageSettings extends sequelize_1.Model {
+    id;
+    welcome_title;
+    welcome_description;
+    featured_categories;
+    announcements;
+    footer_text;
+    banner_image;
+    theme;
+    created_at;
+    updated_at;
 }
 HomepageSettings.init({
     id: {

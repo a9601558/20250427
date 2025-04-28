@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const questionSetController_1 = require("../controllers/questionSetController");
 const questionsUploadController_1 = require("../controllers/questionsUploadController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const homepageController_1 = require("../controllers/homepageController");
 const router = express_1.default.Router();
 // 调试中间件 - 记录所有请求
 router.use((req, res, next) => {
@@ -29,6 +30,8 @@ router.post('/:id/progress', authMiddleware_1.protect, questionSetController_1.s
 // Admin routes with ID parameters
 router.put('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.updateQuestionSet);
 router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.deleteQuestionSet);
+// Featured status update route
+router.put('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, homepageController_1.updateQuestionSetFeaturedStatus);
 // Base routes
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.createQuestionSet);
 router.get('/:id', questionSetController_1.getQuestionSetById);

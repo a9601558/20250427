@@ -1,21 +1,26 @@
-const { io } = require("socket.io-client");
+import { io } from "socket.io-client";
 
 // 设置服务器 URL
 const serverUrl = "http://exam7.jp";
 
 // 连接参数
 const options = {
-  path: "/socket.io",
-  transports: ["polling", "websocket"],
+  path: "/socket.io/",
+  transports: ["websocket"],
   reconnectionAttempts: 3,
   timeout: 10000,
   reconnectionDelay: 1000,
   extraHeaders: {
     "User-Agent": "Socket.IO Tester"
+  },
+  cors: {
+    origin: "http://exam7.jp",
+    methods: ["GET", "POST"],
+    credentials: true
   }
 };
 
-console.log(`尝试连接到 ${serverUrl}...`);
+console.log(`尝试连接到 ${serverUrl}，路径: ${options.path}...`);
 
 // 创建连接
 const socket = io(serverUrl, options);

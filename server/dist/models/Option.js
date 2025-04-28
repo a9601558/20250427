@@ -4,6 +4,14 @@ const sequelize_1 = require("sequelize");
 const db_1 = require("../config/db");
 // 选项模型类
 class Option extends sequelize_1.Model {
+    id;
+    questionId;
+    text;
+    isCorrect;
+    optionIndex;
+    // 时间戳
+    createdAt;
+    updatedAt;
 }
 // 初始化模型
 Option.init({

@@ -217,8 +217,8 @@ const checkPurchaseAccess = async (req, res) => {
             success: true,
             data: {
                 hasAccess: false,
-                price: questionSet === null || questionSet === void 0 ? void 0 : questionSet.price,
-                trialQuestions: questionSet === null || questionSet === void 0 ? void 0 : questionSet.trialQuestions
+                price: questionSet?.price,
+                trialQuestions: questionSet?.trialQuestions
             }
         });
     }

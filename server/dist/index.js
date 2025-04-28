@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.io = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const morgan_1 = __importDefault(require("morgan"));
@@ -12,6 +13,8 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const models_1 = require("./models");
+const http_1 = require("http");
+const socket_io_1 = require("socket.io");
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
@@ -23,11 +26,69 @@ const questionRoutes_1 = __importDefault(require("./routes/questionRoutes"));
 const purchaseRoutes_1 = __importDefault(require("./routes/purchaseRoutes"));
 const redeemCodeRoutes_1 = __importDefault(require("./routes/redeemCodeRoutes"));
 const homepageRoutes_1 = __importDefault(require("./routes/homepageRoutes"));
+const userProgressRoutes_1 = __importDefault(require("./routes/userProgressRoutes"));
 // Initialize express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
-// 信任代理，解决X-Forwarded-For头问题
+// 设置trust proxy为1，只信任第一级代理（通常是Nginx）
 app.set('trust proxy', 1);
+// Create HTTP server
+const server = (0, http_1.createServer)(app);
+// Initialize Socket.IO
+const io = new socket_io_1.Server(server, {
+    cors: {
+        origin: "http://exam7.jp", // 明确指定允许的来源
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        credentials: true,
+        allowedHeaders: ['Authorization', 'Content-Type']
+    },
+    path: "/socket.io/", // 确保路径正确
+    transports: ['polling', 'websocket'], // 先尝试polling，然后尝试websocket
+    connectTimeout: 30000, // 连接超时设置
+    pingTimeout: 30000, // ping 超时设置
+    pingInterval: 25000 // ping 间隔设置
+});
+exports.io = io;
+// 添加中间件以记录所有连接相关事件
+io.use((socket, next) => {
+    console.log('Socket.IO 中间件处理连接:', socket.id);
+    const transport = socket.conn.transport.name;
+    console.log(`Socket.IO 连接使用传输方式: ${transport}`);
+    console.log(`Socket.IO 连接路径: ${socket.nsp.name}`);
+    next();
+});
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    console.log(`Socket.IO 新连接: ID=${socket.id}, IP=${clientIP}, 传输方式=${socket.conn.transport.name}`);
+    // 处理握手数据
+    console.log('Socket.IO 握手信息:', {
+        headers: socket.handshake.headers,
+        query: socket.handshake.query,
+        time: socket.handshake.time
+    });
+    // 用户认证
+    socket.on('authenticate', (userId) => {
+        console.log(`Socket.IO 用户认证: ID=${socket.id}, UserID=${userId}`);
+        socket.join(`user:${userId}`);
+        // 发送认证成功的确认
+        socket.emit('authenticated', { userId, success: true });
+    });
+    // 断开连接
+    socket.on('disconnect', (reason) => {
+        console.log(`Socket.IO 断开连接: ID=${socket.id}, 原因=${reason}`);
+    });
+    // 错误处理
+    socket.on('error', (error) => {
+        console.error(`Socket.IO 错误: ID=${socket.id}`, error);
+    });
+    // 测试消息响应
+    socket.on('message', (data) => {
+        console.log(`Socket.IO 收到消息: ID=${socket.id}, 数据=`, data);
+        // 回复消息，测试双向通信
+        socket.emit('message', `服务器收到消息: ${data} (${new Date().toISOString()})`);
+    });
+});
 // Body parsing middleware
 // 确保最先配置body解析中间件，防止请求体解析问题
 app.use(express_1.default.json({
@@ -63,6 +124,7 @@ const generalLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // 100 requests per IP
     standardHeaders: true,
+    legacyHeaders: false,
     message: {
         success: false,
         message: '请求过于频繁，请稍后再试'
@@ -73,6 +135,7 @@ const loginLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 10, // 10 login attempts per IP
     standardHeaders: true,
+    legacyHeaders: false,
     message: {
         success: false,
         message: '登录尝试次数过多，请稍后再试'
@@ -104,6 +167,8 @@ app.use('/api/questions', questionRoutes_1.default);
 app.use('/api/purchases', purchaseRoutes_1.default);
 app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
 app.use('/api/homepage', homepageRoutes_1.default);
+app.use('/api/user-progress', userProgressRoutes_1.default);
+console.log('注册路由: /api/user-progress, 处理用户进度');
 console.log('=========== API路由注册结束 ===========');
 // Create uploads directory if it doesn't exist
 const uploadsDir = path_1.default.join(__dirname, '../uploads');
@@ -161,9 +226,10 @@ const startServer = async () => {
     try {
         // 尝试同步数据库
         await ensureDatabaseSync();
-        // 开始监听端口
-        app.listen(PORT, () => {
-            console.log(`服务器运行在 http://localhost:${PORT}`);
+        // 使用server替代app来启动服务器
+        server.listen(Number(PORT), '0.0.0.0', () => {
+            console.log(`服务器运行在 http://0.0.0.0:${PORT}`);
+            console.log(`Socket.IO 服务已启动`);
         });
     }
     catch (error) {

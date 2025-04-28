@@ -4,6 +4,18 @@ const sequelize_1 = require("sequelize");
 const db_1 = require("../config/db");
 // 兑换码模型类
 class RedeemCode extends sequelize_1.Model {
+    id;
+    code;
+    questionSetId;
+    validityDays;
+    expiryDate;
+    isUsed;
+    usedBy;
+    usedAt;
+    createdBy;
+    // 时间戳
+    createdAt;
+    updatedAt;
     // 静态方法：生成唯一兑换码
     static async generateUniqueCode(length = 8) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
