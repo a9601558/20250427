@@ -325,6 +325,20 @@ export const questionSetService = {
         error: error.error
       };
     }
+  },
+
+  // 获取用户进度
+  async getUserProgress(): Promise<ApiResponse<Record<string, UserProgress>>> {
+    try {
+      const response = await api.get('/user-progress/stats');
+      return handleResponse<Record<string, UserProgress>>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
   }
 };
 
@@ -459,18 +473,24 @@ export const questionService = {
 
 // 用户进度API服务
 export const userProgressService = {
-  // 获取用户的所有进度
-  async getUserProgress(): Promise<ApiResponse<Record<string, UserProgress>>> {
-    try {
-      const response = await api.get('/user-progress');
-      return handleResponse<Record<string, UserProgress>>(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
-    }
+  // 获取用户进度统计
+  getUserProgress: (): Promise<ApiResponse<Record<string, UserProgress>>> => {
+    return api.get('/user-progress/stats');
+  },
+  
+  // 获取用户答题历史
+  getUserHistory: (): Promise<ApiResponse<UserProgress[]>> => {
+    return api.get('/user-progress/history');
+  },
+  
+  // 获取用户答题统计
+  getUserStats: (): Promise<ApiResponse<{
+    totalQuestions: number;
+    correctAnswers: number;
+    accuracy: number;
+    averageTimeSpent: number;
+  }>> => {
+    return api.get('/user-progress/stats');
   },
   
   // 获取特定题库的进度

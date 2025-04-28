@@ -46,7 +46,7 @@ export const getUserProgress = async (req: Request, res: Response): Promise<Resp
         }
       ]
     });
-    return sendResponse<UserProgressAttributes[]>(res, 200, '获取用户进度成功', progress);
+    return sendResponse<UserProgress[]>(res, 200, '获取用户进度成功', progress);
   } catch (error) {
     return sendError(res, 500, 'Error fetching user progress', error);
   }
@@ -76,7 +76,7 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
     if (!progress || progress.length === 0) {
       return sendError(res, 404, 'Progress not found');
     }
-    return sendResponse<UserProgressAttributes[]>(res, 200, '获取进度成功', progress);
+    return sendResponse<UserProgress[]>(res, 200, '获取进度成功', progress);
   } catch (error) {
     return sendError(res, 500, 'Error fetching progress', error);
   }
@@ -165,7 +165,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     // 通过Socket.IO发送进度更新
     emitProgressUpdate(userId, questionSetId, updatedProgress.toJSON());
     
-    return sendResponse<UserProgressAttributes>(res, 200, '更新进度成功', updatedProgress);
+    return sendResponse<UserProgress>(res, 200, '更新进度成功', updatedProgress);
   } catch (error) {
     console.error('更新进度失败:', error);
     return sendError(res, 500, 'Error updating progress', error);

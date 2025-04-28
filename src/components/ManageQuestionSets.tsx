@@ -160,11 +160,11 @@ const ManageQuestionSets: React.FC = () => {
         setCurrentQuestionSet(updatedCurrentSet);
         
         // 2. 更新题库列表中的对应题库
-        setQuestionSets(prev => 
-          prev.map(set => 
+      setQuestionSets(prev => 
+        prev.map(set => 
             set.id === currentQuestionSet.id ? updatedCurrentSet : set
-          )
-        );
+        )
+      );
       }
       
       // 重置添加题目状态
