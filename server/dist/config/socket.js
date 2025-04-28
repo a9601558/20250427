@@ -1,149 +1,94 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.emitProgressUpdate = exports.emitToHomepage = exports.emitToUserRoom = exports.emitToUser = exports.getUserSocketId = exports.initializeSocket = void 0;
-// 存储用户ID和Socket ID的映射
-const userSocketMap = new Map();
-// 保存Socket.IO实例的引用
-let io;
-const initializeSocket = (socketIo) => {
-    // 保存引用以便其他地方使用
-    io = socketIo;
-    // 添加中间件记录连接
-    io.use((socket, next) => {
-        console.log('Socket.IO 中间件处理连接:', socket.id);
-        const transport = socket.conn.transport.name;
-        console.log(`Socket.IO 连接使用传输方式: ${transport}`);
-        // 记录额外的连接信息
-        console.log(`Socket.IO 连接详情: IP=${socket.handshake.address}, 协议=${socket.conn.protocol}`);
-        // 检查握手参数
-        if (socket.handshake.query && socket.handshake.query.token) {
-            console.log('Socket.IO 连接携带令牌');
+exports.initializeSocket = exports.io = void 0;
+const socket_io_1 = require("socket.io");
+const UserProgress_1 = __importDefault(require("../models/UserProgress"));
+// 初始化 Socket.IO
+const initializeSocket = (server) => {
+    exports.io = new socket_io_1.Server(server, {
+        cors: {
+            origin: process.env.CLIENT_URL || 'http://localhost:3000',
+            methods: ['GET', 'POST']
         }
-        // 为这个连接增加活跃状态监听
-        socket.conn.on('packet', (packet) => {
-            // 记录数据包，保持连接活跃
-            if (packet.type === 'ping') {
-                console.log(`收到来自 ${socket.id} 的ping包`);
-            }
-        });
+    });
+    // 添加中间件记录连接
+    exports.io.use((socket, next) => {
+        console.log('New client connecting...');
         next();
     });
+    // 监听数据包
+    exports.io.engine.on('packet', (packet) => {
+        console.log('packet', packet.type, packet.data);
+    });
     // 处理连接
-    io.on('connection', (socket) => {
-        const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
-        console.log(`Socket.IO 新连接: ID=${socket.id}, IP=${clientIP}, 传输方式=${socket.conn.transport.name}`);
-        // 启用心跳检测
-        const heartbeat = setInterval(() => {
-            if (socket.connected) {
-                socket.emit('ping_from_server');
-                console.log(`发送服务器心跳到客户端: ${socket.id}`);
-            }
-            else {
-                clearInterval(heartbeat); // 如果连接已断开，清除心跳
-            }
-        }, 45000); // 45秒发送一次服务器心跳
+    exports.io.on('connection', (socket) => {
+        console.log('Client connected');
         // 监听传输升级
         socket.conn.on('upgrade', (transport) => {
-            console.log(`Socket.IO 连接 ${socket.id} 升级传输方式: ${transport.name}`);
+            console.log('Transport upgraded to:', transport.name);
         });
-        // 监听客户端心跳响应
-        socket.on('pong_from_client', () => {
-            console.log(`收到客户端心跳响应: ${socket.id}`);
-        });
-        // 用户认证
-        socket.on('authenticate', (userId) => {
-            console.log(`Socket.IO 用户认证: ID=${socket.id}, UserID=${userId}`);
-            userSocketMap.set(userId, socket.id);
-            socket.join(`user:${userId}`);
-            socket.emit('authenticated', { userId, success: true });
-        });
-        // 测试消息
-        socket.on('message', (data) => {
-            console.log(`Socket.IO 收到消息: ID=${socket.id}, 数据=`, data);
-            socket.emit('message', `服务器收到消息: ${data} (${new Date().toISOString()})`);
-        });
-        // 心跳包处理
-        socket.on('ping', () => {
-            console.log(`Socket.IO 收到ping: ${socket.id}`);
-            socket.emit('pong');
-        });
-        // 断开连接
-        socket.on('disconnect', (reason) => {
-            console.log(`Socket.IO 连接断开: ID=${socket.id}, 原因=${reason}`);
-            // 从用户映射中移除
-            for (const [userId, socketId] of userSocketMap.entries()) {
-                if (socketId === socket.id) {
-                    userSocketMap.delete(userId);
-                    console.log(`Socket.IO 用户 ${userId} 的连接已从映射中移除`);
-                    break;
+        // 处理用户认证
+        socket.on('authenticate', async (data) => {
+            try {
+                const { userId } = data;
+                if (!userId) {
+                    socket.emit('auth_error', { message: '缺少用户ID' });
+                    return;
                 }
+                // 将socket加入用户房间
+                socket.join(userId);
+                console.log(`用户 ${userId} 已认证并加入房间`);
+                socket.emit('auth_success', { message: '认证成功' });
             }
-            clearInterval(heartbeat);
+            catch (error) {
+                console.error('认证错误:', error);
+                socket.emit('auth_error', { message: '认证失败' });
+            }
+        });
+        // 处理进度更新
+        socket.on('update_progress', async (data) => {
+            try {
+                const { userId, questionSetId, questionId, isCorrect, timeSpent } = data;
+                // 验证参数
+                if (!userId || !questionSetId || !questionId) {
+                    socket.emit('progress_error', { message: '缺少必要参数' });
+                    return;
+                }
+                // 保存进度到数据库
+                const [progressRecord, created] = await UserProgress_1.default.upsert({
+                    id: undefined, // 让数据库自动生成 ID
+                    userId,
+                    questionSetId,
+                    questionId,
+                    isCorrect,
+                    timeSpent
+                });
+                console.log(`用户进度已${created ? '创建' : '更新'}: ${userId}, ${questionSetId}`);
+                // 转换为纯对象
+                const progressData = progressRecord.toJSON();
+                // 向用户发送进度已更新通知
+                exports.io.to(userId).emit('progress_updated', {
+                    questionSetId,
+                    progress: progressData
+                });
+                // 向客户端确认进度已保存
+                socket.emit('progress_saved', {
+                    success: true,
+                    progress: progressData
+                });
+            }
+            catch (error) {
+                console.error('保存进度错误:', error);
+                socket.emit('progress_error', { message: '保存进度失败' });
+            }
+        });
+        // 处理断开连接
+        socket.on('disconnect', (reason) => {
+            console.log('Client disconnected, reason:', reason);
         });
     });
-    // 全局错误处理
-    io.engine.on('connection_error', (err) => {
-        console.error('Socket.IO 引擎连接错误:', err);
-    });
-    return io;
 };
 exports.initializeSocket = initializeSocket;
-// 获取用户的Socket ID
-const getUserSocketId = (userId) => {
-    return userSocketMap.get(userId);
-};
-exports.getUserSocketId = getUserSocketId;
-// 向特定用户发送事件
-const emitToUser = (io, userId, event, data) => {
-    const socketId = (0, exports.getUserSocketId)(userId);
-    if (socketId) {
-        io.to(socketId).emit(event, data);
-        return true;
-    }
-    return false;
-};
-exports.emitToUser = emitToUser;
-// 向用户房间发送事件
-const emitToUserRoom = (io, userId, event, data) => {
-    io.to(`user:${userId}`).emit(event, data);
-};
-exports.emitToUserRoom = emitToUserRoom;
-// 向主页房间广播事件
-const emitToHomepage = (io, event, data) => {
-    io.to('homepage').emit(event, data);
-};
-exports.emitToHomepage = emitToHomepage;
-/**
- * 发送用户进度更新
- * @param userId 用户ID
- * @param questionSetId 题目集ID
- * @param progress 进度数据
- */
-const emitProgressUpdate = (userId, questionSetId, progress) => {
-    if (!io) {
-        console.error('Socket.IO 实例未初始化，无法发送进度更新');
-        return;
-    }
-    console.log(`尝试发送进度更新到用户 ${userId}, 题目集 ${questionSetId}`);
-    // 尝试获取用户的socket ID
-    const socketId = userSocketMap.get(userId);
-    if (socketId) {
-        // 如果有特定的socket连接，直接发送
-        const socket = io.sockets.sockets.get(socketId);
-        if (socket && socket.connected) {
-            console.log(`发送进度更新到特定socket: ${socketId}`);
-            socket.emit('progress_updated', {
-                questionSetId,
-                progress
-            });
-            return;
-        }
-    }
-    // 如果没有特定socket或连接已断开，发送到用户房间
-    console.log(`发送进度更新到用户房间: user:${userId}`);
-    io.to(`user:${userId}`).emit('progress_updated', {
-        questionSetId,
-        progress
-    });
-};
-exports.emitProgressUpdate = emitProgressUpdate;

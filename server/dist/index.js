@@ -11,7 +11,6 @@ const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
-const socket_io_1 = require("socket.io");
 const socket_1 = require("./config/socket");
 const associations_1 = require("./models/associations");
 const appstate_1 = require("./utils/appstate");
@@ -69,14 +68,8 @@ app.use((err, req, res, next) => {
 });
 // Start server
 const server = (0, http_1.createServer)(app);
-const io = new socket_io_1.Server(server, {
-    cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:3000',
-        methods: ['GET', 'POST']
-    }
-});
 // Initialize socket
-(0, socket_1.initializeSocket)(io);
+(0, socket_1.initializeSocket)(server);
 // 初始化模型关联
 console.log('正在初始化模型关联...');
 (0, associations_1.setupAssociations)();

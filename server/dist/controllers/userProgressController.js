@@ -150,7 +150,10 @@ const updateProgress = async (req, res) => {
             timeSpent,
         });
         // 通过Socket.IO发送进度更新
-        (0, socket_1.emitProgressUpdate)(userId, questionSetId, updatedProgress.toJSON());
+        socket_1.io.to(userId).emit('progress_updated', {
+            questionSetId,
+            progress: updatedProgress.toJSON()
+        });
         return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', updatedProgress);
     }
     catch (error) {
@@ -260,7 +263,10 @@ const createDetailedProgress = async (req, res) => {
             timeSpent,
         });
         // 通过Socket.IO发送进度更新
-        (0, socket_1.emitProgressUpdate)(userId, questionSetId, progress.toJSON());
+        socket_1.io.to(userId).emit('progress_updated', {
+            questionSetId,
+            progress: progress.toJSON()
+        });
         return (0, responseUtils_1.sendResponse)(res, 201, '学习进度已记录', progress.toJSON());
     }
     catch (error) {

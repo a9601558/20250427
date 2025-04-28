@@ -6,7 +6,7 @@ import Question from '../models/Question';
 import { sendResponse, sendError } from '../utils/responseUtils';
 import { IUserProgress } from '../types';
 import { Op } from 'sequelize';
-import { emitProgressUpdate } from '../config/socket';
+import { io } from '../config/socket';
 
 interface ProgressStats {
   total: number;
@@ -163,7 +163,10 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     });
 
     // 通过Socket.IO发送进度更新
-    emitProgressUpdate(userId, questionSetId, updatedProgress.toJSON());
+    io.to(userId).emit('progress_updated', {
+      questionSetId,
+      progress: updatedProgress.toJSON()
+    });
     
     return sendResponse<UserProgress>(res, 200, '更新进度成功', updatedProgress);
   } catch (error) {
@@ -280,7 +283,10 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     });
 
     // 通过Socket.IO发送进度更新
-    emitProgressUpdate(userId, questionSetId, progress.toJSON());
+    io.to(userId).emit('progress_updated', {
+      questionSetId,
+      progress: progress.toJSON()
+    });
     
     return sendResponse(res, 201, '学习进度已记录', progress.toJSON());
   } catch (error) {

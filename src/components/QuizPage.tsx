@@ -4,6 +4,14 @@ import { QuestionSet, Question } from '../types';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi, questionApi, purchaseApi, userProgressApi } from '../utils/api';
+import { getSocket, sendProgressUpdate } from '../config/socket';
+import io from 'socket.io-client';
+
+// 定义答题记录类型
+interface AnsweredQuestion {
+  index: number;
+  isCorrect: boolean;
+}
 
 // 获取选项标签（A, B, C, D...）
 const getOptionLabel = (index: number): string => {
@@ -18,7 +26,7 @@ function QuizPage(): React.ReactNode {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [showExplanation, setShowExplanation] = useState(false);
-  const [answeredQuestions, setAnsweredQuestions] = useState<number[]>([]);
+  const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([]);
   const [correctAnswers, setCorrectAnswers] = useState<number>(0);
   const [quizComplete, setQuizComplete] = useState(false);
   const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
@@ -188,8 +196,11 @@ function QuizPage(): React.ReactNode {
     let newAnsweredQuestions = [...answeredQuestions];
     let newCorrectAnswers = correctAnswers;
     
-    if (!answeredQuestions.includes(currentQuestionIndex)) {
-      newAnsweredQuestions = [...answeredQuestions, currentQuestionIndex];
+    // 检查当前问题是否已回答
+    const alreadyAnswered = answeredQuestions.some(q => q.index === currentQuestionIndex);
+    
+    if (!alreadyAnswered) {
+      newAnsweredQuestions = [...answeredQuestions, { index: currentQuestionIndex, isCorrect }];
       setAnsweredQuestions(newAnsweredQuestions);
       
       if (isCorrect) {
@@ -207,26 +218,47 @@ function QuizPage(): React.ReactNode {
     if (!user || !questionSet) return;
     
     try {
+      // 获取当前问题的ID
+      const currentQuestionId = questions[currentQuestionIndex]?.id?.toString() || '';
+      
+      // 查找当前问题的答题记录
+      const currentQuestionAnswer = answeredQuestions.find(q => q.index === currentQuestionIndex);
+      const isCurrentQuestionCorrect = currentQuestionAnswer?.isCorrect || false;
+      
       // 准备进度数据
       const progressData = {
         questionSetId: questionSet.id,
+        questionId: currentQuestionId,
+        isCorrect: isCurrentQuestionCorrect,
+        timeSpent: 0, // 时间跟踪可以根据需要实现
         completedQuestions: completedCount,
         totalQuestions: questions.length,
         correctAnswers: correctCount
       };
       
-      // 调用API保存进度 - 进度会在以下情况保存:
-      // 1. 用户回答问题后
-      // 2. 用户点击"下一题"按钮时
-      // 3. 用户完成整个测试时
-      const result = await userProgressApi.updateProgress(progressData);
+      // 首先尝试使用socket发送进度
+      const socketSent = sendProgressUpdate(progressData);
       
-      if (result.success) {
-        // 更新本地用户上下文中的进度
-        await addProgress(progressData);
-        console.log('进度已保存:', progressData);
+      // 无论socket是否成功，更新本地进度
+      await addProgress({
+        questionSetId: questionSet.id,
+        completedQuestions: completedCount,
+        totalQuestions: questions.length,
+        correctAnswers: correctCount
+      });
+      
+      // 如果socket发送失败，回退到API
+      if (!socketSent) {
+        console.log('Socket发送失败，尝试使用API保存进度');
+        const result = await userProgressApi.updateProgress(progressData);
+        
+        if (result.success) {
+          console.log('进度已通过API保存:', progressData);
+        } else {
+          console.error('通过API保存进度失败:', result.error);
+        }
       } else {
-        console.error('保存进度失败:', result.error);
+        console.log('进度已通过Socket保存:', progressData);
       }
     } catch (error) {
       console.error('保存进度失败:', error);

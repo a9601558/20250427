@@ -234,11 +234,26 @@ export const authenticateUser = (userId: string) => {
   }
 };
 
+// 发送进度更新
+export const sendProgressUpdate = (progressData: any) => {
+  if (!socket) initSocket();
+  
+  if (socket && socket.connected) {
+    socket.emit('update_progress', progressData);
+    console.log('发送进度更新:', progressData);
+    return true;
+  } else {
+    console.error('发送进度更新失败: Socket未连接');
+    return false;
+  }
+};
+
 // 监听进度更新
 export const onProgressUpdate = (callback: (data: { questionSetId: string, progress: UserProgress }) => void) => {
   if (!socket) initSocket();
   
   socket?.on('progress_updated', (data) => {
+    console.log('收到进度更新:', data);
     callback(data);
   });
   

@@ -76,15 +76,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 const server = createServer(app);
-const io = new SocketIOServer(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST']
-  }
-});
 
 // Initialize socket
-initializeSocket(io);
+initializeSocket(server);
 
 // 初始化模型关联
 console.log('正在初始化模型关联...');

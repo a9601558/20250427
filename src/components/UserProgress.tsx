@@ -61,8 +61,11 @@ const UserProgressComponent: React.FC = () => {
             overall: {
               totalQuestions: Object.values(progressData).reduce((sum, p) => sum + (p.totalQuestions || 0), 0),
               correctAnswers: Object.values(progressData).reduce((sum, p) => sum + (p.correctAnswers || 0), 0),
-              accuracy: Object.values(progressData).reduce((sum, p) => sum + (p.accuracy || 0), 0) / Object.keys(progressData).length,
-              averageTimeSpent: Object.values(progressData).reduce((sum, p) => sum + (p.averageTimeSpent || 0), 0) / Object.keys(progressData).length
+              accuracy: Object.values(progressData).reduce((sum, p) => {
+                const acc = p.totalQuestions ? (p.correctAnswers / p.totalQuestions) * 100 : 0;
+                return sum + acc;
+              }, 0) / Math.max(Object.keys(progressData).length, 1),
+              averageTimeSpent: 0 // UserProgress doesn't have averageTimeSpent property
             },
             bySet: {},
             byType: {}
@@ -71,12 +74,12 @@ const UserProgressComponent: React.FC = () => {
           // 按题库和类型组织数据
           Object.entries(progressData).forEach(([setId, setProgress]) => {
             transformedStats.bySet[setId] = {
-              title: setProgress.title,
+              title: setProgress.questionSetId || `题库 ${setId}`,
               total: setProgress.totalQuestions || 0,
               correct: setProgress.correctAnswers || 0,
-              timeSpent: setProgress.totalTimeSpent || 0,
-              accuracy: setProgress.accuracy || 0,
-              averageTime: setProgress.averageTimeSpent
+              timeSpent: 0,
+              accuracy: Math.round((setProgress.correctAnswers / setProgress.totalQuestions) * 100) || 0,
+              averageTime: 0
             };
           });
 
@@ -102,10 +105,15 @@ const UserProgressComponent: React.FC = () => {
         fetchProgress(); // 重新获取最新数据
       };
 
-      socket.on('progressUpdate', handleProgressUpdate);
+      // 使用正确的事件名称
+      socket.on('progress_updated', handleProgressUpdate);
+
+      socket.on('disconnect', (reason) => {
+        console.log(`Socket.IO 连接断开: ID=${socket.id}, 原因=${reason}`);
+      });
 
       return () => {
-        socket.off('progressUpdate', handleProgressUpdate);
+        socket.off('progress_updated', handleProgressUpdate);
       };
     }
   }, [user, socket]);
