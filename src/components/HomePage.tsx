@@ -140,19 +140,23 @@ const HomePage: React.FC = () => {
 
   // 获取题库访问状态
   const getQuestionSetAccessStatus = (questionSet: QuestionSet) => {
+    // 如果是免费题库，直接返回有访问权限
     if (!questionSet.isPaid) {
       return { hasAccess: true, remainingDays: null };
     }
     
+    // 如果用户未登录，返回无访问权限
     if (!user) {
       return { hasAccess: false, remainingDays: null };
     }
     
+    // 查找用户的购买记录
     const purchase = user.purchases?.find(p => p.questionSetId === questionSet.id);
     if (!purchase) {
       return { hasAccess: false, remainingDays: null };
     }
     
+    // 检查购买是否有效
     const expiryDate = new Date(purchase.expiryDate);
     const now = new Date();
     const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));

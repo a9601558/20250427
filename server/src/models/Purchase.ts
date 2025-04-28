@@ -33,6 +33,9 @@ class Purchase extends Model<PurchaseAttributes, PurchaseCreationAttributes> imp
   public paymentMethod!: string;
   public status!: 'pending' | 'completed' | 'failed' | 'refunded';
   
+  // 关联属性
+  public questionSet?: QuestionSet;
+  
   // 时间戳
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;

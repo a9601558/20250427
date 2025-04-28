@@ -16,6 +16,8 @@ class Purchase extends sequelize_1.Model {
     amount;
     paymentMethod;
     status;
+    // 关联属性
+    questionSet;
     // 时间戳
     createdAt;
     updatedAt;

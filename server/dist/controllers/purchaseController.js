@@ -88,12 +88,20 @@ const getUserPurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet'
+                    as: 'questionSet',
+                    required: false // 设置为 false 以避免关联失败时整个查询失败
                 }
             ],
             order: [['purchaseDate', 'DESC']]
         });
-        sendResponse(res, 200, purchases);
+        // 检查每个购买记录是否有关联的题库
+        const validPurchases = purchases.map(purchase => {
+            if (!purchase.questionSet) {
+                console.warn(`Purchase ${purchase.id} has no associated question set`);
+            }
+            return purchase;
+        });
+        sendResponse(res, 200, validPurchases);
     }
     catch (error) {
         console.error('Get purchases error:', error);
