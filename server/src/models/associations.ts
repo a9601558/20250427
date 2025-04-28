@@ -1,6 +1,8 @@
 import Question from './Question';
 import Option from './Option';
 import QuestionSet from './QuestionSet';
+import User from './User';
+import UserProgress from './UserProgress';
 
 export const setupAssociations = () => {
   // QuestionSet 和 Question 的关联
@@ -23,6 +25,42 @@ export const setupAssociations = () => {
   });
 
   Option.belongsTo(Question, {
+    foreignKey: 'questionId',
+    as: 'question'
+  });
+
+  // User 和 UserProgress 的关联
+  User.hasMany(UserProgress, {
+    foreignKey: 'userId',
+    as: 'progress',
+    onDelete: 'CASCADE'
+  });
+
+  UserProgress.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'user'
+  });
+
+  // QuestionSet 和 UserProgress 的关联
+  QuestionSet.hasMany(UserProgress, {
+    foreignKey: 'questionSetId',
+    as: 'userProgress',
+    onDelete: 'CASCADE'
+  });
+
+  UserProgress.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
+  });
+
+  // Question 和 UserProgress 的关联
+  Question.hasMany(UserProgress, {
+    foreignKey: 'questionId',
+    as: 'userProgress',
+    onDelete: 'CASCADE'
+  });
+
+  UserProgress.belongsTo(Question, {
     foreignKey: 'questionId',
     as: 'question'
   });

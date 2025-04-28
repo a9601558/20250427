@@ -1,21 +1,24 @@
 import { Response } from 'express';
 
-interface ResponseData {
+interface ResponseData<T = any> {
   success: boolean;
-  message: string;
-  data?: any;
+  data?: T;
+  message?: string;
 }
 
-export const sendResponse = (
+export const sendResponse = <T = any>(
   res: Response,
   statusCode: number,
-  message: string,
-  data?: any
-) => {
-  const response: ResponseData = {
+  message?: string,
+  data?: T
+): Response => {
+  const response: ResponseData<T> = {
     success: true,
-    message,
   };
+
+  if (message) {
+    response.message = message;
+  }
 
   if (data !== undefined) {
     response.data = data;
@@ -29,15 +32,10 @@ export const sendError = (
   statusCode: number,
   message: string,
   error?: any
-) => {
-  const response: ResponseData = {
+): Response => {
+  return res.status(statusCode).json({
     success: false,
     message,
-  };
-
-  if (error && process.env.NODE_ENV === 'development') {
-    response.data = error;
-  }
-
-  return res.status(statusCode).json(response);
+    error: error?.message || error,
+  });
 }; 

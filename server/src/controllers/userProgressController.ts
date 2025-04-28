@@ -1,37 +1,35 @@
 import { Request, Response } from 'express';
 import User from '../models/User';
 import QuestionSet from '../models/QuestionSet';
-import UserProgress from '../models/UserProgress';
+import UserProgress, { UserProgressAttributes } from '../models/UserProgress';
 import Question from '../models/Question';
 import { sendResponse, sendError } from '../utils/responseUtils';
 import { IUserProgress } from '../types';
 import { Op } from 'sequelize';
+
+interface ProgressStats {
+  total: number;
+  correct: number;
+  timeSpent: number;
+  accuracy?: number;
+  averageTime?: number;
+  title?: string;
+}
 
 /**
  * @desc    获取用户进度
  * @route   GET /api/user-progress
  * @access  Private
  */
-export const getUserProgress = async (req: Request, res: Response) => {
+export const getUserProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const user = await User.findByPk(req.user.id);
-
-    if (!user) {
-      return sendError(res, 404, '用户不存在');
-    }
-
-    const progress: Record<string, IUserProgress> = user.progress || {};
-    
-    // 确保响应格式一致 - 转换为数组格式
-    const progressArray = Object.entries(progress).map(([questionSetId, data]) => ({
-      questionSetId,
-      ...data
-    }));
-    
-    return sendResponse(res, 200, '获取用户进度成功', progressArray);
+    const { userId } = req.params;
+    const progress = await UserProgress.findAll({
+      where: { userId },
+    });
+    return sendResponse<UserProgressAttributes[]>(res, 200, '获取用户进度成功', progress);
   } catch (error) {
-    console.error('Get user progress error:', error);
-    return sendError(res, 500, '获取用户进度失败', error);
+    return sendError(res, 500, 'Error fetching user progress', error);
   }
 };
 
@@ -40,38 +38,18 @@ export const getUserProgress = async (req: Request, res: Response) => {
  * @route   GET /api/user-progress/:questionSetId
  * @access  Private
  */
-export const getProgressByQuestionSetId = async (req: Request, res: Response) => {
+export const getProgressByQuestionSetId = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const user = await User.findByPk(req.user.id);
-    const questionSetId = req.params.questionSetId;
-
-    if (!user) {
-      return sendError(res, 404, '用户不存在');
+    const { userId, questionSetId } = req.params;
+    const progress = await UserProgress.findOne({
+      where: { userId, questionSetId },
+    });
+    if (!progress) {
+      return sendError(res, 404, 'Progress not found');
     }
-
-    // 检查题库是否存在
-    const questionSet = await QuestionSet.findByPk(questionSetId);
-    if (!questionSet) {
-      return sendError(res, 404, '题库不存在');
-    }
-
-    const progress: IUserProgress = user.progress?.[questionSetId] || {
-      completedQuestions: 0,
-      totalQuestions: 0,
-      correctAnswers: 0,
-      lastAccessed: null
-    };
-
-    // 添加 questionSetId 到响应中
-    const response = {
-      questionSetId,
-      ...progress
-    };
-
-    return sendResponse(res, 200, '获取题库进度成功', response);
+    return sendResponse<UserProgressAttributes>(res, 200, '获取进度成功', progress);
   } catch (error) {
-    console.error('Get question set progress error:', error);
-    return sendError(res, 500, '获取题库进度失败', error);
+    return sendError(res, 500, 'Error fetching progress', error);
   }
 };
 
@@ -80,51 +58,22 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response) =>
  * @route   POST /api/user-progress
  * @access  Private
  */
-export const updateProgress = async (req: Request, res: Response) => {
+export const updateProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { questionSetId, completedQuestions, totalQuestions, correctAnswers } = req.body;
+    const { userId, questionSetId, questionId } = req.params;
+    const { isCorrect, timeSpent } = req.body;
 
-    // 验证必填字段
-    if (!questionSetId || completedQuestions === undefined || totalQuestions === undefined) {
-      return sendError(res, 400, '请提供题库ID、已完成题目数和总题目数');
-    }
-
-    const user = await User.findByPk(req.user.id);
-    if (!user) {
-      return sendError(res, 404, '用户不存在');
-    }
-
-    // 检查题库是否存在
-    const questionSet = await QuestionSet.findByPk(questionSetId);
-    if (!questionSet) {
-      return sendError(res, 404, '题库不存在');
-    }
-
-    // 更新进度
-    if (!user.progress) {
-      user.progress = {};
-    }
-
-    const progress: IUserProgress = {
-      completedQuestions,
-      totalQuestions,
-      correctAnswers: correctAnswers || 0,
-      lastAccessed: new Date()
-    };
-
-    user.progress[questionSetId] = progress;
-    await user.save();
-
-    // 添加 questionSetId 到响应中
-    const response = {
+    const [updatedProgress] = await UserProgress.upsert({
+      userId,
       questionSetId,
-      ...progress
-    };
+      questionId,
+      isCorrect,
+      timeSpent: timeSpent || 0,
+    });
 
-    return sendResponse(res, 200, '进度更新成功', response);
+    return sendResponse<UserProgressAttributes>(res, 200, '更新进度成功', updatedProgress);
   } catch (error) {
-    console.error('Update progress error:', error);
-    return sendError(res, 500, '更新进度失败', error);
+    return sendError(res, 500, 'Error updating progress', error);
   }
 };
 
@@ -133,31 +82,15 @@ export const updateProgress = async (req: Request, res: Response) => {
  * @route   DELETE /api/user-progress/:questionSetId
  * @access  Private
  */
-export const resetProgress = async (req: Request, res: Response) => {
+export const resetProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const user = await User.findByPk(req.user.id);
-    const questionSetId = req.params.questionSetId;
-
-    if (!user) {
-      return sendError(res, 404, '用户不存在');
-    }
-
-    // 检查题库是否存在
-    const questionSet = await QuestionSet.findByPk(questionSetId);
-    if (!questionSet) {
-      return sendError(res, 404, '题库不存在');
-    }
-
-    // 重置进度
-    if (user.progress && user.progress[questionSetId]) {
-      delete user.progress[questionSetId];
-      await user.save();
-    }
-
-    return sendResponse(res, 200, '进度重置成功');
+    const { userId, questionSetId } = req.params;
+    await UserProgress.destroy({
+      where: { userId, questionSetId },
+    });
+    return sendResponse(res, 200, 'Progress reset successfully');
   } catch (error) {
-    console.error('Reset progress error:', error);
-    return sendError(res, 500, '重置进度失败', error);
+    return sendError(res, 500, 'Error resetting progress', error);
   }
 };
 
@@ -183,7 +116,6 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
       timeSpent: timeSpent || 0,
     });
 
-    // 确保返回的是纯对象
     return sendResponse(res, 201, '学习进度已记录', progress.toJSON());
   } catch (error) {
     console.error('创建学习进度失败:', error);
@@ -218,7 +150,6 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
       ]
     });
 
-    // 确保返回纯对象数组
     return sendResponse(res, 200, '获取学习进度成功', progress.map(p => p.toJSON()));
   } catch (error) {
     console.error('获取学习进度失败:', error);
@@ -239,7 +170,6 @@ export const getProgressStats = async (req: Request, res: Response) => {
     const where: any = { userId };
     if (questionSetId) where.questionSetId = questionSetId;
 
-    // 使用 Sequelize 查询所有匹配的记录
     const progressRecords = await UserProgress.findAll({
       where,
       include: [
@@ -247,7 +177,6 @@ export const getProgressStats = async (req: Request, res: Response) => {
       ]
     });
 
-    // 在 JavaScript 中进行数据聚合
     const statsMap = new Map();
     
     progressRecords.forEach(record => {
@@ -271,14 +200,12 @@ export const getProgressStats = async (req: Request, res: Response) => {
       stats.totalTimeSpent += record.timeSpent;
     });
     
-    // 计算平均时间并整合结果
     const stats = Array.from(statsMap.values()).map(stat => ({
       ...stat,
       averageTimeSpent: stat.totalQuestions > 0 ? stat.totalTimeSpent / stat.totalQuestions : 0
     }));
 
-    // 确保返回数组
-    return sendResponse(res, 200, '获取学习统计成功', stats.length > 0 ? stats : []);
+    return sendResponse(res, 200, '获取学习统计成功', stats);
   } catch (error) {
     console.error('获取学习统计失败:', error);
     return sendError(res, 500, '获取学习统计失败', error);
@@ -308,5 +235,100 @@ export const deleteProgressRecord = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('删除进度记录失败:', error);
     return sendError(res, 500, '删除进度记录失败', error);
+  }
+};
+
+/**
+ * @desc    获取用户进度统计
+ * @route   GET /api/user-progress/stats
+ * @access  Private
+ */
+export const getUserProgressStats = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    
+    // 获取用户的所有进度记录，包括关联的题目集和题目信息
+    const progressRecords = await UserProgress.findAll({
+      where: { userId },
+      include: [
+        {
+          model: QuestionSet,
+          attributes: ['id', 'title']
+        },
+        {
+          model: Question,
+          attributes: ['id', 'type']
+        }
+      ]
+    });
+
+    // 计算总体统计
+    const totalQuestions = progressRecords.length;
+    const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
+    const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+    const averageTimeSpent = totalQuestions > 0 
+      ? progressRecords.reduce((sum, p) => sum + p.timeSpent, 0) / totalQuestions 
+      : 0;
+
+    // 按题目集统计
+    const setStats = progressRecords.reduce<Record<string, ProgressStats>>((acc, record) => {
+      const setId = record.questionSetId.toString();
+      const questionSet = record.get('QuestionSet') as { id: string; title: string } | undefined;
+      if (!acc[setId]) {
+        acc[setId] = {
+          title: questionSet?.title,
+          total: 0,
+          correct: 0,
+          timeSpent: 0
+        };
+      }
+      acc[setId].total++;
+      if (record.isCorrect) acc[setId].correct++;
+      acc[setId].timeSpent += record.timeSpent;
+      return acc;
+    }, {});
+
+    // 按题目类型统计
+    const typeStats = progressRecords.reduce<Record<string, ProgressStats>>((acc, record) => {
+      const question = record.get('Question') as { id: string; type: string } | undefined;
+      const type = question?.type;
+      if (!type) return acc;
+      if (!acc[type]) {
+        acc[type] = {
+          total: 0,
+          correct: 0,
+          timeSpent: 0
+        };
+      }
+      acc[type].total++;
+      if (record.isCorrect) acc[type].correct++;
+      acc[type].timeSpent += record.timeSpent;
+      return acc;
+    }, {});
+
+    // 计算每个统计的准确率和平均时间
+    Object.values(setStats).forEach((stat: ProgressStats) => {
+      stat.accuracy = (stat.correct / stat.total) * 100;
+      stat.averageTime = stat.timeSpent / stat.total;
+    });
+
+    Object.values(typeStats).forEach((stat: ProgressStats) => {
+      stat.accuracy = (stat.correct / stat.total) * 100;
+      stat.averageTime = stat.timeSpent / stat.total;
+    });
+
+    res.json({
+      overall: {
+        totalQuestions,
+        correctAnswers,
+        accuracy,
+        averageTimeSpent
+      },
+      bySet: setStats,
+      byType: typeStats
+    });
+  } catch (error) {
+    console.error('Error getting user progress stats:', error);
+    res.status(500).json({ error: 'Failed to get user progress statistics' });
   }
 }; 

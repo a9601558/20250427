@@ -4,8 +4,10 @@ exports.sendError = exports.sendResponse = void 0;
 const sendResponse = (res, statusCode, message, data) => {
     const response = {
         success: true,
-        message,
     };
+    if (message) {
+        response.message = message;
+    }
     if (data !== undefined) {
         response.data = data;
     }
@@ -13,13 +15,10 @@ const sendResponse = (res, statusCode, message, data) => {
 };
 exports.sendResponse = sendResponse;
 const sendError = (res, statusCode, message, error) => {
-    const response = {
+    return res.status(statusCode).json({
         success: false,
         message,
-    };
-    if (error && process.env.NODE_ENV === 'development') {
-        response.data = error;
-    }
-    return res.status(statusCode).json(response);
+        error: error?.message || error,
+    });
 };
 exports.sendError = sendError;
