@@ -1,5 +1,6 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
+import { v4 as uuidv4 } from 'uuid';
 
 // 问题接口
 export interface QuestionAttributes {
@@ -35,7 +36,7 @@ Question.init(
   {
     id: {
       type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      defaultValue: () => uuidv4(),
       primaryKey: true,
     },
     questionSetId: {

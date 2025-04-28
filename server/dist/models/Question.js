@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
+const uuid_1 = require("uuid");
 // 问题模型类
 class Question extends sequelize_1.Model {
     id;
@@ -21,7 +22,7 @@ class Question extends sequelize_1.Model {
 Question.init({
     id: {
         type: sequelize_1.DataTypes.UUID,
-        defaultValue: sequelize_1.DataTypes.UUIDV4,
+        defaultValue: () => (0, uuid_1.v4)(),
         primaryKey: true,
     },
     questionSetId: {

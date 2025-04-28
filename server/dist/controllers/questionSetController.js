@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addQuestionToQuestionSet = exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
-const database_1 = __importDefault(require("../config/database"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
@@ -516,14 +515,24 @@ const uploadQuestionSets = async (req, res) => {
                         const q = setData.questions[i];
                         console.log(`创建新题库的题目 ${i + 1}: ${q.text?.substring(0, 30)}...`);
                         // 创建问题
-                        const question = await Question_1.default.create({
-                            id: q.id || undefined, // 如果未提供ID，让Sequelize生成
+                        const questionObj = {
+                            questionSetId: setData.id,
                             text: q.text,
                             explanation: q.explanation,
-                            questionSetId: setData.id,
                             questionType: q.questionType || 'single',
                             orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
-                        });
+                        };
+                        // 创建题目
+                        let question;
+                        try {
+                            question = await Question_1.default.create(questionObj);
+                            console.log('题目创建成功，ID:', question.id);
+                        }
+                        catch (error) {
+                            console.error('题目创建失败:', error);
+                            const errorMessage = error instanceof Error ? error.message : '未知错误';
+                            throw new Error(`题目创建失败: ${errorMessage}`);
+                        }
                         // 创建问题的选项
                         if (q.options && q.options.length > 0) {
                             for (const option of q.options) {
@@ -636,60 +645,69 @@ const addQuestionToQuestionSet = async (req, res) => {
         if (!questionSet) {
             return sendError(res, 404, '题库不存在');
         }
-        // 记录输入数据，帮助调试
-        console.log('添加题目，题库ID:', id);
-        console.log('题目数据:', JSON.stringify(questionData, null, 2));
-        let createdQuestion = null;
-        let questionId = '';
+        // 日志输入数据
+        console.log('添加题目到题库:', {
+            题库ID: id,
+            题目: questionData.text,
+            选项数量: questionData.options.length
+        });
+        // 不使用事务，按顺序执行操作
+        // 1. 首先创建题目
+        const questionObj = {
+            questionSetId: id,
+            text: questionData.text,
+            explanation: questionData.explanation || '',
+            questionType: questionData.questionType || 'single',
+            orderIndex: questionData.orderIndex || 0
+        };
+        console.log('创建题目对象:', questionObj);
+        // 创建题目
+        let question;
         try {
-            // 使用事务确保数据一致性
-            await database_1.default.transaction(async (t) => {
-                // 创建新题目
-                createdQuestion = await Question_1.default.create({
-                    questionSetId: id,
-                    text: questionData.text || '题目文本',
-                    explanation: questionData.explanation || '',
-                    questionType: questionData.questionType || 'single',
-                    orderIndex: questionData.orderIndex || 0
-                }, { transaction: t });
-                // 保存题目ID以便后续使用
-                questionId = createdQuestion.id;
-                console.log('成功创建题目，ID:', questionId);
-                // 确保题目ID已创建并可用
-                if (!questionId) {
-                    throw new Error('创建题目失败，无法获取题目ID');
-                }
-                // 创建选项
-                for (let i = 0; i < questionData.options.length; i++) {
-                    const option = questionData.options[i];
-                    const optionIndex = option.optionIndex || String.fromCharCode(65 + i); // A, B, C...
-                    console.log(`创建选项 ${optionIndex}，题目ID: ${questionId}`);
-                    await Option_1.default.create({
-                        questionId: questionId,
-                        text: option.text || '',
-                        isCorrect: !!option.isCorrect,
-                        optionIndex: optionIndex
-                    }, { transaction: t });
-                }
-            });
-            // 事务成功完成后，获取创建的题目（包含选项）
-            if (questionId) {
-                const result = await Question_1.default.findByPk(questionId, {
-                    include: [{
-                            model: Option_1.default,
-                            as: 'options'
-                        }]
-                });
-                sendResponse(res, 201, result, '题目添加成功');
-            }
-            else {
-                throw new Error('无法获取创建的题目数据');
-            }
+            question = await Question_1.default.create(questionObj);
+            console.log('题目创建成功，ID:', question.id);
         }
         catch (error) {
-            console.error('事务处理错误:', error);
-            throw error; // 重新抛出错误以便外层捕获
+            console.error('题目创建失败:', error);
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            throw new Error(`题目创建失败: ${errorMessage}`);
         }
+        if (!question || !question.id) {
+            throw new Error('题目创建成功但无法获取ID');
+        }
+        // 2. 创建选项
+        const createdOptions = [];
+        for (let i = 0; i < questionData.options.length; i++) {
+            const option = questionData.options[i];
+            const optionIndex = option.optionIndex || String.fromCharCode(65 + i); // A, B, C...
+            try {
+                const createdOption = await Option_1.default.create({
+                    questionId: question.id,
+                    text: option.text || '',
+                    isCorrect: !!option.isCorrect,
+                    optionIndex: optionIndex
+                });
+                console.log(`选项 ${optionIndex} 创建成功, ID: ${createdOption.id}`);
+                createdOptions.push(createdOption);
+            }
+            catch (error) {
+                console.error(`选项 ${optionIndex} 创建失败:`, error);
+                // 继续创建其他选项，不立即失败
+            }
+        }
+        // 如果没有成功创建任何选项，返回错误
+        if (createdOptions.length === 0) {
+            await question.destroy(); // 删除题目，保持数据一致性
+            throw new Error('所有选项创建失败');
+        }
+        // 3. 获取完整题目（带选项）
+        const completeQuestion = await Question_1.default.findByPk(question.id, {
+            include: [{
+                    model: Option_1.default,
+                    as: 'options'
+                }]
+        });
+        sendResponse(res, 201, completeQuestion, '题目添加成功');
     }
     catch (error) {
         console.error('添加题目错误:', error);
