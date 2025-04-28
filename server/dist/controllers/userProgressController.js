@@ -91,15 +91,45 @@ const updateProgress = async (req, res) => {
         });
         // 优先使用 URL 参数中的 questionSetId，如果没有则使用请求体中的
         const questionSetId = req.params.questionSetId || req.body.questionSetId;
-        const { questionId, isCorrect, timeSpent } = req.body;
-        // 详细的参数验证
+        // 尝试从不同的请求字段获取数据，增加兼容性
+        // 有些前端框架可能将数据以不同的格式发送
+        let questionId = req.body.questionId;
+        let isCorrect = req.body.isCorrect;
+        let timeSpent = req.body.timeSpent || 0;
+        // 如果请求包含问题数据对象
+        if (req.body.question) {
+            questionId = req.body.question.id || questionId;
+        }
+        // 如果请求包含答案数据对象
+        if (req.body.answer) {
+            isCorrect = req.body.answer.isCorrect !== undefined ? req.body.answer.isCorrect : isCorrect;
+            timeSpent = req.body.answer.timeSpent || req.body.answer.time || timeSpent;
+        }
+        // 如果请求直接包含答案结果
+        if (req.body.result !== undefined) {
+            isCorrect = !!req.body.result;
+        }
+        // 详细的参数验证和日志记录
         const missingParams = [];
         if (!questionSetId)
             missingParams.push('questionSetId');
         if (!questionId)
             missingParams.push('questionId');
-        if (typeof isCorrect !== 'boolean')
-            missingParams.push('isCorrect');
+        if (typeof isCorrect !== 'boolean') {
+            // 尝试转换可能是字符串的布尔值
+            if (isCorrect === 'true')
+                isCorrect = true;
+            else if (isCorrect === 'false')
+                isCorrect = false;
+            else
+                missingParams.push('isCorrect');
+        }
+        console.log('Processed parameters:', {
+            questionSetId,
+            questionId,
+            isCorrect,
+            timeSpent
+        });
         if (missingParams.length > 0) {
             return (0, responseUtils_1.sendError)(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
         }
@@ -109,14 +139,14 @@ const updateProgress = async (req, res) => {
             questionSetId,
             questionId,
             isCorrect,
-            timeSpent: timeSpent || 0
+            timeSpent
         });
         const [updatedProgress] = await UserProgress_1.default.upsert({
             userId,
             questionSetId,
             questionId,
             isCorrect,
-            timeSpent: timeSpent || 0,
+            timeSpent,
         });
         return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', updatedProgress);
     }
@@ -156,21 +186,58 @@ exports.resetProgress = resetProgress;
  */
 const createDetailedProgress = async (req, res) => {
     try {
-        const { questionSetId, questionId, isCorrect, timeSpent } = req.body;
         const userId = req.user.id;
         // 打印请求信息，便于调试
         console.log('Create Detailed Progress Request:', {
             body: req.body,
             userId: userId
         });
+        // 尝试从不同的请求字段获取数据，增加兼容性
+        let questionSetId = req.body.questionSetId;
+        let questionId = req.body.questionId;
+        let isCorrect = req.body.isCorrect;
+        let timeSpent = req.body.timeSpent || 0;
+        // 如果请求包含问题集数据对象
+        if (req.body.questionSet) {
+            questionSetId = req.body.questionSet.id || questionSetId;
+        }
+        // 如果请求包含问题数据对象
+        if (req.body.question) {
+            questionId = req.body.question.id || questionId;
+            if (req.body.question.questionSetId) {
+                questionSetId = req.body.question.questionSetId || questionSetId;
+            }
+        }
+        // 如果请求包含答案数据对象
+        if (req.body.answer) {
+            isCorrect = req.body.answer.isCorrect !== undefined ? req.body.answer.isCorrect : isCorrect;
+            timeSpent = req.body.answer.timeSpent || req.body.answer.time || timeSpent;
+        }
+        // 如果请求直接包含答案结果
+        if (req.body.result !== undefined) {
+            isCorrect = !!req.body.result;
+        }
         // 详细的参数验证
         const missingParams = [];
         if (!questionSetId)
             missingParams.push('questionSetId');
         if (!questionId)
             missingParams.push('questionId');
-        if (typeof isCorrect !== 'boolean')
-            missingParams.push('isCorrect');
+        if (typeof isCorrect !== 'boolean') {
+            // 尝试转换可能是字符串的布尔值
+            if (isCorrect === 'true')
+                isCorrect = true;
+            else if (isCorrect === 'false')
+                isCorrect = false;
+            else
+                missingParams.push('isCorrect');
+        }
+        console.log('Processed parameters:', {
+            questionSetId,
+            questionId,
+            isCorrect,
+            timeSpent
+        });
         if (missingParams.length > 0) {
             return (0, responseUtils_1.sendError)(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
         }
@@ -180,14 +247,14 @@ const createDetailedProgress = async (req, res) => {
             questionSetId,
             questionId,
             isCorrect,
-            timeSpent: timeSpent || 0
+            timeSpent
         });
         const progress = await UserProgress_1.default.create({
             userId,
             questionSetId,
             questionId,
             isCorrect,
-            timeSpent: timeSpent || 0,
+            timeSpent,
         });
         return (0, responseUtils_1.sendResponse)(res, 201, '学习进度已记录', progress.toJSON());
     }
