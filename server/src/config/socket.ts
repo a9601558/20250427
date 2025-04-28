@@ -8,20 +8,21 @@ export const initializeSocket = (httpServer: http.Server) => {
   const io = new Server(httpServer, {
     cors: {
       origin: '*',
-      methods: ['GET', 'POST'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true,
       allowedHeaders: ['Authorization', 'Content-Type']
     },
-    path: '/socket.io',
-    transports: ['websocket', 'polling'],
-    connectTimeout: 15000,
-    pingTimeout: 20000,
+    transports: ['polling', 'websocket'], // 确保首先尝试polling
+    connectTimeout: 30000,
+    pingTimeout: 30000,
     pingInterval: 25000
   });
 
   // 添加中间件记录连接
   io.use((socket, next) => {
     console.log('Socket.IO 中间件处理连接:', socket.id);
+    const transport = socket.conn.transport.name;
+    console.log(`Socket.IO 连接使用传输方式: ${transport}`);
     next();
   });
 
@@ -33,6 +34,7 @@ export const initializeSocket = (httpServer: http.Server) => {
     // 用户认证
     socket.on('authenticate', (userId: string) => {
       console.log(`Socket.IO 用户认证: ID=${socket.id}, UserID=${userId}`);
+      userSocketMap.set(userId, socket.id);
       socket.join(`user:${userId}`);
       socket.emit('authenticated', { userId, success: true });
     });
@@ -46,6 +48,13 @@ export const initializeSocket = (httpServer: http.Server) => {
     // 断开连接
     socket.on('disconnect', (reason) => {
       console.log(`Socket.IO 断开连接: ID=${socket.id}, 原因=${reason}`);
+      // 清理已断开连接的用户映射
+      for (const [userId, socketId] of userSocketMap.entries()) {
+        if (socketId === socket.id) {
+          userSocketMap.delete(userId);
+          break;
+        }
+      }
     });
   });
 

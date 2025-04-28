@@ -71,7 +71,10 @@
             
             // 连接配置
             const options = {
-                transports: ['websocket']
+                transports: ['polling', 'websocket'], // 先尝试 polling，然后尝试 websocket
+                timeout: 20000,
+                reconnectionAttempts: 3,
+                reconnectionDelay: 1000
             };
             
             // 创建连接
@@ -82,11 +85,21 @@
                 log(`连接成功! Socket ID: ${socket.id}`, 'success');
                 log(`传输方式: ${socket.io.engine.transport.name}`, 'success');
                 
+                // 如果连接使用的是polling，可以尝试升级到websocket
+                if (socket.io.engine.transport.name === 'polling') {
+                    log('当前为polling传输，可能会尝试升级到websocket', 'info');
+                }
+                
                 statusEl.textContent = `状态: 已连接 (ID: ${socket.id})`;
                 connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
                 messageInput.disabled = false;
                 sendBtn.disabled = false;
+            });
+            
+            // 监听传输变化
+            socket.io.engine.on('upgrade', (transport) => {
+                log(`传输方式升级为: ${transport.name}`, 'success');
             });
             
             // 监听消息
