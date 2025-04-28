@@ -254,13 +254,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
       order: [['createdAt', 'DESC']]
     });
 
-    sendResponse(res, 200, {
-      items: rows,
-      total: count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(count / Number(limit))
-    });
+    sendResponse(res, 200, rows);
   } catch (error) {
     console.error('Get question sets error:', error);
     sendError(res, 500, '获取题库列表失败', error);
@@ -372,11 +366,12 @@ export const getAllCategories = async (req: Request, res: Response) => {
       group: ['category']
     });
 
-    const categoryList = categories.map(qs => qs.category);
+    const categoryList = categories.map(row => row.category);
+    
     sendResponse(res, 200, categoryList);
   } catch (error) {
-    console.error('Get categories error:', error);
-    sendError(res, 500, '获取分类列表失败', error);
+    console.error('获取题库分类列表失败:', error);
+    sendError(res, 500, '获取题库分类列表失败', error);
   }
 };
 
@@ -655,17 +650,10 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
       }
     }
     
-    res.status(201).json({
-      success: true,
-      data: results,
-      message: '题库上传成功'
-    });
+    sendResponse(res, 201, results, '题库上传成功');
   } catch (error: any) {
     console.error('批量上传题库错误:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || '服务器错误'
-    });
+    sendError(res, 500, error.message || '服务器错误', error);
   }
 };
 
@@ -684,17 +672,10 @@ export const getQuestionSetCategories = async (req: Request, res: Response) => {
     
     const categoryList = categories.map(row => row.category);
     
-    res.status(200).json({
-      success: true,
-      data: categoryList
-    });
+    sendResponse(res, 200, categoryList);
   } catch (error) {
     console.error('获取题库分类列表失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取题库分类列表失败',
-      error: String(error)
-    });
+    sendError(res, 500, '获取题库分类列表失败', error);
   }
 };
 
@@ -733,16 +714,9 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
       updatedAt: set.updatedAt
     }));
 
-    res.status(200).json({
-      success: true,
-      data: formattedQuestionSets
-    });
+    sendResponse(res, 200, formattedQuestionSets);
   } catch (error: any) {
     console.error('获取分类题库失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取分类题库失败',
-      error: error.message
-    });
+    sendError(res, 500, '获取分类题库失败', error);
   }
 }; 
