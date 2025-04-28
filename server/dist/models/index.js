@@ -36,7 +36,7 @@ const setupAssociations = () => {
     console.log('设置 User 和 Purchase 的关联');
     User_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'userId',
-        as: 'purchases'
+        as: 'userPurchases'
     });
     Purchase_1.default.belongsTo(User_1.default, {
         foreignKey: 'userId',

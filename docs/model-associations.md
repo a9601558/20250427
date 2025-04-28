@@ -4,7 +4,7 @@
 
 ### User (用户) 模型
 - 一对多关系：
-  - `User.hasMany(Purchase, { as: 'purchases' })` - 一个用户可以有多笔购买记录
+  - `User.hasMany(Purchase, { as: 'userPurchases' })` - 一个用户可以有多笔购买记录
   - `User.hasMany(UserProgress, { as: 'userProgresses' })` - 一个用户可以有多条学习进度记录
   - `User.hasMany(RedeemCode, { as: 'redeemCodes' })` - 一个用户可以有多条兑换码记录
 
