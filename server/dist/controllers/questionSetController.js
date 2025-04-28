@@ -62,49 +62,23 @@ exports.getAllQuestionSets = getAllQuestionSets;
 // @access  Public
 const getQuestionSetById = async (req, res) => {
     try {
-        // 记录日志，但不再显式调用关联设置
         console.log(`尝试获取题库，ID: ${req.params.id}`);
-        try {
-            // 使用原始 SQL 查询获取题库
-            const [questionSetRows] = await database_1.default.query(`SELECT * FROM question_sets WHERE id = ?`, {
-                replacements: [req.params.id],
-                type: sequelize_1.QueryTypes.SELECT
-            });
-            if (!questionSetRows) {
-                console.log(`未找到题库，ID: ${req.params.id}`);
-                return sendError(res, 404, '题库不存在');
-            }
-            // 获取题库关联的题目
-            const [questionRows] = await database_1.default.query(`SELECT q.* FROM questions q WHERE q.questionSetId = ?`, {
-                replacements: [req.params.id],
-                type: sequelize_1.QueryTypes.SELECT
-            });
-            const questions = [];
-            // 如果有题目，获取每个题目的选项
-            if (questionRows && Array.isArray(questionRows)) {
-                for (const question of questionRows) {
-                    const [optionRows] = await database_1.default.query(`SELECT o.* FROM options o WHERE o.questionId = ?`, {
-                        replacements: [question.id],
-                        type: sequelize_1.QueryTypes.SELECT
-                    });
-                    questions.push({
-                        ...question,
-                        options: optionRows || []
-                    });
-                }
-            }
-            // 构建完整的题库对象
-            const fullQuestionSet = {
-                ...questionSetRows,
-                questions
-            };
-            console.log(`题库获取成功，ID: ${fullQuestionSet.id}，包含 ${questions.length} 个问题`);
-            sendResponse(res, 200, fullQuestionSet);
+        const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
+            include: [{
+                    model: Question_1.default,
+                    as: 'questions',
+                    include: [{
+                            model: Option_1.default,
+                            as: 'options'
+                        }]
+                }]
+        });
+        if (!questionSet) {
+            console.log(`未找到题库，ID: ${req.params.id}`);
+            return sendError(res, 404, '题库不存在');
         }
-        catch (sqlError) {
-            console.error('SQL查询错误:', sqlError);
-            sendError(res, 500, 'SQL查询错误', sqlError);
-        }
+        console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questions?.length || 0} 个问题`);
+        sendResponse(res, 200, questionSet);
     }
     catch (error) {
         console.error('Get question set error:', error);
