@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
+const Question_1 = __importDefault(require("./Question"));
 // 选项模型类
 class Option extends sequelize_1.Model {
     id;
@@ -50,5 +51,10 @@ Option.init({
     indexes: [
         { fields: ['questionId'] }
     ]
+});
+// 定义关联关系
+Option.belongsTo(Question_1.default, {
+    foreignKey: 'questionId',
+    as: 'question'
 });
 exports.default = Option;

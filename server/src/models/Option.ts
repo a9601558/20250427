@@ -68,4 +68,10 @@ Option.init(
   }
 );
 
+// 定义关联关系
+Option.belongsTo(Question, {
+  foreignKey: 'questionId',
+  as: 'question'
+});
+
 export default Option; 
