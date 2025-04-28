@@ -378,9 +378,22 @@ const HomePage: React.FC = () => {
                           {questionSet.icon || '📚'}
                         </span>
                       </div>
-                      <h3 className={`ml-3 text-lg font-medium ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} truncate`}>
-                        {questionSet.title}
-                      </h3>
+                      <div className="flex-1 ml-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} truncate`}>
+                            {questionSet.title}
+                          </h3>
+                          {questionSet.isPaid ? (
+                            <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
+                              ¥{questionSet.price}
+                            </span>
+                          ) : (
+                            <span className={`ml-2 px-2 py-1 text-xs rounded-full ${homeContent.theme === 'dark' ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800'}`}>
+                              免费
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     
                     <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} mb-4 line-clamp-2`}>
