@@ -46,14 +46,12 @@ function QuizPage(): React.ReactNode {
         if (response.success && response.data) {
           setQuestionSet(response.data);
           
-          // 获取题目数据
-          const questionsResponse = await questionApi.getQuestionsByQuestionSetId(questionSetId);
-          
-          if (questionsResponse.success && questionsResponse.data && questionsResponse.data.length > 0) {
-            console.log("获取到题目:", questionsResponse.data.length);
+          // 使用题库中包含的题目数据
+          if (response.data.questions && response.data.questions.length > 0) {
+            console.log("获取到题目:", response.data.questions.length);
             
             // 处理题目选项并设置数据
-            const processedQuestions = questionsResponse.data.map(q => {
+            const processedQuestions = response.data.questions.map(q => {
               // 确保选项存在
               if (!q.options || !Array.isArray(q.options)) {
                 console.warn("题目缺少选项:", q.id);
