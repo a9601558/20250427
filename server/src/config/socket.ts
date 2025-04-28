@@ -3,8 +3,13 @@ import http from 'http';
 
 // 存储用户ID和Socket ID的映射
 const userSocketMap = new Map<string, string>();
+// 保存Socket.IO实例的引用
+let io: Server;
 
-export const initializeSocket = (io: Server) => {
+export const initializeSocket = (socketIo: Server) => {
+  // 保存引用以便其他地方使用
+  io = socketIo;
+  
   // 添加中间件记录连接
   io.use((socket, next) => {
     console.log('Socket.IO 中间件处理连接:', socket.id);
@@ -76,42 +81,18 @@ export const initializeSocket = (io: Server) => {
 
     // 断开连接
     socket.on('disconnect', (reason) => {
-      console.log(`Socket.IO 断开连接: ID=${socket.id}, 原因=${reason}`);
-      // 清除心跳
-      clearInterval(heartbeat);
+      console.log(`Socket.IO 连接断开: ID=${socket.id}, 原因=${reason}`);
       
-      // 添加更多断开信息
-      if (reason === 'transport close') {
-        console.log(`Socket.IO 传输关闭: 可能是网络问题或客户端关闭`);
-        // 尝试在短时间内重连
-        setTimeout(() => {
-          if (io.sockets.sockets.has(socket.id)) {
-            console.log(`Socket ${socket.id} 已重新连接`);
-          } else {
-            console.log(`Socket ${socket.id} 未能重新连接`);
-          }
-        }, 5000);
-      } else if (reason === 'ping timeout') {
-        console.log(`Socket.IO ping超时: 客户端未在预期时间内响应`);
-      } else if (reason === 'transport error') {
-        console.log(`Socket.IO 传输错误: 可能是连接中断`);
-      }
-      
-      // 清理已断开连接的用户映射
+      // 从用户映射中移除
       for (const [userId, socketId] of userSocketMap.entries()) {
         if (socketId === socket.id) {
           userSocketMap.delete(userId);
-          console.log(`用户 ${userId} 的Socket映射已清理`);
+          console.log(`Socket.IO 用户 ${userId} 的连接已从映射中移除`);
           break;
         }
       }
-    });
-    
-    // 处理错误
-    socket.on('error', (error) => {
-      console.error(`Socket.IO 连接错误: ${socket.id}`, error);
-      // 不立即断开，尝试恢复
-      socket.emit('reconnect_attempt', { message: '连接出错，尝试恢复' });
+      
+      clearInterval(heartbeat);
     });
   });
 
@@ -146,4 +127,42 @@ export const emitToUserRoom = (io: Server, userId: string, event: string, data: 
 // 向主页房间广播事件
 export const emitToHomepage = (io: Server, event: string, data: any) => {
   io.to('homepage').emit(event, data);
+};
+
+/**
+ * 发送用户进度更新
+ * @param userId 用户ID
+ * @param questionSetId 题目集ID
+ * @param progress 进度数据
+ */
+export const emitProgressUpdate = (userId: string, questionSetId: string, progress: any) => {
+  if (!io) {
+    console.error('Socket.IO 实例未初始化，无法发送进度更新');
+    return;
+  }
+
+  console.log(`尝试发送进度更新到用户 ${userId}, 题目集 ${questionSetId}`);
+
+  // 尝试获取用户的socket ID
+  const socketId = userSocketMap.get(userId);
+  
+  if (socketId) {
+    // 如果有特定的socket连接，直接发送
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && socket.connected) {
+      console.log(`发送进度更新到特定socket: ${socketId}`);
+      socket.emit('progress_updated', { 
+        questionSetId, 
+        progress 
+      });
+      return;
+    }
+  }
+  
+  // 如果没有特定socket或连接已断开，发送到用户房间
+  console.log(`发送进度更新到用户房间: user:${userId}`);
+  io.to(`user:${userId}`).emit('progress_updated', { 
+    questionSetId, 
+    progress 
+  });
 }; 

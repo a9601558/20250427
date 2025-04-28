@@ -9,6 +9,7 @@ const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const Question_1 = __importDefault(require("../models/Question"));
 const responseUtils_1 = require("../utils/responseUtils");
 const sequelize_1 = require("sequelize");
+const socket_1 = require("../config/socket");
 /**
  * @desc    获取用户进度
  * @route   GET /api/user-progress/:userId
@@ -148,6 +149,8 @@ const updateProgress = async (req, res) => {
             isCorrect,
             timeSpent,
         });
+        // 通过Socket.IO发送进度更新
+        (0, socket_1.emitProgressUpdate)(userId, questionSetId, updatedProgress.toJSON());
         return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', updatedProgress);
     }
     catch (error) {
@@ -256,6 +259,8 @@ const createDetailedProgress = async (req, res) => {
             isCorrect,
             timeSpent,
         });
+        // 通过Socket.IO发送进度更新
+        (0, socket_1.emitProgressUpdate)(userId, questionSetId, progress.toJSON());
         return (0, responseUtils_1.sendResponse)(res, 201, '学习进度已记录', progress.toJSON());
     }
     catch (error) {
