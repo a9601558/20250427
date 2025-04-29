@@ -394,19 +394,20 @@ export const getProgressStats = async (req: Request, res: Response) => {
       const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
       const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
 
+      const totalQuestions = group.questionSet?.questions?.length || 0;
+
       return {
         questionSetId: group.questionSetId,
         questionSet: group.questionSet,
-        totalQuestions: group.questionSet.questions.length,
+        totalQuestions,
         completedQuestions,
         correctAnswers,
         totalTimeSpent,
         averageTimeSpent,
         accuracy,
-        // 兼容旧的字段名
-        total: group.questionSet.questions.length,
-        correct: correctAnswers,
-        timeSpent: totalTimeSpent
+        total: totalQuestions,      // 兼容字段
+        correct: correctAnswers,    // 兼容字段
+        timeSpent: totalTimeSpent    // 兼容字段
       };
     });
 
