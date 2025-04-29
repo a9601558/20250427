@@ -351,11 +351,12 @@ export const initializeSocket = (io: SocketIOServer) => {
 
         // 更新用户进度
         const progress = user.progress || {};
+        const lastAccessedDate = new Date(data.lastAccessed);
         progress[data.questionSetId] = {
           completedQuestions: data.completedQuestions,
           totalQuestions: data.totalQuestions,
           correctAnswers: data.correctAnswers,
-          lastAccessed: new Date(data.lastAccessed)
+          lastAccessed: lastAccessedDate
         };
         await user.update({ progress });
 
@@ -367,7 +368,7 @@ export const initializeSocket = (io: SocketIOServer) => {
               completedQuestions: data.completedQuestions,
               totalQuestions: data.totalQuestions,
               correctAnswers: data.correctAnswers,
-              lastAccessed: data.lastAccessed
+              lastAccessed: lastAccessedDate.toISOString()
             }
           });
         }

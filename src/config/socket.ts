@@ -25,9 +25,9 @@ export const initializeSocket = (): Socket => {
 
     console.log('初始化Socket.IO连接');
     
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001', {
+    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
       path: '/socket.io/',
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
@@ -35,7 +35,7 @@ export const initializeSocket = (): Socket => {
       timeout: 20000,
       forceNew: true,
       autoConnect: true,
-      withCredentials: false,
+      withCredentials: true,
       upgrade: true,
       rejectUnauthorized: false
     });
