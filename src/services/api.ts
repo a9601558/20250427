@@ -341,7 +341,10 @@ export const questionSetService = {
           totalQuestions: progress.totalQuestions,
           correctAnswers: progress.correctAnswers,
           lastAccessed: progress.lastAccessed,
-          title: progress.progressQuestionSet?.title
+          title: progress.progressQuestionSet?.title,
+          totalTimeSpent: progress.totalTimeSpent || 0,
+          averageTimeSpent: progress.averageTimeSpent || 0,
+          accuracy: progress.accuracy || 0
         };
       });
       return {
@@ -503,7 +506,10 @@ export const userProgressService = {
           totalQuestions: progress.totalQuestions,
           correctAnswers: progress.correctAnswers,
           lastAccessed: progress.lastAccessed,
-          title: progress.progressQuestionSet?.title
+          title: progress.progressQuestionSet?.title,
+          totalTimeSpent: progress.totalTimeSpent || 0,
+          averageTimeSpent: progress.averageTimeSpent || 0,
+          accuracy: progress.accuracy || 0
         };
       });
       return {
