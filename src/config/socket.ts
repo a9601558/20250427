@@ -25,7 +25,7 @@ export const initializeSocket = (): Socket => {
 
     console.log('初始化Socket.IO连接');
     
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
+    const newSocket = io(process.env.REACT_APP_API_URL || 'http://0.0.0.0:5000', {
       path: '/socket.io/',
       transports: ['websocket', 'polling'],
       reconnection: true,
