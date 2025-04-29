@@ -265,9 +265,9 @@ function QuizPage(): React.ReactNode {
       questionId: currentQuestion.id,
       isCorrect,
       timeSpent,
-      completedQuestions: completedQuestions + 1,
+      completedQuestions: answeredQuestions.length + 1,
       totalQuestions: questions.length,
-      correctAnswers: isCorrect ? correctAnswers + 1 : correctAnswers,
+      correctAnswers: answeredQuestions.filter(q => q.isCorrect).length + (isCorrect ? 1 : 0),
       lastAccessed: new Date().toISOString()
     };
 

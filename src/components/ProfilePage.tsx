@@ -159,7 +159,7 @@ const ProfilePage: React.FC = () => {
             averageTimeSpent: item.averageTimeSpent,
             accuracy: item.accuracy,
             lastAccessed: item.lastAccessed || new Date().toISOString(),
-            completedQuestions: item.correctAnswers
+            completedQuestions: item.completedQuestions
           }));
           setProgress(progressData);
         }

@@ -91,7 +91,7 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
 export const updateProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
     const userId = req.user.id;
-    const { questionSetId, questionId, isCorrect, timeSpent } = req.body;
+    const { questionSetId, questionId, isCorrect, timeSpent, completedQuestions, totalQuestions, correctAnswers } = req.body;
 
     // 验证必要参数
     if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
@@ -111,9 +111,9 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
         questionId,
         isCorrect,
         timeSpent: timeSpent || 0,
-        completedQuestions: 1,
-        totalQuestions: 1,
-        correctAnswers: isCorrect ? 1 : 0,
+        completedQuestions: completedQuestions || 1,
+        totalQuestions: totalQuestions || 1,
+        correctAnswers: correctAnswers || (isCorrect ? 1 : 0),
         lastAccessed: new Date()
       }
     });
@@ -122,7 +122,11 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     if (!created) {
       await progress.update({
         isCorrect,
-        timeSpent: timeSpent || progress.timeSpent
+        timeSpent: timeSpent || progress.timeSpent,
+        completedQuestions: completedQuestions || progress.completedQuestions,
+        totalQuestions: totalQuestions || progress.totalQuestions,
+        correctAnswers: correctAnswers || progress.correctAnswers,
+        lastAccessed: new Date()
       });
     }
 
