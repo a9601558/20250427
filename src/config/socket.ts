@@ -228,9 +228,14 @@ export const closeSocket = (): void => {
 // 用户认证 - 在用户登录后调用
 export const authenticateUser = (userId: string) => {
   if (!socket) initSocket();
-  if (socket && userId) {
-    socket.emit('authenticate', userId);
-    console.log('用户认证已发送:', userId);
+  
+  if (socket && socket.connected) {
+    socket.emit('authenticate', { userId });
+    console.log('发送用户认证:', { userId });
+    return true;
+  } else {
+    console.error('发送认证失败: Socket未连接');
+    return false;
   }
 };
 

@@ -476,10 +476,25 @@ export const userProgressService = {
   // 获取用户进度统计
   getUserProgress: async (): Promise<ApiResponse<Record<string, UserProgress>>> => {
     try {
-      const userId = (await userService.getCurrentUser()).data?.id;
+      const currentUser = await userService.getCurrentUser();
+      if (!currentUser.success || !currentUser.data?.id) {
+        console.error('获取当前用户失败:', currentUser.message);
+        return {
+          success: false,
+          message: '获取当前用户失败',
+          error: currentUser.message
+        };
+      }
+      
+      const userId = currentUser.data.id;
+      console.log('获取用户进度，用户ID:', userId);
+      
       const response = await api.get(`/user-progress/${userId}`);
+      console.log('用户进度响应:', response);
+      
       return handleResponse<Record<string, UserProgress>>(response);
     } catch (error: any) {
+      console.error('获取用户进度失败:', error);
       return {
         success: false,
         message: error.message,

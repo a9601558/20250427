@@ -82,10 +82,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setUser(updatedUser);
             console.log('用户学习进度已加载:', response.data);
           } else {
-            console.error('获取用户进度失败:', response.message);
+            console.error('获取用户进度失败:', response.message || '未知错误');
+            // 初始化空的进度对象
+            const updatedUser = {
+              ...user,
+              progress: {}
+            };
+            setUser(updatedUser);
           }
         } catch (error) {
           console.error('获取用户进度时发生错误:', error);
+          // 初始化空的进度对象
+          const updatedUser = {
+            ...user,
+            progress: {}
+          };
+          setUser(updatedUser);
         }
       };
       
@@ -127,7 +139,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         unsubscribe();
       };
     }
-  }, [user?.id]);
+  }, [user]);
 
   const fetchCurrentUser = async () => {
     setLoading(true);
