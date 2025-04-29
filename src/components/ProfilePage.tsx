@@ -81,7 +81,7 @@ const ProfilePage: React.FC = () => {
       
       try {
         setLoading(true);
-        const response = await fetch(`http://exam7.jp/api/user-progress/${user.id}`, {
+        const response = await fetch(`http://exam7.jp/api/user-progress/stats/${user.id}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -94,24 +94,7 @@ const ProfilePage: React.FC = () => {
         const data = await response.json();
         if (data.success && data.data) {
           // 更新用户进度
-          const progressData = data.data.reduce((acc: any, record: any) => {
-            const questionSetId = record.questionSetId;
-            if (!acc[questionSetId]) {
-              acc[questionSetId] = {
-                completedQuestions: 0,
-                totalQuestions: 0,
-                correctAnswers: 0,
-                lastAccessed: new Date().toISOString()
-              };
-            }
-            acc[questionSetId].completedQuestions++;
-            acc[questionSetId].totalQuestions = record.questionSet?.questionCount || 0;
-            if (record.isCorrect) {
-              acc[questionSetId].correctAnswers++;
-            }
-            acc[questionSetId].lastAccessed = record.createdAt;
-            return acc;
-          }, {});
+          const progressData = data.data.bySet;
           
           // 更新用户上下文中的进度
           if (user.progress) {
