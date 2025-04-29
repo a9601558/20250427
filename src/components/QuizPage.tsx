@@ -266,7 +266,7 @@ function QuizPage(): React.ReactNode {
       isCorrect,
       timeSpent,
       completedQuestions: answeredQuestions.length + 1,
-      totalQuestions: questions.length,
+      totalQuestions: questionSet.questionCount || questions.length,  // 使用题库的实际题目总数
       correctAnswers: answeredQuestions.filter(q => q.isCorrect).length + (isCorrect ? 1 : 0),
       lastAccessed: new Date().toISOString()
     };

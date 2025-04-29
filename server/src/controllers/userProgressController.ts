@@ -98,6 +98,22 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       return sendError(res, 400, '缺少必要参数');
     }
 
+    // 获取题库信息以获取实际的题目总数
+    const questionSet = await QuestionSet.findOne({
+      where: { id: questionSetId },
+      include: [{
+        model: Question,
+        as: 'questions',
+        attributes: ['id']
+      }]
+    });
+
+    if (!questionSet) {
+      return sendError(res, 404, '题库不存在');
+    }
+
+    const actualTotalQuestions = questionSet.questions?.length || 0;
+
     // 创建或更新进度记录
     const [progress, created] = await UserProgress.findOrCreate({
       where: {
@@ -112,7 +128,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
         isCorrect,
         timeSpent: timeSpent || 0,
         completedQuestions: completedQuestions || 1,
-        totalQuestions: totalQuestions || 1,
+        totalQuestions: actualTotalQuestions,
         correctAnswers: correctAnswers || (isCorrect ? 1 : 0),
         lastAccessed: new Date()
       }
@@ -124,7 +140,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
         isCorrect,
         timeSpent: timeSpent || progress.timeSpent,
         completedQuestions: completedQuestions || progress.completedQuestions,
-        totalQuestions: totalQuestions || progress.totalQuestions,
+        totalQuestions: actualTotalQuestions,
         correctAnswers: correctAnswers || progress.correctAnswers,
         lastAccessed: new Date()
       });
@@ -135,7 +151,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       userId: progress.userId,
       questionSetId: progress.questionSetId,
       completedQuestions: progress.completedQuestions,
-      totalQuestions: progress.totalQuestions,
+      totalQuestions: actualTotalQuestions,
       correctAnswers: progress.correctAnswers,
       lastAccessed: progress.lastAccessed
     });
