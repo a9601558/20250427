@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
+const QuestionSet_1 = __importDefault(require("./QuestionSet"));
+const Question_1 = __importDefault(require("./Question"));
 // 用户进度模型类
 class UserProgress extends sequelize_1.Model {
     id;
@@ -13,13 +15,15 @@ class UserProgress extends sequelize_1.Model {
     questionId;
     isCorrect;
     timeSpent;
+    lastAccessed;
     completedQuestions;
     totalQuestions;
     correctAnswers;
-    lastAccessed;
     // 时间戳
     createdAt;
     updatedAt;
+    questionSet;
+    question;
 }
 UserProgress.init({
     id: {
@@ -62,18 +66,15 @@ UserProgress.init({
     },
     completedQuestions: {
         type: sequelize_1.DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0
+        allowNull: true,
     },
     totalQuestions: {
         type: sequelize_1.DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0
+        allowNull: true,
     },
     correctAnswers: {
         type: sequelize_1.DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0
+        allowNull: true,
     },
     lastAccessed: {
         type: sequelize_1.DataTypes.DATE,
@@ -101,5 +102,13 @@ UserProgress.init({
         { fields: ['questionId'] },
         { fields: ['userId', 'questionSetId'] }
     ]
+});
+UserProgress.belongsTo(QuestionSet_1.default, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet',
+});
+UserProgress.belongsTo(Question_1.default, {
+    foreignKey: 'questionId',
+    as: 'question',
 });
 exports.default = UserProgress;

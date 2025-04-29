@@ -10,6 +10,7 @@ const Question_1 = __importDefault(require("../models/Question"));
 const responseUtils_1 = require("../utils/responseUtils");
 const sequelize_1 = require("sequelize");
 const socket_1 = require("../config/socket");
+const progressService_1 = require("../services/progressService");
 /**
  * @desc    获取用户进度
  * @route   GET /api/user-progress/:userId
@@ -20,25 +21,22 @@ const getUserProgress = async (req, res) => {
         const { userId } = req.params;
         // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
         const currentUserId = req.user.id;
-        if (userId !== currentUserId && req.user.role !== 'admin') {
+        if (userId !== currentUserId && !req.user.isAdmin) {
             return (0, responseUtils_1.sendError)(res, 403, '无权访问此用户的进度');
         }
-        const progress = await UserProgress_1.default.findAll({
+        // 获取用户的所有进度记录
+        const allProgress = await UserProgress_1.default.findAll({
             where: { userId },
-            include: [
-                {
-                    model: QuestionSet_1.default,
-                    as: 'questionSet',
-                    attributes: ['id', 'title']
-                },
-                {
-                    model: Question_1.default,
-                    as: 'question',
-                    attributes: ['id', 'questionType']
-                }
-            ]
+            attributes: ['questionSetId'],
+            group: ['questionSetId']
         });
-        return (0, responseUtils_1.sendResponse)(res, 200, '获取用户进度成功', progress);
+        // 获取每个题库的进度统计
+        const progressMap = {};
+        for (const progress of allProgress) {
+            const stats = await (0, progressService_1.calculateProgressStats)(userId, progress.questionSetId);
+            progressMap[progress.questionSetId] = stats;
+        }
+        return (0, responseUtils_1.sendResponse)(res, 200, '获取用户进度成功', progressMap);
     }
     catch (error) {
         return (0, responseUtils_1.sendError)(res, 500, 'Error fetching user progress', error);
@@ -78,7 +76,6 @@ exports.getProgressByQuestionSetId = getProgressByQuestionSetId;
 /**
  * @desc    更新用户进度
  * @route   POST /api/user-progress
- * @route   POST /api/user-progress/:questionSetId
  * @access  Private
  */
 const updateProgress = async (req, res) => {
@@ -89,31 +86,6 @@ const updateProgress = async (req, res) => {
         if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
             return (0, responseUtils_1.sendError)(res, 400, '缺少必要参数');
         }
-        // 获取题库信息以获取实际的题目总数
-        const questionSet = await QuestionSet_1.default.findOne({
-            where: { id: questionSetId },
-            include: [{
-                    model: Question_1.default,
-                    as: 'questions',
-                    attributes: ['id']
-                }]
-        });
-        if (!questionSet) {
-            return (0, responseUtils_1.sendError)(res, 404, '题库不存在');
-        }
-        const actualTotalQuestions = questionSet.questions?.length || 0;
-        // 获取用户在这个题库中的所有答题记录
-        const allProgress = await UserProgress_1.default.findAll({
-            where: {
-                userId,
-                questionSetId
-            }
-        });
-        // 计算已完成的题目数（不重复计算同一题目）
-        const uniqueAnsweredQuestions = new Set(allProgress.map(p => p.questionId));
-        const completedQuestions = uniqueAnsweredQuestions.size + (uniqueAnsweredQuestions.has(questionId) ? 0 : 1);
-        // 计算正确答题数
-        const correctAnswers = allProgress.filter(p => p.isCorrect).length + (isCorrect ? 1 : 0);
         // 创建或更新进度记录
         const [progress, created] = await UserProgress_1.default.findOrCreate({
             where: {
@@ -127,9 +99,6 @@ const updateProgress = async (req, res) => {
                 questionId,
                 isCorrect,
                 timeSpent: timeSpent || 0,
-                completedQuestions,
-                totalQuestions: actualTotalQuestions,
-                correctAnswers,
                 lastAccessed: new Date()
             }
         });
@@ -138,21 +107,18 @@ const updateProgress = async (req, res) => {
             await progress.update({
                 isCorrect,
                 timeSpent: timeSpent || progress.timeSpent,
-                completedQuestions,
-                totalQuestions: actualTotalQuestions,
-                correctAnswers,
                 lastAccessed: new Date()
             });
         }
+        // 获取最新的统计数据
+        const stats = await (0, progressService_1.calculateProgressStats)(userId, questionSetId);
         // 发送实时更新
-        socket_1.io.to(userId).emit('progress:update', {
-            userId: progress.userId,
-            questionSetId: progress.questionSetId,
-            completedQuestions,
-            totalQuestions: actualTotalQuestions,
-            correctAnswers,
-            lastAccessed: progress.lastAccessed
-        });
+        const updateEvent = {
+            questionSetId,
+            questionSet: progress.questionSet,
+            stats
+        };
+        socket_1.io.to(userId).emit('progress:update', updateEvent);
         return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', progress);
     }
     catch (error) {
@@ -246,14 +212,6 @@ const createDetailedProgress = async (req, res) => {
         if (missingParams.length > 0) {
             return (0, responseUtils_1.sendError)(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
         }
-        // 记录即将插入的数据
-        console.log('Creating progress with data:', {
-            userId,
-            questionSetId,
-            questionId,
-            isCorrect,
-            timeSpent
-        });
         // 创建新的进度记录
         const newProgress = await UserProgress_1.default.create({
             userId,
@@ -261,20 +219,17 @@ const createDetailedProgress = async (req, res) => {
             questionId,
             isCorrect,
             timeSpent,
-            completedQuestions: 1,
-            totalQuestions: 1,
-            correctAnswers: isCorrect ? 1 : 0,
             lastAccessed: new Date()
         });
+        // 获取最新的统计数据
+        const stats = await (0, progressService_1.calculateProgressStats)(userId, questionSetId);
         // 发送实时更新
-        socket_1.io.to(userId).emit('progress:update', {
-            userId: newProgress.userId,
-            questionSetId: newProgress.questionSetId,
-            completedQuestions: newProgress.completedQuestions,
-            totalQuestions: newProgress.totalQuestions,
-            correctAnswers: newProgress.correctAnswers,
-            lastAccessed: newProgress.lastAccessed
-        });
+        const updateEvent = {
+            questionSetId,
+            questionSet: newProgress.questionSet,
+            stats
+        };
+        socket_1.io.to(userId).emit('progress:update', updateEvent);
         return (0, responseUtils_1.sendResponse)(res, 201, '学习进度已记录', newProgress.toJSON());
     }
     catch (error) {

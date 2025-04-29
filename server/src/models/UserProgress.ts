@@ -12,16 +12,16 @@ export interface UserProgressAttributes {
   questionId: string;
   isCorrect: boolean;
   timeSpent: number;
-  completedQuestions: number;
-  totalQuestions: number;
-  correctAnswers: number;
   lastAccessed: Date;
+  completedQuestions?: number;
+  totalQuestions?: number;
+  correctAnswers?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 // 创建时可选的属性
-interface UserProgressCreationAttributes extends Optional<UserProgressAttributes, 'id' | 'timeSpent'> {}
+interface UserProgressCreationAttributes extends Optional<UserProgressAttributes, 'id'> {}
 
 // 用户进度模型类
 class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAttributes> implements UserProgressAttributes {
@@ -31,14 +31,17 @@ class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAtt
   public questionId!: string;
   public isCorrect!: boolean;
   public timeSpent!: number;
-  public completedQuestions!: number;
-  public totalQuestions!: number;
-  public correctAnswers!: number;
   public lastAccessed!: Date;
+  public completedQuestions?: number;
+  public totalQuestions?: number;
+  public correctAnswers?: number;
   
   // 时间戳
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+
+  public readonly questionSet?: QuestionSet;
+  public readonly question?: Question;
 }
 
 UserProgress.init(
@@ -83,18 +86,15 @@ UserProgress.init(
     },
     completedQuestions: {
       type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0
+      allowNull: true,
     },
     totalQuestions: {
       type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0
+      allowNull: true,
     },
     correctAnswers: {
       type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0
+      allowNull: true,
     },
     lastAccessed: {
       type: DataTypes.DATE,
@@ -125,5 +125,15 @@ UserProgress.init(
     ]
   }
 );
+
+UserProgress.belongsTo(QuestionSet, {
+  foreignKey: 'questionSetId',
+  as: 'questionSet',
+});
+
+UserProgress.belongsTo(Question, {
+  foreignKey: 'questionId',
+  as: 'question',
+});
 
 export default UserProgress; 
