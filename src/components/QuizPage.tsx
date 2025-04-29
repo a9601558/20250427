@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { IQuestionSet, Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
-import { questionSetApi, userProgressApi } from '../utils/api';
+import { questionSetApi } from '../utils/api';
 import { sendProgressUpdate } from '../config/socket';
 import { useSocket } from '../contexts/SocketContext';
 
@@ -16,7 +16,7 @@ interface AnsweredQuestion {
 interface ProgressUpdate {
   userId: string;
   questionSetId: string;
-  questionId: string | number;  // 允许 string 或 number 类型
+  questionId: string;  // 统一使用字符串类型
   isCorrect: boolean;
   timeSpent: number;
   completedQuestions: number;
@@ -30,7 +30,7 @@ const getOptionLabel = (index: number): string => {
   return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
 };
 
-function QuizPage(): React.ReactNode {
+function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const { user, addProgress, hasAccessToQuestionSet } = useUser();
@@ -230,6 +230,13 @@ function QuizPage(): React.ReactNode {
     };
   }, [socket, questionSetId, questionSet]);
   
+  // 在加载完题目数据后设置questionStartTime
+  useEffect(() => {
+    if (questions.length > 0 && !loading) {
+      setQuestionStartTime(Date.now());
+    }
+  }, [questions, loading]);
+  
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
@@ -252,21 +259,40 @@ function QuizPage(): React.ReactNode {
   };
   
   // 提交答案检查
-  const handleAnswerSubmit = async (selectedOption: string): Promise<void> => {
+  const handleAnswerSubmit = async (): Promise<void> => {
     if (!currentQuestion || !user || !socket || !questionSet) return;
 
-    const isCorrect = selectedOption === currentQuestion.correctAnswer;
+    // 判断答案是否正确
+    let isCorrect = false;
+    
+    if (currentQuestion.questionType === 'single') {
+      // 单选题：检查选中的选项是否是正确选项
+      const selectedOption = selectedOptions[0];
+      const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
+      isCorrect = selectedOption === correctOption?.id;
+    } else {
+      // 多选题：检查选中的选项是否与所有正确选项完全匹配
+      const correctOptionIds = currentQuestion.options
+        .filter(opt => opt.isCorrect)
+        .map(opt => opt.id);
+      
+      isCorrect = 
+        correctOptionIds.length === selectedOptions.length && 
+        correctOptionIds.every(id => selectedOptions.includes(id)) &&
+        selectedOptions.every(id => correctOptionIds.includes(id));
+    }
+
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
 
     // 更新进度
     const progressUpdate: ProgressUpdate = {
       userId: user.id,
       questionSetId: questionSet.id,
-      questionId: currentQuestion.id,
+      questionId: String(currentQuestion.id), // 转换为字符串
       isCorrect,
       timeSpent,
       completedQuestions: answeredQuestions.length + 1,
-      totalQuestions: questionSet.questionCount || questions.length,  // 使用题库的实际题目总数
+      totalQuestions: questionSet.questionCount || questions.length,
       correctAnswers: answeredQuestions.filter(q => q.isCorrect).length + (isCorrect ? 1 : 0),
       lastAccessed: new Date().toISOString()
     };
@@ -276,27 +302,23 @@ function QuizPage(): React.ReactNode {
       socket.emit('progress:update', progressUpdate);
       console.log('发送进度更新:', progressUpdate);
 
+      // 也将相同的数据传递给sendProgressUpdate函数
+      sendProgressUpdate(progressUpdate);
+
       // 更新本地状态
       setCompletedQuestions(prev => prev + 1);
       if (isCorrect) {
         setCorrectAnswers(prev => prev + 1);
       }
-      setQuestionStartTime(Date.now());
+      
+      // 显示解析
+      setShowExplanation(true);
 
       // 更新已回答问题列表
       setAnsweredQuestions(prev => [...prev, {
         index: currentQuestionIndex,
         isCorrect
       }]);
-
-      // 移动到下一题或完成
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        setSelectedOptions([]);
-        setShowExplanation(false);
-      } else {
-        setQuizComplete(true);
-      }
     } catch (error) {
       console.error('发送进度更新失败:', error);
       // 显示错误提示
@@ -311,25 +333,23 @@ function QuizPage(): React.ReactNode {
     setQuizComplete(true);
     
     // 保存最终进度
-    await handleAnswerSubmit(selectedOptions[0]);
+    await handleAnswerSubmit();
   };
   
   // 进入下一题
   const goToNextQuestion = () => {
+    // 设置下一题的开始时间
+    setQuestionStartTime(Date.now());
+    
+    // 清除选项和解析状态
     setSelectedOptions([]);
     setShowExplanation(false);
-    
-    // 确保当前进度已保存
-    if (user && questionSet) {
-      // 如果用户已登录，保存当前进度
-      handleAnswerSubmit(selectedOptions[0]);
-    }
     
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       // 完成测试
-      completeQuiz();
+      setQuizComplete(true);
     }
   };
   
@@ -587,7 +607,7 @@ function QuizPage(): React.ReactNode {
         <div className="flex justify-between">
           {!showExplanation ? (
             <button
-              onClick={() => handleAnswerSubmit(selectedOptions[0])}
+              onClick={() => handleAnswerSubmit()}
               disabled={selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz)}
               className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
                 selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz) ? 'opacity-50 cursor-not-allowed' : ''
