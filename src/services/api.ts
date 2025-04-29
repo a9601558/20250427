@@ -335,17 +335,19 @@ export const questionSetService = {
       // 转换数据格式，使用progressQuestionSet
       const formattedData: Record<string, UserProgress> = {};
       data.forEach((progress: any) => {
-        formattedData[progress.questionSetId] = {
-          questionSetId: progress.questionSetId,
-          completedQuestions: progress.completedQuestions,
-          totalQuestions: progress.totalQuestions,
-          correctAnswers: progress.correctAnswers,
-          lastAccessed: progress.lastAccessed,
-          title: progress.progressQuestionSet?.title,
-          totalTimeSpent: progress.totalTimeSpent || 0,
-          averageTimeSpent: progress.averageTimeSpent || 0,
-          accuracy: progress.accuracy || 0
-        };
+        if (progress.questionSetId) {  // 确保有题库ID
+          formattedData[progress.questionSetId] = {
+            questionSetId: progress.questionSetId,
+            completedQuestions: progress.completedQuestions || 0,
+            totalQuestions: progress.totalQuestions || 0,
+            correctAnswers: progress.correctAnswers || 0,
+            lastAccessed: progress.lastAccessed,
+            title: progress.questionSet?.title,
+            totalTimeSpent: progress.totalTimeSpent || 0,
+            averageTimeSpent: progress.averageTimeSpent || 0,
+            accuracy: progress.accuracy || 0
+          };
+        }
       });
       return {
         success: true,
