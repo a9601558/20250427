@@ -45,7 +45,7 @@ QuestionSet_1.default.hasMany(Question_1.default, {
 });
 Question_1.default.belongsTo(QuestionSet_1.default, {
     foreignKey: 'questionSetId',
-    as: 'questionSet'
+    as: 'progressQuestionSet'
 });
 // Question-Option关联
 Question_1.default.hasMany(Option_1.default, {
@@ -73,7 +73,7 @@ QuestionSet_1.default.hasMany(RedeemCode_1.default, {
 });
 RedeemCode_1.default.belongsTo(QuestionSet_1.default, {
     foreignKey: 'questionSetId',
-    as: 'questionSet'
+    as: 'redeemQuestionSet'
 });
 // User-RedeemCode关联（已使用）
 User_1.default.hasMany(RedeemCode_1.default, {

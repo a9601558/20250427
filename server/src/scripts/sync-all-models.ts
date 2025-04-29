@@ -44,7 +44,7 @@ QuestionSet.hasMany(Question, {
 });
 Question.belongsTo(QuestionSet, {
   foreignKey: 'questionSetId',
-  as: 'questionSet'
+  as: 'progressQuestionSet'
 });
 
 // Question-Option关联
@@ -75,7 +75,7 @@ QuestionSet.hasMany(RedeemCode, {
 });
 RedeemCode.belongsTo(QuestionSet, {
   foreignKey: 'questionSetId',
-  as: 'questionSet'
+  as: 'redeemQuestionSet' 
 });
 
 // User-RedeemCode关联（已使用）

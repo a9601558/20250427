@@ -50,7 +50,7 @@ const setupAssociations = () => {
     });
     UserProgress_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'progressQuestionSet' // ✅ 已改好
+        as: 'progressQuestionSet'
     });
     // Question 和 UserProgress 的关联
     Question_1.default.hasMany(UserProgress_1.default, {

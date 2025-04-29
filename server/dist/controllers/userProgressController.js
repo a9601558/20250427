@@ -57,8 +57,8 @@ const getProgressByQuestionSetId = async (req, res) => {
         const progress = await UserProgress_1.default.findAll({
             where: { userId, questionSetId },
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' },
-                { model: Question_1.default, as: 'question' }
+                { model: QuestionSet_1.default, as: 'progressQuestionSet' },
+                { model: Question_1.default, as: 'progressQuestion' }
             ]
         });
         if (!progress || progress.length === 0) {
@@ -284,14 +284,17 @@ const getProgressStats = async (req, res) => {
         const progressRecords = await UserProgress_1.default.findAll({
             where,
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' }
+                {
+                    model: QuestionSet_1.default,
+                    as: 'progressQuestionSet'
+                }
             ]
         });
         const statsMap = new Map();
         progressRecords.forEach(record => {
             const qsId = record.questionSetId;
             if (!statsMap.has(qsId)) {
-                const questionSet = record.get('questionSet');
+                const questionSet = record.get('progressQuestionSet');
                 statsMap.set(qsId, {
                     questionSetId: qsId,
                     questionSet: questionSet ? questionSet.toJSON() : null,
@@ -362,12 +365,12 @@ const getUserProgressStats = async (req, res) => {
             include: [
                 {
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
-                    attributes: ['id', 'title']
+                    as: 'progressQuestionSet',
+                    attributes: ['title', 'category']
                 },
                 {
                     model: Question_1.default,
-                    as: 'question',
+                    as: 'progressQuestion',
                     attributes: ['id', 'questionType']
                 }
             ]
@@ -382,7 +385,7 @@ const getUserProgressStats = async (req, res) => {
         // 按题目集统计
         const setStats = progressRecords.reduce((acc, record) => {
             const setId = record.questionSetId.toString();
-            const questionSet = record.get('questionSet');
+            const questionSet = record.get('progressQuestionSet');
             if (!acc[setId]) {
                 acc[setId] = {
                     title: questionSet?.title,
@@ -399,7 +402,7 @@ const getUserProgressStats = async (req, res) => {
         }, {});
         // 按题目类型统计
         const typeStats = progressRecords.reduce((acc, record) => {
-            const question = record.get('question');
+            const question = record.get('progressQuestion');
             const type = question?.questionType;
             if (!type)
                 return acc;

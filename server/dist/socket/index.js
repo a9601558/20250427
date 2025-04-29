@@ -67,7 +67,12 @@ const initializeSocket = (io) => {
                                     [sequelize_1.Op.gt]: new Date()
                                 }
                             },
-                            include: [User_1.default]
+                            include: [
+                                {
+                                    model: QuestionSet_1.default,
+                                    as: 'purchaseQuestionSet'
+                                }
+                            ]
                         });
                         // 向有购买权限的用户发送更新
                         purchases.forEach((purchase) => {
@@ -200,11 +205,11 @@ const initializeSocket = (io) => {
                     include: [
                         {
                             model: QuestionSet_1.default,
-                            as: 'questionSet'
+                            as: 'purchaseQuestionSet'
                         },
                         {
                             model: User_1.default,
-                            as: 'user'
+                            as: 'purchaseUser'
                         }
                     ],
                     order: [['purchaseDate', 'DESC']]

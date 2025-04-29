@@ -52,7 +52,7 @@ export const setupAssociations = () => {
 
   UserProgress.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
-    as: 'progressQuestionSet'   // ✅ 已改好
+    as: 'progressQuestionSet'
   });
 
   // Question 和 UserProgress 的关联

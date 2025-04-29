@@ -76,7 +76,12 @@ export const initializeSocket = (io: SocketIOServer) => {
                   [Op.gt]: new Date()
                 }
               },
-              include: [User]
+              include: [
+                {
+                  model: QuestionSet,
+                  as: 'purchaseQuestionSet'
+                }
+              ]
             }) as PurchaseWithUser[];
 
             // 向有购买权限的用户发送更新
@@ -216,11 +221,11 @@ export const initializeSocket = (io: SocketIOServer) => {
           include: [
             {
               model: QuestionSet,
-              as: 'questionSet'
+              as: 'purchaseQuestionSet'
             },
             {
               model: User,
-              as: 'user'
+              as: 'purchaseUser'
             }
           ],
           order: [['purchaseDate', 'DESC']]
