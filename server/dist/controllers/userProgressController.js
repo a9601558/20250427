@@ -84,77 +84,39 @@ exports.getProgressByQuestionSetId = getProgressByQuestionSetId;
 const updateProgress = async (req, res) => {
     try {
         const userId = req.user.id;
-        // 打印请求信息，便于调试
-        console.log('Update Progress Request:', {
-            params: req.params,
-            body: req.body,
-            userId: userId
+        const { questionSetId, questionId, isCorrect, timeSpent } = req.body;
+        // 验证必要参数
+        if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
+            return (0, responseUtils_1.sendError)(res, 400, '缺少必要参数');
+        }
+        // 创建或更新进度记录
+        const [progress, created] = await UserProgress_1.default.findOrCreate({
+            where: {
+                userId,
+                questionSetId,
+                questionId
+            },
+            defaults: {
+                userId,
+                questionSetId,
+                questionId,
+                isCorrect,
+                timeSpent: timeSpent || 0
+            }
         });
-        // 优先使用 URL 参数中的 questionSetId，如果没有则使用请求体中的
-        const questionSetId = req.params.questionSetId || req.body.questionSetId;
-        // 尝试从不同的请求字段获取数据，增加兼容性
-        // 有些前端框架可能将数据以不同的格式发送
-        let questionId = req.body.questionId;
-        let isCorrect = req.body.isCorrect;
-        let timeSpent = req.body.timeSpent || 0;
-        // 如果请求包含问题数据对象
-        if (req.body.question) {
-            questionId = req.body.question.id || questionId;
+        // 如果记录已存在，更新它
+        if (!created) {
+            await progress.update({
+                isCorrect,
+                timeSpent: timeSpent || progress.timeSpent
+            });
         }
-        // 如果请求包含答案数据对象
-        if (req.body.answer) {
-            isCorrect = req.body.answer.isCorrect !== undefined ? req.body.answer.isCorrect : isCorrect;
-            timeSpent = req.body.answer.timeSpent || req.body.answer.time || timeSpent;
-        }
-        // 如果请求直接包含答案结果
-        if (req.body.result !== undefined) {
-            isCorrect = !!req.body.result;
-        }
-        // 详细的参数验证和日志记录
-        const missingParams = [];
-        if (!questionSetId)
-            missingParams.push('questionSetId');
-        if (!questionId)
-            missingParams.push('questionId');
-        if (typeof isCorrect !== 'boolean') {
-            // 尝试转换可能是字符串的布尔值
-            if (isCorrect === 'true')
-                isCorrect = true;
-            else if (isCorrect === 'false')
-                isCorrect = false;
-            else
-                missingParams.push('isCorrect');
-        }
-        console.log('Processed parameters:', {
-            questionSetId,
-            questionId,
-            isCorrect,
-            timeSpent
-        });
-        if (missingParams.length > 0) {
-            return (0, responseUtils_1.sendError)(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
-        }
-        // 记录即将插入的数据
-        console.log('Upserting progress with data:', {
-            userId,
-            questionSetId,
-            questionId,
-            isCorrect,
-            timeSpent
-        });
-        const [updatedProgress] = await UserProgress_1.default.upsert({
-            userId,
-            questionSetId,
-            questionId,
-            isCorrect,
-            timeSpent,
-        });
         // 通过Socket.IO发送进度更新
         socket_1.io.to(userId).emit('progress_updated', {
             questionSetId,
-            progress: updatedProgress.toJSON()
+            progress: progress.toJSON()
         });
-        return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', updatedProgress);
+        return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', progress);
     }
     catch (error) {
         console.error('更新进度失败:', error);

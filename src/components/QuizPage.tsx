@@ -258,9 +258,8 @@ function QuizPage(): React.ReactNode {
       return;
     }
     
-    if (selectedOptions.length === 0) return;
+    if (selectedOptions.length === 0 || !user || !questionSet || !currentQuestion) return;
     
-    const currentQuestion = questions[currentQuestionIndex];
     let isCorrect = false;
     
     if (currentQuestion.questionType === 'single') {
@@ -296,57 +295,31 @@ function QuizPage(): React.ReactNode {
       }
       
       // 在每次回答问题后保存进度
-      saveProgress(newAnsweredQuestions.length, newCorrectAnswers);
-    }
-  };
-  
-  // 保存当前进度到服务器
-  const saveProgress = async (completedCount: number, correctCount: number) => {
-    if (!user || !questionSet) return;
-    
-    try {
-      // 获取当前问题的ID
-      const currentQuestionId = questions[currentQuestionIndex]?.id?.toString() || '';
-      
-      // 查找当前问题的答题记录
-      const currentQuestionAnswer = answeredQuestions.find(q => q.index === currentQuestionIndex);
-      const isCurrentQuestionCorrect = currentQuestionAnswer?.isCorrect || false;
-      
-      // 准备进度数据
       const progressData = {
         userId: user.id,
         questionSetId: questionSet.id,
-        questionId: currentQuestionId,
-        isCorrect: isCurrentQuestionCorrect,
-        timeSpent: 0,
-        completedQuestions: completedCount,
+        questionId: currentQuestion.id.toString(),
+        isCorrect,
+        timeSpent: Math.floor((Date.now() - questionStartTime) / 1000),
+        completedQuestions: newAnsweredQuestions.length,
         totalQuestions: questions.length,
-        correctAnswers: correctCount,
+        correctAnswers: newCorrectAnswers,
         lastAccessed: new Date().toISOString()
       };
       
-      // 首先尝试使用socket发送进度
-      sendProgressUpdate(progressData);
-      
-      // 无论socket是否成功，更新本地进度
-      await addProgress({
-        questionSetId: questionSet.id,
-        completedQuestions: completedCount,
-        totalQuestions: questions.length,
-        correctAnswers: correctCount
-      });
-      
-      // 同时使用API保存进度
-      console.log('使用API保存进度');
-      const result = await userProgressApi.updateProgress(progressData);
-      
-      if (result.success) {
-        console.log('进度已通过API保存:', progressData);
-      } else {
-        console.error('通过API保存进度失败:', result.error);
+      // 发送进度更新
+      try {
+        // 通过 Socket.IO 发送
+        sendProgressUpdate(progressData);
+        
+        // 通过 API 发送
+        const result = await userProgressApi.updateProgress(progressData);
+        if (!result.success) {
+          console.error('通过API保存进度失败:', result.error);
+        }
+      } catch (error) {
+        console.error('保存进度失败:', error);
       }
-    } catch (error) {
-      console.error('保存进度失败:', error);
     }
   };
   
@@ -357,7 +330,7 @@ function QuizPage(): React.ReactNode {
     setQuizComplete(true);
     
     // 保存最终进度
-    await saveProgress(answeredQuestions.length, correctAnswers);
+    await checkAnswer();
   };
   
   // 进入下一题
@@ -368,7 +341,7 @@ function QuizPage(): React.ReactNode {
     // 确保当前进度已保存
     if (user && questionSet) {
       // 如果用户已登录，保存当前进度
-      saveProgress(answeredQuestions.length, correctAnswers);
+      checkAnswer();
     }
     
     if (currentQuestionIndex < questions.length - 1) {
