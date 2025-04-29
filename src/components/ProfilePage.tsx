@@ -144,11 +144,11 @@ const ProfilePage: React.FC = () => {
       }
     };
 
-    socket.on('progress:update', handleProgressUpdate);
+    socket.on('progress_updated', handleProgressUpdate);
     console.log('已设置进度更新监听器');
 
     return () => {
-      socket.off('progress:update', handleProgressUpdate);
+      socket.off('progress_updated', handleProgressUpdate);
       console.log('已移除进度更新监听器');
     };
   }, [socket, user]);

@@ -400,7 +400,7 @@ function QuizPage(): React.ReactNode {
 
     try {
       // 发送进度更新到服务器
-      socket.emit('progress:update', progressUpdate);
+      socket.emit('progress_updated', progressUpdate);
       console.log('发送进度更新:', progressUpdate);
 
       // 更新本地状态
