@@ -1,9 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { UserProgress } from '../types';
 import { getCurrentUser } from './auth';
-
-// Socket连接URL - 使用相对地址，自动跟随当前域名
-const SOCKET_URL = '';  // 空字符串表示使用当前域名
 
 // 创建Socket实例
 let socket: Socket | null = null;
@@ -25,9 +21,9 @@ export const initializeSocket = (): Socket => {
 
     console.log('初始化Socket.IO连接');
     
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://0.0.0.0:5000', {
+    const newSocket = io(process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000', {
       path: '/socket.io/',
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
