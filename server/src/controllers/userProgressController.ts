@@ -346,13 +346,15 @@ export const getProgressStats = async (req: Request, res: Response) => {
     const userId = req.user.id;
     const { questionSetId } = req.query;
 
-    const where: any = { userId };
-    if (questionSetId) where.questionSetId = questionSetId;
-
     // 获取所有题库的进度统计
     const progressRecords = await UserProgress.findAll({
-      where,
-      attributes: ['questionSetId', 'isCorrect', 'timeSpent'],
+      where: { userId },
+      include: [{
+        model: QuestionSet,
+        as: 'progressQuestionSet',
+        attributes: ['id', 'title']
+      }],
+      attributes: ['questionSetId'],
       group: ['questionSetId']
     });
 
@@ -361,6 +363,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
         const stats = await calculateProgressStats(userId, record.questionSetId);
         return {
           questionSetId: record.questionSetId,
+          questionSet: record.progressQuestionSet,
           ...stats
         };
       })

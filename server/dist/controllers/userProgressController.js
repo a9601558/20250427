@@ -278,19 +278,22 @@ const getProgressStats = async (req, res) => {
     try {
         const userId = req.user.id;
         const { questionSetId } = req.query;
-        const where = { userId };
-        if (questionSetId)
-            where.questionSetId = questionSetId;
         // 获取所有题库的进度统计
         const progressRecords = await UserProgress_1.default.findAll({
-            where,
-            attributes: ['questionSetId', 'isCorrect', 'timeSpent'],
+            where: { userId },
+            include: [{
+                    model: QuestionSet_1.default,
+                    as: 'progressQuestionSet',
+                    attributes: ['id', 'title']
+                }],
+            attributes: ['questionSetId'],
             group: ['questionSetId']
         });
         const stats = await Promise.all(progressRecords.map(async (record) => {
             const stats = await (0, progressService_1.calculateProgressStats)(userId, record.questionSetId);
             return {
                 questionSetId: record.questionSetId,
+                questionSet: record.progressQuestionSet,
                 ...stats
             };
         }));
