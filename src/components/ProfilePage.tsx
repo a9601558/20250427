@@ -143,6 +143,39 @@ const ProfilePage: React.FC = () => {
     };
   }).sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
 
+  // 添加 Socket 监听以更新进度
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    const handleProgressUpdate = (data: {
+      questionSetId: string;
+      progress: {
+        completedQuestions: number;
+        totalQuestions: number;
+        correctAnswers: number;
+        lastAccessed: string;
+      };
+    }) => {
+      setQuestionSets(prevSets => {
+        return prevSets.map(set => {
+          if (set.id === data.questionSetId) {
+            return {
+              ...set,
+              progress: data.progress
+            };
+          }
+          return set;
+        });
+      });
+    };
+
+    socket.on('progress:update', handleProgressUpdate);
+
+    return () => {
+      socket.off('progress:update', handleProgressUpdate);
+    };
+  }, [socket, user]);
+
   // 整理用户购买记录
   const purchaseData = purchases.map(purchase => {
     const questionSet = purchase.QuestionSet || {};
