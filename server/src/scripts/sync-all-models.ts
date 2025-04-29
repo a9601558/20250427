@@ -1,4 +1,5 @@
 import sequelize from '../config/database';
+import { setupAssociations } from '../models/associations';
 import User from '../models/User';
 import Question from '../models/Question';
 import QuestionSet from '../models/QuestionSet';
@@ -25,115 +26,17 @@ models.forEach(model => {
   console.log(` - ${model.name}`);
 });
 
-// 模型关联 - 确保这与models/index.ts保持一致
-// User-Purchase关联
-User.hasMany(Purchase, {
-  foreignKey: 'userId',
-  as: 'userPurchases',
-  onDelete: 'CASCADE'
-});
-Purchase.belongsTo(User, {
-  foreignKey: 'userId',
-  as: 'purchaseUser'
-});
-
-// QuestionSet-Question关联
-QuestionSet.hasMany(Question, {
-  foreignKey: 'questionSetId',
-  as: 'questions'
-});
-Question.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'questionSet'
-});
-
-// Question-Option关联
-Question.hasMany(Option, {
-  foreignKey: 'questionId',
-  as: 'options'
-});
-Option.belongsTo(Question, {
-  foreignKey: 'questionId',
-  as: 'question'
-});
-
-// QuestionSet-Purchase关联
-QuestionSet.hasMany(Purchase, {
-  foreignKey: 'questionSetId',
-  as: 'questionSetPurchases',
-  onDelete: 'CASCADE'
-});
-Purchase.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'purchaseQuestionSet'
-});
-
-// QuestionSet-RedeemCode关联
-QuestionSet.hasMany(RedeemCode, {
-  foreignKey: 'questionSetId',
-  as: 'redeemCodes'
-});
-RedeemCode.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'questionSet'
-});
-
-// User-RedeemCode关联（已使用）
-User.hasMany(RedeemCode, {
-  foreignKey: 'usedBy',
-  as: 'redeemedCodes'
-});
-RedeemCode.belongsTo(User, {
-  foreignKey: 'usedBy',
-  as: 'user'
-});
-
-// User-RedeemCode关联（创建者）
-User.hasMany(RedeemCode, {
-  foreignKey: 'createdBy',
-  as: 'createdCodes'
-});
-RedeemCode.belongsTo(User, {
-  foreignKey: 'createdBy',
-  as: 'creator'
-});
-
-// QuestionSet 和 UserProgress 的关联
-QuestionSet.hasMany(UserProgress, {
-  foreignKey: 'questionSetId',
-  as: 'questionSetUserProgresses',
-  onDelete: 'CASCADE'
-});
-
-UserProgress.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'progressQuestionSet'
-});
-
-// Question 和 UserProgress 的关联
-Question.hasMany(UserProgress, {
-  foreignKey: 'questionId',
-  as: 'questionUserProgresses',
-  onDelete: 'CASCADE'
-});
-
-UserProgress.belongsTo(Question, {
-  foreignKey: 'questionId',
-  as: 'progressQuestion'
-});
-
-// 执行同步
 async function syncAllModels() {
   try {
-    console.log('开始同步所有模型到数据库...');
-    console.log('同步模式: force=true (将删除并重新创建所有表)');
-    
-    // 使用force:true重新创建所有表
+    console.log('✅ 初始化模型关联...');
+    setupAssociations();
+
+    console.log('✅ 开始同步所有模型到数据库 (force: true)...');
     await sequelize.sync({ force: true });
-    
-    console.log('所有数据库表已成功创建!');
-    
-    // 创建一条默认的HomepageSettings记录
+
+    console.log('🎉 所有数据库表已成功创建！');
+
+    // 创建默认HomepageSettings
     try {
       const [homepageSettings, created] = await HomepageSettings.findOrCreate({
         where: { id: 1 },
@@ -147,28 +50,30 @@ async function syncAllModels() {
           theme: 'light'
         }
       });
-      
+
       if (created) {
-        console.log('创建了默认的首页设置');
+        console.log('✅ 默认首页设置已创建！');
       } else {
-        console.log('首页设置已存在，无需创建');
+        console.log('ℹ️ 默认首页设置已存在，无需创建');
       }
     } catch (error) {
-      console.error('创建首页设置时出错:', error);
+      console.error('❌ 创建首页设置时出错:', error);
     }
-    
+
     // 打印所有创建的表
     const tables = await sequelize.getQueryInterface().showAllTables();
-    console.log('已创建的表:');
+    console.log('📋 已创建的表:');
     tables.forEach((table: string) => {
       console.log(` - ${table}`);
     });
-    
+
+    console.log('🏁 数据库同步完成！');
     process.exit(0);
   } catch (error) {
-    console.error('同步模型时出错:', error);
+    console.error('❌ 同步模型时出错:', error);
     process.exit(1);
   }
 }
 
-syncAllModels(); 
+// 启动同步流程
+syncAllModels();

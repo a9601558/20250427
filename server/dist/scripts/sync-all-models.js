@@ -94,25 +94,9 @@ RedeemCode_1.default.belongsTo(User_1.default, {
     as: 'creator'
 });
 // QuestionSet 和 UserProgress 的关联
-QuestionSet_1.default.hasMany(UserProgress_1.default, {
-    foreignKey: 'questionSetId',
-    as: 'questionSetUserProgresses',
-    onDelete: 'CASCADE'
-});
-UserProgress_1.default.belongsTo(QuestionSet_1.default, {
-    foreignKey: 'questionSetId',
-    as: 'progressQuestionSet'
-});
+// 这些关联已经在 associations.ts 中定义，这里不需要重复定义
 // Question 和 UserProgress 的关联
-Question_1.default.hasMany(UserProgress_1.default, {
-    foreignKey: 'questionId',
-    as: 'questionUserProgresses',
-    onDelete: 'CASCADE'
-});
-UserProgress_1.default.belongsTo(Question_1.default, {
-    foreignKey: 'questionId',
-    as: 'progressQuestion'
-});
+// 这些关联已经在 associations.ts 中定义，这里不需要重复定义
 // 执行同步
 async function syncAllModels() {
     try {
