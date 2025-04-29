@@ -65,7 +65,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const socket = initializeSocket();
       
       // 用户认证
-      authenticateUser(user.id);
+      authenticateUser(user.id, localStorage.getItem('token') || '');
       
       // 监听进度更新
       socket.on('progress:update', (data) => {
