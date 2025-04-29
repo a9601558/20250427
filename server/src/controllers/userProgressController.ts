@@ -555,4 +555,31 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
     console.error('Error getting user progress stats:', error);
     return sendError(res, 500, 'Failed to get user progress statistics', error);
   }
+};
+
+/**
+ * @desc    获取用户的原始进度记录
+ * @route   GET /api/user-progress/records
+ * @access  Private
+ */
+export const getUserProgressRecords = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    
+    // 获取用户的所有进度记录
+    const progressRecords = await UserProgress.findAll({
+      where: { userId },
+      attributes: ['id', 'questionSetId', 'questionId', 'isCorrect', 'timeSpent', 'createdAt', 'updatedAt'],
+      include: [{
+        model: QuestionSet,
+        as: 'progressQuestionSet',
+        attributes: ['id', 'title']
+      }]
+    });
+
+    return sendResponse(res, 200, '获取进度记录成功', progressRecords);
+  } catch (error) {
+    console.error('获取进度记录失败:', error);
+    return sendError(res, 500, '获取进度记录失败', error);
+  }
 }; 

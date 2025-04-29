@@ -8,7 +8,8 @@ import {
   getDetailedProgress,
   getProgressStats,
   deleteProgressRecord,
-  getUserProgressStats
+  getUserProgressStats,
+  getUserProgressRecords
 } from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 
@@ -22,6 +23,7 @@ router.post('/record', createDetailedProgress);
 router.get('/detailed', getDetailedProgress);
 router.get('/stats', getProgressStats);
 router.get('/stats/:userId', getUserProgressStats);
+router.get('/records', getUserProgressRecords);
 router.delete('/record/:id', deleteProgressRecord);
 
 // 通用更新进度路由

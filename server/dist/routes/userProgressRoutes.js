@@ -14,6 +14,7 @@ router.post('/record', userProgressController_1.createDetailedProgress);
 router.get('/detailed', userProgressController_1.getDetailedProgress);
 router.get('/stats', userProgressController_1.getProgressStats);
 router.get('/stats/:userId', userProgressController_1.getUserProgressStats);
+router.get('/records', userProgressController_1.getUserProgressRecords);
 router.delete('/record/:id', userProgressController_1.deleteProgressRecord);
 // 通用更新进度路由
 router.post('/', userProgressController_1.updateProgress);

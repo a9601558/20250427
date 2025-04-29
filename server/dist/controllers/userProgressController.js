@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserProgressStats = exports.deleteProgressRecord = exports.getProgressStats = exports.getDetailedProgress = exports.createDetailedProgress = exports.resetProgress = exports.updateProgress = exports.getProgressByQuestionSetId = exports.getUserProgress = void 0;
+exports.getUserProgressRecords = exports.getUserProgressStats = exports.deleteProgressRecord = exports.getProgressStats = exports.getDetailedProgress = exports.createDetailedProgress = exports.resetProgress = exports.updateProgress = exports.getProgressByQuestionSetId = exports.getUserProgress = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const Question_1 = __importDefault(require("../models/Question"));
@@ -463,3 +463,29 @@ const getUserProgressStats = async (req, res) => {
     }
 };
 exports.getUserProgressStats = getUserProgressStats;
+/**
+ * @desc    获取用户的原始进度记录
+ * @route   GET /api/user-progress/records
+ * @access  Private
+ */
+const getUserProgressRecords = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // 获取用户的所有进度记录
+        const progressRecords = await UserProgress_1.default.findAll({
+            where: { userId },
+            attributes: ['id', 'questionSetId', 'questionId', 'isCorrect', 'timeSpent', 'createdAt', 'updatedAt'],
+            include: [{
+                    model: QuestionSet_1.default,
+                    as: 'progressQuestionSet',
+                    attributes: ['id', 'title']
+                }]
+        });
+        return (0, responseUtils_1.sendResponse)(res, 200, '获取进度记录成功', progressRecords);
+    }
+    catch (error) {
+        console.error('获取进度记录失败:', error);
+        return (0, responseUtils_1.sendError)(res, 500, '获取进度记录失败', error);
+    }
+};
+exports.getUserProgressRecords = getUserProgressRecords;
