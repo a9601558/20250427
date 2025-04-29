@@ -63,6 +63,17 @@ interface ProgressUpdateEvent {
   };
 }
 
+interface ProgressRecord {
+  questionSetId: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  progressQuestionSet: {
+    id: string;
+    title: string;
+    questions: { id: string }[];
+  };
+}
+
 /**
  * @desc    获取用户进度
  * @route   GET /api/user-progress/:userId
@@ -344,30 +355,60 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
 export const getProgressStats = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
-    const { questionSetId } = req.query;
 
-    // 获取所有题库的进度统计
+    // 获取用户的所有进度记录，包含题库和题目信息
     const progressRecords = await UserProgress.findAll({
       where: { userId },
       include: [{
         model: QuestionSet,
         as: 'progressQuestionSet',
-        attributes: ['id', 'title']
-      }],
-      attributes: ['questionSetId'],
-      group: ['questionSetId']
+        attributes: ['id', 'title'],
+        include: [{
+          model: Question,
+          as: 'questions',
+          attributes: ['id']
+        }]
+      }]
+    }) as ProgressRecord[];
+
+    // 使用 Map 按题库分组
+    const progressMap = new Map();
+    progressRecords.forEach(record => {
+      const qsId = record.questionSetId;
+      if (!progressMap.has(qsId)) {
+        progressMap.set(qsId, {
+          questionSetId: qsId,
+          questionSet: record.progressQuestionSet,
+          records: []
+        });
+      }
+      progressMap.get(qsId).records.push(record);
     });
 
-    const stats = await Promise.all(
-      progressRecords.map(async (record) => {
-        const stats = await calculateProgressStats(userId, record.questionSetId);
-        return {
-          questionSetId: record.questionSetId,
-          questionSet: record.progressQuestionSet,
-          ...stats
-        };
-      })
-    );
+    // 计算每个题库的统计
+    const stats = Array.from(progressMap.values()).map(group => {
+      const records = group.records;
+      const completedQuestions = records.length;
+      const correctAnswers = records.filter((r: ProgressRecord) => r.isCorrect).length;
+      const totalTimeSpent = records.reduce((sum: number, r: ProgressRecord) => sum + r.timeSpent, 0);
+      const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
+      const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
+
+      return {
+        questionSetId: group.questionSetId,
+        questionSet: group.questionSet,
+        totalQuestions: group.questionSet.questions.length,
+        completedQuestions,
+        correctAnswers,
+        totalTimeSpent,
+        averageTimeSpent,
+        accuracy,
+        // 兼容旧的字段名
+        total: group.questionSet.questions.length,
+        correct: correctAnswers,
+        timeSpent: totalTimeSpent
+      };
+    });
 
     return sendResponse(res, 200, '获取学习统计成功', stats);
   } catch (error) {
