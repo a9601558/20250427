@@ -67,11 +67,11 @@ export const registerUser = async (req: Request, res: Response) => {
       username,
       email,
       password,
-      role: 'user',
       purchases: [] as IPurchase[],
       redeemCodes: [] as IRedeemCode[],
       progress: {},
-      socket_id: null
+      socket_id: null,
+      isAdmin: false
     };
 
     const user = await User.unscoped().create(userData);
@@ -84,9 +84,9 @@ export const registerUser = async (req: Request, res: Response) => {
       id: user.id,
       username: user.username,
       email: user.email,
-      role: user.role,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      updatedAt: user.updatedAt,
+      isAdmin: user.isAdmin
     };
 
     sendResponse(res, 201, {
@@ -146,9 +146,9 @@ export const loginUser = async (req: Request, res: Response) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          role: user.role,
           createdAt: user.createdAt,
-          updatedAt: user.updatedAt
+          updatedAt: user.updatedAt,
+          isAdmin: user.isAdmin
         };
 
         sendResponse(res, 200, {
@@ -199,15 +199,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     if (user) {
       user.username = req.body.username || user.username;
       user.email = req.body.email || user.email;
-
-      if (req.body.password) {
-        // 直接设置密码，让模型的钩子处理加密
-        user.password = req.body.password;
-      }
-
-      if (req.body.role !== undefined) {
-        user.role = req.body.role;
-      }
+      user.isAdmin = req.body.isAdmin !== undefined ? req.body.isAdmin : user.isAdmin;
 
       const updatedUser = await user.save();
 
@@ -215,9 +207,9 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         id: updatedUser.id,
         username: updatedUser.username,
         email: updatedUser.email,
-        role: updatedUser.role,
         createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt
+        updatedAt: updatedUser.updatedAt,
+        isAdmin: updatedUser.isAdmin
       };
 
       sendResponse(res, 200, {
@@ -279,7 +271,7 @@ export const updateUser = async (req: Request, res: Response) => {
     if (user) {
       user.username = req.body.username || user.username;
       user.email = req.body.email || user.email;
-      user.role = req.body.role !== undefined ? req.body.role : user.role;
+      user.isAdmin = req.body.isAdmin !== undefined ? req.body.isAdmin : user.isAdmin;
 
       const updatedUser = await user.save();
 
@@ -287,9 +279,9 @@ export const updateUser = async (req: Request, res: Response) => {
         id: updatedUser.id,
         username: updatedUser.username,
         email: updatedUser.email,
-        role: updatedUser.role,
         createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt
+        updatedAt: updatedUser.updatedAt,
+        isAdmin: updatedUser.isAdmin
       };
 
       sendResponse(res, 200, userResponse, '用户信息更新成功');

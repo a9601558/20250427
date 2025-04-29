@@ -73,10 +73,10 @@ User.init({
             }
         }
     },
-    role: {
-        type: sequelize_1.DataTypes.ENUM('user', 'admin'),
+    isAdmin: {
+        type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: 'user',
+        defaultValue: false
     },
     socket_id: {
         type: sequelize_1.DataTypes.STRING(255),

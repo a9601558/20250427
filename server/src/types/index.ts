@@ -35,7 +35,7 @@ export interface IUser {
   username: string;
   email: string;
   password: string;
-  role: 'user' | 'admin';
+  isAdmin: boolean;
   purchases: IPurchase[];
   redeemCodes?: IRedeemCode[];
   progress?: {

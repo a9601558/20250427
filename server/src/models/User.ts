@@ -10,7 +10,7 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
   declare username: string;
   declare email: string;
   declare password: string;
-  declare role: 'user' | 'admin';
+  declare isAdmin: boolean;
   declare purchases: IPurchase[];
   declare socket_id: string | null;
   declare redeemCodes?: IRedeemCode[];
@@ -89,10 +89,10 @@ User.init(
         }
       }
     },
-    role: {
-      type: DataTypes.ENUM('user', 'admin'),
+    isAdmin: {
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: 'user',
+      defaultValue: false
     },
     socket_id: {
       type: DataTypes.STRING(255),
