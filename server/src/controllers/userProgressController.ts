@@ -91,7 +91,7 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
 export const updateProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
     const userId = req.user.id;
-    const { questionSetId, questionId, isCorrect, timeSpent, completedQuestions, totalQuestions, correctAnswers } = req.body;
+    const { questionSetId, questionId, isCorrect, timeSpent } = req.body;
 
     // 验证必要参数
     if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
@@ -114,6 +114,21 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
 
     const actualTotalQuestions = questionSet.questions?.length || 0;
 
+    // 获取用户在这个题库中的所有答题记录
+    const allProgress = await UserProgress.findAll({
+      where: {
+        userId,
+        questionSetId
+      }
+    });
+
+    // 计算已完成的题目数（不重复计算同一题目）
+    const uniqueAnsweredQuestions = new Set(allProgress.map(p => p.questionId));
+    const completedQuestions = uniqueAnsweredQuestions.size + (uniqueAnsweredQuestions.has(questionId) ? 0 : 1);
+
+    // 计算正确答题数
+    const correctAnswers = allProgress.filter(p => p.isCorrect).length + (isCorrect ? 1 : 0);
+
     // 创建或更新进度记录
     const [progress, created] = await UserProgress.findOrCreate({
       where: {
@@ -127,9 +142,9 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
         questionId,
         isCorrect,
         timeSpent: timeSpent || 0,
-        completedQuestions: completedQuestions || 1,
+        completedQuestions,
         totalQuestions: actualTotalQuestions,
-        correctAnswers: correctAnswers || (isCorrect ? 1 : 0),
+        correctAnswers,
         lastAccessed: new Date()
       }
     });
@@ -139,9 +154,9 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       await progress.update({
         isCorrect,
         timeSpent: timeSpent || progress.timeSpent,
-        completedQuestions: completedQuestions || progress.completedQuestions,
+        completedQuestions,
         totalQuestions: actualTotalQuestions,
-        correctAnswers: correctAnswers || progress.correctAnswers,
+        correctAnswers,
         lastAccessed: new Date()
       });
     }
@@ -150,9 +165,9 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     io.to(userId).emit('progress:update', {
       userId: progress.userId,
       questionSetId: progress.questionSetId,
-      completedQuestions: progress.completedQuestions,
+      completedQuestions,
       totalQuestions: actualTotalQuestions,
-      correctAnswers: progress.correctAnswers,
+      correctAnswers,
       lastAccessed: progress.lastAccessed
     });
 
