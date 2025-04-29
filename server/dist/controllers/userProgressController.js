@@ -284,14 +284,14 @@ const getProgressStats = async (req, res) => {
         const progressRecords = await UserProgress_1.default.findAll({
             where,
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' }
+                { model: QuestionSet_1.default, as: 'progressQuestionSet' }
             ]
         });
         const statsMap = new Map();
         progressRecords.forEach(record => {
             const qsId = record.questionSetId;
             if (!statsMap.has(qsId)) {
-                const questionSet = record.get('questionSet');
+                const questionSet = record.get('progressQuestionSet');
                 statsMap.set(qsId, {
                     questionSetId: qsId,
                     questionSet: questionSet ? questionSet.toJSON() : null,
