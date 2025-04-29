@@ -46,7 +46,7 @@ export const setupAssociations = () => {
   // QuestionSet 和 UserProgress 的关联
   QuestionSet.hasMany(UserProgress, {
     foreignKey: 'questionSetId',
-    as: 'questionSetUserProgresses',  // ✅ 改了
+    as: 'questionSetUserProgresses',
     onDelete: 'CASCADE'
   });
 
@@ -58,13 +58,13 @@ export const setupAssociations = () => {
   // Question 和 UserProgress 的关联
   Question.hasMany(UserProgress, {
     foreignKey: 'questionId',
-    as: 'questionUserProgresses',   // ✅ 改了
+    as: 'questionUserProgresses',
     onDelete: 'CASCADE'
   });
 
   UserProgress.belongsTo(Question, {
     foreignKey: 'questionId',
-    as: 'progressQuestion'   // ✅ 稍微改名，防止和 Question 里的 as 冲突
+    as: 'progressQuestion'
   });
 
   // User 和 Purchase 的关联

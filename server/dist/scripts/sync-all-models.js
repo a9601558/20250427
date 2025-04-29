@@ -41,16 +41,18 @@ Purchase_1.default.belongsTo(User_1.default, {
 // QuestionSet-Question关联
 QuestionSet_1.default.hasMany(Question_1.default, {
     foreignKey: 'questionSetId',
-    as: 'questions'
+    as: 'questions',
+    onDelete: 'CASCADE'
 });
 Question_1.default.belongsTo(QuestionSet_1.default, {
     foreignKey: 'questionSetId',
-    as: 'progressQuestionSet'
+    as: 'questionSet'
 });
 // Question-Option关联
 Question_1.default.hasMany(Option_1.default, {
     foreignKey: 'questionId',
-    as: 'options'
+    as: 'options',
+    onDelete: 'CASCADE'
 });
 Option_1.default.belongsTo(Question_1.default, {
     foreignKey: 'questionId',

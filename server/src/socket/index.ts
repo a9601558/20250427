@@ -247,8 +247,8 @@ export const initializeSocket = (io: SocketIOServer) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
           include: [
-            { model: User, as: 'user' },
-            { model: QuestionSet, as: 'questionSet' }
+            { model: User, as: 'purchaseUser' },
+            { model: QuestionSet, as: 'purchaseQuestionSet' }
           ]
         });
 
@@ -269,7 +269,7 @@ export const initializeSocket = (io: SocketIOServer) => {
     socket.on('purchase:delete', async (data: { purchaseId: string }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
-          include: [{ model: User, as: 'user' }]
+          include: [{ model: User, as: 'purchaseUser' }]
         });
 
         if (purchase) {
@@ -290,7 +290,7 @@ export const initializeSocket = (io: SocketIOServer) => {
     socket.on('purchase:expire', async (data: { purchaseId: string }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
-          include: [{ model: User, as: 'user' }]
+          include: [{ model: User, as: 'purchaseUser' }]
         });
 
         if (purchase && purchase.user?.socket_id) {
@@ -314,7 +314,7 @@ export const initializeSocket = (io: SocketIOServer) => {
               [Op.gt]: new Date(Date.now() - 24 * 60 * 60 * 1000) // 过去24小时内过期的
             }
           },
-          include: [{ model: User, as: 'user' }]
+          include: [{ model: User, as: 'purchaseUser' }]
         });
 
         expiredPurchases.forEach(purchase => {

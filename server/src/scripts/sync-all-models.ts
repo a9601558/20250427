@@ -40,17 +40,19 @@ Purchase.belongsTo(User, {
 // QuestionSet-Question关联
 QuestionSet.hasMany(Question, {
   foreignKey: 'questionSetId',
-  as: 'questions'
+  as: 'questions',
+  onDelete: 'CASCADE'
 });
 Question.belongsTo(QuestionSet, {
   foreignKey: 'questionSetId',
-  as: 'progressQuestionSet'
+  as: 'questionSet'
 });
 
 // Question-Option关联
 Question.hasMany(Option, {
   foreignKey: 'questionId',
-  as: 'options'
+  as: 'options',
+  onDelete: 'CASCADE'
 });
 Option.belongsTo(Question, {
   foreignKey: 'questionId',

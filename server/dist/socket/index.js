@@ -230,8 +230,8 @@ const initializeSocket = (io) => {
             try {
                 const purchase = await Purchase_1.default.findByPk(data.purchaseId, {
                     include: [
-                        { model: User_1.default, as: 'user' },
-                        { model: QuestionSet_1.default, as: 'questionSet' }
+                        { model: User_1.default, as: 'purchaseUser' },
+                        { model: QuestionSet_1.default, as: 'purchaseQuestionSet' }
                     ]
                 });
                 if (purchase) {
@@ -250,7 +250,7 @@ const initializeSocket = (io) => {
         socket.on('purchase:delete', async (data) => {
             try {
                 const purchase = await Purchase_1.default.findByPk(data.purchaseId, {
-                    include: [{ model: User_1.default, as: 'user' }]
+                    include: [{ model: User_1.default, as: 'purchaseUser' }]
                 });
                 if (purchase) {
                     const userId = purchase.userId;
@@ -269,7 +269,7 @@ const initializeSocket = (io) => {
         socket.on('purchase:expire', async (data) => {
             try {
                 const purchase = await Purchase_1.default.findByPk(data.purchaseId, {
-                    include: [{ model: User_1.default, as: 'user' }]
+                    include: [{ model: User_1.default, as: 'purchaseUser' }]
                 });
                 if (purchase && purchase.user?.socket_id) {
                     io.to(purchase.user.socket_id).emit('purchase:expire', {
@@ -292,7 +292,7 @@ const initializeSocket = (io) => {
                             [sequelize_1.Op.gt]: new Date(Date.now() - 24 * 60 * 60 * 1000) // 过去24小时内过期的
                         }
                     },
-                    include: [{ model: User_1.default, as: 'user' }]
+                    include: [{ model: User_1.default, as: 'purchaseUser' }]
                 });
                 expiredPurchases.forEach(purchase => {
                     if (purchase.user?.socket_id) {
