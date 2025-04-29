@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
-import User from '../models/User';
+import User, { UserCreationAttributes } from '../models/User';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { Op } from 'sequelize';
+import { IUser, IPurchase, IRedeemCode } from '../types';
 
 // 生成JWT令牌函数
 const generateToken = (id: string | number) => {
@@ -62,15 +63,18 @@ export const registerUser = async (req: Request, res: Response) => {
 
     // 创建新用户 - 不需要在此处加密密码，密码会在User模型的beforeSave钩子中自动加密
     // 使用unscoped()确保所有字段都包含在模型中，防止默认scope排除了password字段
-    const user = await User.unscoped().create({
+    const userData: UserCreationAttributes = {
       username,
       email,
-      password, // 直接使用明文密码，让模型的钩子去处理加密
-      isAdmin: false,
+      password,
+      role: 'user',
+      purchases: [] as IPurchase[],
+      redeemCodes: [] as IRedeemCode[],
       progress: {},
-      purchases: [],
-      redeemCodes: []
-    });
+      socket_id: null
+    };
+
+    const user = await User.unscoped().create(userData);
 
     // 生成 JWT token
     const token = generateToken(user.id);
@@ -80,7 +84,7 @@ export const registerUser = async (req: Request, res: Response) => {
       id: user.id,
       username: user.username,
       email: user.email,
-      isAdmin: user.isAdmin,
+      role: user.role,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
@@ -142,7 +146,7 @@ export const loginUser = async (req: Request, res: Response) => {
           id: user.id,
           username: user.username,
           email: user.email,
-          isAdmin: user.isAdmin,
+          role: user.role,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt
         };
@@ -201,13 +205,17 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         user.password = req.body.password;
       }
 
+      if (req.body.role !== undefined) {
+        user.role = req.body.role;
+      }
+
       const updatedUser = await user.save();
 
       const userResponse = {
         id: updatedUser.id,
         username: updatedUser.username,
         email: updatedUser.email,
-        isAdmin: updatedUser.isAdmin,
+        role: updatedUser.role,
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt
       };
@@ -271,7 +279,7 @@ export const updateUser = async (req: Request, res: Response) => {
     if (user) {
       user.username = req.body.username || user.username;
       user.email = req.body.email || user.email;
-      user.isAdmin = req.body.isAdmin !== undefined ? req.body.isAdmin : user.isAdmin;
+      user.role = req.body.role !== undefined ? req.body.role : user.role;
 
       const updatedUser = await user.save();
 
@@ -279,7 +287,7 @@ export const updateUser = async (req: Request, res: Response) => {
         id: updatedUser.id,
         username: updatedUser.username,
         email: updatedUser.email,
-        isAdmin: updatedUser.isAdmin,
+        role: updatedUser.role,
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt
       };

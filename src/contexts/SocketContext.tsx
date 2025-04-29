@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Socket } from 'socket.io-client';
-import { initSocket, closeSocket } from '../config/socket';
+import { initializeSocket, disconnectSocket } from '../config/socket';
 import { toast } from 'react-toastify';
 
 interface SocketContextType {
@@ -99,14 +99,14 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   useEffect(() => {
     try {
       console.log('初始化Socket连接');
-      const socketInstance = initSocket();
+      const socketInstance = initializeSocket();
       setSocket(socketInstance);
       setupSocketListeners(socketInstance);
       
       // 组件卸载时关闭Socket连接
       return () => {
         console.log('关闭Socket连接');
-        closeSocket();
+        disconnectSocket();
         setSocket(null);
       };
     } catch (error: any) {
@@ -124,12 +124,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       
       // 先关闭现有连接
       if (socket) {
-        closeSocket();
+        disconnectSocket();
         setSocket(null);
       }
       
       // 然后重新建立连接
-      const newSocket = initSocket();
+      const newSocket = initializeSocket();
       setSocket(newSocket);
       setupSocketListeners(newSocket);
       toast.info('正在尝试重新连接...');

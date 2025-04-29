@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sequelize, RedeemCode, QuestionSet, User, Purchase } from '../models';
 import { Transaction, Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
+import { IPurchase } from '../types';
 
 // @desc    Generate redeem codes
 // @route   POST /api/redeem-codes/generate
@@ -106,142 +107,80 @@ export const getRedeemCodes = async (req: Request, res: Response) => {
 // @route   POST /api/redeem-codes/redeem
 // @access  Private
 export const redeemCode = async (req: Request, res: Response) => {
-  // Start transaction
-  const transaction = await sequelize.transaction();
-
   try {
     const { code } = req.body;
     const userId = req.user.id;
 
-    if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a redeem code'
-      });
-    }
-
-    // Find the code
-    const redeemCode = await RedeemCode.findOne({ 
-      where: { code },
-      transaction
+    // 查找兑换码
+    const redeemCode = await RedeemCode.findOne({
+      where: { code }
     });
 
     if (!redeemCode) {
-      await transaction.rollback();
       return res.status(404).json({
         success: false,
-        message: 'Invalid redeem code'
+        message: '兑换码不存在'
       });
     }
 
-    // Check if already used
     if (redeemCode.isUsed) {
-      await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'This code has already been used'
+        message: '兑换码已被使用'
       });
     }
 
-    // Check if expired
-    if (new Date() > redeemCode.expiryDate) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'This code has expired'
-      });
-    }
-
-    // Get question set info
-    const questionSet = await QuestionSet.findByPk(redeemCode.questionSetId, { transaction });
+    // 查找对应的题库
+    const questionSet = await QuestionSet.findByPk(redeemCode.questionSetId);
     if (!questionSet) {
-      await transaction.rollback();
       return res.status(404).json({
         success: false,
-        message: 'Question set not found'
+        message: '题库不存在'
       });
     }
 
-    // Calculate expiry date (validityDays ahead of redemption)
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + redeemCode.validityDays);
+    // 创建购买记录
+    const purchase = await Purchase.create({
+      id: uuidv4(),
+      userId,
+      questionSetId: questionSet.id,
+      purchaseDate: new Date(),
+      status: 'active',
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+      amount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
 
-    // Update redeem code as used
+    // 更新兑换码状态
     await redeemCode.update({
       isUsed: true,
       usedBy: userId,
       usedAt: new Date()
-    }, { transaction });
+    });
 
-    // Check if user exists
-    const user = await User.findByPk(userId, { transaction });
-    if (!user) {
-      await transaction.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
+    // 更新用户的购买记录
+    const user = await User.findByPk(userId);
+    if (user) {
+      const currentPurchases = user.purchases || [];
+      await user.update({
+        purchases: [...currentPurchases, purchase.toJSON() as IPurchase]
       });
     }
 
-    // Check if user already has access to this question set
-    const existingPurchase = await Purchase.findOne({
-      where: {
-        userId,
-        questionSetId: redeemCode.questionSetId,
-        expiryDate: {
-          [Op.gt]: new Date()
-        }
-      },
-      transaction
-    });
-
-    if (existingPurchase) {
-      // Extend the existing purchase if new expiry date is later
-      if (expiryDate > existingPurchase.expiryDate) {
-        await existingPurchase.update({
-          expiryDate
-        }, { transaction });
-      }
-    } else {
-      // Create new purchase
-      await Purchase.create({
-        id: uuidv4(),
-        userId: user.id,
-        questionSetId: questionSet.id,
-        purchaseDate: new Date(),
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
-        transactionId: uuidv4(),
-        amount: 0,
-        paymentMethod: 'redeem_code',
-        status: 'completed',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }, { transaction });
-    }
-
-    // Commit transaction
-    await transaction.commit();
-
     res.json({
       success: true,
-      message: 'Code redeemed successfully',
+      message: '兑换成功',
       data: {
-        questionSet: {
-          id: questionSet.id,
-          title: questionSet.title
-        },
-        expiryDate,
-        validityDays: redeemCode.validityDays
+        questionSet,
+        purchase
       }
     });
-  } catch (error: any) {
-    // Rollback transaction on error
-    await transaction.rollback();
-    
-    console.error('Redeem code error:', error);
+  } catch (error) {
+    console.error('兑换失败:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: '兑换失败'
     });
   }
 };

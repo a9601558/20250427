@@ -12,6 +12,26 @@ const uuid_1 = require("uuid");
 const initializeSocket = (io) => {
     io.on('connection', (socket) => {
         console.log('Client connected:', socket.id);
+        // 处理用户认证
+        socket.on('authenticate', async (data) => {
+            try {
+                const { userId } = data;
+                if (!userId) {
+                    socket.emit('auth_error', { message: '缺少用户ID' });
+                    return;
+                }
+                // 更新用户的socket_id
+                await User_1.default.update({ socket_id: socket.id }, { where: { id: userId } });
+                // 将socket加入用户房间
+                socket.join(userId);
+                console.log(`用户 ${userId} 已认证并加入房间`);
+                socket.emit('auth_success', { message: '认证成功' });
+            }
+            catch (error) {
+                console.error('认证错误:', error);
+                socket.emit('auth_error', { message: '认证失败' });
+            }
+        });
         // 监听题库更新事件
         socket.on('questionSet:update', async (data) => {
             try {
@@ -50,9 +70,9 @@ const initializeSocket = (io) => {
                         });
                         // 向有购买权限的用户发送更新
                         purchases.forEach((purchase) => {
-                            if (purchase.user && purchase.user.socketId) {
-                                io.to(purchase.user.socketId).emit('questionSet:accessUpdate', {
-                                    questionSetId: questionSet.id,
+                            if (purchase.user && purchase.user.socket_id) {
+                                io.to(purchase.user.socket_id).emit('questionSet:accessUpdate', {
+                                    questionSetId: purchase.questionSetId,
                                     hasAccess: true,
                                     remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
                                 });
@@ -71,7 +91,7 @@ const initializeSocket = (io) => {
                 const user = await User_1.default.findByPk(data.userId);
                 if (user) {
                     // 将socket加入用户房间
-                    socket.join(user.id);
+                    socket.join(user.id.toString());
                     console.log(`用户 ${user.id} 已连接并加入房间`);
                 }
             }
@@ -79,9 +99,11 @@ const initializeSocket = (io) => {
                 console.error('Error handling user connection:', error);
             }
         });
-        // 监听用户断开连接事件
+        // 处理断开连接
         socket.on('disconnect', async () => {
             console.log('Client disconnected:', socket.id);
+            // 清除用户的socket_id
+            await User_1.default.update({ socket_id: null }, { where: { socket_id: socket.id } });
         });
         // 监听用户购买事件
         socket.on('purchase:create', async (data) => {
@@ -92,7 +114,7 @@ const initializeSocket = (io) => {
                     // 创建新的购买记录
                     const purchase = await Purchase_1.default.create({
                         id: (0, uuid_1.v4)(),
-                        userId: user.id,
+                        userId: user.id.toString(),
                         questionSetId: questionSet.id,
                         purchaseDate: new Date(),
                         expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 6个月有效期
@@ -106,9 +128,9 @@ const initializeSocket = (io) => {
                         purchases: [...(user.purchases || []), purchase]
                     });
                     // 向用户发送购买成功通知
-                    if (user.socketId) {
-                        io.to(user.socketId).emit('purchase:success', {
-                            questionSetId: questionSet.id,
+                    if (user.socket_id) {
+                        io.to(user.socket_id).emit('purchase:success', {
+                            questionSetId: purchase.questionSetId,
                             purchaseId: purchase.id,
                             expiryDate: purchase.expiryDate
                         });
@@ -127,8 +149,8 @@ const initializeSocket = (io) => {
                 if (user && questionSet) {
                     if (!questionSet.isPaid) {
                         // 免费题库，直接返回有访问权限
-                        if (user.socketId) {
-                            io.to(user.socketId).emit('questionSet:accessUpdate', {
+                        if (user.socket_id) {
+                            io.to(user.socket_id).emit('questionSet:accessUpdate', {
                                 questionSetId: questionSet.id,
                                 hasAccess: true,
                                 remainingDays: null
@@ -146,21 +168,21 @@ const initializeSocket = (io) => {
                             }
                         }
                     });
-                    if (purchase && user.socketId) {
+                    if (purchase && user.socket_id) {
                         // 有有效的购买记录
                         const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                        io.to(user.socketId).emit('questionSet:accessUpdate', {
-                            questionSetId: questionSet.id,
+                        io.to(user.socket_id).emit('questionSet:accessUpdate', {
+                            questionSetId: purchase.questionSetId,
                             hasAccess: true,
                             remainingDays
                         });
                     }
-                    else if (user.socketId) {
+                    else if (user.socket_id) {
                         // 没有有效的购买记录
-                        io.to(user.socketId).emit('questionSet:accessUpdate', {
-                            questionSetId: questionSet.id,
+                        io.to(user.socket_id).emit('questionSet:accessUpdate', {
+                            questionSetId: data.questionSetId,
                             hasAccess: false,
-                            remainingDays: 0
+                            remainingDays: null
                         });
                     }
                 }
@@ -209,8 +231,8 @@ const initializeSocket = (io) => {
                 if (purchase) {
                     await purchase.update(data.updates);
                     // 向用户发送更新通知
-                    if (purchase.user?.socketId) {
-                        io.to(purchase.user.socketId).emit('purchase:update', purchase);
+                    if (purchase.user?.socket_id) {
+                        io.to(purchase.user.socket_id).emit('purchase:update', purchase);
                     }
                 }
             }
@@ -228,8 +250,8 @@ const initializeSocket = (io) => {
                     const userId = purchase.userId;
                     await purchase.destroy();
                     // 向用户发送删除通知
-                    if (purchase.user?.socketId) {
-                        io.to(purchase.user.socketId).emit('purchase:delete', data.purchaseId);
+                    if (purchase.user?.socket_id) {
+                        io.to(purchase.user.socket_id).emit('purchase:delete', data.purchaseId);
                     }
                 }
             }
@@ -243,10 +265,10 @@ const initializeSocket = (io) => {
                 const purchase = await Purchase_1.default.findByPk(data.purchaseId, {
                     include: [{ model: User_1.default, as: 'user' }]
                 });
-                if (purchase && purchase.user?.socketId) {
-                    io.to(purchase.user.socketId).emit('purchase:expire', {
-                        purchaseId: purchase.id,
-                        expiryDate: purchase.expiryDate
+                if (purchase && purchase.user?.socket_id) {
+                    io.to(purchase.user.socket_id).emit('purchase:expire', {
+                        questionSetId: purchase.questionSetId,
+                        purchaseId: purchase.id
                     });
                 }
             }
@@ -267,10 +289,10 @@ const initializeSocket = (io) => {
                     include: [{ model: User_1.default, as: 'user' }]
                 });
                 expiredPurchases.forEach(purchase => {
-                    if (purchase.user?.socketId) {
-                        io.to(purchase.user.socketId).emit('purchase:expire', {
-                            purchaseId: purchase.id,
-                            expiryDate: purchase.expiryDate
+                    if (purchase.user?.socket_id) {
+                        io.to(purchase.user.socket_id).emit('purchase:expire', {
+                            questionSetId: purchase.questionSetId,
+                            purchaseId: purchase.id
                         });
                     }
                 });
@@ -279,7 +301,7 @@ const initializeSocket = (io) => {
                 console.error('Error checking expired purchases:', error);
             }
         }, 60 * 60 * 1000); // 每小时检查一次
-        // 监听进度更新事件
+        // 处理进度更新
         socket.on('progress:update', async (data) => {
             try {
                 // 验证必要参数
@@ -302,14 +324,14 @@ const initializeSocket = (io) => {
                 };
                 await user.update({ progress });
                 // 向用户发送更新通知
-                if (user.socketId) {
-                    io.to(user.socketId).emit('progress:update', {
+                if (user.socket_id) {
+                    io.to(user.socket_id).emit('progress:update', {
                         questionSetId: data.questionSetId,
                         progress: {
                             completedQuestions: data.completedQuestions,
                             totalQuestions: data.totalQuestions,
                             correctAnswers: data.correctAnswers,
-                            lastAccessed: new Date(data.lastAccessed)
+                            lastAccessed: data.lastAccessed
                         }
                     });
                 }

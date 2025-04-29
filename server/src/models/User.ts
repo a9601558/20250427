@@ -1,20 +1,22 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import bcrypt from 'bcrypt';
-import { IUser } from '../types';
+import { IUser, IPurchase, IRedeemCode, IUserProgress } from '../types';
 
-type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt'>;
+export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id'>;
 
-class User extends Model<IUser, UserCreationAttributes> implements IUser {
+export class User extends Model<IUser, UserCreationAttributes> implements IUser {
   declare id: string;
   declare username: string;
   declare email: string;
   declare password: string;
-  declare isAdmin: boolean;
-  declare progress: IUser['progress'];
-  declare purchases: IUser['purchases'];
-  declare redeemCodes: IUser['redeemCodes'];
-  declare socketId: string | null;
+  declare role: 'user' | 'admin';
+  declare purchases: IPurchase[];
+  declare socket_id: string | null;
+  declare redeemCodes?: IRedeemCode[];
+  declare progress?: {
+    [questionSetId: string]: IUserProgress;
+  };
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
@@ -56,7 +58,7 @@ User.init(
       primaryKey: true,
     },
     username: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(50),
       allowNull: false,
       unique: true,
       validate: {
@@ -68,7 +70,7 @@ User.init(
       }
     },
     email: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(100),
       allowNull: false,
       unique: true,
       validate: {
@@ -77,7 +79,7 @@ User.init(
       }
     },
     password: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(255),
       allowNull: false,
       validate: {
         notEmpty: { msg: '密码不能为空' },
@@ -87,21 +89,31 @@ User.init(
         }
       }
     },
-    isAdmin: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
+    role: {
+      type: DataTypes.ENUM('user', 'admin'),
+      allowNull: false,
+      defaultValue: 'user',
     },
-    progress: {
-      type: DataTypes.JSON,
-      defaultValue: {},
+    socket_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
+      comment: '用户Socket连接ID',
     },
     purchases: {
       type: DataTypes.JSON,
+      allowNull: false,
       defaultValue: [],
     },
     redeemCodes: {
       type: DataTypes.JSON,
+      allowNull: true,
       defaultValue: [],
+    },
+    progress: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: {},
     },
     createdAt: {
       type: DataTypes.DATE,
@@ -186,7 +198,6 @@ User.beforeValidate((user: User) => {
 // 创建用户时的初始化钩子
 User.beforeCreate((user: User) => {
   // 初始化默认值
-  if (!user.progress) user.progress = {};
   if (!user.purchases) user.purchases = [];
   if (!user.redeemCodes) user.redeemCodes = [];
   console.log('用户初始化默认值完成');

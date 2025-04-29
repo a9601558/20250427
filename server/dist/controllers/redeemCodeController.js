@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteRedeemCode = exports.redeemCode = exports.getRedeemCodes = exports.generateRedeemCodes = void 0;
 const models_1 = require("../models");
-const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
 // @desc    Generate redeem codes
 // @route   POST /api/redeem-codes/generate
@@ -100,129 +99,73 @@ exports.getRedeemCodes = getRedeemCodes;
 // @route   POST /api/redeem-codes/redeem
 // @access  Private
 const redeemCode = async (req, res) => {
-    // Start transaction
-    const transaction = await models_1.sequelize.transaction();
     try {
         const { code } = req.body;
         const userId = req.user.id;
-        if (!code) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please provide a redeem code'
-            });
-        }
-        // Find the code
+        // 查找兑换码
         const redeemCode = await models_1.RedeemCode.findOne({
-            where: { code },
-            transaction
+            where: { code }
         });
         if (!redeemCode) {
-            await transaction.rollback();
             return res.status(404).json({
                 success: false,
-                message: 'Invalid redeem code'
+                message: '兑换码不存在'
             });
         }
-        // Check if already used
         if (redeemCode.isUsed) {
-            await transaction.rollback();
             return res.status(400).json({
                 success: false,
-                message: 'This code has already been used'
+                message: '兑换码已被使用'
             });
         }
-        // Check if expired
-        if (new Date() > redeemCode.expiryDate) {
-            await transaction.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'This code has expired'
-            });
-        }
-        // Get question set info
-        const questionSet = await models_1.QuestionSet.findByPk(redeemCode.questionSetId, { transaction });
+        // 查找对应的题库
+        const questionSet = await models_1.QuestionSet.findByPk(redeemCode.questionSetId);
         if (!questionSet) {
-            await transaction.rollback();
             return res.status(404).json({
                 success: false,
-                message: 'Question set not found'
+                message: '题库不存在'
             });
         }
-        // Calculate expiry date (validityDays ahead of redemption)
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + redeemCode.validityDays);
-        // Update redeem code as used
+        // 创建购买记录
+        const purchase = await models_1.Purchase.create({
+            id: (0, uuid_1.v4)(),
+            userId,
+            questionSetId: questionSet.id,
+            purchaseDate: new Date(),
+            status: 'active',
+            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+            amount: 0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        });
+        // 更新兑换码状态
         await redeemCode.update({
             isUsed: true,
             usedBy: userId,
             usedAt: new Date()
-        }, { transaction });
-        // Check if user exists
-        const user = await models_1.User.findByPk(userId, { transaction });
-        if (!user) {
-            await transaction.rollback();
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
+        });
+        // 更新用户的购买记录
+        const user = await models_1.User.findByPk(userId);
+        if (user) {
+            const currentPurchases = user.purchases || [];
+            await user.update({
+                purchases: [...currentPurchases, purchase.toJSON()]
             });
         }
-        // Check if user already has access to this question set
-        const existingPurchase = await models_1.Purchase.findOne({
-            where: {
-                userId,
-                questionSetId: redeemCode.questionSetId,
-                expiryDate: {
-                    [sequelize_1.Op.gt]: new Date()
-                }
-            },
-            transaction
-        });
-        if (existingPurchase) {
-            // Extend the existing purchase if new expiry date is later
-            if (expiryDate > existingPurchase.expiryDate) {
-                await existingPurchase.update({
-                    expiryDate
-                }, { transaction });
-            }
-        }
-        else {
-            // Create new purchase
-            await models_1.Purchase.create({
-                id: (0, uuid_1.v4)(),
-                userId: user.id,
-                questionSetId: questionSet.id,
-                purchaseDate: new Date(),
-                expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
-                transactionId: (0, uuid_1.v4)(),
-                amount: 0,
-                paymentMethod: 'redeem_code',
-                status: 'completed',
-                createdAt: new Date(),
-                updatedAt: new Date()
-            }, { transaction });
-        }
-        // Commit transaction
-        await transaction.commit();
         res.json({
             success: true,
-            message: 'Code redeemed successfully',
+            message: '兑换成功',
             data: {
-                questionSet: {
-                    id: questionSet.id,
-                    title: questionSet.title
-                },
-                expiryDate,
-                validityDays: redeemCode.validityDays
+                questionSet,
+                purchase
             }
         });
     }
     catch (error) {
-        // Rollback transaction on error
-        await transaction.rollback();
-        console.error('Redeem code error:', error);
+        console.error('兑换失败:', error);
         res.status(500).json({
             success: false,
-            message: error.message || 'Server error'
+            message: '兑换失败'
         });
     }
 };

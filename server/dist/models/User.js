@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.User = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
@@ -33,6 +34,7 @@ class User extends sequelize_1.Model {
         return safeUser;
     }
 }
+exports.User = User;
 User.init({
     id: {
         type: sequelize_1.DataTypes.UUID,
@@ -40,7 +42,7 @@ User.init({
         primaryKey: true,
     },
     username: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(50),
         allowNull: false,
         unique: true,
         validate: {
@@ -52,7 +54,7 @@ User.init({
         }
     },
     email: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(100),
         allowNull: false,
         unique: true,
         validate: {
@@ -61,7 +63,7 @@ User.init({
         }
     },
     password: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(255),
         allowNull: false,
         validate: {
             notEmpty: { msg: '密码不能为空' },
@@ -71,21 +73,31 @@ User.init({
             }
         }
     },
-    isAdmin: {
-        type: sequelize_1.DataTypes.BOOLEAN,
-        defaultValue: false,
+    role: {
+        type: sequelize_1.DataTypes.ENUM('user', 'admin'),
+        allowNull: false,
+        defaultValue: 'user',
     },
-    progress: {
-        type: sequelize_1.DataTypes.JSON,
-        defaultValue: {},
+    socket_id: {
+        type: sequelize_1.DataTypes.STRING(255),
+        allowNull: true,
+        defaultValue: null,
+        comment: '用户Socket连接ID',
     },
     purchases: {
         type: sequelize_1.DataTypes.JSON,
+        allowNull: false,
         defaultValue: [],
     },
     redeemCodes: {
         type: sequelize_1.DataTypes.JSON,
+        allowNull: true,
         defaultValue: [],
+    },
+    progress: {
+        type: sequelize_1.DataTypes.JSON,
+        allowNull: true,
+        defaultValue: {},
     },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
@@ -164,8 +176,6 @@ User.beforeValidate((user) => {
 // 创建用户时的初始化钩子
 User.beforeCreate((user) => {
     // 初始化默认值
-    if (!user.progress)
-        user.progress = {};
     if (!user.purchases)
         user.purchases = [];
     if (!user.redeemCodes)

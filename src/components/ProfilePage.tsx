@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
-import { QuestionSet } from '../types';
+import { IQuestionSet } from '../types/index';
 
 // 定义标签页枚举
 enum ProfileTab {
@@ -17,7 +17,7 @@ const ProfilePage: React.FC = () => {
   const { socket } = useSocket();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemCodes' | 'settings'>('progress');
-  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [questionSets, setQuestionSets] = useState<IQuestionSet[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +109,50 @@ const ProfilePage: React.FC = () => {
     fetchPurchases();
   }, [user]);
 
+  // 添加 Socket 监听以更新进度
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    const handleProgressUpdate = (data: {
+      questionSetId: string;
+      progress: {
+        completedQuestions: number;
+        totalQuestions: number;
+        correctAnswers: number;
+        lastAccessed: string;
+      };
+    }) => {
+      console.log('收到进度更新:', data);
+      setQuestionSets(prevSets => {
+        return prevSets.map(set => {
+          if (set.id === data.questionSetId) {
+            return {
+              ...set,
+              progress: {
+                ...set.progress,
+                ...data.progress
+              }
+            };
+          }
+          return set;
+        });
+      });
+
+      // 更新用户进度
+      if (user && user.progress) {
+        user.progress[data.questionSetId] = data.progress;
+      }
+    };
+
+    socket.on('progress:update', handleProgressUpdate);
+    console.log('已设置进度更新监听器');
+
+    return () => {
+      socket.off('progress:update', handleProgressUpdate);
+      console.log('已移除进度更新监听器');
+    };
+  }, [socket, user]);
+
   // 整理用户进度数据
   const progressData = questionSets.map(questionSet => {
     const progress = user.progress?.[questionSet.id] || {
@@ -142,39 +186,6 @@ const ProfilePage: React.FC = () => {
       lastAccessed: new Date(progress.lastAccessed)
     };
   }).sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
-
-  // 添加 Socket 监听以更新进度
-  useEffect(() => {
-    if (!socket || !user) return;
-
-    const handleProgressUpdate = (data: {
-      questionSetId: string;
-      progress: {
-        completedQuestions: number;
-        totalQuestions: number;
-        correctAnswers: number;
-        lastAccessed: string;
-      };
-    }) => {
-      setQuestionSets(prevSets => {
-        return prevSets.map(set => {
-          if (set.id === data.questionSetId) {
-            return {
-              ...set,
-              progress: data.progress
-            };
-          }
-          return set;
-        });
-      });
-    };
-
-    socket.on('progress:update', handleProgressUpdate);
-
-    return () => {
-      socket.off('progress:update', handleProgressUpdate);
-    };
-  }, [socket, user]);
 
   // 整理用户购买记录
   const purchaseData = purchases.map(purchase => {

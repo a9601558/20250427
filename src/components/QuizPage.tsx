@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { QuestionSet, Question, Option } from '../types/index';
+import { IQuestionSet, Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
-import { questionSetApi, purchaseApi, userProgressApi } from '../utils/api';
+import { questionSetApi, userProgressApi } from '../utils/api';
 import { sendProgressUpdate } from '../config/socket';
 import { useSocket } from '../contexts/SocketContext';
 
@@ -42,7 +42,7 @@ function QuizPage(): React.ReactNode {
   const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([]);
   const [correctAnswers, setCorrectAnswers] = useState<number>(0);
   const [quizComplete, setQuizComplete] = useState(false);
-  const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
+  const [questionSet, setQuestionSet] = useState<IQuestionSet | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +148,7 @@ function QuizPage(): React.ReactNode {
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
         if (response.success && response.data) {
-          const questionSetData: QuestionSet = {
+          const questionSetData: IQuestionSet = {
             id: response.data.id,
             title: response.data.title,
             description: response.data.description,
@@ -160,7 +160,6 @@ function QuizPage(): React.ReactNode {
             isFeatured: response.data.isFeatured || false,
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
-            remainingDays: null,
             trialQuestions: response.data.trialQuestions,
             questionCount: response.data.questions?.length || 0,
             createdAt: new Date(),
@@ -217,7 +216,7 @@ function QuizPage(): React.ReactNode {
   useEffect(() => {
     if (!socket || !questionSetId) return;
     
-    const handleQuestionSetUpdate = (updatedQuestionSet: QuestionSet) => {
+    const handleQuestionSetUpdate = (updatedQuestionSet: IQuestionSet) => {
       if (updatedQuestionSet.id === questionSetId) {
         setQuestionSet(updatedQuestionSet);
         checkAccess();
@@ -315,10 +314,11 @@ function QuizPage(): React.ReactNode {
       
       // 准备进度数据
       const progressData = {
+        userId: user.id,
         questionSetId: questionSet.id,
         questionId: currentQuestionId,
         isCorrect: isCurrentQuestionCorrect,
-        timeSpent: 0, // 时间跟踪可以根据需要实现
+        timeSpent: 0,
         completedQuestions: completedCount,
         totalQuestions: questions.length,
         correctAnswers: correctCount,
@@ -326,7 +326,7 @@ function QuizPage(): React.ReactNode {
       };
       
       // 首先尝试使用socket发送进度
-      const socketSent = sendProgressUpdate(progressData);
+      sendProgressUpdate(progressData);
       
       // 无论socket是否成功，更新本地进度
       await addProgress({
@@ -336,18 +336,14 @@ function QuizPage(): React.ReactNode {
         correctAnswers: correctCount
       });
       
-      // 如果socket发送失败，回退到API
-      if (!socketSent) {
-        console.log('Socket发送失败，尝试使用API保存进度');
-        const result = await userProgressApi.updateProgress(progressData);
-        
-        if (result.success) {
-          console.log('进度已通过API保存:', progressData);
-        } else {
-          console.error('通过API保存进度失败:', result.error);
-        }
+      // 同时使用API保存进度
+      console.log('使用API保存进度');
+      const result = await userProgressApi.updateProgress(progressData);
+      
+      if (result.success) {
+        console.log('进度已通过API保存:', progressData);
       } else {
-        console.log('进度已通过Socket保存:', progressData);
+        console.error('通过API保存进度失败:', result.error);
       }
     } catch (error) {
       console.error('保存进度失败:', error);

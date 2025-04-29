@@ -12,17 +12,22 @@ export interface IPurchase {
   purchaseDate: Date;
   expiryDate: Date;
   amount: number;
+  status: string;
+  paymentMethod?: string;
+  transactionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface IRedeemCode {
+  id: string;
   code: string;
   questionSetId: string;
-  validityDays: number;
-  createdAt: Date;
+  validUntil: Date;
+  isUsed: boolean;
   usedBy?: string;
-  usedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IUser {
@@ -30,11 +35,13 @@ export interface IUser {
   username: string;
   email: string;
   password: string;
-  isAdmin: boolean;
-  progress: Record<string, IUserProgress>;
+  role: 'user' | 'admin';
   purchases: IPurchase[];
-  redeemCodes: IRedeemCode[];
-  socketId?: string | null;
+  redeemCodes?: IRedeemCode[];
+  progress?: {
+    [questionSetId: string]: IUserProgress;
+  };
+  socket_id?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

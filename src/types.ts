@@ -23,13 +23,17 @@ export interface QuestionSet {
   description: string;
   category: string;
   icon: string;
-  questions: Question[];
-  isPaid?: boolean;
+  isPaid: boolean;
   price?: number;
   trialQuestions?: number;
   isFeatured?: boolean;
   featuredCategory?: string;
-  questionCount?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  questions?: Question[];
+  // Runtime properties
+  hasAccess?: boolean;
+  remainingDays?: number | null;
 }
 
 export type QuestionType = 'single' | 'multiple';

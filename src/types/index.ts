@@ -15,23 +15,28 @@ export interface IUserProgress {
   updatedAt: Date;
 }
 
-export interface QuestionSet {
+export interface IQuestionSet {
   id: string;
   title: string;
   description: string;
   category: string;
   icon: string;
-  questions: Question[];
   isPaid: boolean;
   price: number;
   isFeatured: boolean;
   featuredCategory?: string;
-  hasAccess: boolean;
-  remainingDays?: number | null;
-  trialQuestions?: number;
-  questionCount?: number;
   createdAt: Date;
   updatedAt: Date;
+  progress?: {
+    completedQuestions: number;
+    totalQuestions: number;
+    correctAnswers: number;
+    lastAccessed: string;
+  };
+  questionCount?: number;
+  trialQuestions?: number;
+  questions?: Question[];
+  hasAccess?: boolean;
 }
 
 export interface Question {

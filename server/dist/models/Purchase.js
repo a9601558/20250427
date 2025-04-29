@@ -30,10 +30,18 @@ Purchase.init({
     userId: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
+        references: {
+            model: 'users',
+            key: 'id'
+        }
     },
     questionSetId: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
+        references: {
+            model: 'question_sets',
+            key: 'id'
+        }
     },
     amount: {
         type: sequelize_1.DataTypes.DECIMAL(10, 2),
@@ -76,5 +84,10 @@ Purchase.init({
     modelName: 'Purchase',
     tableName: 'purchases',
     timestamps: true,
+    indexes: [
+        { fields: ['userId'] },
+        { fields: ['questionSetId'] },
+        { fields: ['userId', 'questionSetId'] }
+    ]
 });
 exports.default = Purchase;

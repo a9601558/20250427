@@ -1,24 +1,12 @@
-import { Model, DataTypes } from 'sequelize';
+import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import { IPurchase } from '../types';
 import QuestionSet from './QuestionSet';
 import User from './User';
 
-interface PurchaseAttributes extends IPurchase {
-  id: string;
-  userId: string;
-  questionSetId: string;
-  amount: number;
-  status: string;
-  paymentMethod?: string;
-  transactionId?: string;
-  purchaseDate: Date;
-  expiryDate: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
+interface PurchaseCreationAttributes extends Optional<IPurchase, 'id' | 'createdAt' | 'updatedAt' | 'paymentMethod' | 'transactionId'> {}
 
-class Purchase extends Model<PurchaseAttributes> implements PurchaseAttributes {
+class Purchase extends Model<IPurchase, PurchaseCreationAttributes> implements IPurchase {
   public id!: string;
   public userId!: string;
   public questionSetId!: string;
@@ -46,10 +34,18 @@ Purchase.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
     },
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
+      references: {
+        model: 'question_sets',
+        key: 'id'
+      }
     },
     amount: {
       type: DataTypes.DECIMAL(10, 2),
@@ -93,6 +89,11 @@ Purchase.init(
     modelName: 'Purchase',
     tableName: 'purchases',
     timestamps: true,
+    indexes: [
+      { fields: ['userId'] },
+      { fields: ['questionSetId'] },
+      { fields: ['userId', 'questionSetId'] }
+    ]
   }
 );
 

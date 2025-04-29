@@ -1,18 +1,43 @@
-import { Server } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io';
+import { Server as HttpServer } from 'http';
 import QuestionSet from '../models/QuestionSet';
 import User from '../models/User';
 import Purchase from '../models/Purchase';
 import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
+import UserProgress from '../models/UserProgress';
+import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 interface PurchaseWithUser extends Purchase {
   user?: User;
   questionSet?: QuestionSet;
 }
 
-export const initializeSocket = (io: Server) => {
-  io.on('connection', (socket) => {
+export const initializeSocket = (io: SocketIOServer) => {
+  io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id);
+
+    // 处理用户认证
+    socket.on('authenticate', async (data: { userId: string }) => {
+      try {
+        const { userId } = data;
+        if (!userId) {
+          socket.emit('auth_error', { message: '缺少用户ID' });
+          return;
+        }
+
+        // 更新用户的socket_id
+        await User.update({ socket_id: socket.id }, { where: { id: userId } });
+        
+        // 将socket加入用户房间
+        socket.join(userId);
+        console.log(`用户 ${userId} 已认证并加入房间`);
+        socket.emit('auth_success', { message: '认证成功' });
+      } catch (error) {
+        console.error('认证错误:', error);
+        socket.emit('auth_error', { message: '认证失败' });
+      }
+    });
 
     // 监听题库更新事件
     socket.on('questionSet:update', async (data: { questionSetId: string }) => {
@@ -55,9 +80,9 @@ export const initializeSocket = (io: Server) => {
 
             // 向有购买权限的用户发送更新
             purchases.forEach((purchase: PurchaseWithUser) => {
-              if (purchase.user && purchase.user.socketId) {
-                io.to(purchase.user.socketId).emit('questionSet:accessUpdate', {
-                  questionSetId: questionSet.id,
+              if (purchase.user && purchase.user.socket_id) {
+                io.to(purchase.user.socket_id).emit('questionSet:accessUpdate', {
+                  questionSetId: purchase.questionSetId,
                   hasAccess: true,
                   remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
                 });
@@ -76,7 +101,7 @@ export const initializeSocket = (io: Server) => {
         const user = await User.findByPk(data.userId);
         if (user) {
           // 将socket加入用户房间
-          socket.join(user.id);
+          socket.join(user.id.toString());
           console.log(`用户 ${user.id} 已连接并加入房间`);
         }
       } catch (error) {
@@ -84,9 +109,11 @@ export const initializeSocket = (io: Server) => {
       }
     });
 
-    // 监听用户断开连接事件
+    // 处理断开连接
     socket.on('disconnect', async () => {
       console.log('Client disconnected:', socket.id);
+      // 清除用户的socket_id
+      await User.update({ socket_id: null }, { where: { socket_id: socket.id } });
     });
 
     // 监听用户购买事件
@@ -99,7 +126,7 @@ export const initializeSocket = (io: Server) => {
           // 创建新的购买记录
           const purchase = await Purchase.create({
             id: uuidv4(),
-            userId: user.id,
+            userId: user.id.toString(),
             questionSetId: questionSet.id,
             purchaseDate: new Date(),
             expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 6个月有效期
@@ -115,9 +142,9 @@ export const initializeSocket = (io: Server) => {
           });
 
           // 向用户发送购买成功通知
-          if (user.socketId) {
-            io.to(user.socketId).emit('purchase:success', {
-              questionSetId: questionSet.id,
+          if (user.socket_id) {
+            io.to(user.socket_id).emit('purchase:success', {
+              questionSetId: purchase.questionSetId,
               purchaseId: purchase.id,
               expiryDate: purchase.expiryDate
             });
@@ -137,8 +164,8 @@ export const initializeSocket = (io: Server) => {
         if (user && questionSet) {
           if (!questionSet.isPaid) {
             // 免费题库，直接返回有访问权限
-            if (user.socketId) {
-              io.to(user.socketId).emit('questionSet:accessUpdate', {
+            if (user.socket_id) {
+              io.to(user.socket_id).emit('questionSet:accessUpdate', {
                 questionSetId: questionSet.id,
                 hasAccess: true,
                 remainingDays: null
@@ -158,20 +185,20 @@ export const initializeSocket = (io: Server) => {
             }
           });
 
-          if (purchase && user.socketId) {
+          if (purchase && user.socket_id) {
             // 有有效的购买记录
             const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-            io.to(user.socketId).emit('questionSet:accessUpdate', {
-              questionSetId: questionSet.id,
+            io.to(user.socket_id).emit('questionSet:accessUpdate', {
+              questionSetId: purchase.questionSetId,
               hasAccess: true,
               remainingDays
             });
-          } else if (user.socketId) {
+          } else if (user.socket_id) {
             // 没有有效的购买记录
-            io.to(user.socketId).emit('questionSet:accessUpdate', {
-              questionSetId: questionSet.id,
+            io.to(user.socket_id).emit('questionSet:accessUpdate', {
+              questionSetId: data.questionSetId,
               hasAccess: false,
-              remainingDays: 0
+              remainingDays: null
             });
           }
         }
@@ -223,8 +250,8 @@ export const initializeSocket = (io: Server) => {
           await purchase.update(data.updates);
           
           // 向用户发送更新通知
-          if (purchase.user?.socketId) {
-            io.to(purchase.user.socketId).emit('purchase:update', purchase);
+          if (purchase.user?.socket_id) {
+            io.to(purchase.user.socket_id).emit('purchase:update', purchase);
           }
         }
       } catch (error) {
@@ -244,8 +271,8 @@ export const initializeSocket = (io: Server) => {
           await purchase.destroy();
           
           // 向用户发送删除通知
-          if (purchase.user?.socketId) {
-            io.to(purchase.user.socketId).emit('purchase:delete', data.purchaseId);
+          if (purchase.user?.socket_id) {
+            io.to(purchase.user.socket_id).emit('purchase:delete', data.purchaseId);
           }
         }
       } catch (error) {
@@ -260,10 +287,10 @@ export const initializeSocket = (io: Server) => {
           include: [{ model: User, as: 'user' }]
         });
 
-        if (purchase && purchase.user?.socketId) {
-          io.to(purchase.user.socketId).emit('purchase:expire', {
-            purchaseId: purchase.id,
-            expiryDate: purchase.expiryDate
+        if (purchase && purchase.user?.socket_id) {
+          io.to(purchase.user.socket_id).emit('purchase:expire', {
+            questionSetId: purchase.questionSetId,
+            purchaseId: purchase.id
           });
         }
       } catch (error) {
@@ -285,10 +312,10 @@ export const initializeSocket = (io: Server) => {
         });
 
         expiredPurchases.forEach(purchase => {
-          if (purchase.user?.socketId) {
-            io.to(purchase.user.socketId).emit('purchase:expire', {
-              purchaseId: purchase.id,
-              expiryDate: purchase.expiryDate
+          if (purchase.user?.socket_id) {
+            io.to(purchase.user.socket_id).emit('purchase:expire', {
+              questionSetId: purchase.questionSetId,
+              purchaseId: purchase.id
             });
           }
         });
@@ -297,7 +324,7 @@ export const initializeSocket = (io: Server) => {
       }
     }, 60 * 60 * 1000); // 每小时检查一次
 
-    // 监听进度更新事件
+    // 处理进度更新
     socket.on('progress:update', async (data: {
       userId: string;
       questionSetId: string;
@@ -330,18 +357,17 @@ export const initializeSocket = (io: Server) => {
           correctAnswers: data.correctAnswers,
           lastAccessed: new Date(data.lastAccessed)
         };
-        
         await user.update({ progress });
 
         // 向用户发送更新通知
-        if (user.socketId) {
-          io.to(user.socketId).emit('progress:update', {
+        if (user.socket_id) {
+          io.to(user.socket_id).emit('progress:update', {
             questionSetId: data.questionSetId,
             progress: {
               completedQuestions: data.completedQuestions,
               totalQuestions: data.totalQuestions,
               correctAnswers: data.correctAnswers,
-              lastAccessed: new Date(data.lastAccessed)
+              lastAccessed: data.lastAccessed
             }
           });
         }

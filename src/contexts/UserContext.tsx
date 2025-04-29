@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { User, Purchase, RedeemCode } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
-import { initSocket, authenticateUser, onProgressUpdate } from '../config/socket';
+import { initializeSocket, authenticateUser, onProgressUpdate } from '../config/socket';
 
 export interface QuizProgress {
   questionSetId: string;
@@ -62,82 +62,20 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (user) {
       // 初始化Socket连接
-      initSocket();
+      const socket = initializeSocket();
       
       // 用户认证
       authenticateUser(user.id);
       
-      // 首次加载时获取用户进度
-      const fetchUserProgress = async () => {
-        try {
-          console.log('正在加载用户学习进度...');
-          const response = await userProgressApi.getUserProgress();
-          
-          if (response.success && response.data) {
-            // 更新本地用户进度
-            const updatedUser = {
-              ...user,
-              progress: response.data
-            };
-            setUser(updatedUser);
-            console.log('用户学习进度已加载:', response.data);
-          } else {
-            console.error('获取用户进度失败:', response.message || '未知错误');
-            // 初始化空的进度对象
-            const updatedUser = {
-              ...user,
-              progress: {}
-            };
-            setUser(updatedUser);
-          }
-        } catch (error) {
-          console.error('获取用户进度时发生错误:', error);
-          // 初始化空的进度对象
-          const updatedUser = {
-            ...user,
-            progress: {}
-          };
-          setUser(updatedUser);
-        }
-      };
-      
-      fetchUserProgress();
-      
-      // 监听进度更新事件
-      const unsubscribe = onProgressUpdate((data) => {
-        if (data && data.questionSetId && data.progress) {
-          console.log('收到实时进度更新:', data);
-          
-          const currentProgress = { ...(user.progress || {}) };
-          
-          // 更新或创建进度记录
-          currentProgress[data.questionSetId] = {
-            ...currentProgress[data.questionSetId],
+      // 监听进度更新
+      socket.on('progress:update', (data) => {
+        if (user.progress) {
+          user.progress[data.questionSetId] = {
             ...data.progress,
-            // 确保包含必要字段
-            completedQuestions: data.progress.completedQuestions || 
-              currentProgress[data.questionSetId]?.completedQuestions || 0,
-            totalQuestions: data.progress.totalQuestions || 
-              currentProgress[data.questionSetId]?.totalQuestions || 0,
-            correctAnswers: data.progress.correctAnswers || 
-              currentProgress[data.questionSetId]?.correctAnswers || 0,
-            lastAccessed: new Date().toISOString()
+            lastAccessed: new Date(data.progress.lastAccessed)
           };
-          
-          // 更新本地用户状态
-          setUser({
-            ...user,
-            progress: currentProgress
-          });
-          
-          console.log('用户进度已更新:', currentProgress);
         }
       });
-      
-      // 组件卸载时取消监听
-      return () => {
-        unsubscribe();
-      };
     }
   }, [user]);
 
