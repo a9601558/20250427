@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { QuestionSet } from '../types';
+import { QuestionSet, UserProgress } from '../types';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import RecentlyStudiedQuestionSets from './RecentlyStudiedQuestionSets';
@@ -45,6 +45,15 @@ const HomePage: React.FC = () => {
   });
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [showUserInfo, setShowUserInfo] = useState(false);
+  const [userProgressRecords, setUserProgressRecords] = useState<UserProgress[]>([]);
+  const [userProgressStats, setUserProgressStats] = useState<Record<string, {
+    totalQuestions: number;
+    completedQuestions: number;
+    correctAnswers: number;
+    totalTimeSpent: number;
+    averageTimeSpent: number;
+    accuracy: number;
+  }>>({});
   const navigate = useNavigate();
 
   // 添加 Socket 监听
@@ -178,8 +187,8 @@ const HomePage: React.FC = () => {
 
     fetchData();
 
-    // 设置定时刷新，每30秒更新一次题库数据
-    const intervalId = setInterval(fetchData, 30000);
+    // 设置定时刷新，每90秒更新一次题库数据
+    const intervalId = setInterval(fetchData, 90000);
 
     // 组件卸载时清除定时器
     return () => clearInterval(intervalId);
@@ -302,6 +311,83 @@ const HomePage: React.FC = () => {
     }
   };
 
+  // 获取用户进度记录
+  const fetchUserProgress = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await axios.get('/api/user-progress/records');
+      if (response.data && response.data.success) {
+        setUserProgressRecords(response.data.data);
+        calculateProgressStats(response.data.data);
+      }
+    } catch (error) {
+      console.error('获取用户进度记录失败:', error);
+    }
+  };
+
+  // 计算每个题库的进度统计
+  const calculateProgressStats = (records: UserProgress[]) => {
+    const stats: Record<string, {
+      totalQuestions: number;
+      completedQuestions: number;
+      correctAnswers: number;
+      totalTimeSpent: number;
+      averageTimeSpent: number;
+      accuracy: number;
+    }> = {};
+
+    // 按题库ID分组记录
+    const recordsByQuestionSet = records.reduce((acc, record) => {
+      if (!acc[record.questionSetId]) {
+        acc[record.questionSetId] = [];
+      }
+      acc[record.questionSetId].push(record);
+      return acc;
+    }, {} as Record<string, UserProgress[]>);
+
+    // 计算每个题库的统计信息
+    Object.entries(recordsByQuestionSet).forEach(([questionSetId, records]) => {
+      const questionSet = questionSets.find(qs => qs.id === questionSetId);
+      if (!questionSet) return;
+
+      // 获取唯一完成的题目ID
+      const completedQuestionIds = new Set(records.map(r => r.questionId));
+      
+      // 计算每个题目的最新尝试
+      const latestAttempts = records.reduce((acc, record) => {
+        if (!acc[record.questionId] || new Date(record.updatedAt) > new Date(acc[record.questionId].updatedAt)) {
+          acc[record.questionId] = record;
+        }
+        return acc;
+      }, {} as Record<string, UserProgress>);
+
+      // 计算正确回答的题目数
+      const correctAnswers = Object.values(latestAttempts).filter(r => r.isCorrect).length;
+      
+      // 计算总时间
+      const totalTimeSpent = records.reduce((sum, r) => sum + r.timeSpent, 0);
+      
+      stats[questionSetId] = {
+        totalQuestions: questionSet.questions?.length || 0,
+        completedQuestions: completedQuestionIds.size,
+        correctAnswers,
+        totalTimeSpent,
+        averageTimeSpent: completedQuestionIds.size > 0 ? totalTimeSpent / completedQuestionIds.size : 0,
+        accuracy: completedQuestionIds.size > 0 ? (correctAnswers / completedQuestionIds.size) * 100 : 0
+      };
+    });
+
+    setUserProgressStats(stats);
+  };
+
+  // 在用户登录和题库数据更新时获取进度记录
+  useEffect(() => {
+    if (user && questionSets.length > 0) {
+      fetchUserProgress();
+    }
+  }, [user, questionSets]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -364,7 +450,7 @@ const HomePage: React.FC = () => {
                     <p><strong>用户ID:</strong> {user.id}</p>
                     <p><strong>邮箱:</strong> {user.email}</p>
                     <p><strong>管理员权限:</strong> {user.isAdmin ? '是' : '否'}</p>
-                    <p><strong>已完成题目数:</strong> {Object.values(user.progress || {}).reduce((acc, curr) => acc + curr.completedQuestions, 0)}</p>
+                    <p><strong>已完成题目数:</strong> {Object.values(userProgressStats).reduce((acc, curr) => acc + curr.completedQuestions, 0)}</p>
                     <p><strong>已购买题库数:</strong> {user.purchases?.length || 0}</p>
                   </div>
                 )}
@@ -510,21 +596,21 @@ const HomePage: React.FC = () => {
                       </div>
                       
                       {/* 用户进度指示器 */}
-                      {user && user.progress && user.progress[questionSet.id] && (
+                      {user && userProgressStats[questionSet.id] && (
                         <div className="mb-4">
                           <div className="flex justify-between text-sm text-gray-500 mb-1">
                             <span>完成进度</span>
                             <span>
-                              {Math.round((user.progress[questionSet.id].completedQuestions / 
-                                user.progress[questionSet.id].totalQuestions) * 100)}%
+                              {Math.round((userProgressStats[questionSet.id].completedQuestions / 
+                                userProgressStats[questionSet.id].totalQuestions) * 100)}%
                             </span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div 
                               className="bg-blue-600 h-2 rounded-full" 
                               style={{ 
-                                width: `${(user.progress[questionSet.id].completedQuestions / 
-                                  user.progress[questionSet.id].totalQuestions) * 100}%` 
+                                width: `${(userProgressStats[questionSet.id].completedQuestions / 
+                                  userProgressStats[questionSet.id].totalQuestions) * 100}%` 
                               }}
                             />
                           </div>
@@ -542,7 +628,7 @@ const HomePage: React.FC = () => {
                       >
                         {!hasAccess && isPaid
                           ? '需要购买'
-                          : user && user.progress && user.progress[questionSet.id]
+                          : user && userProgressStats[questionSet.id]
                             ? '继续练习'
                             : '开始练习'}
                       </button>

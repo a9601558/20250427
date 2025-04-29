@@ -31,8 +31,8 @@ interface ProgressStats {
 
 // 题库信息
 interface QuestionSet {
-  id: string;
-  title: string;
+    id: string;
+    title: string;
 }
 
 const ProfilePage: React.FC = () => {
