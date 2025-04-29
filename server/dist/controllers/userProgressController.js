@@ -281,35 +281,18 @@ const getProgressStats = async (req, res) => {
         const where = { userId };
         if (questionSetId)
             where.questionSetId = questionSetId;
+        // 获取所有题库的进度统计
         const progressRecords = await UserProgress_1.default.findAll({
             where,
-            include: [
-                { model: QuestionSet_1.default, as: 'progressQuestionSet' }
-            ]
+            attributes: ['questionSetId', 'isCorrect', 'timeSpent'],
+            group: ['questionSetId']
         });
-        const statsMap = new Map();
-        progressRecords.forEach(record => {
-            const qsId = record.questionSetId;
-            if (!statsMap.has(qsId)) {
-                const questionSet = record.get('progressQuestionSet');
-                statsMap.set(qsId, {
-                    questionSetId: qsId,
-                    questionSet: questionSet ? questionSet.toJSON() : null,
-                    totalQuestions: 0,
-                    correctAnswers: 0,
-                    totalTimeSpent: 0
-                });
-            }
-            const stats = statsMap.get(qsId);
-            stats.totalQuestions++;
-            if (record.isCorrect) {
-                stats.correctAnswers++;
-            }
-            stats.totalTimeSpent += record.timeSpent;
-        });
-        const stats = Array.from(statsMap.values()).map(stat => ({
-            ...stat,
-            averageTimeSpent: stat.totalQuestions > 0 ? stat.totalTimeSpent / stat.totalQuestions : 0
+        const stats = await Promise.all(progressRecords.map(async (record) => {
+            const stats = await (0, progressService_1.calculateProgressStats)(userId, record.questionSetId);
+            return {
+                questionSetId: record.questionSetId,
+                ...stats
+            };
         }));
         return (0, responseUtils_1.sendResponse)(res, 200, '获取学习统计成功', stats);
     }
