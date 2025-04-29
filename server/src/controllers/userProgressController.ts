@@ -430,10 +430,12 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
+          as: 'questionSet',
           attributes: ['id', 'title']
         },
         {
           model: Question,
+          as: 'question',
           attributes: ['id', 'questionType']
         }
       ]

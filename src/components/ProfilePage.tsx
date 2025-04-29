@@ -98,7 +98,20 @@ const ProfilePage: React.FC = () => {
           
           // 更新用户上下文中的进度
           if (user.progress) {
-            user.progress = { ...user.progress, ...progressData };
+            // 确保 progress 对象存在
+            if (!user.progress) {
+              user.progress = {};
+            }
+            
+            // 更新每个题库的进度
+            Object.entries(progressData).forEach(([questionSetId, progress]: [string, any]) => {
+              if (typeof progress === 'object' && progress !== null) {
+                user.progress[questionSetId] = {
+                  ...user.progress[questionSetId],
+                  ...progress
+                };
+              }
+            });
           }
         }
       } catch (err) {

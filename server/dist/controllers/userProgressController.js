@@ -401,10 +401,12 @@ const getUserProgressStats = async (req, res) => {
             include: [
                 {
                     model: QuestionSet_1.default,
+                    as: 'questionSet',
                     attributes: ['id', 'title']
                 },
                 {
                     model: Question_1.default,
+                    as: 'question',
                     attributes: ['id', 'questionType']
                 }
             ]
