@@ -312,19 +312,19 @@ const getProgressStats = async (req, res) => {
             const totalTimeSpent = records.reduce((sum, r) => sum + r.timeSpent, 0);
             const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
             const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
+            const totalQuestions = group.questionSet?.questions?.length || 0;
             return {
                 questionSetId: group.questionSetId,
                 questionSet: group.questionSet,
-                totalQuestions: group.questionSet.questions.length,
+                totalQuestions,
                 completedQuestions,
                 correctAnswers,
                 totalTimeSpent,
                 averageTimeSpent,
                 accuracy,
-                // 兼容旧的字段名
-                total: group.questionSet.questions.length,
-                correct: correctAnswers,
-                timeSpent: totalTimeSpent
+                total: totalQuestions, // 兼容字段
+                correct: correctAnswers, // 兼容字段
+                timeSpent: totalTimeSpent // 兼容字段
             };
         });
         return (0, responseUtils_1.sendResponse)(res, 200, '获取学习统计成功', stats);
