@@ -305,8 +305,11 @@ const getProgressStats = async (req, res) => {
         });
         // 4. 生成最终统计
         const stats = questionSets.map(qs => {
+            // 安全地获取 questions 数组
+            const questions = qs.get('questions') || [];
+            const totalQuestions = Array.isArray(questions) ? questions.length : 0;
+            // 获取用户进度数据，如果不存在则使用默认值
             const progress = progressMap.get(qs.id) || { completed: 0, correct: 0, totalTime: 0 };
-            const totalQuestions = qs.questions.length;
             const completedQuestions = progress.completed;
             const correctAnswers = progress.correct;
             const totalTimeSpent = progress.totalTime;
@@ -316,7 +319,7 @@ const getProgressStats = async (req, res) => {
                 questionSetId: qs.id,
                 questionSet: {
                     id: qs.id,
-                    title: qs.title
+                    title: qs.get('title')
                 },
                 totalQuestions,
                 completedQuestions,
