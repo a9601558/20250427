@@ -74,6 +74,60 @@ const ProfilePage: React.FC = () => {
     fetchData();
   }, []);
 
+  // 获取用户进度数据
+  useEffect(() => {
+    const fetchUserProgress = async () => {
+      if (!user) return;
+      
+      try {
+        setLoading(true);
+        const response = await fetch(`http://exam7.jp/api/user-progress/${user.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('获取用户进度失败');
+        }
+        
+        const data = await response.json();
+        if (data.success && data.data) {
+          // 更新用户进度
+          const progressData = data.data.reduce((acc: any, record: any) => {
+            const questionSetId = record.questionSetId;
+            if (!acc[questionSetId]) {
+              acc[questionSetId] = {
+                completedQuestions: 0,
+                totalQuestions: 0,
+                correctAnswers: 0,
+                lastAccessed: new Date().toISOString()
+              };
+            }
+            acc[questionSetId].completedQuestions++;
+            acc[questionSetId].totalQuestions = record.questionSet?.questionCount || 0;
+            if (record.isCorrect) {
+              acc[questionSetId].correctAnswers++;
+            }
+            acc[questionSetId].lastAccessed = record.createdAt;
+            return acc;
+          }, {});
+          
+          // 更新用户上下文中的进度
+          if (user.progress) {
+            user.progress = { ...user.progress, ...progressData };
+          }
+        }
+      } catch (err) {
+        console.error('获取用户进度失败:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProgress();
+  }, [user]);
+
   // 获取购买记录
   useEffect(() => {
     const fetchPurchases = async () => {
