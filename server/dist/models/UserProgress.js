@@ -13,6 +13,10 @@ class UserProgress extends sequelize_1.Model {
     questionId;
     isCorrect;
     timeSpent;
+    completedQuestions;
+    totalQuestions;
+    correctAnswers;
+    lastAccessed;
     // 时间戳
     createdAt;
     updatedAt;
@@ -55,6 +59,26 @@ UserProgress.init({
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0
+    },
+    completedQuestions: {
+        type: sequelize_1.DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
+    totalQuestions: {
+        type: sequelize_1.DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
+    correctAnswers: {
+        type: sequelize_1.DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
+    lastAccessed: {
+        type: sequelize_1.DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize_1.DataTypes.NOW
     },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,

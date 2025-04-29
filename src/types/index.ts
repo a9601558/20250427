@@ -5,11 +5,13 @@ export interface IUserProgress {
   questionId: string;
   isCorrect: boolean;
   timeSpent: number;
+  completedQuestions: number;
   totalQuestions: number;
   correctAnswers: number;
   totalTimeSpent: number;
   averageTimeSpent: number;
   accuracy: number;
+  lastAccessed: Date;
   title?: string;
   createdAt: Date;
   updatedAt: Date;

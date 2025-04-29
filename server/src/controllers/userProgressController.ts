@@ -110,7 +110,11 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
         questionSetId,
         questionId,
         isCorrect,
-        timeSpent: timeSpent || 0
+        timeSpent: timeSpent || 0,
+        completedQuestions: 1,
+        totalQuestions: 1,
+        correctAnswers: isCorrect ? 1 : 0,
+        lastAccessed: new Date()
       }
     });
 
@@ -122,10 +126,14 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       });
     }
 
-    // 通过Socket.IO发送进度更新
-    io.to(userId).emit('progress_updated', {
-      questionSetId,
-      progress: progress.toJSON()
+    // 发送实时更新
+    io.to(userId).emit('progress:update', {
+      userId: progress.userId,
+      questionSetId: progress.questionSetId,
+      completedQuestions: progress.completedQuestions,
+      totalQuestions: progress.totalQuestions,
+      correctAnswers: progress.correctAnswers,
+      lastAccessed: progress.lastAccessed
     });
 
     return sendResponse<UserProgress>(res, 200, '更新进度成功', progress);
@@ -234,21 +242,30 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
       timeSpent
     });
 
-    const progress = await UserProgress.create({
+    // 创建新的进度记录
+    const newProgress = await UserProgress.create({
       userId,
       questionSetId,
       questionId,
       isCorrect,
       timeSpent,
+      completedQuestions: 1,
+      totalQuestions: 1,
+      correctAnswers: isCorrect ? 1 : 0,
+      lastAccessed: new Date()
     });
 
-    // 通过Socket.IO发送进度更新
-    io.to(userId).emit('progress_updated', {
-      questionSetId,
-      progress: progress.toJSON()
+    // 发送实时更新
+    io.to(userId).emit('progress:update', {
+      userId: newProgress.userId,
+      questionSetId: newProgress.questionSetId,
+      completedQuestions: newProgress.completedQuestions,
+      totalQuestions: newProgress.totalQuestions,
+      correctAnswers: newProgress.correctAnswers,
+      lastAccessed: newProgress.lastAccessed
     });
     
-    return sendResponse(res, 201, '学习进度已记录', progress.toJSON());
+    return sendResponse(res, 201, '学习进度已记录', newProgress.toJSON());
   } catch (error) {
     console.error('创建学习进度失败:', error);
     return sendError(res, 500, '创建学习进度失败', error);

@@ -101,7 +101,11 @@ const updateProgress = async (req, res) => {
                 questionSetId,
                 questionId,
                 isCorrect,
-                timeSpent: timeSpent || 0
+                timeSpent: timeSpent || 0,
+                completedQuestions: 1,
+                totalQuestions: 1,
+                correctAnswers: isCorrect ? 1 : 0,
+                lastAccessed: new Date()
             }
         });
         // 如果记录已存在，更新它
@@ -111,10 +115,14 @@ const updateProgress = async (req, res) => {
                 timeSpent: timeSpent || progress.timeSpent
             });
         }
-        // 通过Socket.IO发送进度更新
-        socket_1.io.to(userId).emit('progress_updated', {
-            questionSetId,
-            progress: progress.toJSON()
+        // 发送实时更新
+        socket_1.io.to(userId).emit('progress:update', {
+            userId: progress.userId,
+            questionSetId: progress.questionSetId,
+            completedQuestions: progress.completedQuestions,
+            totalQuestions: progress.totalQuestions,
+            correctAnswers: progress.correctAnswers,
+            lastAccessed: progress.lastAccessed
         });
         return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', progress);
     }
@@ -217,19 +225,28 @@ const createDetailedProgress = async (req, res) => {
             isCorrect,
             timeSpent
         });
-        const progress = await UserProgress_1.default.create({
+        // 创建新的进度记录
+        const newProgress = await UserProgress_1.default.create({
             userId,
             questionSetId,
             questionId,
             isCorrect,
             timeSpent,
+            completedQuestions: 1,
+            totalQuestions: 1,
+            correctAnswers: isCorrect ? 1 : 0,
+            lastAccessed: new Date()
         });
-        // 通过Socket.IO发送进度更新
-        socket_1.io.to(userId).emit('progress_updated', {
-            questionSetId,
-            progress: progress.toJSON()
+        // 发送实时更新
+        socket_1.io.to(userId).emit('progress:update', {
+            userId: newProgress.userId,
+            questionSetId: newProgress.questionSetId,
+            completedQuestions: newProgress.completedQuestions,
+            totalQuestions: newProgress.totalQuestions,
+            correctAnswers: newProgress.correctAnswers,
+            lastAccessed: newProgress.lastAccessed
         });
-        return (0, responseUtils_1.sendResponse)(res, 201, '学习进度已记录', progress.toJSON());
+        return (0, responseUtils_1.sendResponse)(res, 201, '学习进度已记录', newProgress.toJSON());
     }
     catch (error) {
         console.error('创建学习进度失败:', error);

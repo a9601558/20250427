@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
-import { IQuestionSet } from '../types/index';
+import { UserProgress, QuestionSet, User } from '../types';
+import { userProgressApi } from '../utils/api';
 
 // 定义标签页枚举
 enum ProfileTab {
@@ -12,12 +13,44 @@ enum ProfileTab {
   SETTINGS = 'settings'
 }
 
+interface ProgressData {
+  userId: string;
+  questionSetId: string;
+  questionSetName: string;
+  questionId: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  totalTimeSpent: number;
+  averageTimeSpent: number;
+  accuracy: number;
+  lastAccessed: string;
+  completedQuestions: number;
+}
+
+interface ExtendedQuestionSet extends QuestionSet {
+  questionCount: number;
+}
+
+interface ProgressUpdate {
+  userId: string;
+  questionSetId: string;
+  questionId: string;
+  isCorrect: boolean;
+  timeSpent: number;
+  completedQuestions: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  lastAccessed: string;
+}
+
 const ProfilePage: React.FC = () => {
-  const { user, logout } = useUser();
+  const { user, logout, updateUserProgress } = useUser();
   const { socket } = useSocket();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemCodes' | 'settings'>('progress');
-  const [questionSets, setQuestionSets] = useState<IQuestionSet[]>([]);
+  const [questionSets, setQuestionSets] = useState<ExtendedQuestionSet[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +59,28 @@ const ProfilePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<'purchaseDate' | 'expiryDate' | 'amount'>('purchaseDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired'>('all');
+
+  const [progress, setProgress] = useState<ProgressData[]>([]);
+
+  const handleProgressUpdate = useCallback((update: ProgressData) => {
+    if (!user?.id || update.userId !== user.id) return;
+    
+    setProgress(prevProgress => {
+      const updatedProgress = [...prevProgress];
+      const index = updatedProgress.findIndex(p => p.questionSetId === update.questionSetId);
+      
+      if (index !== -1) {
+        updatedProgress[index] = {
+          ...updatedProgress[index],
+          ...update,
+          questionSetName: updatedProgress[index].questionSetName,
+          completedQuestions: update.correctAnswers
+        };
+      }
+      
+      return updatedProgress;
+    });
+  }, [user?.id]);
 
   if (!user) {
     return (
@@ -76,53 +131,47 @@ const ProfilePage: React.FC = () => {
 
   // 获取用户进度数据
   useEffect(() => {
-    const fetchUserProgress = async () => {
-      if (!user) return;
+    const fetchProgress = async () => {
+      if (!user?.id) return;
       
       try {
-        setLoading(true);
-        const response = await fetch(`http://exam7.jp/api/user-progress/stats/${user.id}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error('获取用户进度失败');
+        const response = await userProgressApi.getUserProgress();
+        if (response.data) {
+          const progressData: ProgressData[] = Object.values(response.data).map((item: any) => ({
+            userId: item.userId,
+            questionSetId: item.questionSetId,
+            questionSetName: item.questionSet?.title || '',
+            questionId: item.questionId,
+            isCorrect: item.isCorrect,
+            timeSpent: item.timeSpent,
+            totalQuestions: item.totalQuestions,
+            correctAnswers: item.correctAnswers,
+            totalTimeSpent: item.totalTimeSpent,
+            averageTimeSpent: item.averageTimeSpent,
+            accuracy: item.accuracy,
+            lastAccessed: item.lastAccessed || new Date().toISOString(),
+            completedQuestions: item.correctAnswers
+          }));
+          setProgress(progressData);
         }
-        
-        const data = await response.json();
-        if (data.success && data.data) {
-          // 更新用户进度
-          const progressData = data.data.bySet;
-          
-          // 更新用户上下文中的进度
-          if (user.progress) {
-            // 确保 progress 对象存在
-            if (!user.progress) {
-              user.progress = {};
-            }
-            
-            // 更新每个题库的进度
-            Object.entries(progressData).forEach(([questionSetId, progress]: [string, any]) => {
-              if (typeof progress === 'object' && progress !== null) {
-                user.progress[questionSetId] = {
-                  ...user.progress[questionSetId],
-                  ...progress
-                };
-              }
-            });
-          }
-        }
-      } catch (err) {
-        console.error('获取用户进度失败:', err);
+      } catch (error) {
+        console.error('Error fetching progress:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUserProgress();
-  }, [user]);
+    fetchProgress();
+
+    if (socket) {
+      const progressHandler = (data: ProgressData) => handleProgressUpdate(data);
+      socket.on('progress_updated', progressHandler);
+
+      return () => {
+        socket.off('progress_updated', progressHandler);
+      };
+    }
+  }, [user?.id, socket, handleProgressUpdate]);
 
   // 获取购买记录
   useEffect(() => {
@@ -158,50 +207,6 @@ const ProfilePage: React.FC = () => {
 
     fetchPurchases();
   }, [user]);
-
-  // 添加 Socket 监听以更新进度
-  useEffect(() => {
-    if (!socket || !user) return;
-
-    const handleProgressUpdate = (data: {
-      questionSetId: string;
-      progress: {
-        completedQuestions: number;
-        totalQuestions: number;
-        correctAnswers: number;
-        lastAccessed: string;
-      };
-    }) => {
-      console.log('收到进度更新:', data);
-      setQuestionSets(prevSets => {
-        return prevSets.map(set => {
-          if (set.id === data.questionSetId) {
-            return {
-              ...set,
-              progress: {
-                ...set.progress,
-                ...data.progress
-              }
-            };
-          }
-          return set;
-        });
-      });
-
-      // 更新用户进度
-      if (user && user.progress) {
-        user.progress[data.questionSetId] = data.progress;
-      }
-    };
-
-    socket.on('progress_updated', handleProgressUpdate);
-    console.log('已设置进度更新监听器');
-
-    return () => {
-      socket.off('progress_updated', handleProgressUpdate);
-      console.log('已移除进度更新监听器');
-    };
-  }, [socket, user]);
 
   // 整理用户进度数据
   const progressData = questionSets.map(questionSet => {
@@ -316,6 +321,20 @@ const ProfilePage: React.FC = () => {
     } catch (e) {
       return 0;
     }
+  };
+
+  const calculateStats = (progressData: ProgressData[]) => {
+    const totalQuestions = progressData.reduce((sum, progress) => sum + progress.totalQuestions, 0);
+    const completedQuestions = progressData.reduce((sum, progress) => sum + progress.completedQuestions, 0);
+    const correctAnswers = progressData.reduce((sum, progress) => sum + progress.correctAnswers, 0);
+    const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+
+    return {
+      totalQuestions,
+      completedQuestions,
+      correctAnswers,
+      accuracy
+    };
   };
 
   if (loading) {

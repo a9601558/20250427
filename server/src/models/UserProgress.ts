@@ -12,6 +12,10 @@ export interface UserProgressAttributes {
   questionId: string;
   isCorrect: boolean;
   timeSpent: number;
+  completedQuestions: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  lastAccessed: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -27,6 +31,10 @@ class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAtt
   public questionId!: string;
   public isCorrect!: boolean;
   public timeSpent!: number;
+  public completedQuestions!: number;
+  public totalQuestions!: number;
+  public correctAnswers!: number;
+  public lastAccessed!: Date;
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -72,6 +80,26 @@ UserProgress.init(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0
+    },
+    completedQuestions: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    totalQuestions: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    correctAnswers: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    lastAccessed: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW
     },
     createdAt: {
       type: DataTypes.DATE,

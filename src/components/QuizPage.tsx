@@ -252,106 +252,6 @@ function QuizPage(): React.ReactNode {
   };
   
   // 提交答案检查
-  const checkAnswer = async () => {
-    // 如果试用已结束且没有购买，不允许提交答案
-    if (trialEnded && !hasAccessToFullQuiz) {
-      return;
-    }
-    
-    if (selectedOptions.length === 0 || !user || !questionSet || !currentQuestion) return;
-    
-    let isCorrect = false;
-    
-    if (currentQuestion.questionType === 'single') {
-      // 单选题
-      isCorrect = selectedOptions[0] === currentQuestion.correctAnswer;
-    } else {
-      // 多选题 - 所有选项需要完全匹配
-      const correctOptions = Array.isArray(currentQuestion.correctAnswer) 
-        ? currentQuestion.correctAnswer 
-        : [currentQuestion.correctAnswer];
-      
-      isCorrect = 
-        selectedOptions.length === correctOptions.length && 
-        selectedOptions.every(option => correctOptions.includes(option));
-    }
-    
-    setShowExplanation(true);
-    
-    // 更新已回答的题目和正确答案数
-    let newAnsweredQuestions = [...answeredQuestions];
-    let newCorrectAnswers = correctAnswers;
-    
-    // 检查当前问题是否已回答
-    const alreadyAnswered = answeredQuestions.some(q => q.index === currentQuestionIndex);
-    
-    if (!alreadyAnswered) {
-      newAnsweredQuestions = [...answeredQuestions, { index: currentQuestionIndex, isCorrect }];
-      setAnsweredQuestions(newAnsweredQuestions);
-      
-      if (isCorrect) {
-        newCorrectAnswers = correctAnswers + 1;
-        setCorrectAnswers(newCorrectAnswers);
-      }
-      
-      // 在每次回答问题后保存进度
-      const progressData = {
-        userId: user.id,
-        questionSetId: questionSet.id,
-        questionId: currentQuestion.id.toString(),
-        isCorrect,
-        timeSpent: Math.floor((Date.now() - questionStartTime) / 1000),
-        completedQuestions: newAnsweredQuestions.length,
-        totalQuestions: questions.length,
-        correctAnswers: newCorrectAnswers,
-        lastAccessed: new Date().toISOString()
-      };
-      
-      // 发送进度更新
-      try {
-        // 通过 Socket.IO 发送
-        sendProgressUpdate(progressData);
-        
-        // 通过 API 发送
-        const result = await userProgressApi.updateProgress(progressData);
-        if (!result.success) {
-          console.error('通过API保存进度失败:', result.error);
-        }
-      } catch (error) {
-        console.error('保存进度失败:', error);
-      }
-    }
-  };
-  
-  // 完成测试，保存最终进度
-  const completeQuiz = async () => {
-    if (!user || !questionSet) return;
-    
-    setQuizComplete(true);
-    
-    // 保存最终进度
-    await checkAnswer();
-  };
-  
-  // 进入下一题
-  const goToNextQuestion = () => {
-    setSelectedOptions([]);
-    setShowExplanation(false);
-    
-    // 确保当前进度已保存
-    if (user && questionSet) {
-      // 如果用户已登录，保存当前进度
-      checkAnswer();
-    }
-    
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-      // 完成测试
-      completeQuiz();
-    }
-  };
-  
   const handleAnswerSubmit = async (selectedOption: string): Promise<void> => {
     if (!currentQuestion || !user || !socket || !questionSet) return;
 
@@ -373,7 +273,7 @@ function QuizPage(): React.ReactNode {
 
     try {
       // 发送进度更新到服务器
-      socket.emit('progress_updated', progressUpdate);
+      socket.emit('progress:update', progressUpdate);
       console.log('发送进度更新:', progressUpdate);
 
       // 更新本地状态
@@ -401,6 +301,35 @@ function QuizPage(): React.ReactNode {
       console.error('发送进度更新失败:', error);
       // 显示错误提示
       setError('更新进度失败，请重试');
+    }
+  };
+  
+  // 完成测试，保存最终进度
+  const completeQuiz = async () => {
+    if (!user || !questionSet) return;
+    
+    setQuizComplete(true);
+    
+    // 保存最终进度
+    await handleAnswerSubmit(selectedOptions[0]);
+  };
+  
+  // 进入下一题
+  const goToNextQuestion = () => {
+    setSelectedOptions([]);
+    setShowExplanation(false);
+    
+    // 确保当前进度已保存
+    if (user && questionSet) {
+      // 如果用户已登录，保存当前进度
+      handleAnswerSubmit(selectedOptions[0]);
+    }
+    
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      // 完成测试
+      completeQuiz();
     }
   };
   

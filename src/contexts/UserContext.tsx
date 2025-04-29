@@ -40,6 +40,7 @@ interface UserContextType {
   getAllUsers: () => Promise<User[]>;
   deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
   adminRegister: (userData: Partial<User>) => Promise<{ success: boolean; message: string }>;
+  updateUserProgress: (progress: any) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -355,6 +356,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUserProgress = (progress: any) => {
+    setUser(prev => prev ? { ...prev, progress } : null);
+  };
+
   return (
     <UserContext.Provider value={{
       user,
@@ -378,7 +383,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       getRedeemCodes,
       getAllUsers,
       deleteUser,
-      adminRegister
+      adminRegister,
+      updateUserProgress
     }}>
       {children}
     </UserContext.Provider>

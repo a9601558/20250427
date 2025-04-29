@@ -59,12 +59,16 @@ const initializeSocket = (server) => {
                 }
                 // 保存进度到数据库
                 const [progressRecord, created] = await UserProgress_1.default.upsert({
-                    id: undefined, // 让数据库自动生成 ID
+                    id: undefined,
                     userId,
                     questionSetId,
                     questionId,
                     isCorrect,
-                    timeSpent
+                    timeSpent,
+                    completedQuestions: 1,
+                    totalQuestions: 1,
+                    correctAnswers: isCorrect ? 1 : 0,
+                    lastAccessed: new Date()
                 });
                 console.log(`用户进度已${created ? '创建' : '更新'}: ${userId}, ${questionSetId}`);
                 // 转换为纯对象
