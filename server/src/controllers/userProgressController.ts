@@ -74,6 +74,12 @@ interface ProgressRecord {
   };
 }
 
+interface QuestionSetWithQuestions {
+  id: string;
+  title: string;
+  questions: { id: string }[];
+}
+
 /**
  * @desc    获取用户进度
  * @route   GET /api/user-progress/:userId
@@ -356,58 +362,59 @@ export const getProgressStats = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
 
-    // 获取用户的所有进度记录，包含题库和题目信息
-    const progressRecords = await UserProgress.findAll({
-      where: { userId },
+    // 1. 查所有题库 + 题目
+    const questionSets = await QuestionSet.findAll({
+      attributes: ['id', 'title'],
       include: [{
-        model: QuestionSet,
-        as: 'progressQuestionSet',
-        attributes: ['id', 'title'],
-        include: [{
-          model: Question,
-          as: 'questions',
-          attributes: ['id']
-        }]
+        model: Question,
+        as: 'questions',
+        attributes: ['id']
       }]
-    }) as ProgressRecord[];
+    }) as QuestionSetWithQuestions[];
 
-    // 使用 Map 按题库分组
-    const progressMap = new Map();
-    progressRecords.forEach(record => {
-      const qsId = record.questionSetId;
-      if (!progressMap.has(qsId)) {
-        progressMap.set(qsId, {
-          questionSetId: qsId,
-          questionSet: record.progressQuestionSet,
-          records: []
-        });
-      }
-      progressMap.get(qsId).records.push(record);
+    // 2. 查所有答题记录
+    const userProgressRecords = await UserProgress.findAll({
+      where: { userId },
     });
 
-    // 计算每个题库的统计
-    const stats = Array.from(progressMap.values()).map(group => {
-      const records = group.records;
-      const completedQuestions = records.length;
-      const correctAnswers = records.filter((r: ProgressRecord) => r.isCorrect).length;
-      const totalTimeSpent = records.reduce((sum: number, r: ProgressRecord) => sum + r.timeSpent, 0);
+    // 3. 整理成 Map
+    const progressMap = new Map<string, { completed: number, correct: number, totalTime: number }>();
+    userProgressRecords.forEach(record => {
+      const qsId = record.questionSetId;
+      if (!progressMap.has(qsId)) {
+        progressMap.set(qsId, { completed: 0, correct: 0, totalTime: 0 });
+      }
+      const stats = progressMap.get(qsId)!;
+      stats.completed++;
+      if (record.isCorrect) stats.correct++;
+      stats.totalTime += record.timeSpent;
+    });
+
+    // 4. 生成最终统计
+    const stats = questionSets.map(qs => {
+      const progress = progressMap.get(qs.id) || { completed: 0, correct: 0, totalTime: 0 };
+      const totalQuestions = qs.questions.length;
+      const completedQuestions = progress.completed;
+      const correctAnswers = progress.correct;
+      const totalTimeSpent = progress.totalTime;
       const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
       const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
 
-      const totalQuestions = group.questionSet?.questions?.length || 0;
-
       return {
-        questionSetId: group.questionSetId,
-        questionSet: group.questionSet,
+        questionSetId: qs.id,
+        questionSet: {
+          id: qs.id,
+          title: qs.title
+        },
         totalQuestions,
         completedQuestions,
         correctAnswers,
         totalTimeSpent,
         averageTimeSpent,
         accuracy,
-        total: totalQuestions,      // 兼容字段
-        correct: correctAnswers,    // 兼容字段
-        timeSpent: totalTimeSpent    // 兼容字段
+        total: totalQuestions,       // 兼容字段
+        correct: correctAnswers,
+        timeSpent: totalTimeSpent
       };
     });
 
