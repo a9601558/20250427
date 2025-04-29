@@ -5,8 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
-const QuestionSet_1 = __importDefault(require("./QuestionSet"));
-const Question_1 = __importDefault(require("./Question"));
 // 用户进度模型类
 class UserProgress extends sequelize_1.Model {
     id;
@@ -102,13 +100,5 @@ UserProgress.init({
         { fields: ['questionId'] },
         { fields: ['userId', 'questionSetId'] }
     ]
-});
-UserProgress.belongsTo(QuestionSet_1.default, {
-    foreignKey: 'questionSetId',
-    as: 'progressQuestionSet'
-});
-UserProgress.belongsTo(Question_1.default, {
-    foreignKey: 'questionId',
-    as: 'progressQuestion'
 });
 exports.default = UserProgress;

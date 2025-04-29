@@ -126,14 +126,4 @@ UserProgress.init(
   }
 );
 
-UserProgress.belongsTo(QuestionSet, {
-  foreignKey: 'questionSetId',
-  as: 'progressQuestionSet'
-});
-
-UserProgress.belongsTo(Question, {
-  foreignKey: 'questionId',
-  as: 'progressQuestion'
-});
-
 export default UserProgress; 
