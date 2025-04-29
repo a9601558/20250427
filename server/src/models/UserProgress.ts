@@ -40,8 +40,8 @@ class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAtt
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
-  public readonly questionSet?: QuestionSet;
-  public readonly question?: Question;
+  public readonly progressQuestionSet?: QuestionSet;
+  public readonly progressQuestion?: Question;
 }
 
 UserProgress.init(
@@ -128,12 +128,12 @@ UserProgress.init(
 
 UserProgress.belongsTo(QuestionSet, {
   foreignKey: 'questionSetId',
-  as: 'questionSet',
+  as: 'progressQuestionSet'
 });
 
 UserProgress.belongsTo(Question, {
   foreignKey: 'questionId',
-  as: 'question',
+  as: 'progressQuestion'
 });
 
 export default UserProgress; 

@@ -1,6 +1,8 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import crypto from 'crypto';
+import QuestionSet from './QuestionSet';
+import User from './User';
 
 // 兑换码接口
 export interface RedeemCodeAttributes {
@@ -35,6 +37,11 @@ class RedeemCode extends Model<RedeemCodeAttributes, RedeemCodeCreationAttribute
   // 时间戳
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  
+  // 关联
+  public readonly redeemQuestionSet?: QuestionSet;
+  public readonly redeemUser?: User;
+  public readonly redeemCreator?: User;
   
   // 静态方法：生成唯一兑换码
   static async generateUniqueCode(length = 8): Promise<string> {

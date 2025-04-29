@@ -6,6 +6,7 @@ import Purchase from '../models/Purchase';
 import RedeemCode from '../models/RedeemCode';
 import Option from '../models/Option';
 import HomepageSettings from '../models/HomepageSettings';
+import UserProgress from '../models/UserProgress';
 
 // 确保所有模型都被导入和注册
 const models = [
@@ -15,7 +16,8 @@ const models = [
   Purchase,
   RedeemCode,
   Option,
-  HomepageSettings
+  HomepageSettings,
+  UserProgress
 ];
 
 console.log(`将同步以下 ${models.length} 个模型:`);
@@ -27,11 +29,12 @@ models.forEach(model => {
 // User-Purchase关联
 User.hasMany(Purchase, {
   foreignKey: 'userId',
-  as: 'purchasesMade'
+  as: 'userPurchases',
+  onDelete: 'CASCADE'
 });
 Purchase.belongsTo(User, {
   foreignKey: 'userId',
-  as: 'user'
+  as: 'purchaseUser'
 });
 
 // QuestionSet-Question关联
@@ -57,11 +60,12 @@ Option.belongsTo(Question, {
 // QuestionSet-Purchase关联
 QuestionSet.hasMany(Purchase, {
   foreignKey: 'questionSetId',
-  as: 'questionSetPurchases'
+  as: 'questionSetPurchases',
+  onDelete: 'CASCADE'
 });
 Purchase.belongsTo(QuestionSet, {
   foreignKey: 'questionSetId',
-  as: 'questionSet'
+  as: 'purchaseQuestionSet'
 });
 
 // QuestionSet-RedeemCode关联
@@ -92,6 +96,30 @@ User.hasMany(RedeemCode, {
 RedeemCode.belongsTo(User, {
   foreignKey: 'createdBy',
   as: 'creator'
+});
+
+// QuestionSet 和 UserProgress 的关联
+QuestionSet.hasMany(UserProgress, {
+  foreignKey: 'questionSetId',
+  as: 'questionSetUserProgresses',
+  onDelete: 'CASCADE'
+});
+
+UserProgress.belongsTo(QuestionSet, {
+  foreignKey: 'questionSetId',
+  as: 'progressQuestionSet'
+});
+
+// Question 和 UserProgress 的关联
+Question.hasMany(UserProgress, {
+  foreignKey: 'questionId',
+  as: 'questionUserProgresses',
+  onDelete: 'CASCADE'
+});
+
+UserProgress.belongsTo(Question, {
+  foreignKey: 'questionId',
+  as: 'progressQuestion'
 });
 
 // 执行同步

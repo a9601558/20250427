@@ -19,6 +19,10 @@ class RedeemCode extends sequelize_1.Model {
     // 时间戳
     createdAt;
     updatedAt;
+    // 关联
+    redeemQuestionSet;
+    redeemUser;
+    redeemCreator;
     // 静态方法：生成唯一兑换码
     static async generateUniqueCode(length = 8) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

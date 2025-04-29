@@ -19,7 +19,7 @@ class Purchase extends sequelize_1.Model {
     updatedAt;
     // 关联
     user;
-    questionSet;
+    purchaseQuestionSet;
 }
 Purchase.init({
     id: {

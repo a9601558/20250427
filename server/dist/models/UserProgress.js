@@ -22,8 +22,8 @@ class UserProgress extends sequelize_1.Model {
     // 时间戳
     createdAt;
     updatedAt;
-    questionSet;
-    question;
+    progressQuestionSet;
+    progressQuestion;
 }
 UserProgress.init({
     id: {
@@ -105,10 +105,10 @@ UserProgress.init({
 });
 UserProgress.belongsTo(QuestionSet_1.default, {
     foreignKey: 'questionSetId',
-    as: 'questionSet',
+    as: 'progressQuestionSet'
 });
 UserProgress.belongsTo(Question_1.default, {
     foreignKey: 'questionId',
-    as: 'question',
+    as: 'progressQuestion'
 });
 exports.default = UserProgress;

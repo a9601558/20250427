@@ -1,7 +1,7 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import bcrypt from 'bcrypt';
-import { IUser, IPurchase, IRedeemCode, IUserProgress } from '../types';
+import { IUser, IPurchase, IRedeemCode, IProgressSummary } from '../types';
 
 export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id'>;
 
@@ -15,7 +15,7 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
   declare socket_id: string | null;
   declare redeemCodes?: IRedeemCode[];
   declare progress?: {
-    [questionSetId: string]: IUserProgress;
+    [questionSetId: string]: IProgressSummary;
   };
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;

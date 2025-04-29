@@ -14,7 +14,7 @@ async function getUserQuestionSetProgress(userId, questionSetId) {
         include: [
             {
                 model: QuestionSet_1.default,
-                as: 'questionSet',
+                as: 'progressQuestionSet',
                 attributes: ['id', 'title'],
                 include: [{
                         model: Question_1.default,
@@ -28,7 +28,7 @@ async function getUserQuestionSetProgress(userId, questionSetId) {
 async function calculateProgressStats(userId, questionSetId) {
     const progressStats = await getUserQuestionSetProgress(userId, questionSetId);
     // Get the total questions from the question set
-    const questionSet = progressStats[0]?.get('questionSet');
+    const questionSet = progressStats[0]?.get('progressQuestionSet');
     const totalQuestions = questionSet?.questions?.length || 0;
     // Calculate other stats
     const completedQuestions = progressStats.length;

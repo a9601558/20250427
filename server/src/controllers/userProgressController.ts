@@ -77,23 +77,19 @@ export const getUserProgress = async (req: Request, res: Response): Promise<Resp
       return sendError(res, 403, '无权访问此用户的进度');
     }
 
-    // 获取用户的所有进度记录
-    const allProgress = await UserProgress.findAll({
+    const progress = await UserProgress.findAll({
       where: { userId },
-      attributes: ['questionSetId'],
-      group: ['questionSetId']
+      include: [
+        {
+          model: QuestionSet,
+          as: 'progressQuestionSet',
+          attributes: ['id', 'title']
+        }
+      ]
     });
-
-    // 获取每个题库的进度统计
-    const progressMap: Record<string, ProgressStats> = {};
-    for (const progress of allProgress) {
-      const stats = await calculateProgressStats(userId, progress.questionSetId);
-      progressMap[progress.questionSetId] = stats;
-    }
-
-    return sendResponse(res, 200, '获取用户进度成功', progressMap);
+    return sendResponse(res, 200, '获取用户进度成功', progress);
   } catch (error) {
-    return sendError(res, 500, 'Error fetching user progress', error);
+    return sendError(res, 500, '获取用户进度失败', error);
   }
 };
 
@@ -174,7 +170,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     // 发送实时更新
     const updateEvent: ProgressUpdateEvent = {
       questionSetId,
-      questionSet: progress.questionSet,
+      questionSet: progress.progressQuestionSet,
       stats
     };
     
@@ -293,7 +289,7 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     // 发送实时更新
     const updateEvent: ProgressUpdateEvent = {
       questionSetId,
-      questionSet: newProgress.questionSet,
+      questionSet: newProgress.progressQuestionSet,
       stats
     };
     

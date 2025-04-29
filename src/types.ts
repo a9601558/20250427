@@ -15,6 +15,7 @@ export interface UserProgress {
   totalQuestions: number;
   correctAnswers: number;
   lastAccessed: string;
+  title?: string;
 }
 
 export interface QuestionSet {
@@ -66,7 +67,7 @@ export interface Purchase {
   amount: number;
   status?: string;
   paymentMethod?: string;
-  questionSet?: QuestionSet;
+  purchaseQuestionSet?: QuestionSet;
 }
 
 export interface RedeemCode {

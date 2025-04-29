@@ -11,6 +11,7 @@ const Purchase_1 = __importDefault(require("../models/Purchase"));
 const RedeemCode_1 = __importDefault(require("../models/RedeemCode"));
 const Option_1 = __importDefault(require("../models/Option"));
 const HomepageSettings_1 = __importDefault(require("../models/HomepageSettings"));
+const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 // 确保所有模型都被导入和注册
 const models = [
     User_1.default,
@@ -19,7 +20,8 @@ const models = [
     Purchase_1.default,
     RedeemCode_1.default,
     Option_1.default,
-    HomepageSettings_1.default
+    HomepageSettings_1.default,
+    UserProgress_1.default
 ];
 console.log(`将同步以下 ${models.length} 个模型:`);
 models.forEach(model => {
@@ -29,11 +31,12 @@ models.forEach(model => {
 // User-Purchase关联
 User_1.default.hasMany(Purchase_1.default, {
     foreignKey: 'userId',
-    as: 'purchasesMade'
+    as: 'userPurchases',
+    onDelete: 'CASCADE'
 });
 Purchase_1.default.belongsTo(User_1.default, {
     foreignKey: 'userId',
-    as: 'user'
+    as: 'purchaseUser'
 });
 // QuestionSet-Question关联
 QuestionSet_1.default.hasMany(Question_1.default, {
@@ -56,11 +59,12 @@ Option_1.default.belongsTo(Question_1.default, {
 // QuestionSet-Purchase关联
 QuestionSet_1.default.hasMany(Purchase_1.default, {
     foreignKey: 'questionSetId',
-    as: 'questionSetPurchases'
+    as: 'questionSetPurchases',
+    onDelete: 'CASCADE'
 });
 Purchase_1.default.belongsTo(QuestionSet_1.default, {
     foreignKey: 'questionSetId',
-    as: 'questionSet'
+    as: 'purchaseQuestionSet'
 });
 // QuestionSet-RedeemCode关联
 QuestionSet_1.default.hasMany(RedeemCode_1.default, {
@@ -88,6 +92,26 @@ User_1.default.hasMany(RedeemCode_1.default, {
 RedeemCode_1.default.belongsTo(User_1.default, {
     foreignKey: 'createdBy',
     as: 'creator'
+});
+// QuestionSet 和 UserProgress 的关联
+QuestionSet_1.default.hasMany(UserProgress_1.default, {
+    foreignKey: 'questionSetId',
+    as: 'questionSetUserProgresses',
+    onDelete: 'CASCADE'
+});
+UserProgress_1.default.belongsTo(QuestionSet_1.default, {
+    foreignKey: 'questionSetId',
+    as: 'progressQuestionSet'
+});
+// Question 和 UserProgress 的关联
+Question_1.default.hasMany(UserProgress_1.default, {
+    foreignKey: 'questionId',
+    as: 'questionUserProgresses',
+    onDelete: 'CASCADE'
+});
+UserProgress_1.default.belongsTo(Question_1.default, {
+    foreignKey: 'questionId',
+    as: 'progressQuestion'
 });
 // 执行同步
 async function syncAllModels() {

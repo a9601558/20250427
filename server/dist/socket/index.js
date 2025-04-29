@@ -9,6 +9,7 @@ const User_1 = __importDefault(require("../models/User"));
 const Purchase_1 = __importDefault(require("../models/Purchase"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
+const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const initializeSocket = (io) => {
     io.on('connection', (socket) => {
         console.log('Client connected:', socket.id);
@@ -314,25 +315,52 @@ const initializeSocket = (io) => {
                     socket.emit('progress_error', { message: '用户不存在' });
                     return;
                 }
-                // 更新用户进度
-                const progress = user.progress || {};
-                const lastAccessedDate = new Date(data.lastAccessed);
-                progress[data.questionSetId] = {
+                // 创建或更新数据库中的进度记录
+                const [dbProgress, created] = await UserProgress_1.default.findOrCreate({
+                    where: {
+                        userId: data.userId,
+                        questionSetId: data.questionSetId,
+                        questionId: data.questionId
+                    },
+                    defaults: {
+                        userId: data.userId,
+                        questionSetId: data.questionSetId,
+                        questionId: data.questionId,
+                        isCorrect: data.isCorrect,
+                        timeSpent: data.timeSpent,
+                        completedQuestions: data.completedQuestions,
+                        totalQuestions: data.totalQuestions,
+                        correctAnswers: data.correctAnswers,
+                        lastAccessed: new Date(data.lastAccessed)
+                    }
+                });
+                if (!created) {
+                    await dbProgress.update({
+                        isCorrect: data.isCorrect,
+                        timeSpent: data.timeSpent,
+                        completedQuestions: data.completedQuestions,
+                        totalQuestions: data.totalQuestions,
+                        correctAnswers: data.correctAnswers,
+                        lastAccessed: new Date(data.lastAccessed)
+                    });
+                }
+                // 更新用户的内存进度对象
+                const userProgress = user.progress || {};
+                const progressSummary = {
                     completedQuestions: data.completedQuestions,
                     totalQuestions: data.totalQuestions,
                     correctAnswers: data.correctAnswers,
-                    lastAccessed: lastAccessedDate
+                    lastAccessed: new Date(data.lastAccessed)
                 };
-                await user.update({ progress });
+                userProgress[data.questionSetId] = progressSummary;
+                await user.update({ progress: userProgress });
                 // 向用户发送更新通知
                 if (user.socket_id) {
                     io.to(user.socket_id).emit('progress:update', {
                         questionSetId: data.questionSetId,
                         progress: {
-                            completedQuestions: data.completedQuestions,
-                            totalQuestions: data.totalQuestions,
-                            correctAnswers: data.correctAnswers,
-                            lastAccessed: lastAccessedDate.toISOString()
+                            ...progressSummary,
+                            lastAccessed: progressSummary.lastAccessed.toISOString()
                         }
                     });
                 }

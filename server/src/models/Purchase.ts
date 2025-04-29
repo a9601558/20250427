@@ -21,7 +21,7 @@ class Purchase extends Model<IPurchase, PurchaseCreationAttributes> implements I
 
   // 关联
   public readonly user?: User;
-  public readonly questionSet?: QuestionSet;
+  public readonly purchaseQuestionSet?: QuestionSet;
 }
 
 Purchase.init(

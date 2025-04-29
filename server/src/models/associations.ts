@@ -4,6 +4,7 @@ import QuestionSet from './QuestionSet';
 import User from './User';
 import UserProgress from './UserProgress';
 import Purchase from './Purchase';
+import RedeemCode from './RedeemCode';
 
 export const setupAssociations = () => {
   // QuestionSet 和 Question 的关联
@@ -45,25 +46,25 @@ export const setupAssociations = () => {
   // QuestionSet 和 UserProgress 的关联
   QuestionSet.hasMany(UserProgress, {
     foreignKey: 'questionSetId',
-    as: 'userProgresses',
+    as: 'questionSetUserProgresses',  // ✅ 改了
     onDelete: 'CASCADE'
   });
 
   UserProgress.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
-    as: 'questionSet'
+    as: 'progressQuestionSet'   // ✅ 已改好
   });
 
   // Question 和 UserProgress 的关联
   Question.hasMany(UserProgress, {
     foreignKey: 'questionId',
-    as: 'userProgresses',
+    as: 'questionUserProgresses',   // ✅ 改了
     onDelete: 'CASCADE'
   });
 
   UserProgress.belongsTo(Question, {
     foreignKey: 'questionId',
-    as: 'question'
+    as: 'progressQuestion'   // ✅ 稍微改名，防止和 Question 里的 as 冲突
   });
 
   // User 和 Purchase 的关联
@@ -75,18 +76,54 @@ export const setupAssociations = () => {
 
   Purchase.belongsTo(User, {
     foreignKey: 'userId',
-    as: 'user'
+    as: 'purchaseUser'
   });
 
   // QuestionSet 和 Purchase 的关联
   QuestionSet.hasMany(Purchase, {
     foreignKey: 'questionSetId',
-    as: 'purchases',
+    as: 'questionSetPurchases',
     onDelete: 'CASCADE'
   });
 
   Purchase.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
-    as: 'questionSet'
+    as: 'purchaseQuestionSet'
   });
-}; 
+
+  // QuestionSet-RedeemCode关联
+  QuestionSet.hasMany(RedeemCode, {
+    foreignKey: 'questionSetId',
+    as: 'questionSetRedeemCodes',
+    onDelete: 'CASCADE'
+  });
+
+  RedeemCode.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'redeemQuestionSet'
+  });
+
+  // User-RedeemCode关联（已使用）
+  User.hasMany(RedeemCode, {
+    foreignKey: 'usedBy',
+    as: 'userRedeemedCodes',
+    onDelete: 'SET NULL'
+  });
+
+  RedeemCode.belongsTo(User, {
+    foreignKey: 'usedBy',
+    as: 'redeemUser'
+  });
+
+  // User-RedeemCode关联（创建者）
+  User.hasMany(RedeemCode, {
+    foreignKey: 'createdBy',
+    as: 'userCreatedCodes',
+    onDelete: 'CASCADE'
+  });
+
+  RedeemCode.belongsTo(User, {
+    foreignKey: 'createdBy',
+    as: 'redeemCreator'
+  });
+};

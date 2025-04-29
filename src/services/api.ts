@@ -331,7 +331,23 @@ export const questionSetService = {
   async getUserProgress(): Promise<ApiResponse<Record<string, UserProgress>>> {
     try {
       const response = await api.get('/user-progress/stats');
-      return handleResponse<Record<string, UserProgress>>(response);
+      const data = response.data.data;
+      // 转换数据格式，使用progressQuestionSet
+      const formattedData: Record<string, UserProgress> = {};
+      data.forEach((progress: any) => {
+        formattedData[progress.questionSetId] = {
+          questionSetId: progress.questionSetId,
+          completedQuestions: progress.completedQuestions,
+          totalQuestions: progress.totalQuestions,
+          correctAnswers: progress.correctAnswers,
+          lastAccessed: progress.lastAccessed,
+          title: progress.progressQuestionSet?.title
+        };
+      });
+      return {
+        success: true,
+        data: formattedData
+      };
     } catch (error: any) {
       return {
         success: false,
@@ -474,27 +490,27 @@ export const questionService = {
 // 用户进度API服务
 export const userProgressService = {
   // 获取用户进度统计
-  getUserProgress: async (): Promise<ApiResponse<Record<string, UserProgress>>> => {
+  async getUserProgress(): Promise<ApiResponse<Record<string, UserProgress>>> {
     try {
-      const currentUser = await userService.getCurrentUser();
-      if (!currentUser.success || !currentUser.data?.id) {
-        console.error('获取当前用户失败:', currentUser.message);
-        return {
-          success: false,
-          message: '获取当前用户失败',
-          error: currentUser.message
+      const response = await api.get('/user-progress/stats');
+      const data = response.data.data;
+      // 转换数据格式，使用progressQuestionSet
+      const formattedData: Record<string, UserProgress> = {};
+      data.forEach((progress: any) => {
+        formattedData[progress.questionSetId] = {
+          questionSetId: progress.questionSetId,
+          completedQuestions: progress.completedQuestions,
+          totalQuestions: progress.totalQuestions,
+          correctAnswers: progress.correctAnswers,
+          lastAccessed: progress.lastAccessed,
+          title: progress.progressQuestionSet?.title
         };
-      }
-      
-      const userId = currentUser.data.id;
-      console.log('获取用户进度，用户ID:', userId);
-      
-      const response = await api.get(`/user-progress/${userId}`);
-      console.log('用户进度响应:', response);
-      
-      return handleResponse<Record<string, UserProgress>>(response);
+      });
+      return {
+        success: true,
+        data: formattedData
+      };
     } catch (error: any) {
-      console.error('获取用户进度失败:', error);
       return {
         success: false,
         message: error.message,
@@ -581,7 +597,16 @@ export const purchaseService = {
   async createPurchase(questionSetId: string, paymentMethod: string, amount: number): Promise<ApiResponse<Purchase>> {
     try {
       const response = await api.post('/purchases', { questionSetId, paymentMethod, amount });
-      return handleResponse<Purchase>(response);
+      const purchase = response.data.data;
+      // 确保返回的数据使用正确的属性名
+      if (purchase.questionSet) {
+        purchase.purchaseQuestionSet = purchase.questionSet;
+        delete purchase.questionSet;
+      }
+      return {
+        success: true,
+        data: purchase
+      };
     } catch (error: any) {
       return {
         success: false,
@@ -595,7 +620,18 @@ export const purchaseService = {
   async getUserPurchases(): Promise<ApiResponse<Purchase[]>> {
     try {
       const response = await api.get('/purchases');
-      return handleResponse<Purchase[]>(response);
+      const purchases = response.data.data;
+      // 确保返回的数据使用正确的属性名
+      purchases.forEach((purchase: any) => {
+        if (purchase.questionSet) {
+          purchase.purchaseQuestionSet = purchase.questionSet;
+          delete purchase.questionSet;
+        }
+      });
+      return {
+        success: true,
+        data: purchases
+      };
     } catch (error: any) {
       return {
         success: false,

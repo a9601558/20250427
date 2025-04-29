@@ -7,6 +7,7 @@ import { Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import UserProgress from '../models/UserProgress';
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
+import { IProgressSummary } from '../types';
 
 interface PurchaseWithUser extends Purchase {
   user?: User;
@@ -349,26 +350,55 @@ export const initializeSocket = (io: SocketIOServer) => {
           return;
         }
 
-        // 更新用户进度
-        const progress = user.progress || {};
-        const lastAccessedDate = new Date(data.lastAccessed);
-        progress[data.questionSetId] = {
+        // 创建或更新数据库中的进度记录
+        const [dbProgress, created] = await UserProgress.findOrCreate({
+          where: {
+            userId: data.userId,
+            questionSetId: data.questionSetId,
+            questionId: data.questionId
+          },
+          defaults: {
+            userId: data.userId,
+            questionSetId: data.questionSetId,
+            questionId: data.questionId,
+            isCorrect: data.isCorrect,
+            timeSpent: data.timeSpent,
+            completedQuestions: data.completedQuestions,
+            totalQuestions: data.totalQuestions,
+            correctAnswers: data.correctAnswers,
+            lastAccessed: new Date(data.lastAccessed)
+          }
+        });
+
+        if (!created) {
+          await dbProgress.update({
+            isCorrect: data.isCorrect,
+            timeSpent: data.timeSpent,
+            completedQuestions: data.completedQuestions,
+            totalQuestions: data.totalQuestions,
+            correctAnswers: data.correctAnswers,
+            lastAccessed: new Date(data.lastAccessed)
+          });
+        }
+
+        // 更新用户的内存进度对象
+        const userProgress: { [key: string]: IProgressSummary } = user.progress || {};
+        const progressSummary: IProgressSummary = {
           completedQuestions: data.completedQuestions,
           totalQuestions: data.totalQuestions,
           correctAnswers: data.correctAnswers,
-          lastAccessed: lastAccessedDate
+          lastAccessed: new Date(data.lastAccessed)
         };
-        await user.update({ progress });
+        userProgress[data.questionSetId] = progressSummary;
+        await user.update({ progress: userProgress });
 
         // 向用户发送更新通知
         if (user.socket_id) {
           io.to(user.socket_id).emit('progress:update', {
             questionSetId: data.questionSetId,
             progress: {
-              completedQuestions: data.completedQuestions,
-              totalQuestions: data.totalQuestions,
-              correctAnswers: data.correctAnswers,
-              lastAccessed: lastAccessedDate.toISOString()
+              ...progressSummary,
+              lastAccessed: progressSummary.lastAccessed.toISOString()
             }
           });
         }

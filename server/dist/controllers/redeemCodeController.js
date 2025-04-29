@@ -65,17 +65,17 @@ const getRedeemCodes = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'redeemQuestionSet',
                     attributes: ['title', 'category']
                 },
                 {
                     model: models_1.User,
-                    as: 'user',
+                    as: 'redeemUser',
                     attributes: ['username', 'email']
                 },
                 {
                     model: models_1.User,
-                    as: 'creator',
+                    as: 'redeemCreator',
                     attributes: ['username']
                 }
             ],

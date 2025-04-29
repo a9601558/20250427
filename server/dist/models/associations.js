@@ -10,6 +10,7 @@ const QuestionSet_1 = __importDefault(require("./QuestionSet"));
 const User_1 = __importDefault(require("./User"));
 const UserProgress_1 = __importDefault(require("./UserProgress"));
 const Purchase_1 = __importDefault(require("./Purchase"));
+const RedeemCode_1 = __importDefault(require("./RedeemCode"));
 const setupAssociations = () => {
     // QuestionSet 和 Question 的关联
     QuestionSet_1.default.hasMany(Question_1.default, {
@@ -44,22 +45,22 @@ const setupAssociations = () => {
     // QuestionSet 和 UserProgress 的关联
     QuestionSet_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'questionSetId',
-        as: 'userProgresses',
+        as: 'questionSetUserProgresses', // ✅ 改了
         onDelete: 'CASCADE'
     });
     UserProgress_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'progressQuestionSet' // ✅ 已改好
     });
     // Question 和 UserProgress 的关联
     Question_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'questionId',
-        as: 'userProgresses',
+        as: 'questionUserProgresses', // ✅ 改了
         onDelete: 'CASCADE'
     });
     UserProgress_1.default.belongsTo(Question_1.default, {
         foreignKey: 'questionId',
-        as: 'question'
+        as: 'progressQuestion' // ✅ 稍微改名，防止和 Question 里的 as 冲突
     });
     // User 和 Purchase 的关联
     User_1.default.hasMany(Purchase_1.default, {
@@ -69,17 +70,47 @@ const setupAssociations = () => {
     });
     Purchase_1.default.belongsTo(User_1.default, {
         foreignKey: 'userId',
-        as: 'user'
+        as: 'purchaseUser'
     });
     // QuestionSet 和 Purchase 的关联
     QuestionSet_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'questionSetId',
-        as: 'purchases',
+        as: 'questionSetPurchases',
         onDelete: 'CASCADE'
     });
     Purchase_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'purchaseQuestionSet'
+    });
+    // QuestionSet-RedeemCode关联
+    QuestionSet_1.default.hasMany(RedeemCode_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'questionSetRedeemCodes',
+        onDelete: 'CASCADE'
+    });
+    RedeemCode_1.default.belongsTo(QuestionSet_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'redeemQuestionSet'
+    });
+    // User-RedeemCode关联（已使用）
+    User_1.default.hasMany(RedeemCode_1.default, {
+        foreignKey: 'usedBy',
+        as: 'userRedeemedCodes',
+        onDelete: 'SET NULL'
+    });
+    RedeemCode_1.default.belongsTo(User_1.default, {
+        foreignKey: 'usedBy',
+        as: 'redeemUser'
+    });
+    // User-RedeemCode关联（创建者）
+    User_1.default.hasMany(RedeemCode_1.default, {
+        foreignKey: 'createdBy',
+        as: 'userCreatedCodes',
+        onDelete: 'CASCADE'
+    });
+    RedeemCode_1.default.belongsTo(User_1.default, {
+        foreignKey: 'createdBy',
+        as: 'redeemCreator'
     });
 };
 exports.setupAssociations = setupAssociations;

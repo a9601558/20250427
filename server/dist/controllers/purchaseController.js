@@ -77,7 +77,7 @@ const createPurchase = async (req, res) => {
         const purchaseWithQuestionSet = await models_1.Purchase.findByPk(purchase.id, {
             include: [{
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     attributes: ['id', 'title', 'category', 'icon']
                 }]
         });
@@ -104,14 +104,14 @@ const getUserPurchases = async (req, res) => {
             where: { userId: req.user.id },
             include: [{
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     attributes: ['id', 'title', 'category', 'icon', 'isPaid', 'price']
                 }],
             order: [['purchaseDate', 'DESC']]
         });
         console.log('Found purchases:', purchases.length);
         // 确保关联关系存在
-        if (purchases.some(p => !p.questionSet)) {
+        if (purchases.some(p => !p.purchaseQuestionSet)) {
             console.error('Some purchases are missing QuestionSet association');
             return sendError(res, 500, '获取购买记录失败', 'QuestionSet association is missing');
         }
@@ -189,7 +189,7 @@ const getPurchaseById = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet'
+                    as: 'purchaseQuestionSet'
                 }
             ]
         });
