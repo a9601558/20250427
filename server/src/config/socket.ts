@@ -56,7 +56,7 @@ export const initializeSocket = (server: HttpServer): void => {
     });
 
     // 处理进度更新
-    socket.on('update_progress', async (data: {
+    socket.on('progress:update', async (data: {
       userId: string;
       questionSetId: string;
       questionId: string;
@@ -92,7 +92,7 @@ export const initializeSocket = (server: HttpServer): void => {
         const progressData = progressRecord.toJSON();
         
         // 向用户发送进度已更新通知
-        io.to(userId).emit('progress_updated', {
+        io.to(userId).emit('progress:update', {
           questionSetId,
           progress: progressData
         });

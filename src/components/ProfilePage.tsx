@@ -74,13 +74,22 @@ const ProfilePage: React.FC = () => {
           ...updatedProgress[index],
           ...update,
           questionSetName: updatedProgress[index].questionSetName,
-          completedQuestions: update.correctAnswers
+          completedQuestions: update.completedQuestions,
+          correctAnswers: update.correctAnswers,
+          totalQuestions: update.totalQuestions,
+          lastAccessed: update.lastAccessed
         };
+      } else {
+        // 如果是新的进度记录，添加到数组中
+        updatedProgress.push({
+          ...update,
+          questionSetName: questionSets.find(qs => qs.id === update.questionSetId)?.title || ''
+        });
       }
       
       return updatedProgress;
     });
-  }, [user?.id]);
+  }, [user?.id, questionSets]);
 
   if (!user) {
     return (
@@ -165,10 +174,10 @@ const ProfilePage: React.FC = () => {
 
     if (socket) {
       const progressHandler = (data: ProgressData) => handleProgressUpdate(data);
-      socket.on('progress_updated', progressHandler);
+      socket.on('progress:update', progressHandler);
 
       return () => {
-        socket.off('progress_updated', progressHandler);
+        socket.off('progress:update', progressHandler);
       };
     }
   }, [user?.id, socket, handleProgressUpdate]);

@@ -49,7 +49,7 @@ const initializeSocket = (server) => {
             }
         });
         // 处理进度更新
-        socket.on('update_progress', async (data) => {
+        socket.on('progress:update', async (data) => {
             try {
                 const { userId, questionSetId, questionId, isCorrect, timeSpent } = data;
                 // 验证参数
@@ -74,7 +74,7 @@ const initializeSocket = (server) => {
                 // 转换为纯对象
                 const progressData = progressRecord.toJSON();
                 // 向用户发送进度已更新通知
-                exports.io.to(userId).emit('progress_updated', {
+                exports.io.to(userId).emit('progress:update', {
                     questionSetId,
                     progress: progressData
                 });
