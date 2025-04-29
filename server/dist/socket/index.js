@@ -282,29 +282,41 @@ const initializeSocket = (io) => {
         // 监听进度更新事件
         socket.on('progress:update', async (data) => {
             try {
+                // 验证必要参数
+                if (!data.userId || !data.questionSetId || !data.questionId) {
+                    socket.emit('progress_error', { message: '缺少必要参数' });
+                    return;
+                }
                 const user = await User_1.default.findByPk(data.userId);
-                if (user) {
-                    // 更新用户进度
-                    const progress = user.progress || {};
-                    progress[data.questionSetId] = {
-                        ...data.progress,
-                        lastAccessed: new Date(data.progress.lastAccessed)
-                    };
-                    await user.update({ progress });
-                    // 向用户发送更新通知
-                    if (user.socketId) {
-                        io.to(user.socketId).emit('progress:update', {
-                            questionSetId: data.questionSetId,
-                            progress: {
-                                ...data.progress,
-                                lastAccessed: new Date(data.progress.lastAccessed)
-                            }
-                        });
-                    }
+                if (!user) {
+                    socket.emit('progress_error', { message: '用户不存在' });
+                    return;
+                }
+                // 更新用户进度
+                const progress = user.progress || {};
+                progress[data.questionSetId] = {
+                    completedQuestions: data.completedQuestions,
+                    totalQuestions: data.totalQuestions,
+                    correctAnswers: data.correctAnswers,
+                    lastAccessed: new Date(data.lastAccessed)
+                };
+                await user.update({ progress });
+                // 向用户发送更新通知
+                if (user.socketId) {
+                    io.to(user.socketId).emit('progress:update', {
+                        questionSetId: data.questionSetId,
+                        progress: {
+                            completedQuestions: data.completedQuestions,
+                            totalQuestions: data.totalQuestions,
+                            correctAnswers: data.correctAnswers,
+                            lastAccessed: new Date(data.lastAccessed)
+                        }
+                    });
                 }
             }
             catch (error) {
                 console.error('Error updating progress:', error);
+                socket.emit('progress_error', { message: '更新进度失败' });
             }
         });
     });

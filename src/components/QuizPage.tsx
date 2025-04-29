@@ -13,6 +13,18 @@ interface AnsweredQuestion {
   isCorrect: boolean;
 }
 
+interface ProgressUpdate {
+  userId: string;
+  questionSetId: string;
+  questionId: string | number;  // 允许 string 或 number 类型
+  isCorrect: boolean;
+  timeSpent: number;
+  completedQuestions: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  lastAccessed: string;
+}
+
 // 获取选项标签（A, B, C, D...）
 const getOptionLabel = (index: number): string => {
   return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
@@ -38,6 +50,8 @@ function QuizPage(): React.ReactNode {
   const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState(false);
   const [trialEnded, setTrialEnded] = useState(false);
   const [remainingDays, setRemainingDays] = useState<number | null>(null);
+  const [questionStartTime, setQuestionStartTime] = useState(0);
+  const [completedQuestions, setCompletedQuestions] = useState(0);
   
   // 添加 Socket 监听
   useEffect(() => {
@@ -239,7 +253,7 @@ function QuizPage(): React.ReactNode {
   };
   
   // 提交答案检查
-  const checkAnswer = () => {
+  const checkAnswer = async () => {
     // 如果试用已结束且没有购买，不允许提交答案
     if (trialEnded && !hasAccessToFullQuiz) {
       return;
@@ -307,7 +321,8 @@ function QuizPage(): React.ReactNode {
         timeSpent: 0, // 时间跟踪可以根据需要实现
         completedQuestions: completedCount,
         totalQuestions: questions.length,
-        correctAnswers: correctCount
+        correctAnswers: correctCount,
+        lastAccessed: new Date().toISOString()
       };
       
       // 首先尝试使用socket发送进度
@@ -365,6 +380,58 @@ function QuizPage(): React.ReactNode {
     } else {
       // 完成测试
       completeQuiz();
+    }
+  };
+  
+  const handleAnswerSubmit = async (selectedOption: string): Promise<void> => {
+    if (!currentQuestion || !user || !socket || !questionSet) return;
+
+    const isCorrect = selectedOption === currentQuestion.correctAnswer;
+    const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+
+    // 更新进度
+    const progressUpdate: ProgressUpdate = {
+      userId: user.id,
+      questionSetId: questionSet.id,
+      questionId: currentQuestion.id,
+      isCorrect,
+      timeSpent,
+      completedQuestions: completedQuestions + 1,
+      totalQuestions: questions.length,
+      correctAnswers: isCorrect ? correctAnswers + 1 : correctAnswers,
+      lastAccessed: new Date().toISOString()
+    };
+
+    try {
+      // 发送进度更新到服务器
+      socket.emit('progress:update', progressUpdate);
+      console.log('发送进度更新:', progressUpdate);
+
+      // 更新本地状态
+      setCompletedQuestions(prev => prev + 1);
+      if (isCorrect) {
+        setCorrectAnswers(prev => prev + 1);
+      }
+      setQuestionStartTime(Date.now());
+
+      // 更新已回答问题列表
+      setAnsweredQuestions(prev => [...prev, {
+        index: currentQuestionIndex,
+        isCorrect
+      }]);
+
+      // 移动到下一题或完成
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+        setSelectedOptions([]);
+        setShowExplanation(false);
+      } else {
+        setQuizComplete(true);
+      }
+    } catch (error) {
+      console.error('发送进度更新失败:', error);
+      // 显示错误提示
+      setError('更新进度失败，请重试');
     }
   };
   
@@ -622,7 +689,7 @@ function QuizPage(): React.ReactNode {
         <div className="flex justify-between">
           {!showExplanation ? (
             <button
-              onClick={checkAnswer}
+              onClick={() => handleAnswerSubmit(selectedOptions[0])}
               disabled={selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz)}
               className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
                 selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz) ? 'opacity-50 cursor-not-allowed' : ''
