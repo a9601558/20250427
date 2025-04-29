@@ -3,7 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setupAssociations = void 0;
+exports.syncAllModels = exports.setupAssociations = void 0;
+const database_1 = __importDefault(require("../config/database"));
 const Question_1 = __importDefault(require("./Question"));
 const Option_1 = __importDefault(require("./Option"));
 const QuestionSet_1 = __importDefault(require("./QuestionSet"));
@@ -11,6 +12,18 @@ const User_1 = __importDefault(require("./User"));
 const UserProgress_1 = __importDefault(require("./UserProgress"));
 const Purchase_1 = __importDefault(require("./Purchase"));
 const RedeemCode_1 = __importDefault(require("./RedeemCode"));
+const HomepageSettings_1 = __importDefault(require("./HomepageSettings"));
+// 所有模型数组
+const models = [
+    User_1.default,
+    Question_1.default,
+    QuestionSet_1.default,
+    Purchase_1.default,
+    RedeemCode_1.default,
+    Option_1.default,
+    HomepageSettings_1.default,
+    UserProgress_1.default
+];
 const setupAssociations = () => {
     // QuestionSet 和 Question 的关联
     QuestionSet_1.default.hasMany(Question_1.default, {
@@ -45,72 +58,124 @@ const setupAssociations = () => {
     // QuestionSet 和 UserProgress 的关联
     QuestionSet_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSetUserProgresses',
+        as: 'userProgresses',
         onDelete: 'CASCADE'
     });
     UserProgress_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'progressQuestionSet'
+        as: 'questionSet'
     });
     // Question 和 UserProgress 的关联
     Question_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'questionId',
-        as: 'questionUserProgresses',
+        as: 'userProgresses',
         onDelete: 'CASCADE'
     });
     UserProgress_1.default.belongsTo(Question_1.default, {
         foreignKey: 'questionId',
-        as: 'progressQuestion'
+        as: 'question'
     });
     // User 和 Purchase 的关联
     User_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'userId',
-        as: 'userPurchases',
+        as: 'purchases',
         onDelete: 'CASCADE'
     });
     Purchase_1.default.belongsTo(User_1.default, {
         foreignKey: 'userId',
-        as: 'purchaseUser'
+        as: 'user'
     });
     // QuestionSet 和 Purchase 的关联
     QuestionSet_1.default.hasMany(Purchase_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSetPurchases',
+        as: 'purchases',
         onDelete: 'CASCADE'
     });
     Purchase_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'purchaseQuestionSet'
+        as: 'questionSet'
     });
     // QuestionSet-RedeemCode关联
     QuestionSet_1.default.hasMany(RedeemCode_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSetRedeemCodes',
+        as: 'redeemCodes',
         onDelete: 'CASCADE'
     });
     RedeemCode_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'redeemQuestionSet'
+        as: 'questionSet'
     });
     // User-RedeemCode关联（已使用）
     User_1.default.hasMany(RedeemCode_1.default, {
         foreignKey: 'usedBy',
-        as: 'userRedeemedCodes',
+        as: 'redeemedCodes',
         onDelete: 'SET NULL'
     });
     RedeemCode_1.default.belongsTo(User_1.default, {
         foreignKey: 'usedBy',
-        as: 'redeemUser'
+        as: 'user'
     });
     // User-RedeemCode关联（创建者）
     User_1.default.hasMany(RedeemCode_1.default, {
         foreignKey: 'createdBy',
-        as: 'userCreatedCodes',
+        as: 'createdCodes',
         onDelete: 'CASCADE'
     });
     RedeemCode_1.default.belongsTo(User_1.default, {
         foreignKey: 'createdBy',
-        as: 'redeemCreator'
+        as: 'creator'
     });
 };
 exports.setupAssociations = setupAssociations;
+// 同步所有模型到数据库
+const syncAllModels = async () => {
+    try {
+        console.log(`将同步以下 ${models.length} 个模型:`);
+        models.forEach(model => {
+            console.log(` - ${model.name}`);
+        });
+        // 设置模型关联
+        (0, exports.setupAssociations)();
+        console.log('开始同步所有模型到数据库...');
+        console.log('同步模式: force=true (将删除并重新创建所有表)');
+        // 使用force:true重新创建所有表
+        await database_1.default.sync({ force: true });
+        console.log('所有数据库表已成功创建!');
+        // 创建一条默认的HomepageSettings记录
+        try {
+            const [homepageSettings, created] = await HomepageSettings_1.default.findOrCreate({
+                where: { id: 1 },
+                defaults: {
+                    welcome_title: 'ExamTopics 模拟练习',
+                    welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
+                    featured_categories: ['网络协议', '编程语言', '计算机基础'],
+                    announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
+                    footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
+                    banner_image: '/images/banner.jpg',
+                    theme: 'light'
+                }
+            });
+            if (created) {
+                console.log('创建了默认的首页设置');
+            }
+            else {
+                console.log('首页设置已存在，无需创建');
+            }
+        }
+        catch (error) {
+            console.error('创建首页设置时出错:', error);
+        }
+        // 打印所有创建的表
+        const tables = await database_1.default.getQueryInterface().showAllTables();
+        console.log('已创建的表:');
+        tables.forEach((table) => {
+            console.log(` - ${table}`);
+        });
+        return true;
+    }
+    catch (error) {
+        console.error('同步模型时出错:', error);
+        throw error;
+    }
+};
+exports.syncAllModels = syncAllModels;
