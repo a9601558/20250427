@@ -16,6 +16,9 @@ export interface UserProgress {
   correctAnswers: number;
   lastAccessed: string;
   title?: string;
+  totalTimeSpent: number;
+  averageTimeSpent: number;
+  accuracy: number;
 }
 
 export interface QuestionSet {

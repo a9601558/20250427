@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
+import { userProgressService } from '../services/api';
+import { UserProgress } from '../types';
 
 interface ProgressStats {
   totalQuestions: number;
@@ -12,17 +14,13 @@ interface ProgressStats {
   accuracy: number;
 }
 
-interface ProgressUpdateEvent {
-  questionSetId: string;
-  questionSet?: {
-    id: string;
-    title: string;
-  };
-  stats: ProgressStats;
-}
-
 interface ProgressMap {
   [key: string]: ProgressStats;
+}
+
+interface ProgressUpdateEvent {
+  questionSetId: string;
+  stats: ProgressStats;
 }
 
 const ProfilePage: React.FC = () => {
@@ -43,14 +41,23 @@ const ProfilePage: React.FC = () => {
 
     const fetchProgress = async () => {
       try {
-        const response = await fetch(`/api/user-progress/${user.id}`);
-        if (!response.ok) throw new Error('Failed to fetch progress');
-        const data = await response.json();
-        
-        if (data.success) {
-          setProgressData(data.data);
+        const response = await userProgressService.getUserProgress();
+        if (response.success && response.data) {
+          // 转换 UserProgress 类型到 ProgressMap 类型
+          const convertedData: ProgressMap = {};
+          Object.entries(response.data).forEach(([key, value]) => {
+            convertedData[key] = {
+              totalQuestions: value.totalQuestions,
+              completedQuestions: value.completedQuestions,
+              correctAnswers: value.correctAnswers,
+              totalTimeSpent: value.totalTimeSpent || 0,
+              averageTimeSpent: value.averageTimeSpent || 0,
+              accuracy: value.accuracy || 0
+            };
+          });
+          setProgressData(convertedData);
         } else {
-          throw new Error(data.message || 'Failed to fetch progress');
+          throw new Error(response.message || 'Failed to fetch progress');
         }
       } catch (error) {
         toast.error('Failed to load progress data');
