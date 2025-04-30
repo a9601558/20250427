@@ -276,7 +276,7 @@ function QuizPage(): JSX.Element {
 
     try {
       // 保存进度到后端
-      await userProgressService.saveProgress({
+      const saveResponse = await userProgressService.saveProgress({
         questionId: String(currentQuestion.id),
         questionSetId: questionSet.id,
         selectedOption: currentQuestion.questionType === 'single' 
@@ -286,8 +286,15 @@ function QuizPage(): JSX.Element {
         timeSpent
       });
 
-      // 立即更新本地进度
-      await fetchUserProgress(true);
+      if (!saveResponse.success) {
+        throw new Error(saveResponse.message || '保存进度失败');
+      }
+
+      // 立即更新本地进度，并等待更新完成
+      const updatedProgress = await fetchUserProgress(true);
+      if (!updatedProgress) {
+        throw new Error('更新本地进度失败');
+      }
 
       // 发送进度更新事件
       socket.emit('progress:update', { userId: user.id });

@@ -53,6 +53,24 @@ class UserProgressService {
       const response = await axios.get(url, {
         headers: this.getAuthHeader()
       });
+
+      if (response.data.success && response.data.data) {
+        // 确保每个进度记录都有lastAccessed字段
+        const processedData = Object.entries(response.data.data).reduce((acc, [key, value]) => {
+          const progressStats = value as ProgressStats;
+          acc[key] = {
+            ...progressStats,
+            lastAccessed: progressStats.lastAccessed || new Date().toISOString()
+          };
+          return acc;
+        }, {} as Record<string, ProgressStats>);
+
+        return {
+          success: true,
+          data: processedData
+        };
+      }
+
       return response.data;
     } catch (error: any) {
       console.error('获取用户进度失败:', error?.response?.data || error.message);
