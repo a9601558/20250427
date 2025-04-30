@@ -439,22 +439,45 @@ const HomePage: React.FC = () => {
             {user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-green-900' : 'bg-gradient-to-r from-green-50 to-teal-50'} border ${homeContent.theme === 'dark' ? 'border-green-800' : 'border-green-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
                 <div className="flex justify-between items-center">
-                  <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-green-300' : 'text-green-800'}`}>欢迎回来，{user.username}！</h3>
+                  <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-green-300' : 'text-green-800'}`}>
+                    学习进度概览
+                  </h3>
                   <button
                     onClick={() => setShowUserInfo(!showUserInfo)}
                     className="inline-flex items-center px-3 py-1 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                   >
-                    {showUserInfo ? '隐藏详情' : '查看详情'}
+                    {showUserInfo ? '收起详情' : '查看详情'}
                   </button>
                 </div>
                 
                 {showUserInfo && (
                   <div className={`mt-3 text-sm ${homeContent.theme === 'dark' ? 'text-green-200' : 'text-green-700'}`}>
-                    <p><strong>用户ID:</strong> {user.id}</p>
-                    <p><strong>邮箱:</strong> {user.email}</p>
-                    <p><strong>管理员权限:</strong> {user.isAdmin ? '是' : '否'}</p>
-                    <p><strong>已完成题目数:</strong> {Object.values(user.progress || {}).reduce((acc, curr) => acc + curr.completedQuestions, 0)}</p>
-                    <p><strong>已购买题库数:</strong> {user.purchases?.length || 0}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="font-medium">已完成题目</p>
+                        <p className="text-2xl font-bold">
+                          {Object.values(progressStats || {}).reduce((acc, curr) => acc + curr.completedQuestions, 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium">平均正确率</p>
+                        <p className="text-2xl font-bold">
+                          {Object.values(progressStats || {}).length > 0
+                            ? Math.round(Object.values(progressStats).reduce((acc, curr) => acc + curr.accuracy, 0) / Object.values(progressStats).length)
+                            : 0}%
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <p className="font-medium">最近学习</p>
+                      <p className="text-sm">
+                        {Object.values(progressStats || {}).length > 0
+                          ? Object.values(progressStats)
+                              .sort((a, b) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime())[0]
+                              ?.questionSetId
+                          : '暂无学习记录'}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

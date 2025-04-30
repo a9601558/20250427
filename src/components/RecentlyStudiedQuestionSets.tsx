@@ -28,13 +28,18 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
 
   // 获取用户有进度记录的题库
   const studiedSets = questionSets.filter(qs => 
-    progressStats && progressStats[qs.id]
+    progressStats && progressStats[qs.id] && progressStats[qs.id].lastAccessed
   );
 
   // 按照最后访问时间排序
   const sortedSets = [...studiedSets].sort((a, b) => {
-    const aTime = progressStats[a.id]?.lastAccessed ? new Date(progressStats[a.id].lastAccessed).getTime() : 0;
-    const bTime = progressStats[b.id]?.lastAccessed ? new Date(progressStats[b.id].lastAccessed).getTime() : 0;
+    const aProgress = progressStats[a.id];
+    const bProgress = progressStats[b.id];
+    
+    if (!aProgress || !bProgress) return 0;
+    
+    const aTime = aProgress.lastAccessed ? new Date(aProgress.lastAccessed).getTime() : 0;
+    const bTime = bProgress.lastAccessed ? new Date(bProgress.lastAccessed).getTime() : 0;
     return bTime - aTime; // 从新到旧排序
   });
 
@@ -111,7 +116,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
               </div>
               <div className="ml-2 text-right">
                 <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  {formatLastAccessed(progress.lastAccessed)}
+                  {progress?.lastAccessed ? formatLastAccessed(progress.lastAccessed) : '无记录'}
                 </p>
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
                   继续学习
