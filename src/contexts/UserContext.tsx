@@ -321,12 +321,28 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const hasAccessToQuestionSet = useCallback((questionSetId: string): boolean => {
-    if (!user || !user.purchases) return false;
+    if (!user || !user.purchases) {
+      console.log(`[hasAccessToQuestionSet] 无权限访问题库 ${questionSetId}:`, { hasUser: !!user, hasPurchases: !!(user?.purchases) });
+      return false;
+    }
 
-    return user.purchases.some(p => 
-      p.questionSetId === questionSetId && 
-      (new Date(p.expiryDate) > new Date() || !p.expiryDate)
-    );
+    console.log(`[hasAccessToQuestionSet] 检查题库权限 ${questionSetId}, 购买记录:`, user.purchases);
+    
+    // 确保questionSetId是字符串类型进行比较
+    const strQuestionSetId = String(questionSetId);
+    
+    const hasAccess = user.purchases.some(p => {
+      const purchaseQuestionSetId = String(p.questionSetId);
+      const isMatching = purchaseQuestionSetId === strQuestionSetId;
+      const isValid = new Date(p.expiryDate) > new Date() || !p.expiryDate;
+      const isActive = p.status !== 'cancelled' && p.status !== 'expired';
+      
+      return isMatching && isValid && isActive;
+    });
+    
+    console.log(`[hasAccessToQuestionSet] 题库 ${questionSetId} 访问结果:`, hasAccess);
+    
+    return hasAccess;
   }, [user]);
 
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
@@ -386,14 +402,90 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const redeemCode = async (code: string): Promise<{ success: boolean; message: string; quizId?: string; quizTitle?: string }> => {
     if (!user) return { success: false, message: '请先登录' };
     try {
+      console.log(`[RedeemCode] 开始兑换码: ${code}`);
       const response = await redeemCodeApi.redeemCode(code);
+      
+      console.log(`[RedeemCode] 后端响应:`, response);
+      
       if (response.success) {
-        // 兑换成功，获取最新用户数据
-        await fetchCurrentUser();
+        // 获取购买记录和题库信息
+        const rawPurchase = response.data?.purchase;
+        const questionSet = response.data?.questionSet;
+        
+        console.log(`[RedeemCode] 原始购买记录:`, rawPurchase);
+        console.log(`[RedeemCode] 题库信息:`, questionSet);
+        
+        if (rawPurchase && user) {
+          // 从原始数据中获取字段，考虑到API可能返回蛇形命名法
+          const questionSetId = questionSet?.id || 
+                             rawPurchase.questionSetId || 
+                             (rawPurchase as any).question_set_id;
+                             
+          const purchaseDate = rawPurchase.purchaseDate || 
+                            (rawPurchase as any).purchase_date || 
+                            new Date().toISOString();
+                            
+          const expiryDate = rawPurchase.expiryDate || 
+                          (rawPurchase as any).expiry_date || 
+                          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          
+          // 格式化购买记录，确保符合Purchase接口定义
+          const formattedPurchase: Purchase = {
+            id: rawPurchase.id,
+            userId: user.id,
+            questionSetId,
+            purchaseDate,
+            expiryDate,
+            status: rawPurchase.status || 'active',
+            amount: rawPurchase.amount || 0,
+            transactionId: rawPurchase.transactionId || '',
+            paymentMethod: rawPurchase.paymentMethod || 'redeem'
+          };
+          
+          console.log(`[RedeemCode] 格式化后的购买记录:`, formattedPurchase);
+          
+          // 直接更新用户状态中的购买记录
+          const updatedPurchases = [...(user.purchases || [])];
+          
+          // 确保不添加重复的购买记录
+          if (!updatedPurchases.some(p => p.id === formattedPurchase.id)) {
+            updatedPurchases.push(formattedPurchase);
+            
+            console.log(`[RedeemCode] 更新前用户购买记录:`, user.purchases);
+            console.log(`[RedeemCode] 更新后用户购买记录:`, updatedPurchases);
+            
+            // 立即更新用户状态
+            const updatedUser = {
+              ...user,
+              purchases: updatedPurchases
+            };
+            
+            setUser(updatedUser);
+            
+            // 通知用户状态变化
+            notifyUserChange(updatedUser);
+            
+            console.log(`[RedeemCode] 用户状态已更新，新购买记录已添加`);
+          } else {
+            console.log(`[RedeemCode] 购买记录已存在，跳过添加`);
+          }
+        } else {
+          console.warn(`[RedeemCode] 无法更新用户状态:`, { hasPurchase: !!rawPurchase, hasUser: !!user });
+        }
+        
+        // 后台异步获取最新用户数据，以确保数据完整性
+        console.log(`[RedeemCode] 开始获取最新用户数据`);
+        fetchCurrentUser().then(userData => {
+          console.log(`[RedeemCode] 获取到最新用户数据:`, userData);
+        });
         
         // 安全地获取题库ID和标题
-        const quizId = response.data?.purchase?.questionSetId;
-        const quizTitle = response.data?.questionSet?.title;
+        const quizId = questionSet?.id || 
+                      rawPurchase?.questionSetId || 
+                      (rawPurchase as any)?.question_set_id;
+        const quizTitle = questionSet?.title;
+        
+        console.log(`[RedeemCode] 返回兑换结果:`, { quizId, quizTitle });
         
         return {
           success: true,
