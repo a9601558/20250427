@@ -321,6 +321,26 @@ function QuizPage(): JSX.Element {
     }
   }, [questions, loading]);
   
+  // 监听兑换码成功事件
+  useEffect(() => {
+    const handleRedeemSuccess = (e: CustomEvent) => {
+      console.log(`[QuizPage] 接收到兑换码成功事件:`, e.detail);
+      if (e.detail?.quizId === questionSet?.id) {
+        console.log(`[QuizPage] 题库ID匹配，更新访问权限`);
+        setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+        // 主动检查一次权限
+        checkAccess();
+      }
+    };
+    
+    window.addEventListener('redeem:success', handleRedeemSuccess as EventListener);
+    
+    return () => {
+      window.removeEventListener('redeem:success', handleRedeemSuccess as EventListener);
+    };
+  }, [questionSet?.id]);
+  
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
@@ -738,6 +758,26 @@ function QuizPage(): JSX.Element {
         totalQuestions={questions.length}
         quizTitle={questionSet.title}
         userAnsweredQuestion={answeredQuestions.find(q => q.index === currentQuestionIndex)}
+        onJumpToQuestion={(index) => {
+          // 如果试用已结束且没有购买，不允许跳转
+          if (trialEnded && !hasAccessToFullQuiz && index >= (questionSet.trialQuestions || 0)) {
+            console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
+            return;
+          }
+          
+          // 确保没有未提交的答案
+          const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
+          if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
+            if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
+              setCurrentQuestionIndex(index);
+              setSelectedOptions([]);
+            }
+          } else {
+            console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
+            setCurrentQuestionIndex(index);
+            setSelectedOptions([]);
+          }
+        }}
       />
       
       {/* 兑换码模态框 */}

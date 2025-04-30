@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
@@ -16,7 +16,23 @@ interface QuestionCardProps {
     isCorrect: boolean; 
     selectedOption: string | string[];
   };
+  onJumpToQuestion?: (questionIndex: number) => void;
 }
+
+// 提示语精简：提取为常量，便于后期i18n多语言
+const MESSAGES = {
+  SUBMIT_ANSWER: '提交答案',
+  SELECT_ONE_OPTION: '请选择一个选项',
+  SUBMIT_ALL_OPTIONS: '提交所有选项',
+  SELECT_AT_LEAST_ONE: '请选择至少一个选项',
+  CORRECT_ANSWER: '回答正确!',
+  WRONG_ANSWER: '回答错误!',
+  CORRECT_ANSWER_IS: '正确答案是',
+  SHOW_EXPLANATION: '查看解析',
+  HIDE_EXPLANATION: '隐藏解析',
+  ANALYSIS: '解析:',
+  NEXT_QUESTION: '下一题'
+};
 
 const QuestionCard = ({ 
   question, 
@@ -25,7 +41,8 @@ const QuestionCard = ({
   questionNumber, 
   totalQuestions, 
   quizTitle,
-  userAnsweredQuestion 
+  userAnsweredQuestion,
+  onJumpToQuestion
 }: QuestionCardProps) => {
   // 单选题选择一个选项，多选题选择多个选项
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -35,21 +52,40 @@ const QuestionCard = ({
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
-
-  // 检查答案是否正确
-  const checkCorrectness = (): boolean => {
-    if (!isSubmitted) return false;
-    if (question.questionType === 'single') {
-      return selectedOption === question.correctAnswer;
-    } else {
-      const correctAnswers = question.correctAnswer as string[];
-      return selectedOptions.length === correctAnswers.length &&
-        selectedOptions.every(o => correctAnswers.includes(o)) &&
-        correctAnswers.every(o => selectedOptions.includes(o));
+  
+  // 防重复提交
+  const isSubmittingRef = useRef(false);
+  
+  // 为键盘导航跟踪当前选项
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
+  
+  // 当userAnsweredQuestion存在时预填选项
+  useEffect(() => {
+    if (userAnsweredQuestion) {
+      setIsSubmitted(true);
+      if (question.questionType === 'single') {
+        setSelectedOption(userAnsweredQuestion.selectedOption as string);
+      } else {
+        setSelectedOptions(userAnsweredQuestion.selectedOption as string[]);
+      }
     }
-  };
+  }, [userAnsweredQuestion, question.questionType]);
 
-  const isCorrect = checkCorrectness();
+  // 优化后的正确性检查逻辑
+  const isCorrect = userAnsweredQuestion
+    ? userAnsweredQuestion.isCorrect
+    : isSubmitted && (
+        question.questionType === 'single'
+          ? selectedOption === question.correctAnswer
+          : (() => {
+              const correctAnswers = question.correctAnswer as string[];
+              return (
+                selectedOptions.length === correctAnswers.length &&
+                selectedOptions.every(id => correctAnswers.includes(id)) &&
+                correctAnswers.every(id => selectedOptions.includes(id))
+              );
+            })()
+      );
 
   const handleOptionClick = (optionId: string) => {
     if (isSubmitted) return;
@@ -70,40 +106,79 @@ const QuestionCard = ({
       });
     }
   };
+  
+  // 处理选项键盘操作
+  const handleOptionKeyDown = (e: KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
+    // 空格键或回车键选择选项
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      handleOptionClick(optionId);
+    }
+    // 上下键导航选项
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedOptionIndex(Math.min(index + 1, question.options.length - 1));
+    }
+    else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedOptionIndex(Math.max(index - 1, 0));
+    }
+  };
+  
+  // 当焦点选项索引改变时，自动聚焦对应元素
+  useEffect(() => {
+    if (focusedOptionIndex >= 0) {
+      const optionElement = document.getElementById(`option-${focusedOptionIndex}`);
+      if (optionElement) {
+        optionElement.focus();
+      }
+    }
+  }, [focusedOptionIndex]);
 
   const handleSubmit = () => {
-    if (question.questionType === 'single' && selectedOption) {
-      setIsSubmitted(true);
-      // 通知父组件答题结果
-      const isCorrect = selectedOption === question.correctAnswer;
-      if (onAnswerSubmitted) {
-        onAnswerSubmitted(isCorrect, selectedOption);
+    // 防重复提交机制
+    if (isSubmittingRef.current || isSubmitted) return;
+    isSubmittingRef.current = true;
+    
+    try {
+      if (question.questionType === 'single' && selectedOption) {
+        setIsSubmitted(true);
+        // 通知父组件答题结果
+        const isCorrect = selectedOption === question.correctAnswer;
+        if (onAnswerSubmitted) {
+          onAnswerSubmitted(isCorrect, selectedOption);
+        }
+        // 答对自动跳到下一题
+        if (isCorrect) {
+          timeoutId = setTimeout(() => {
+            handleNext();
+          }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
+        }
+      } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
+        setIsSubmitted(true);
+        // 比较选中的选项和正确答案（数组比较）
+        const correctAnswers = question.correctAnswer as string[];
+        // 判断所选选项是否与正确答案完全一致
+        const isCorrect = 
+          selectedOptions.length === correctAnswers.length && 
+          selectedOptions.every(option => correctAnswers.includes(option)) &&
+          correctAnswers.every(option => selectedOptions.includes(option));
+        
+        if (onAnswerSubmitted) {
+          onAnswerSubmitted(isCorrect, selectedOptions);
+        }
+        // 答对自动跳到下一题
+        if (isCorrect) {
+          timeoutId = setTimeout(() => {
+            handleNext();
+          }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
+        }
       }
-      // 答对自动跳到下一题
-      if (isCorrect) {
-        timeoutId = setTimeout(() => {
-          handleNext();
-        }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
-      }
-    } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
-      setIsSubmitted(true);
-      // 比较选中的选项和正确答案（数组比较）
-      const correctAnswers = question.correctAnswer as string[];
-      // 判断所选选项是否与正确答案完全一致
-      const isCorrect = 
-        selectedOptions.length === correctAnswers.length && 
-        selectedOptions.every(option => correctAnswers.includes(option)) &&
-        correctAnswers.every(option => selectedOptions.includes(option));
-      
-      if (onAnswerSubmitted) {
-        onAnswerSubmitted(isCorrect, selectedOptions);
-      }
-      // 答对自动跳到下一题
-      if (isCorrect) {
-        timeoutId = setTimeout(() => {
-          handleNext();
-        }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
-      }
+    } finally {
+      // 1秒后才能再次提交，防止快速点击
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 1000);
     }
   };
 
@@ -113,6 +188,13 @@ const QuestionCard = ({
     setIsSubmitted(false);
     setShowExplanation(false);
     onNext();
+  };
+  
+  // 处理题号跳转
+  const handleJumpToQuestion = (index: number) => {
+    if (onJumpToQuestion && !isSubmittingRef.current) {
+      onJumpToQuestion(index);
+    }
   };
 
   // 清理定时器
@@ -142,7 +224,7 @@ const QuestionCard = ({
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowRedeemCodeModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors duration-200"
           >
             使用兑换码
           </button>
@@ -159,6 +241,26 @@ const QuestionCard = ({
           {question.questionType === 'single' ? '单选题' : '多选题'}
         </span>
       </div>
+      
+      {/* 题号小圆点导航 */}
+      {onJumpToQuestion && (
+        <div className="flex justify-center mb-6 flex-wrap gap-1">
+          {Array.from({ length: totalQuestions }).map((_, index) => (
+            <button
+              key={index}
+              onClick={() => handleJumpToQuestion(index)}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+                transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                ${questionNumber === index + 1 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+              aria-label={`跳转到第${index + 1}题`}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 问题内容 */}
       <div className="mb-6">
@@ -168,26 +270,33 @@ const QuestionCard = ({
       {/* 选项 */}
       <div className="mb-6">
         {question.options.map((option, index) => (
-          <QuestionOption
+          <div 
             key={option.id}
-            option={option}
-            index={index}
-            isSelected={
-              question.questionType === 'single' 
-                ? selectedOption === option.id 
-                : selectedOptions.includes(option.id)
-            }
-            isCorrect={
-              isSubmitted
-                ? question.questionType === 'single'
-                  ? question.correctAnswer as string
-                  : (question.correctAnswer as string[]).includes(option.id) ? option.id : null
-                : null
-            }
-            isSubmitted={isSubmitted}
-            isMultiple={question.questionType === 'multiple'}
-            onClick={() => handleOptionClick(option.id)}
-          />
+            id={`option-${index}`}
+            tabIndex={0}
+            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
+            className={`focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-md`}
+          >
+            <QuestionOption
+              option={option}
+              index={index}
+              isSelected={
+                question.questionType === 'single' 
+                  ? selectedOption === option.id 
+                  : selectedOptions.includes(option.id)
+              }
+              isCorrect={
+                isSubmitted
+                  ? question.questionType === 'single'
+                    ? question.correctAnswer as string
+                    : (question.correctAnswer as string[]).includes(option.id) ? option.id : null
+                  : null
+              }
+              isSubmitted={isSubmitted}
+              isMultiple={question.questionType === 'multiple'}
+              onClick={() => handleOptionClick(option.id)}
+            />
+          </div>
         ))}
       </div>
 
@@ -196,28 +305,28 @@ const QuestionCard = ({
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center">
-              <span className={`inline-block w-5 h-5 rounded-full mr-2 ${isCorrect ? 'bg-green-500' : 'bg-red-500'}`}></span>
-              <span className={`font-medium ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                {isCorrect ? '回答正确!' : '回答错误!'}
+              <span className={`inline-block w-5 h-5 rounded-full mr-2 ${isCorrect ? 'bg-green-500' : 'bg-red-500'} transition-colors duration-300`}></span>
+              <span className={`font-medium ${isCorrect ? 'text-green-600' : 'text-red-600'} transition-colors duration-300`}>
+                {isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER}
                 {!isCorrect && question.questionType === 'single' && 
-                  ` 正确答案是 ${question.correctAnswer}`
+                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${question.correctAnswer}`
                 }
                 {!isCorrect && question.questionType === 'multiple' && 
-                  ` 正确答案是 ${(question.correctAnswer as string[]).join(', ')}`
+                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${(question.correctAnswer as string[]).join(', ')}`
                 }
               </span>
             </div>
             <button
               onClick={() => setShowExplanation(!showExplanation)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors duration-200"
             >
-              {showExplanation ? '隐藏解析' : '查看解析'}
+              {showExplanation ? MESSAGES.HIDE_EXPLANATION : MESSAGES.SHOW_EXPLANATION}
             </button>
           </div>
 
           {showExplanation && (
-            <div className="bg-gray-50 p-4 rounded-md mt-2">
-              <h3 className="font-semibold text-gray-700 mb-2">解析:</h3>
+            <div className="bg-gray-50 p-4 rounded-md mt-2 animate-fadeIn">
+              <h3 className="font-semibold text-gray-700 mb-2">{MESSAGES.ANALYSIS}</h3>
               <p className="text-gray-600">{question.explanation}</p>
             </div>
           )}
@@ -231,28 +340,28 @@ const QuestionCard = ({
             onClick={handleSubmit}
             disabled={question.questionType === 'single' 
               ? !selectedOption 
-              : selectedOptions.length === 0}
-            className={`py-2 px-6 rounded-lg font-medium ${
-              (question.questionType === 'single' ? selectedOption : selectedOptions.length > 0)
+              : selectedOptions.length === 0 || isSubmittingRef.current}
+            className={`py-2 px-6 rounded-lg font-medium transition-colors duration-200 ${
+              (question.questionType === 'single' ? selectedOption : selectedOptions.length > 0) && !isSubmittingRef.current
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
             {question.questionType === 'single' 
               ? selectedOption 
-                ? '提交答案' 
-                : '请选择一个选项'
+                ? MESSAGES.SUBMIT_ANSWER 
+                : MESSAGES.SELECT_ONE_OPTION
               : selectedOptions.length > 0
-                ? '提交所有选项'
-                : '请选择至少一个选项'}
+                ? MESSAGES.SUBMIT_ALL_OPTIONS
+                : MESSAGES.SELECT_AT_LEAST_ONE}
           </button>
         ) : (
           !isCorrect && (
             <button
               onClick={handleNext}
-              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-medium"
+              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-medium transition-colors duration-200"
             >
-              下一题
+              {MESSAGES.NEXT_QUESTION}
             </button>
           )
         )}
@@ -260,13 +369,13 @@ const QuestionCard = ({
 
       {/* Redeem Code Modal */}
       {showRedeemCodeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 animate-scaleIn">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">题库兑换码</h2>
               <button
                 onClick={() => setShowRedeemCodeModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 transition-colors duration-200"
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -277,10 +386,12 @@ const QuestionCard = ({
               console.log(`[QuestionCard] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
               
-              // 更新界面
-              setTimeout(() => {
-                window.location.reload();
-              }, 1000);
+              // 使用自定义事件通知父组件，避免使用window.location.reload()
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('redeem:success', { 
+                  detail: { quizId } 
+                }));
+              }
             }} />
           </div>
         </div>
@@ -288,5 +399,28 @@ const QuestionCard = ({
     </div>
   );
 };
+
+// 为动画添加全局样式
+const styleElement = document.createElement('style');
+styleElement.textContent = `
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .animate-scaleIn {
+    animation: scaleIn 0.3s ease-out;
+  }
+`;
+document.head.appendChild(styleElement);
 
 export default QuestionCard; 
