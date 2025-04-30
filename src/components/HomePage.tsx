@@ -353,40 +353,16 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('progress:update', (updatedProgress: UserProgress) => {
-      // 使用函数式更新确保使用最新状态
-      setUserProgressStats(prevStats => {
-        const newStats = { ...prevStats };
-        const questionSetId = updatedProgress.questionSetId;
-        
-        if (!newStats[questionSetId]) {
-          newStats[questionSetId] = {
-            ...updatedProgress,
-            completedQuestions: 0,
-            totalQuestions: 0,
-            correctAnswers: 0,
-            totalTimeSpent: 0,
-            averageTimeSpent: 0,
-            accuracy: 0
-          };
-        }
-        
-        // 更新统计信息
-        const stats = newStats[questionSetId];
-        stats.completedQuestions++;
-        if (updatedProgress.isCorrect) stats.correctAnswers++;
-        stats.totalTimeSpent += updatedProgress.timeSpent;
-        stats.averageTimeSpent = stats.totalTimeSpent / stats.completedQuestions;
-        stats.accuracy = (stats.correctAnswers / stats.completedQuestions) * 100;
-        
-        return newStats;
-      });
+    socket.on('progress:update', () => {
+      if (user && questionSets.length > 0) {
+        fetchUserProgress();  // 拉取后 setUserProgressStats 会替换旧数据
+      }
     });
 
     return () => {
       socket.off('progress:update');
     };
-  }, [socket]);
+  }, [socket, user, questionSets.length, fetchUserProgress]);
 
   // 修改显示进度的部分
   const renderProgressBar = (questionSet: QuestionSet) => {

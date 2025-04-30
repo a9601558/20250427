@@ -163,106 +163,48 @@ const ProfilePage: React.FC = () => {
   }, []);
 
   // 处理实时进度更新
-  const handleProgressUpdate = useMemo(() => (data: ProgressRecord) => {
-    setProgressStats(prevStats => {
-      const statsCopy = [...prevStats];
-      const existingStatIndex = statsCopy.findIndex(
-        stat => stat.questionSetId === data.questionSetId
-      );
+  const handleProgressUpdate = useCallback(async () => {
+    try {
+      setIsLoading(true);
       
-      if (existingStatIndex >= 0) {
-        const stat = statsCopy[existingStatIndex];
-        
-        // 检查是否是重复的题目
-        const isNewQuestion = !stat.answeredQuestions?.some(
-          q => q.questionId === data.questionId
-        );
-        
-        if (isNewQuestion) {
-          const newCompletedQuestions = stat.completedQuestions + 1;
-          const newCorrectAnswers = data.isCorrect 
-            ? stat.correctAnswers + 1 
-            : stat.correctAnswers;
-          const newTotalTimeSpent = stat.totalTimeSpent + data.timeSpent;
-          
-          statsCopy[existingStatIndex] = {
-            ...stat,
-            completedQuestions: newCompletedQuestions,
-            correctAnswers: newCorrectAnswers,
-            totalTimeSpent: newTotalTimeSpent,
-            averageTimeSpent: newTotalTimeSpent / newCompletedQuestions,
-            accuracy: Math.min(100, (newCorrectAnswers / newCompletedQuestions) * 100),
-            answeredQuestions: [
-              ...(stat.answeredQuestions || []),
-              {
-                questionId: data.questionId,
-                selectedOptionId: '', // 这里需要从data中获取
-                isCorrect: data.isCorrect
-              }
-            ]
-          };
-        }
-      } else {
-        statsCopy.push({
-          questionSetId: data.questionSetId,
-          title: data.progressQuestionSet?.title || 'Unknown Set',
-          completedQuestions: 1,
-          correctAnswers: data.isCorrect ? 1 : 0,
-          totalTimeSpent: data.timeSpent,
-          averageTimeSpent: data.timeSpent,
-          accuracy: data.isCorrect ? 100 : 0,
-          answeredQuestions: [{
-            questionId: data.questionId,
-            selectedOptionId: '', // 这里需要从data中获取
-            isCorrect: data.isCorrect
-          }]
+      const questionSetsResponse = await questionSetService.getAllQuestionSets();
+      const questionSetsMap = new Map<string, QuestionSet>();
+      
+      if (questionSetsResponse.success && questionSetsResponse.data) {
+        questionSetsResponse.data.forEach(qs => {
+          questionSetsMap.set(qs.id, { id: qs.id, title: qs.title });
         });
       }
       
-      return statsCopy;
-    });
-  }, []);
+      const progressResponse = await userProgressService.getUserProgressRecords();
+      
+      if (progressResponse.success && progressResponse.data) {
+        const stats = calculateProgressStats(progressResponse.data, questionSetsMap);
+        setProgressStats(stats);
+      } else {
+        throw new Error(progressResponse.message || 'Failed to fetch progress');
+      }
+    } catch (error) {
+      toast.error('Failed to load progress data');
+      console.error('[ProfilePage] Error fetching progress:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calculateProgressStats]);
 
   useEffect(() => {
     if (!socket || !user) return;
 
-    const fetchProgressData = async () => {
-      try {
-        setIsLoading(true);
-        
-        const questionSetsResponse = await questionSetService.getAllQuestionSets();
-        const questionSetsMap = new Map<string, QuestionSet>();
-        
-        if (questionSetsResponse.success && questionSetsResponse.data) {
-          questionSetsResponse.data.forEach(qs => {
-            questionSetsMap.set(qs.id, { id: qs.id, title: qs.title });
-          });
-        }
-        
-        const progressResponse = await userProgressService.getUserProgressRecords();
-        
-        if (progressResponse.success && progressResponse.data) {
-          const stats = calculateProgressStats(progressResponse.data, questionSetsMap);
-          setProgressStats(stats);
-        } else {
-          throw new Error(progressResponse.message || 'Failed to fetch progress');
-        }
-      } catch (error) {
-        toast.error('Failed to load progress data');
-        console.error('[ProfilePage] Error fetching progress:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    // 初始加载数据
+    handleProgressUpdate();
 
-    fetchProgressData();
-
+    // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
 
     return () => {
       socket.off('progress:update', handleProgressUpdate);
     };
-  }, [socket, user, calculateProgressStats]);
+  }, [socket, user, handleProgressUpdate]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-64">
