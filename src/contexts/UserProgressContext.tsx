@@ -33,10 +33,21 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // 更新进度统计的通用方法
   const updateProgressStats = useCallback((newStats: Record<string, ProgressStats>) => {
-    setProgressStats(prev => ({
-      ...prev,
-      ...newStats
-    }));
+    setProgressStats(prev => {
+      // 确保每个进度记录都有lastAccessed字段
+      const processedStats = Object.entries(newStats).reduce((acc, [key, value]) => {
+        acc[key] = {
+          ...value,
+          lastAccessed: value.lastAccessed || new Date().toISOString()
+        };
+        return acc;
+      }, {} as Record<string, ProgressStats>);
+
+      return {
+        ...prev,
+        ...processedStats
+      };
+    });
   }, []);
 
   // 获取用户进度，支持强制更新
@@ -49,10 +60,19 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const response = await userProgressService.getUserProgress();
       if (response.success && response.data) {
+        // 确保每个进度记录都有lastAccessed字段
+        const processedData = Object.entries(response.data).reduce((acc, [key, value]) => {
+          acc[key] = {
+            ...value,
+            lastAccessed: value.lastAccessed || new Date().toISOString()
+          };
+          return acc;
+        }, {} as Record<string, ProgressStats>);
+
         if (forceUpdate) {
-          updateProgressStats(response.data);
+          updateProgressStats(processedData);
         }
-        return response.data;
+        return processedData;
       }
     } catch (err) {
       console.error('获取用户进度失败:', err);
