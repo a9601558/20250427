@@ -39,8 +39,16 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
     
     if (!aProgress || !bProgress) return 0;
     
-    const aTime = aProgress.lastAccessed ? new Date(aProgress.lastAccessed).getTime() : 0;
-    const bTime = bProgress.lastAccessed ? new Date(bProgress.lastAccessed).getTime() : 0;
+    const parseTime = (input?: string | Date): number => {
+      try {
+        return input ? new Date(input).getTime() : 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    const aTime = parseTime(aProgress?.lastAccessed);
+    const bTime = parseTime(bProgress?.lastAccessed);
     return bTime - aTime; // 从新到旧排序
   });
 

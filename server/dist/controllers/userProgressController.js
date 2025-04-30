@@ -324,7 +324,7 @@ const getProgressStats = async (req, res) => {
                 completed: 0,
                 correct: 0,
                 totalTime: 0,
-                lastAccessed: undefined
+                lastAccessed: new Date(0) // 使用默认时间戳
             };
             const completedQuestions = progress.completed;
             const correctAnswers = progress.correct;
@@ -334,7 +334,7 @@ const getProgressStats = async (req, res) => {
             // 确保 lastAccessed 始终有值
             const lastAccessed = progress.lastAccessed
                 ? progress.lastAccessed.toISOString()
-                : new Date().toISOString();
+                : new Date(0).toISOString(); // 使用默认时间戳
             return {
                 questionSetId: qs.id,
                 questionSet: {

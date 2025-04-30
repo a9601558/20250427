@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { QuestionSet } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { useUserProgress } from '../contexts/UserProgressContext';
 
 interface UserProgressDisplayProps {
   questionSets: QuestionSet[];
@@ -21,21 +22,21 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
   className = '',
 }) => {
   const { user, getQuizScore, isQuizCompleted } = useUser();
+  const { progressStats } = useUserProgress();
 
-  if (!user || !user.progress || Object.keys(user.progress).length === 0) {
+  if (!user || !progressStats || Object.keys(progressStats).length === 0) {
     return null;
   }
 
   // 获取有进度记录的题库
   const progressQuestionSets = questionSets.filter(qs => 
-    user.progress && user.progress[qs.id] && 
-    user.progress[qs.id].completedQuestions > 0
+    progressStats[qs.id] && progressStats[qs.id].completedQuestions > 0
   );
 
   // 按照最后访问时间排序
   const sortedSets = [...progressQuestionSets].sort((a, b) => {
-    const aTime = user.progress[a.id]?.lastAccessed ? new Date(user.progress[a.id].lastAccessed).getTime() : 0;
-    const bTime = user.progress[b.id]?.lastAccessed ? new Date(user.progress[b.id].lastAccessed).getTime() : 0;
+    const aTime = progressStats[a.id]?.lastAccessed ? new Date(progressStats[a.id].lastAccessed).getTime() : 0;
+    const bTime = progressStats[b.id]?.lastAccessed ? new Date(progressStats[b.id].lastAccessed).getTime() : 0;
     return bTime - aTime; // 从新到旧排序
   });
 
@@ -47,8 +48,8 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
   }
 
   // 计算总体进度
-  const totalQuestions = Object.values(user.progress).reduce((sum, prog) => sum + prog.totalQuestions, 0);
-  const completedQuestions = Object.values(user.progress).reduce((sum, prog) => sum + prog.completedQuestions, 0);
+  const totalQuestions = Object.values(progressStats).reduce((sum, prog) => sum + prog.totalQuestions, 0);
+  const completedQuestions = Object.values(progressStats).reduce((sum, prog) => sum + prog.completedQuestions, 0);
   const overallProgress = totalQuestions > 0 ? Math.round((completedQuestions / totalQuestions) * 100) : 0;
 
   return (
@@ -82,7 +83,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
       {/* 各题库进度 */}
       <div className="space-y-3">
         {displaySets.map((questionSet) => {
-          const progress = user.progress[questionSet.id];
+          const progress = progressStats[questionSet.id];
           const progressPercentage = Math.round((progress.completedQuestions / progress.totalQuestions) * 100);
           const score = getQuizScore(questionSet.id);
           const isCompleted = isQuizCompleted(questionSet.id);

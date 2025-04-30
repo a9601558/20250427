@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { userService } from './api';
 
 interface SaveProgressParams {
   questionId: string;
@@ -47,9 +48,17 @@ class UserProgressService {
 
   async getUserProgress(questionSetId?: string): Promise<ApiResponse<Record<string, ProgressStats>>> {
     try {
+      const currentUser = await userService.getCurrentUser();
+      if (!currentUser.success || !currentUser.data) {
+        throw new Error('无法获取当前用户信息');
+      }
+
       const url = questionSetId 
-        ? `${this.baseUrl}/stats?questionSetId=${questionSetId}`
-        : `${this.baseUrl}/stats`;
+        ? `${this.baseUrl}/stats/${currentUser.data.id}?questionSetId=${questionSetId}`
+        : `${this.baseUrl}/stats/${currentUser.data.id}`;
+
+      console.log("获取用户进度，用户ID:", currentUser.data.id); // 添加日志
+
       const response = await axios.get(url, {
         headers: this.getAuthHeader()
       });
@@ -64,6 +73,8 @@ class UserProgressService {
           };
           return acc;
         }, {} as Record<string, ProgressStats>);
+
+        console.log("处理后的进度数据:", processedData); // 添加日志
 
         return {
           success: true,
