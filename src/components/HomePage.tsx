@@ -10,6 +10,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { userProgressService } from '../services/api';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
+import PaymentModal from './PaymentModal';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -49,6 +50,8 @@ const HomePage: React.FC = () => {
   });
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [showUserInfo, setShowUserInfo] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedQuestionSet, setSelectedQuestionSet] = useState<QuestionSet | null>(null);
   const navigate = useNavigate();
 
   // 使用 useCallback 包装 fetchUserProgress 以避免不必要的重渲染
@@ -359,23 +362,37 @@ const HomePage: React.FC = () => {
 
   // 处理开始答题
   const handleStartQuiz = (questionSet: QuestionSet) => {
+    // 免费题库，直接开始
     if (!questionSet.isPaid) {
       navigate(`/quiz/${questionSet.id}`);
       return;
     }
     
+    // 未登录用户，重定向到登录页
     if (!user) {
+      // 保存当前题库ID，以便登录后返回
+      sessionStorage.setItem('redirectQuizId', questionSet.id);
       navigate('/login');
       return;
     }
     
     const { hasAccess } = getQuestionSetAccessStatus(questionSet);
+    
+    // 已购买，直接开始
     if (hasAccess) {
       navigate(`/quiz/${questionSet.id}`);
-    } else {
-      // 显示购买提示
-      alert('您需要购买此题库才能访问完整内容');
+      return;
     }
+    
+    // 有试用题目，可以开始试用
+    if (questionSet.trialQuestions && questionSet.trialQuestions > 0) {
+      navigate(`/quiz/${questionSet.id}`);
+      return;
+    }
+    
+    // 无试用题目，显示购买提示
+    setSelectedQuestionSet(questionSet);
+    setShowPaymentModal(true);
   };
 
   // 处理分类切换
@@ -461,10 +478,10 @@ const HomePage: React.FC = () => {
       )}
       
       <div className="relative py-3 sm:max-w-4xl sm:mx-auto">
-        {/* 用户菜单 - 右上角 */}
-        <div className="absolute top-0 right-0 mt-4 mr-4 z-10">
+        用户菜单 - 右上角
+        {/* <div className="absolute top-0 right-0 mt-4 mr-4 z-10">
           <UserMenu />
-        </div>
+        </div> */}
         
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
@@ -646,35 +663,59 @@ const HomePage: React.FC = () => {
                 return (
                   <div 
                     key={questionSet.id}
-                    className={`bg-white rounded-lg shadow-md overflow-hidden ${
-                      !hasAccess && isPaid ? 'opacity-75' : ''
+                    className={`bg-white rounded-lg shadow-md overflow-hidden border ${
+                      !hasAccess && isPaid 
+                        ? 'border-yellow-200' 
+                        : hasAccess && isPaid 
+                          ? 'border-green-200' 
+                          : 'border-gray-200'
                     }`}
                   >
                     <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
+                      <div className="flex justify-between items-start mb-2">
                         <h3 className="text-xl font-semibold text-gray-900">
                           {questionSet.title}
                         </h3>
                         {isPaid && (
-                          <span className="px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-full">
-                            ¥{questionSet.price}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-full">
+                              ¥{questionSet.price}
+                            </span>
+                            {questionSet.trialQuestions && questionSet.trialQuestions > 0 && (
+                              <span className="text-xs text-gray-600 mt-1">
+                                可试用 {questionSet.trialQuestions} 题
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       
                       <p className="text-gray-600 mb-4">{questionSet.description}</p>
                       
                       <div className="flex items-center justify-between mb-4">
-                        <span className="text-sm text-gray-500">
-                          {questionSet.questions?.length || questionSet.questionCount || 0} 道题目
-                        </span>
+                        <div className="flex items-center">
+                          <span className="text-sm text-gray-500">
+                            {questionSet.questions?.length || questionSet.questionCount || 0} 道题目
+                          </span>
+                          {isPaid && (
+                            <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${
+                              hasAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {hasAccess ? '已购买' : '付费题库'}
+                            </span>
+                          )}
+                        </div>
                         {isPaid && (
                           hasAccess && remainingDays !== null ? (
-                            <span className="text-sm text-green-600">
+                            <span className="text-sm text-green-600 font-medium">
                               剩余 {remainingDays} 天
                             </span>
+                          ) : questionSet.trialQuestions && questionSet.trialQuestions > 0 ? (
+                            <span className="text-sm text-orange-500 font-medium">
+                              可试用 {questionSet.trialQuestions} 题
+                            </span>
                           ) : (
-                            <span className="text-sm text-orange-500">
+                            <span className="text-sm text-orange-500 font-medium">
                               需要购买
                             </span>
                           )
@@ -693,7 +734,9 @@ const HomePage: React.FC = () => {
                         }`}
                       >
                         {!hasAccess && isPaid
-                          ? '立即购买'
+                          ? questionSet.trialQuestions && questionSet.trialQuestions > 0
+                            ? '免费试用'
+                            : '立即购买'
                           : user && progressStats && progressStats[questionSet.id]
                             ? '继续练习'
                             : '开始练习'}
@@ -722,6 +765,34 @@ const HomePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* 支付模态窗口 */}
+      {showPaymentModal && selectedQuestionSet && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          questionSet={selectedQuestionSet}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={() => {
+            // 支付成功后，更新题库的访问状态
+            setQuestionSets(prevSets => {
+              return prevSets.map(set => {
+                if (set.id === selectedQuestionSet.id) {
+                  return {
+                    ...set,
+                    hasAccess: true,
+                    remainingDays: 180 // 默认6个月有效期
+                  };
+                }
+                return set;
+              });
+            });
+            // 关闭模态框
+            setShowPaymentModal(false);
+            // 导航到题库页面
+            navigate(`/quiz/${selectedQuestionSet.id}`);
+          }}
+        />
+      )}
     </div>
   );
 };
