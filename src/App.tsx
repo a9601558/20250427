@@ -6,8 +6,10 @@ import HomePage from './components/HomePage';
 import QuizPage from './components/QuizPage';
 import ProfilePage from './components/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import { UserProvider } from './contexts/UserContext';
 import AdminPage from './components/AdminPage';
+import RedeemCodeAdmin from './components/RedeemCodeAdmin';
 import { SocketProvider } from './contexts/SocketContext';
 import { ToastContainer } from 'react-toastify';
 import { UserProgressProvider } from './contexts/UserProgressContext';
@@ -27,9 +29,14 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <AdminPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
+                } />
+                <Route path="/admin/redeem-codes" element={
+                  <AdminRoute>
+                    <RedeemCodeAdmin />
+                  </AdminRoute>
                 } />
                 <Route path="/quiz/:questionSetId" element={<QuizPage />} />
               </Routes>

@@ -103,6 +103,15 @@ const AdminPage: React.FC = () => {
                   </svg>
                   兑换码管理
                 </button>
+                <Link
+                  to="/admin/redeem-codes"
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center text-gray-600 hover:bg-gray-50`}
+                >
+                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  高级兑换码管理
+                </Link>
                 <button
                   onClick={() => setActiveTab(AdminTab.FEATURED_QUESTION_SETS)}
                   className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.FEATURED_QUESTION_SETS ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}

@@ -107,6 +107,36 @@ export interface IRedeemCode {
   updatedAt: Date;
 }
 
+export interface RedeemCode {
+  id: string;
+  code: string;
+  questionSetId: string;
+  validityDays: number;
+  expiryDate?: string;
+  isUsed: boolean;
+  usedBy?: string;
+  usedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  redeemQuestionSet?: {
+    id: string;
+    title: string;
+    description?: string;
+    icon?: string;
+    category?: string;
+  };
+  redeemUser?: {
+    id: string;
+    username: string;
+    email?: string;
+  };
+  redeemCreator?: {
+    id: string;
+    username: string;
+  };
+}
+
 export interface IOption {
   id: string;
   questionId: string;

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteRedeemCode = exports.redeemCode = exports.getRedeemCodes = exports.generateRedeemCodes = void 0;
+exports.getUserRedeemCodes = exports.deleteRedeemCode = exports.redeemCode = exports.getRedeemCodes = exports.generateRedeemCodes = void 0;
 const models_1 = require("../models");
 const uuid_1 = require("uuid");
 // @desc    Generate redeem codes
@@ -204,3 +204,57 @@ const deleteRedeemCode = async (req, res) => {
     }
 };
 exports.deleteRedeemCode = deleteRedeemCode;
+// @desc    Get user's redeemed codes
+// @route   GET /api/redeem-codes/user
+// @access  Private
+const getUserRedeemCodes = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // 查找用户已兑换的所有兑换码
+        const redeemCodes = await models_1.RedeemCode.findAll({
+            where: {
+                usedBy: userId,
+                isUsed: true
+            },
+            include: [
+                {
+                    model: models_1.QuestionSet,
+                    as: 'redeemQuestionSet',
+                    attributes: ['id', 'title', 'description', 'icon', 'category']
+                }
+            ],
+            order: [['usedAt', 'DESC']]
+        });
+        // 获取相关的购买记录以检查有效期
+        const purchases = await models_1.Purchase.findAll({
+            where: {
+                userId,
+                status: 'active'
+            }
+        });
+        // 为兑换码添加失效日期信息
+        const codeWithExpiry = redeemCodes.map(code => {
+            const purchase = purchases.find(p => p.questionSetId === code.questionSetId);
+            // 确保 usedAt 是字符串类型
+            const usedAtString = code.usedAt ? code.usedAt.toString() : new Date().toISOString();
+            const usedDate = new Date(usedAtString);
+            const defaultExpiryDate = new Date(usedDate.getTime() + 180 * 24 * 60 * 60 * 1000); // 默认6个月有效期
+            return {
+                ...code.toJSON(),
+                expiryDate: purchase?.expiryDate ?? defaultExpiryDate
+            };
+        });
+        res.json({
+            success: true,
+            data: codeWithExpiry
+        });
+    }
+    catch (error) {
+        console.error('Get user redeemed codes error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Server error'
+        });
+    }
+};
+exports.getUserRedeemCodes = getUserRedeemCodes;

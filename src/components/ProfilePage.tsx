@@ -66,6 +66,21 @@ interface Purchase {
   };
 }
 
+// 兑换记录类型
+interface RedeemRecord {
+  id: string;
+  userId?: string;
+  code: string;
+  questionSetId: string;
+  usedAt: string;
+  expiryDate: string;
+  redeemQuestionSet?: {
+    id: string;
+    title: string;
+    description?: string;
+  };
+}
+
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -195,14 +210,78 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   );
 };
 
+// 兑换记录卡片组件
+interface RedeemCardProps {
+  redeem: RedeemRecord;
+}
+
+const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
+  const navigate = useNavigate();
+  const expiryDate = new Date(redeem.expiryDate);
+  const now = new Date();
+  const isExpired = expiryDate < now;
+  
+  // 计算剩余天数
+  const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // 获取题库标题
+  const title = redeem.redeemQuestionSet?.title || '未知题库';
+  
+  return (
+    <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+      <div className="flex justify-between items-start mb-4">
+        <h2 className="text-lg font-semibold text-blue-700 truncate">{title}</h2>
+        {isExpired ? (
+          <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">已过期</span>
+        ) : (
+          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">有效</span>
+        )}
+      </div>
+      
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">兑换日期:</span>
+          <span className="text-sm font-medium">{formatDate(redeem.usedAt)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">到期日期:</span>
+          <span className="text-sm font-medium">{formatDate(redeem.expiryDate)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">兑换码:</span>
+          <span className="text-sm font-medium">{redeem.code.substring(0, 4)}****</span>
+        </div>
+        
+        {!isExpired && (
+          <div className="flex justify-between items-center mt-2">
+            <span className="text-sm text-gray-600">剩余天数:</span>
+            <span className="text-sm font-medium text-green-600">{remainingDays} 天</span>
+          </div>
+        )}
+      </div>
+      
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <button
+          onClick={() => navigate(`/quiz/${redeem.questionSetId}`)}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md transition-colors"
+        >
+          开始学习
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const ProfilePage: React.FC = () => {
   const { user } = useUser();
   const { socket } = useSocket();
   const [progressStats, setProgressStats] = useState<ProgressStats[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [redeemCodes, setRedeemCodes] = useState<RedeemRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [purchasesLoading, setPurchasesLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'progress' | 'purchases'>('progress');
+  const [redeemCodesLoading, setRedeemCodesLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemed'>('progress');
   const navigate = useNavigate();
 
   // 在前端计算进度统计
@@ -341,25 +420,68 @@ const ProfilePage: React.FC = () => {
     }
   }, [user]);
 
+  // 获取兑换码数据
+  const fetchRedeemCodes = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setRedeemCodesLoading(true);
+      const response = await purchaseService.getUserRedeemCodes();
+      
+      if (response.success && response.data) {
+        const validRedeemCodes = response.data
+          .filter((r: any) => r && r.questionSetId)
+          .map((r: any) => {
+            const redeemRecord: RedeemRecord = {
+              id: r.id || '',
+              code: r.code,
+              questionSetId: r.questionSetId,
+              usedAt: r.usedAt || r.createdAt,
+              expiryDate: r.expiryDate,
+              redeemQuestionSet: r.redeemQuestionSet || 
+                (r.questionSet ? { 
+                  id: r.questionSet.id, 
+                  title: r.questionSet.title,
+                  description: r.questionSet.description
+                } : undefined)
+            };
+            return redeemRecord;
+          });
+        
+        setRedeemCodes(validRedeemCodes);
+      } else {
+        throw new Error(response.message || '获取兑换记录失败');
+      }
+    } catch (error) {
+      toast.error('获取兑换记录失败');
+      console.error('[ProfilePage] Error fetching redeem codes:', error);
+    } finally {
+      setRedeemCodesLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!socket || !user) return;
 
     // 初始加载数据
     handleProgressUpdate();
     fetchPurchases();
+    fetchRedeemCodes();
 
     // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
     socket.on('purchase:success', fetchPurchases);
+    socket.on('redeem:success', fetchRedeemCodes);
 
     return () => {
       socket.off('progress:update', handleProgressUpdate);
       socket.off('purchase:success', fetchPurchases);
+      socket.off('redeem:success', fetchRedeemCodes);
     };
-  }, [socket, user, handleProgressUpdate, fetchPurchases]);
+  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes]);
 
   // 切换标签页
-  const handleTabChange = (tab: 'progress' | 'purchases') => {
+  const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed') => {
     setActiveTab(tab);
   };
 
@@ -389,6 +511,17 @@ const ProfilePage: React.FC = () => {
             `}
           >
             我的购买
+          </button>
+          <button
+            onClick={() => handleTabChange('redeemed')}
+            className={`
+              py-4 px-1 border-b-2 font-medium text-sm
+              ${activeTab === 'redeemed'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            已兑换的
           </button>
         </nav>
       </div>
@@ -464,17 +597,51 @@ const ProfilePage: React.FC = () => {
     );
   };
 
+  // 渲染兑换码内容
+  const renderRedeemedContent = () => {
+    if (redeemCodesLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      );
+    }
+
+    if (redeemCodes.length === 0) {
+      return (
+        <div className="bg-white p-6 rounded-lg shadow text-center">
+          <p className="text-gray-600 mb-4">🎟️ 您还没有兑换任何题库</p>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+          >
+            浏览题库
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <h2 className="text-xl font-semibold mb-4">已兑换的题库</h2>
+        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {redeemCodes.map((redeemCode) => (
+            <RedeemCard key={redeemCode.id} redeem={redeemCode} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-6">个人中心</h1>
       
       {renderTabs()}
       
-      {activeTab === 'progress' ? (
-        renderProgressContent()
-      ) : (
-        renderPurchasesContent()
-      )}
+      {activeTab === 'progress' ? renderProgressContent() : 
+       activeTab === 'purchases' ? renderPurchasesContent() : 
+       renderRedeemedContent()}
     </div>
   );
 };

@@ -741,6 +741,31 @@ export const purchaseService = {
         error: error.error
       };
     }
+  },
+  
+  // 获取用户已兑换的题库记录
+  async getUserRedeemCodes(): Promise<ApiResponse<RedeemCode[]>> {
+    try {
+      const response = await api.get('/redeem-codes/user');
+      const redeemCodes = response.data.data;
+      // 确保返回的数据使用正确的属性名
+      redeemCodes.forEach((code: any) => {
+        if (code.questionSet) {
+          code.redeemQuestionSet = code.questionSet;
+          delete code.questionSet;
+        }
+      });
+      return {
+        success: true,
+        data: redeemCodes
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
   }
 };
 
