@@ -473,8 +473,12 @@ const HomePage: React.FC = () => {
                       <p className="text-sm">
                         {Object.values(progressStats || {}).length > 0
                           ? Object.values(progressStats)
-                              .sort((a, b) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime())[0]
-                              ?.questionSetId
+                              .filter(prog => prog?.lastAccessed)
+                              .sort((a, b) => 
+                                new Date(b.lastAccessed || 0).getTime() - 
+                                new Date(a.lastAccessed || 0).getTime()
+                              )[0]
+                              ?.questionSetId || '暂无学习记录'
                           : '暂无学习记录'}
                       </p>
                     </div>

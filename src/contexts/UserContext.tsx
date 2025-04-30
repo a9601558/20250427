@@ -95,7 +95,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev.progress,
             [data.questionSetId]: {
               ...data.progress,
-              lastAccessed: new Date(data.progress.lastAccessed)
+              lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
             }
           }
         };
@@ -216,7 +216,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         completedQuestions: 0,
         totalQuestions: 0,
         correctAnswers: 0,
-        lastAccessed: new Date(),
+        lastAccessed: new Date().toISOString(),
         totalTimeSpent: 0,
         averageTimeSpent: 0,
         accuracy: 0
@@ -227,7 +227,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         completedQuestions: progress.completedQuestions || existingProgress.completedQuestions,
         totalQuestions: progress.totalQuestions || existingProgress.totalQuestions,
         correctAnswers: progress.correctAnswers || existingProgress.correctAnswers,
-        lastAccessed: progress.lastAttemptDate || new Date(),
+        lastAccessed: progress.lastAttemptDate 
+          ? progress.lastAttemptDate.toISOString() 
+          : new Date().toISOString(),
         totalTimeSpent: existingProgress.totalTimeSpent,
         averageTimeSpent: existingProgress.averageTimeSpent,
         accuracy: existingProgress.accuracy
@@ -303,13 +305,15 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const getUserProgress = (questionSetId: string): QuizProgress | undefined => {
-    if (!user || !user.progress) return undefined;
+    if (!user || !user.progress || !user.progress[questionSetId]) return undefined;
+    
     const progress = user.progress[questionSetId];
-    if (!progress) return undefined;
     return {
       questionSetId,
-      answeredQuestions: [],
-      score: Math.round((progress.correctAnswers / progress.totalQuestions) * 100),
+      completedQuestions: progress.completedQuestions,
+      totalQuestions: progress.totalQuestions,
+      correctAnswers: progress.correctAnswers,
+      score: progress.totalQuestions > 0 ? Math.round((progress.correctAnswers / progress.totalQuestions) * 100) : 0,
       lastAttemptDate: progress.lastAccessed ? new Date(progress.lastAccessed) : undefined
     };
   };
@@ -417,7 +421,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           [questionSetId]: {
             ...prev.progress?.[questionSetId],
             ...progressUpdate,
-            lastAccessed: new Date()
+            lastAccessed: new Date().toISOString()
           } as UserProgress
         }
       };

@@ -19,7 +19,7 @@ export interface UserProgress {
   completedQuestions: number;
   totalQuestions: number;
   correctAnswers: number;
-  lastAccessed: Date;
+  lastAccessed: string;
   title?: string;
   totalTimeSpent: number;
   averageTimeSpent: number;

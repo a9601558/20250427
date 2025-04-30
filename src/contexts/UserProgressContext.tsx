@@ -98,7 +98,12 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setProgressStats(prev => {
       // 确保每个进度记录都有完整的字段
       const processedStats = Object.entries(newStats).reduce((acc, [key, value]) => {
-        acc[key] = processSingleProgressRecord(key, value);
+        acc[key] = {
+          ...defaultProgress,
+          ...value,
+          questionSetId: key,
+          lastAccessed: value.lastAccessed || new Date(0).toISOString()
+        };
         return acc;
       }, {} as Record<string, ProgressStats>);
 
@@ -128,13 +133,21 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         // 确保每个进度记录都有完整的字段
         const processedData = Object.entries(response.data).reduce((acc, [key, value]) => {
-          acc[key] = processSingleProgressRecord(key, value);
+          acc[key] = {
+            ...defaultProgress,
+            ...value,
+            questionSetId: key,
+            lastAccessed: value.lastAccessed || new Date(0).toISOString()
+          };
           return acc;
         }, {} as Record<string, ProgressStats>);
 
         if (forceUpdate) {
           console.log('强制更新进度统计:', processedData);
-          updateProgressStats(processedData);
+          // 不合并旧数据，直接替换
+          setProgressStats(processedData);
+        } else {
+          setProgressStats(prev => ({ ...prev, ...processedData }));
         }
         return processedData;
       } else {
@@ -148,7 +161,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } finally {
       setIsLoading(false);
     }
-  }, [user, updateProgressStats]);
+  }, [user]);
 
   // 监听用户ID变化，自动刷新进度
   useEffect(() => {
