@@ -8,7 +8,14 @@
     "build:server": "cd server && npm run build",
     "build:all": "npm run build && npm run build:server && mkdir -p dist/server && cp -r server/dist/* dist/server/",
     "preview": "vite preview",
-    "start": "cd server && npm start"
+    "start": "cd server && npm start",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:migrate:status": "sequelize-cli db:migrate:status",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
+    "db:seed": "sequelize-cli db:seed:all",
+    "db:seed:undo": "sequelize-cli db:seed:undo:all",
+    "db:reset": "npm run db:migrate:undo:all && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
     "antd": "^5.24.8",
