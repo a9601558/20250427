@@ -286,9 +286,14 @@ const getProgressStats = async (req, res) => {
                     attributes: ['id']
                 }]
         });
-        // 2. 查所有答题记录
+        // 2. 查所有答题记录，包含关联的题库信息
         const userProgressRecords = await UserProgress_1.default.findAll({
             where: { userId },
+            include: [{
+                    model: QuestionSet_1.default,
+                    as: 'progressQuestionSet',
+                    attributes: ['id', 'title']
+                }]
         });
         // 3. 整理成 Map，包含最后访问时间
         const progressMap = new Map();
@@ -316,25 +321,22 @@ const getProgressStats = async (req, res) => {
         });
         // 4. 生成最终统计
         const stats = questionSets.map(qs => {
-            // 安全地获取 questions 数组
             const questions = qs.get('questions') || [];
             const totalQuestions = Array.isArray(questions) ? questions.length : 0;
-            // 获取用户进度数据，如果不存在则使用默认值
             const progress = progressMap.get(qs.id) || {
                 completed: 0,
                 correct: 0,
                 totalTime: 0,
-                lastAccessed: new Date(0) // 使用默认时间戳
+                lastAccessed: new Date(0)
             };
             const completedQuestions = progress.completed;
             const correctAnswers = progress.correct;
             const totalTimeSpent = progress.totalTime;
             const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
             const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
-            // 确保 lastAccessed 始终有值
             const lastAccessed = progress.lastAccessed
                 ? progress.lastAccessed.toISOString()
-                : new Date(0).toISOString(); // 使用默认时间戳
+                : new Date(0).toISOString();
             return {
                 questionSetId: qs.id,
                 questionSet: {
@@ -348,7 +350,7 @@ const getProgressStats = async (req, res) => {
                 averageTimeSpent,
                 accuracy,
                 lastAccessed,
-                total: totalQuestions, // 兼容字段
+                total: totalQuestions,
                 correct: correctAnswers,
                 timeSpent: totalTimeSpent
             };
