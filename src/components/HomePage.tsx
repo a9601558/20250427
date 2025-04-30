@@ -54,122 +54,32 @@ const HomePage: React.FC = () => {
   const [selectedQuestionSet, setSelectedQuestionSet] = useState<QuestionSet | null>(null);
   const navigate = useNavigate();
 
-  // 使用 useCallback 包装 fetchUserProgress 以避免不必要的重渲染
+  // 减少进度更新回调函数的依赖
   const handleProgressUpdate = useCallback(async (data: { userId: string }) => {
-    if (user && user.id === data.userId) {
-      // 强制刷新进度数据
-      await fetchUserProgress(true);
-    }
-  }, [user, fetchUserProgress]);
+    // 不再需要在首页处理进度更新
+    console.log('Progress update received, but ignored in HomePage');
+  }, []); // 移除所有依赖
 
-  // 设置 socket 监听
+  // 在获取题库列表后检查访问权限 - 只在首次加载和用户变化时执行
   useEffect(() => {
-    if (!socket) return;
-
-    socket.on('progress:update', handleProgressUpdate);
-
-    return () => {
-      socket.off('progress:update', handleProgressUpdate);
-    };
-  }, [socket, handleProgressUpdate]);
-
-  // 添加 Socket 监听
-  useEffect(() => {
-    if (!socket) return;
-
-    // 监听题库更新事件
-    const handleQuestionSetUpdate = (updatedQuestionSet: QuestionSet) => {
-      setQuestionSets(prevSets => {
-        const index = prevSets.findIndex(set => set.id === updatedQuestionSet.id);
-        if (index === -1) return prevSets;
-        
-        const newSets = [...prevSets];
-        newSets[index] = {
-          ...newSets[index],
-          isFeatured: updatedQuestionSet.isFeatured,
-          isPaid: updatedQuestionSet.isPaid,
-          price: updatedQuestionSet.price
-        };
-        return newSets;
-      });
-    };
-
-    // 监听题库访问状态更新
-    const handleQuestionSetAccessUpdate = (data: { 
-      questionSetId: string;
-      hasAccess: boolean;
-      remainingDays: number | null;
-    }) => {
-      setQuestionSets(prevSets => {
-        const index = prevSets.findIndex(set => set.id === data.questionSetId);
-        if (index === -1) return prevSets;
-        
-        const newSets = [...prevSets];
-        newSets[index] = {
-          ...newSets[index],
-          hasAccess: data.hasAccess,
-          remainingDays: data.remainingDays
-        };
-        return newSets;
-      });
-    };
-
-    // 监听购买成功事件
-    const handlePurchaseSuccess = (data: {
-      questionSetId: string;
-      purchaseId: string;
-      expiryDate: string;
-    }) => {
-      setQuestionSets(prevSets => {
-        const index = prevSets.findIndex(set => set.id === data.questionSetId);
-        if (index === -1) return prevSets;
-        
-        const newSets = [...prevSets];
-        newSets[index] = {
-          ...newSets[index],
-          hasAccess: true,
-          remainingDays: Math.ceil((new Date(data.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-        };
-        return newSets;
-      });
-    };
-
-    socket.on('questionSet:update', handleQuestionSetUpdate);
-    socket.on('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
-    socket.on('purchase:success', handlePurchaseSuccess);
-
-    return () => {
-      socket.off('questionSet:update', handleQuestionSetUpdate);
-      socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
-      socket.off('purchase:success', handlePurchaseSuccess);
-    };
-  }, [socket]);
-
-  // 检查题库访问权限
-  const checkQuestionSetAccess = (questionSetId: string) => {
-    if (!socket || !user) return;
+    // 如果没有用户或没有题库，不执行
+    if (!user || !socket || questionSets.length === 0) return;
     
-    socket.emit('questionSet:checkAccess', {
+    // 首次检查 - 只查询付费题库的访问权限
+    const paidQuestionSets = questionSets.filter(set => set.isPaid);
+    
+    // 没有付费题库，不需要检查
+    if (paidQuestionSets.length === 0) return;
+    
+    console.log(`检查 ${paidQuestionSets.length} 个付费题库的访问权限`);
+    
+    // 一次性请求所有付费题库的权限，而不是逐个发送
+    socket.emit('questionSet:checkAccessBatch', {
       userId: user.id,
-      questionSetId
+      questionSetIds: paidQuestionSets.map(set => set.id)
     });
-  };
-
-  // 在获取题库列表后检查访问权限
-  useEffect(() => {
-    if (user && questionSets.length > 0) {
-      // 使用防抖，避免频繁触发
-      const timer = setTimeout(() => {
-        questionSets.forEach(set => {
-          if (set.isPaid) {
-            checkQuestionSetAccess(set.id);
-          }
-        });
-      }, 500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user, questionSets.length]); // 只使用长度作为依赖，减少不必要的触发
+    
+  }, [user?.id, socket, questionSets.length]); // 只在用户ID和题库数量变化时检查
 
   // 获取首页设置、分类和题库列表
   useEffect(() => {
@@ -180,21 +90,21 @@ const HomePage: React.FC = () => {
 
         // 并行请求首页数据，减少请求阻塞
         const [questionsetsData, settingsData, categoriesData] = await Promise.allSettled([
-          // 获取题库列表 - 缓存2分钟
+          // 获取题库列表 - 缓存时间延长到10分钟
           apiClient.get('/api/question-sets', undefined, { 
-            cacheDuration: 120000,
+            cacheDuration: 600000, // 从2分钟增加到10分钟
             retries: 3 
           }),
           
-          // 获取首页设置 - 缓存5分钟
+          // 获取首页设置 - 缓存10分钟
           apiClient.get('/api/homepage/content', undefined, { 
-            cacheDuration: 300000,
+            cacheDuration: 600000, // 从5分钟增加到10分钟
             retries: 2
           }),
           
-          // 获取精选分类 - 缓存5分钟
+          // 获取精选分类 - 缓存10分钟
           apiClient.get('/api/homepage/featured-categories', undefined, { 
-            cacheDuration: 300000
+            cacheDuration: 600000 // 从5分钟增加到10分钟
           })
         ]);
 
@@ -231,53 +141,105 @@ const HomePage: React.FC = () => {
     // 请求数据
     fetchData();
 
+    // 删除定时刷新，没有必要频繁刷新主页数据
     // 设置定时刷新，每2分钟更新一次题库数据（间隔从30秒改为2分钟减少请求次数）
-    const intervalId = setInterval(() => {
-      // 清除所有过期缓存（超过cacheDuration的）
-      fetchQuestionSets();
-    }, 120000); // 2分钟
+    // const intervalId = setInterval(() => {
+    //   // 清除所有过期缓存（超过cacheDuration的）
+    //   fetchQuestionSets();
+    // }, 120000); // 2分钟
 
-    // 组件卸载时清除定时器
-    return () => clearInterval(intervalId);
+    // // 组件卸载时清除定时器
+    // return () => clearInterval(intervalId);
   }, []);
 
   // 异步处理题库列表数据 - 经过封装的函数
   const processQuestionSets = async (data: QuestionSet[]) => {
-    // 避免重复状态更新导致频繁渲染
-    let updatedData = data;
+    if (!data || data.length === 0) return;
     
-    // 处理题库缩略图
-    if (updatedData && updatedData.length > 0) {
-      // 不在此处单独设置状态，减少重复渲染
-      updatedData = updatedData.map(set => ({
-        ...set,
-        // 设置默认图片
-        icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
-      }));
-    }
+    // 避免重复状态更新导致频繁渲染
+    const updatedData = data.map(set => ({
+      ...set,
+      // 确保题库数量字段正确
+      questionCount: set.questionCount || (set.questions?.length || 0),
+      // 设置默认图片
+      icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
+    }));
     
     // 一次性设置所有数据，减少重复渲染
     setQuestionSets(updatedData);
-    
-    // 延迟检查权限，避免与其他useEffect冲突
-    if (user) {
-      setTimeout(() => {
-        updatedData.forEach(set => {
-          if (set.isPaid) {
-            checkQuestionSetAccess(set.id);
-          }
-        });
-      }, 800);
-    }
   };
 
-  // 修改获取题库列表的函数
+  // 添加Socket监听，使用依赖更少的方式
+  useEffect(() => {
+    if (!socket) return;
+    
+    // 监听批量题库访问状态更新
+    const handleBatchAccessUpdate = (data: { 
+      updates: Array<{
+        questionSetId: string;
+        hasAccess: boolean;
+        remainingDays: number | null;
+      }>
+    }) => {
+      if (!data.updates || !Array.isArray(data.updates) || data.updates.length === 0) return;
+      
+      setQuestionSets(prevSets => {
+        const newSets = [...prevSets];
+        
+        // 批量更新题库状态
+        data.updates.forEach(update => {
+          const index = newSets.findIndex(set => set.id === update.questionSetId);
+          if (index !== -1) {
+            newSets[index] = {
+              ...newSets[index],
+              hasAccess: update.hasAccess,
+              remainingDays: update.remainingDays
+            };
+          }
+        });
+        
+        return newSets;
+      });
+    };
+    
+    // 只监听批量更新事件
+    socket.on('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
+    
+    // 监听单个题库访问状态更新（兼容现有API）
+    const handleAccessUpdate = (data: { 
+      questionSetId: string;
+      hasAccess: boolean;
+      remainingDays: number | null;
+    }) => {
+      setQuestionSets(prevSets => {
+        const index = prevSets.findIndex(set => set.id === data.questionSetId);
+        if (index === -1) return prevSets;
+        
+        const newSets = [...prevSets];
+        newSets[index] = {
+          ...newSets[index],
+          hasAccess: data.hasAccess,
+          remainingDays: data.remainingDays
+        };
+        return newSets;
+      });
+    };
+    
+    socket.on('questionSet:accessUpdate', handleAccessUpdate);
+    
+    return () => {
+      socket.off('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
+      socket.off('questionSet:accessUpdate', handleAccessUpdate);
+    };
+  }, [socket]);
+
+  // 修改获取题库列表的函数，减少不必要的刷新
   const fetchQuestionSets = async () => {
     try {
       // 使用我们新的apiClient
       const response = await apiClient.get('/api/question-sets', undefined, { 
-        forceRefresh: true, // 强制刷新缓存
-        cacheDuration: 120000 // 2分钟缓存
+        cacheDuration: 600000, // 10分钟缓存
+        forceRefresh: false // 不强制刷新缓存
       });
       
       if (response && response.success) {
@@ -285,7 +247,8 @@ const HomePage: React.FC = () => {
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
-      setErrorMessage('获取题库列表失败，请稍后重试');
+      // 不显示错误提示，避免影响用户体验
+      // setErrorMessage('获取题库列表失败，请稍后重试');
     }
   };
 
@@ -430,21 +393,6 @@ const HomePage: React.FC = () => {
       </div>
     );
   };
-
-  // 用户进入首页时主动刷新进度数据，使用优化后的方式
-  useEffect(() => {
-    if (user) {
-      // 立即获取一次数据
-      fetchUserProgress(true);
-      
-      // 设置定时器，每60秒更新一次数据，而不是30秒
-      const timer = setInterval(() => {
-        fetchUserProgress(false); // 将强制刷新设为false，降低刷新频率
-      }, 160000);
-      
-      return () => clearInterval(timer);
-    }
-  }, [user?.id, fetchUserProgress]);
 
   // 根据主题设置页面背景色
   const bgClass = homeContent.theme === 'dark' 
@@ -612,7 +560,7 @@ const HomePage: React.FC = () => {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
                           <span className="text-sm text-gray-500">
-                            {questionSet.questions?.length || questionSet.questionCount || 0} 道题目
+                            {questionSet.questionCount || 0} 道题目
                           </span>
                           {isPaid && (
                             <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${
