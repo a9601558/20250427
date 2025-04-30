@@ -615,6 +615,11 @@ export const getProgressSummary = async (req: Request, res: Response) => {
       const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
       const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
       
+      // 获取最后访问时间
+      const lastAccessed = progressRecords.length > 0 
+        ? new Date(Math.max(...progressRecords.map(p => new Date(p.updatedAt).getTime())))
+        : null;
+      
       return {
         questionSetId: qs.id,
         questionSetTitle: qs.title,
@@ -623,7 +628,8 @@ export const getProgressSummary = async (req: Request, res: Response) => {
         correctAnswers,
         totalTimeSpent,
         averageTimeSpent,
-        accuracy
+        accuracy,
+        lastAccessed: lastAccessed?.toISOString() || null
       };
     });
     
