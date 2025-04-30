@@ -2,84 +2,66 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    const transaction = await queryInterface.sequelize.transaction();
-    
     try {
       // 检查列是否存在
-      const [columns] = await queryInterface.sequelize.query(
-        "SHOW COLUMNS FROM user_progress",
-        { transaction }
+      const [columns] = await queryInterface.query(
+        "SHOW COLUMNS FROM user_progress"
       );
       
       const columnNames = columns.map(col => col.Field);
       
       // 只删除存在的列
       if (columnNames.includes('completedQuestions')) {
-        await queryInterface.sequelize.query(
-          'ALTER TABLE user_progress DROP COLUMN completedQuestions',
-          { transaction }
+        await queryInterface.query(
+          'ALTER TABLE user_progress DROP COLUMN completedQuestions'
         );
       }
       
       if (columnNames.includes('totalQuestions')) {
-        await queryInterface.sequelize.query(
-          'ALTER TABLE user_progress DROP COLUMN totalQuestions',
-          { transaction }
+        await queryInterface.query(
+          'ALTER TABLE user_progress DROP COLUMN totalQuestions'
         );
       }
       
       if (columnNames.includes('correctAnswers')) {
-        await queryInterface.sequelize.query(
-          'ALTER TABLE user_progress DROP COLUMN correctAnswers',
-          { transaction }
+        await queryInterface.query(
+          'ALTER TABLE user_progress DROP COLUMN correctAnswers'
         );
       }
-      
-      await transaction.commit();
     } catch (error) {
-      await transaction.rollback();
       console.error('Migration failed:', error);
       throw error;
     }
   },
 
   down: async (queryInterface, Sequelize) => {
-    const transaction = await queryInterface.sequelize.transaction();
-    
     try {
       // 检查列是否存在
-      const [columns] = await queryInterface.sequelize.query(
-        "SHOW COLUMNS FROM user_progress",
-        { transaction }
+      const [columns] = await queryInterface.query(
+        "SHOW COLUMNS FROM user_progress"
       );
       
       const columnNames = columns.map(col => col.Field);
       
       // 只添加不存在的列
       if (!columnNames.includes('completedQuestions')) {
-        await queryInterface.sequelize.query(
-          'ALTER TABLE user_progress ADD COLUMN completedQuestions INT NULL',
-          { transaction }
+        await queryInterface.query(
+          'ALTER TABLE user_progress ADD COLUMN completedQuestions INT NULL'
         );
       }
       
       if (!columnNames.includes('totalQuestions')) {
-        await queryInterface.sequelize.query(
-          'ALTER TABLE user_progress ADD COLUMN totalQuestions INT NULL',
-          { transaction }
+        await queryInterface.query(
+          'ALTER TABLE user_progress ADD COLUMN totalQuestions INT NULL'
         );
       }
       
       if (!columnNames.includes('correctAnswers')) {
-        await queryInterface.sequelize.query(
-          'ALTER TABLE user_progress ADD COLUMN correctAnswers INT NULL',
-          { transaction }
+        await queryInterface.query(
+          'ALTER TABLE user_progress ADD COLUMN correctAnswers INT NULL'
         );
       }
-      
-      await transaction.commit();
     } catch (error) {
-      await transaction.rollback();
       console.error('Migration rollback failed:', error);
       throw error;
     }
