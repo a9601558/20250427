@@ -16,6 +16,7 @@ interface ProgressStats {
   accuracy?: number;
   averageTime?: number;
   title?: string;
+  lastAccessed?: string;
 }
 
 interface ProgressSummary {
@@ -532,12 +533,17 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
           title: questionSet?.title,
           total: 0,
           correct: 0,
-          timeSpent: 0
+          timeSpent: 0,
+          lastAccessed: record.updatedAt.toISOString()
         };
       }
       acc[setId].total++;
       if (record.isCorrect) acc[setId].correct++;
       acc[setId].timeSpent += record.timeSpent;
+      // 更新最后访问时间
+      if (acc[setId].lastAccessed && new Date(record.updatedAt) > new Date(acc[setId].lastAccessed)) {
+        acc[setId].lastAccessed = record.updatedAt.toISOString();
+      }
       return acc;
     }, {});
 

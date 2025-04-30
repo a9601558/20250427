@@ -29,9 +29,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
   // 获取用户有进度记录的题库，添加更严格的检查
   const studiedSets = questionSets.filter(qs => {
     const progress = progressStats[qs.id];
-    return progress && 
-           typeof progress.lastAccessed === 'string' && 
-           progress.lastAccessed.length > 0;
+    return progress && progress.completedQuestions > 0;
   });
 
   // 按照最后访问时间排序，添加更安全的处理
@@ -104,8 +102,8 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
             ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)
             : 0;
           
-          // 安全地处理lastAccessed
-          const safeDate = progress?.lastAccessed ? new Date(progress.lastAccessed) : null;
+          // 安全地处理lastAccessed，如果不存在则使用当前时间
+          const safeDate = progress?.lastAccessed ? new Date(progress.lastAccessed) : new Date();
           
           return (
             <Link 
@@ -132,7 +130,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
               </div>
               <div className="ml-2 text-right">
                 <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  {safeDate && !isNaN(safeDate.getTime()) ? formatLastAccessed(safeDate) : '无记录'}
+                  {formatLastAccessed(safeDate)}
                 </p>
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
                   继续学习
