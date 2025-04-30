@@ -94,32 +94,59 @@ exports.createPurchase = createPurchase;
 // @access  Private
 const getUserPurchases = async (req, res) => {
     try {
-        // 检查用户是否已登录
-        if (!req.user || !req.user.id) {
-            console.error('User not authenticated');
-            return sendError(res, 401, '用户未登录');
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: '未授权',
+            });
         }
-        console.log('Fetching purchases for user:', req.user.id);
         const purchases = await models_1.Purchase.findAll({
-            where: { userId: req.user.id },
-            include: [{
+            where: {
+                userId: userId,
+            },
+            order: [['purchaseDate', 'DESC']],
+            // 明确指定字段属性映射
+            attributes: [
+                'id',
+                ['user_id', 'userId'],
+                ['question_set_id', 'questionSetId'],
+                'amount',
+                'status',
+                ['payment_method', 'paymentMethod'],
+                ['transaction_id', 'transactionId'],
+                ['purchase_date', 'purchaseDate'],
+                ['expiry_date', 'expiryDate'],
+                ['created_at', 'createdAt'],
+                ['updated_at', 'updatedAt']
+            ],
+            include: [
+                {
                     model: models_1.QuestionSet,
                     as: 'purchaseQuestionSet',
-                    attributes: ['id', 'title', 'category', 'icon', 'isPaid', 'price']
-                }],
-            order: [['purchaseDate', 'DESC']]
+                    attributes: [
+                        'id',
+                        'title',
+                        'category',
+                        'icon',
+                        ['is_paid', 'isPaid'],
+                        'price'
+                    ],
+                },
+            ],
         });
-        console.log('Found purchases:', purchases.length);
-        // 确保关联关系存在
-        if (purchases.some(p => !p.purchaseQuestionSet)) {
-            console.error('Some purchases are missing QuestionSet association');
-            return sendError(res, 500, '获取购买记录失败', 'QuestionSet association is missing');
-        }
-        sendResponse(res, 200, purchases);
+        return res.status(200).json({
+            success: true,
+            data: purchases,
+        });
     }
     catch (error) {
-        console.error('Get purchases error:', error);
-        sendError(res, 500, '获取购买记录失败', error);
+        console.error('获取购买记录失败:', error);
+        return res.status(500).json({
+            success: false,
+            message: '获取购买记录失败',
+            error: error.message,
+        });
     }
 };
 exports.getUserPurchases = getUserPurchases;
