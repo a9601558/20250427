@@ -7,6 +7,7 @@ import { questionSetApi } from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService } from '../services/UserProgressService';
 import { useUserProgress } from '../contexts/UserProgressContext';
+import RedeemCodeForm from './RedeemCodeForm';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -41,6 +42,7 @@ function QuizPage(): JSX.Element {
   const [trialEnded, setTrialEnded] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState(0);
   const timeoutId = useRef<NodeJS.Timeout>();
+  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   
   // 添加 Socket 监听
   useEffect(() => {
