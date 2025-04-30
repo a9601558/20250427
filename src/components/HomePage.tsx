@@ -440,7 +440,7 @@ const HomePage: React.FC = () => {
       // 设置定时器，每60秒更新一次数据，而不是30秒
       const timer = setInterval(() => {
         fetchUserProgress(false); // 将强制刷新设为false，降低刷新频率
-      }, 60000);
+      }, 160000);
       
       return () => clearInterval(timer);
     }
@@ -490,96 +490,7 @@ const HomePage: React.FC = () => {
                 </p>
               </div>
             )}
-            
-            {user && (
-              <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-green-900' : 'bg-gradient-to-r from-green-50 to-teal-50'} border ${homeContent.theme === 'dark' ? 'border-green-800' : 'border-green-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
-                <div className="flex justify-between items-center">
-                  <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-green-300' : 'text-green-800'}`}>
-                    学习进度概览
-                  </h3>
-                  <button
-                    onClick={() => setShowUserInfo(!showUserInfo)}
-                    className="inline-flex items-center px-3 py-1 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                  >
-                    {showUserInfo ? '收起详情' : '查看详情'}
-                  </button>
-                </div>
-                
-                {showUserInfo && (
-                  <div className={`mt-3 text-sm ${homeContent.theme === 'dark' ? 'text-green-200' : 'text-green-700'}`}>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="font-medium">已完成题目</p>
-                        <p className="text-2xl font-bold">
-                          {Object.values(progressStats || {}).reduce((acc, curr) => 
-                            acc + (curr.completedQuestions || 0), 0
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-medium">平均正确率</p>
-                        <p className="text-2xl font-bold">
-                          {(() => {
-                            const stats = Object.values(progressStats || {});
-                            if (stats.length === 0) return 0;
-                            
-                            const totalCompleted = stats.reduce((acc, curr) => 
-                              acc + (curr.completedQuestions || 0), 0
-                            );
-                            const totalCorrect = stats.reduce((acc, curr) => 
-                              acc + (curr.correctAnswers || 0), 0
-                            );
-                            
-                            return totalCompleted > 0 
-                              ? Math.round((totalCorrect / totalCompleted) * 100) 
-                              : 0;
-                          })()}%
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <p className="font-medium">最近学习</p>
-                      <p className="text-sm">
-                        {(() => {
-                          const stats = Object.values(progressStats || {});
-                          if (stats.length === 0) return '暂无学习记录';
-                          
-                          const sortedStats = stats
-                            .filter(prog => prog?.lastAccessed)
-                            .sort((a, b) => 
-                              new Date(b?.lastAccessed || 0).getTime() - 
-                              new Date(a?.lastAccessed || 0).getTime()
-                            );
-                          
-                          return sortedStats[0]?.questionSetId || '暂无学习记录';
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* 添加用户进度展示组件和最近学习题库组件 */}
-            {user && questionSets.length > 0 && (
-              <>
-                <div className="mt-6 mx-auto max-w-2xl grid md:grid-cols-2 gap-4">
-                  <RecentlyStudiedQuestionSets
-                    questionSets={questionSets}
-                    limit={4}
-                    theme={homeContent.theme === 'dark' ? 'dark' : 'light'}
-                  />
-                </div>
-                
-                {/* 添加学习建议组件 */}
-                <div className="mt-4 mx-auto max-w-2xl">
-                  <StudySuggestions
-                    questionSets={questionSets}
-                    theme={homeContent.theme === 'dark' ? 'dark' : 'light'}
-                  />
-                </div>
-              </>
-            )}
+          
             
             {!user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
