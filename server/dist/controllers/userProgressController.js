@@ -298,7 +298,12 @@ const getProgressStats = async (req, res) => {
         // 3. 整理成 Map，包含最后访问时间
         const progressMap = new Map();
         userProgressRecords.forEach(record => {
-            const qsId = record.questionSetId;
+            // 确保 questionSetId 是有效的
+            if (!record.questionSetId) {
+                console.warn('发现缺少 questionSetId 的记录:', record.id);
+                return; // 跳过此记录
+            }
+            const qsId = record.questionSetId.toString();
             if (!progressMap.has(qsId)) {
                 progressMap.set(qsId, {
                     completed: 0,
@@ -311,19 +316,24 @@ const getProgressStats = async (req, res) => {
             stats.completed++;
             if (record.isCorrect)
                 stats.correct++;
-            stats.totalTime += record.timeSpent;
+            stats.totalTime += record.timeSpent || 0;
             // 更新 lastAccessed 为最新值
             const currentAccess = stats.lastAccessed?.getTime() || 0;
-            const thisAccess = new Date(record.updatedAt).getTime();
+            const thisAccess = record.updatedAt ? new Date(record.updatedAt).getTime() : Date.now();
             if (thisAccess > currentAccess) {
-                stats.lastAccessed = new Date(record.updatedAt);
+                stats.lastAccessed = record.updatedAt ? new Date(record.updatedAt) : new Date();
             }
         });
         // 4. 生成最终统计
         const stats = questionSets.map(qs => {
+            // 确保 qs.id 是有效的
+            if (!qs || !qs.id) {
+                console.warn('发现缺少 id 的题库');
+                return null; // 返回 null，之后会过滤掉
+            }
             const questions = qs.get('questions') || [];
             const totalQuestions = Array.isArray(questions) ? questions.length : 0;
-            const progress = progressMap.get(qs.id) || {
+            const progress = progressMap.get(qs.id.toString()) || {
                 completed: 0,
                 correct: 0,
                 totalTime: 0,
@@ -341,7 +351,7 @@ const getProgressStats = async (req, res) => {
                 questionSetId: qs.id,
                 questionSet: {
                     id: qs.id,
-                    title: qs.get('title')
+                    title: qs.get('title') || 'Unknown'
                 },
                 totalQuestions,
                 completedQuestions,
@@ -354,7 +364,7 @@ const getProgressStats = async (req, res) => {
                 correct: correctAnswers,
                 timeSpent: totalTimeSpent
             };
-        });
+        }).filter(Boolean); // 过滤掉 null 值
         return (0, responseUtils_1.sendResponse)(res, 200, '获取学习统计成功', stats);
     }
     catch (error) {
@@ -421,31 +431,40 @@ const getUserProgressStats = async (req, res) => {
         const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
         const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
         const averageTimeSpent = totalQuestions > 0
-            ? progressRecords.reduce((sum, p) => sum + p.timeSpent, 0) / totalQuestions
+            ? progressRecords.reduce((sum, p) => sum + (p.timeSpent || 0), 0) / totalQuestions
             : 0;
         // 按题目集统计
         const setStats = progressRecords.reduce((acc, record) => {
+            // 确保 questionSetId 是有效的
+            if (!record.questionSetId) {
+                return acc;
+            }
             const setId = record.questionSetId.toString();
             const questionSet = record.get('progressQuestionSet');
             if (!acc[setId]) {
                 acc[setId] = {
-                    title: questionSet?.title,
+                    title: questionSet?.title || 'Unknown',
                     total: 0,
                     correct: 0,
                     timeSpent: 0,
-                    lastAccessed: record.updatedAt.toISOString()
+                    lastAccessed: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString()
                 };
             }
             acc[setId].total++;
             if (record.isCorrect)
                 acc[setId].correct++;
-            acc[setId].timeSpent += record.timeSpent;
-            if (new Date(record.updatedAt) > new Date(acc[setId].lastAccessed)) {
-                acc[setId].lastAccessed = record.updatedAt.toISOString();
+            acc[setId].timeSpent += record.timeSpent || 0;
+            // 安全地更新 lastAccessed
+            if (record.updatedAt) {
+                const recordDate = new Date(record.updatedAt);
+                const currentLastAccessed = acc[setId].lastAccessed ? new Date(acc[setId].lastAccessed) : new Date(0);
+                if (recordDate > currentLastAccessed) {
+                    acc[setId].lastAccessed = recordDate.toISOString();
+                }
             }
             return acc;
         }, {});
-        // 按题目类型统计
+        // 按题目类型统计，类似的安全处理
         const typeStats = progressRecords.reduce((acc, record) => {
             const question = record.get('progressQuestion');
             const type = question?.questionType;
@@ -456,26 +475,31 @@ const getUserProgressStats = async (req, res) => {
                     total: 0,
                     correct: 0,
                     timeSpent: 0,
-                    lastAccessed: record.updatedAt.toISOString()
+                    lastAccessed: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString()
                 };
             }
             acc[type].total++;
             if (record.isCorrect)
                 acc[type].correct++;
-            acc[type].timeSpent += record.timeSpent;
-            if (new Date(record.updatedAt) > new Date(acc[type].lastAccessed)) {
-                acc[type].lastAccessed = record.updatedAt.toISOString();
+            acc[type].timeSpent += record.timeSpent || 0;
+            // 安全地更新 lastAccessed
+            if (record.updatedAt) {
+                const recordDate = new Date(record.updatedAt);
+                const currentLastAccessed = acc[type].lastAccessed ? new Date(acc[type].lastAccessed) : new Date(0);
+                if (recordDate > currentLastAccessed) {
+                    acc[type].lastAccessed = recordDate.toISOString();
+                }
             }
             return acc;
         }, {});
         // 计算每个统计的准确率和平均时间
         Object.values(setStats).forEach((stat) => {
-            stat.accuracy = (stat.correct / stat.total) * 100;
-            stat.averageTime = stat.timeSpent / stat.total;
+            stat.accuracy = stat.total > 0 ? (stat.correct / stat.total) * 100 : 0;
+            stat.averageTime = stat.total > 0 ? stat.timeSpent / stat.total : 0;
         });
         Object.values(typeStats).forEach((stat) => {
-            stat.accuracy = (stat.correct / stat.total) * 100;
-            stat.averageTime = stat.timeSpent / stat.total;
+            stat.accuracy = stat.total > 0 ? (stat.correct / stat.total) * 100 : 0;
+            stat.averageTime = stat.total > 0 ? stat.timeSpent / stat.total : 0;
         });
         return (0, responseUtils_1.sendResponse)(res, 200, '获取用户进度统计成功', {
             overall: {
