@@ -101,36 +101,43 @@ function QuizPage(): JSX.Element {
     }
     
     console.log(`[checkAccess] 用户已登录，ID: ${user.id}`);
-    console.log(`[checkAccess] 用户购买记录:`, user.purchases);
+    console.log(`[checkAccess] 用户购买记录数量: ${user.purchases?.length || 0}`);
     
     // 检查用户是否有访问权限 - 多种情况检查
     let hasAccess = false;
     
     // 检查购买记录 - 包括兼容不同的关联字段名
     if (user.purchases && user.purchases.length > 0) {
-      console.log(`[checkAccess] 检查购买记录，题库ID: ${questionSet.id}`);
+      console.log(`[checkAccess] 开始检查购买记录，题库ID(目标): ${questionSet.id}`);
+      
+      // 添加额外的ID格式化检查
+      const targetId = String(questionSet.id).trim();
+      console.log(`[checkAccess] 格式化后的目标题库ID: "${targetId}"`);
       
       // 增加更详细的日志
       user.purchases.forEach((p, index) => {
-        console.log(`[checkAccess] 购买记录 #${index}:`, p);
-        console.log(`[checkAccess] 比较: ${p.questionSetId} vs ${questionSet.id}, 结果: ${p.questionSetId === questionSet.id}`);
+        const purchaseId = String(p.questionSetId).trim();
+        const match = purchaseId === targetId;
+        console.log(`[checkAccess] 购买记录 #${index}: ID="${purchaseId}", 匹配=${match}, 状态=${p.status}, 有效期=${p.expiryDate}`);
       });
       
       const purchase = user.purchases.find(p => {
         // 确保正确比较字符串
-        const pureId = String(questionSet.id).trim();
         const purchaseSetId = String(p.questionSetId).trim();
-        const match = purchaseSetId === pureId;
-        console.log(`[checkAccess] 比较精确ID: "${purchaseSetId}" vs "${pureId}", 匹配: ${match}`);
-        return match || (p.purchaseQuestionSet && p.purchaseQuestionSet.id === questionSet.id);
+        return purchaseSetId === targetId;
       });
       
       if (purchase) {
-        console.log(`[checkAccess] 找到匹配的购买记录:`, purchase);
+        console.log(`[checkAccess] 找到匹配的购买记录: ID=${purchase.id}, 状态=${purchase.status}`);
         const expiryDate = new Date(purchase.expiryDate);
         const now = new Date();
-        hasAccess = expiryDate > now;
-        console.log(`[checkAccess] 有效期检查: ${expiryDate.toISOString()} > ${now.toISOString()}, 结果: ${hasAccess}`);
+        const isExpired = expiryDate <= now;
+        const isActive = purchase.status === 'active' || purchase.status === 'completed';
+        
+        hasAccess = !isExpired && isActive;
+        console.log(`[checkAccess] 有效期检查: ${expiryDate.toISOString()} > ${now.toISOString()}, 已过期=${isExpired}`);
+        console.log(`[checkAccess] 状态检查: 状态=${purchase.status}, 有效=${isActive}`);
+        console.log(`[checkAccess] 购买记录综合判断: 访问权限=${hasAccess}`);
       } else {
         console.log(`[checkAccess] 未找到匹配的购买记录`);
       }
