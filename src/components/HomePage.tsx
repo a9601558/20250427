@@ -159,8 +159,8 @@ const HomePage: React.FC = () => {
     // 避免重复状态更新导致频繁渲染
     const updatedData = data.map(set => ({
       ...set,
-      // 确保题库数量字段正确
-      questionCount: set.questionCount || (set.questions?.length || 0),
+      // 确保题库数量字段正确 - 使用后端提供的总数或questions数组长度，避免显示0
+      questionCount: set.questionCount || set.questions?.length || set.trialQuestions || 20, // 至少显示一个默认值
       // 设置默认图片
       icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
     }));
@@ -560,7 +560,7 @@ const HomePage: React.FC = () => {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
                           <span className="text-sm text-gray-500">
-                            {questionSet.questionCount || 0} 道题目
+                            {questionSet.questionCount || questionSet.trialQuestions || "多"} 道题目
                           </span>
                           {isPaid && (
                             <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${
