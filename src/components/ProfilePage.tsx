@@ -487,35 +487,59 @@ const ProfilePage: React.FC = () => {
       });
     };
     
-    // 立即检查访问状态
-    checkAccessForAllSets();
-    
-    // 题库数据变化时再次检查
-    const handleDataUpdate = () => {
-      setTimeout(checkAccessForAllSets, 500); // 延迟一点执行，确保数据已更新
-    };
-
     // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
-    socket.on('purchase:success', () => {
-      fetchPurchases();
-      handleDataUpdate();
-    });
-    socket.on('redeem:success', () => {
-      fetchRedeemCodes();
-      handleDataUpdate();
-    });
+    socket.on('purchase:success', fetchPurchases);
+    socket.on('redeem:success', fetchRedeemCodes);
     
     // 监听连接状态变化，重连时重新检查权限
-    socket.on('connect', checkAccessForAllSets);
+    socket.on('connect', () => {
+      fetchPurchases();
+      fetchRedeemCodes();
+      // 延迟执行检查，确保数据已加载
+      setTimeout(() => {
+        checkAccessForAllSets();
+      }, 1000);
+    });
+
+    // 单独设置一个useEffect来监听数据变化并检查访问权限
+    const accessCheckTimer = setTimeout(checkAccessForAllSets, 500);
 
     return () => {
       socket.off('progress:update', handleProgressUpdate);
-      socket.off('purchase:success');
-      socket.off('redeem:success');
-      socket.off('connect', checkAccessForAllSets);
+      socket.off('purchase:success', fetchPurchases);
+      socket.off('redeem:success', fetchRedeemCodes);
+      socket.off('connect');
+      clearTimeout(accessCheckTimer);
     };
-  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, purchases, redeemCodes]);
+  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes]);
+
+  // 单独监听题库数据变化，更新访问权限检查
+  useEffect(() => {
+    if (!socket || !user || (!purchases.length && !redeemCodes.length)) return;
+    
+    // 只有当数据加载完成后才检查访问权限
+    const checkAccess = () => {
+      const allQuestionSetIds = new Set([
+        ...purchases.map(p => p.questionSetId), 
+        ...redeemCodes.map(r => r.questionSetId)
+      ]);
+      
+      allQuestionSetIds.forEach(questionSetId => {
+        if (questionSetId) {
+          socket.emit('questionSet:checkAccess', {
+            userId: user.id,
+            questionSetId
+          });
+        }
+      });
+    };
+    
+    // 使用延迟执行，避免频繁触发
+    const timer = setTimeout(checkAccess, 800);
+    
+    return () => clearTimeout(timer);
+  }, [socket, user, purchases.length, redeemCodes.length]);
 
   // 切换标签页
   const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed') => {

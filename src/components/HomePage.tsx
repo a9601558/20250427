@@ -158,13 +158,18 @@ const HomePage: React.FC = () => {
   // 在获取题库列表后检查访问权限
   useEffect(() => {
     if (user && questionSets.length > 0) {
-      questionSets.forEach(set => {
-        if (set.isPaid) {
-          checkQuestionSetAccess(set.id);
-        }
-      });
+      // 使用防抖，避免频繁触发
+      const timer = setTimeout(() => {
+        questionSets.forEach(set => {
+          if (set.isPaid) {
+            checkQuestionSetAccess(set.id);
+          }
+        });
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, [user, questionSets]);
+  }, [user, questionSets.length]); // 只使用长度作为依赖，减少不必要的触发
 
   // 获取首页设置、分类和题库列表
   useEffect(() => {
@@ -236,52 +241,34 @@ const HomePage: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  // 优化处理题库数据逻辑
-  const processQuestionSets = async (questionSetsData: QuestionSet[]) => {
-    if (!Array.isArray(questionSetsData) || questionSetsData.length === 0) {
-      return;
+  // 异步处理题库列表数据 - 经过封装的函数
+  const processQuestionSets = async (data: QuestionSet[]) => {
+    // 避免重复状态更新导致频繁渲染
+    let updatedData = data;
+    
+    // 处理题库缩略图
+    if (updatedData && updatedData.length > 0) {
+      // 不在此处单独设置状态，减少重复渲染
+      updatedData = updatedData.map(set => ({
+        ...set,
+        // 设置默认图片
+        icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
+      }));
     }
-
-    // 做一个副本以避免可能的并发修改问题
-    const questionSetsCopy = [...questionSetsData];
     
-    // 批量获取题目数据，最多并行5个请求
-    const batchSize = 5;
-    const batches = Math.ceil(questionSetsCopy.length / batchSize);
+    // 一次性设置所有数据，减少重复渲染
+    setQuestionSets(updatedData);
     
-    for (let i = 0; i < batches; i++) {
-      const batchStart = i * batchSize;
-      const batchEnd = Math.min(batchStart + batchSize, questionSetsCopy.length);
-      const currentBatch = questionSetsCopy.slice(batchStart, batchEnd);
-      
-      // 使用 Promise.allSettled 并行获取当前批次中每个题库的题目
-      await Promise.allSettled(
-        currentBatch.map(async (set) => {
-          try {
-            // 使用我们的apiClient，带缓存控制
-            const response = await apiClient.get(
-              `/api/questions?questionSetId=${set.id}&include=options`, 
-              undefined,
-              { cacheDuration: 300000 } // 5分钟缓存
-            );
-            
-            if (response && response.success) {
-              set.questions = response.data;
-            }
-          } catch (err) {
-            console.warn(`获取题库 ${set.id} 的题目失败:`, err);
+    // 延迟检查权限，避免与其他useEffect冲突
+    if (user) {
+      setTimeout(() => {
+        updatedData.forEach(set => {
+          if (set.isPaid) {
+            checkQuestionSetAccess(set.id);
           }
-        })
-      );
-      
-      // 每批次完成后等待100ms，避免连续批次请求过快触发429
-      if (i < batches - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+        });
+      }, 800);
     }
-    
-    // 更新题库
-    setQuestionSets(questionSetsCopy);
   };
 
   // 修改获取题库列表的函数
@@ -450,10 +437,10 @@ const HomePage: React.FC = () => {
       // 立即获取一次数据
       fetchUserProgress(true);
       
-      // 设置定时器，每30秒更新一次数据
+      // 设置定时器，每60秒更新一次数据，而不是30秒
       const timer = setInterval(() => {
-        fetchUserProgress(true);
-      }, 30000);
+        fetchUserProgress(false); // 将强制刷新设为false，降低刷新频率
+      }, 60000);
       
       return () => clearInterval(timer);
     }
