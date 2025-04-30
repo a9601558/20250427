@@ -302,7 +302,17 @@ function QuizPage(): JSX.Element {
       }
 
       // 发送进度更新事件
-      socket.emit('progress:update', { userId: user.id });
+      socket.emit('progress:update', { 
+        userId: user.id,
+        questionSetId: questionSet.id,
+        questionId: String(currentQuestion.id),
+        isCorrect,
+        timeSpent,
+        completedQuestions: (user.progress?.[questionSet.id]?.completedQuestions || 0) + (isCorrect ? 1 : 0),
+        totalQuestions: questions.length,
+        correctAnswers: (user.progress?.[questionSet.id]?.correctAnswers || 0) + (isCorrect ? 1 : 0),
+        lastAccessed: new Date().toISOString()
+      });
 
       // 更新本地状态
       if (isCorrect) {
