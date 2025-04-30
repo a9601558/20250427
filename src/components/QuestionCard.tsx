@@ -273,12 +273,14 @@ const QuestionCard = ({
                 </svg>
               </button>
             </div>
-            <RedeemCodeForm onRedeemSuccess={() => {
+            <RedeemCodeForm onRedeemSuccess={(quizId) => {
+              console.log(`[QuestionCard] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
-              // Refresh access status after successful redemption
-              if (onAnswerSubmitted) {
-                onAnswerSubmitted(true, []);
-              }
+              
+              // 更新界面
+              setTimeout(() => {
+                window.location.reload();
+              }, 1000);
             }} />
           </div>
         </div>

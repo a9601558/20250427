@@ -645,18 +645,15 @@ function QuizPage(): JSX.Element {
                 console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
                 setShowRedeemCodeModal(false);
                 
-                // 强制刷新题库访问权限
+                // 直接设置访问权限，与购买成功逻辑保持一致
+                console.log(`[QuizPage] 直接设置访问权限为true`);
+                setHasAccessToFullQuiz(true);
+                setTrialEnded(false);
+                
+                // 后台异步执行权限检查以确保数据完整性
                 setTimeout(() => {
-                  console.log(`[QuizPage] 开始强制重新检查访问权限`);
+                  console.log(`[QuizPage] 后台检查访问权限`);
                   checkAccess();
-                  
-                  // 如果兑换的就是当前题库，强制刷新页面以确保加载最新状态
-                  if (quizId === questionSetId) {
-                    console.log(`[QuizPage] 兑换的是当前题库，刷新页面`);
-                    setTimeout(() => {
-                      window.location.reload();
-                    }, 1000);
-                  }
                 }, 500);
               }} />
             </div>
@@ -734,18 +731,15 @@ function QuizPage(): JSX.Element {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
               
-              // 强制刷新题库访问权限
+              // 直接设置访问权限，与购买成功逻辑保持一致
+              console.log(`[QuizPage] 直接设置访问权限为true`);
+              setHasAccessToFullQuiz(true);
+              setTrialEnded(false);
+              
+              // 后台异步执行权限检查以确保数据完整性
               setTimeout(() => {
-                console.log(`[QuizPage] 开始强制重新检查访问权限`);
+                console.log(`[QuizPage] 后台检查访问权限`);
                 checkAccess();
-                
-                // 如果兑换的就是当前题库，强制刷新页面以确保加载最新状态
-                if (quizId === questionSetId) {
-                  console.log(`[QuizPage] 兑换的是当前题库，刷新页面`);
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 1000);
-                }
               }, 500);
             }} />
           </div>
