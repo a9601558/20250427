@@ -131,10 +131,7 @@ User.init(
     modelName: 'User',
     tableName: 'users',
     timestamps: true,
-    indexes: [
-      { unique: true, fields: ['email'] },
-      { unique: true, fields: ['username'] }
-    ],
+    indexes: [],
     defaultScope: {
       attributes: { exclude: ['password'] }
     },
