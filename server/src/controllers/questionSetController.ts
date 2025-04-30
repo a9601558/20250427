@@ -96,31 +96,50 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
 // @access  Public
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 10, category, search } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
 
-    const where: any = {};
-    if (category) {
-      where.category = category;
-    }
-    if (search) {
-      where[Op.or] = [
-        { title: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } }
-      ];
-    }
-
-    const { count, rows } = await QuestionSet.findAndCountAll({
-      where,
-      limit: Number(limit),
+    const questionSets = await QuestionSet.findAll({
+      order: [['createdAt', 'DESC']],
+      limit,
       offset,
-      order: [['createdAt', 'DESC']]
+      // 明确指定字段属性映射
+      attributes: [
+        'id',
+        'title',
+        'description',
+        'category',
+        'icon',
+        ['is_paid', 'isPaid'],
+        'price',
+        ['trial_questions', 'trialQuestions'],
+        ['is_featured', 'isFeatured'],
+        ['featured_category', 'featuredCategory'],
+        ['created_at', 'createdAt'],
+        ['updated_at', 'updatedAt']
+      ]
     });
 
-    sendResponse(res, 200, rows);
-  } catch (error) {
-    console.error('Get question sets error:', error);
-    sendError(res, 500, '获取题库列表失败', error);
+    const total = await QuestionSet.count();
+
+    res.status(200).json({
+      success: true,
+      data: questionSets,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error: any) {
+    console.error('获取题集列表失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取题库列表失败',
+      error: error.message
+    });
   }
 };
 
@@ -254,22 +273,38 @@ export const getAllCategories = async (req: Request, res: Response) => {
 // @access  Public
 export const getFeaturedQuestionSets = async (req: Request, res: Response) => {
   try {
-    const { category } = req.query;
-    const where: any = { isFeatured: true };
-    
-    if (category) {
-      where.category = category;
-    }
-
     const questionSets = await QuestionSet.findAll({
-      where,
-      order: [['createdAt', 'DESC']]
+      where: {
+        isFeatured: true
+      },
+      // 明确指定字段属性映射
+      attributes: [
+        'id',
+        'title',
+        'description',
+        'category',
+        'icon',
+        ['is_paid', 'isPaid'],
+        'price',
+        ['trial_questions', 'trialQuestions'],
+        ['is_featured', 'isFeatured'],
+        ['featured_category', 'featuredCategory'],
+        ['created_at', 'createdAt'],
+        ['updated_at', 'updatedAt']
+      ]
     });
 
-    sendResponse(res, 200, questionSets);
-  } catch (error) {
-    console.error('Get featured question sets error:', error);
-    sendError(res, 500, '获取精选题库失败', error);
+    res.status(200).json({
+      success: true,
+      data: questionSets
+    });
+  } catch (error: any) {
+    console.error('获取推荐题集失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取推荐题集失败',
+      error: error.message
+    });
   }
 };
 
