@@ -95,6 +95,7 @@ QuestionSet.init(
     sequelize,
     modelName: 'QuestionSet',
     tableName: 'question_sets',
+    underscored: true,
   }
 );
 

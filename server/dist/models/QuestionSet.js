@@ -73,5 +73,6 @@ QuestionSet.init({
     sequelize: database_1.default,
     modelName: 'QuestionSet',
     tableName: 'question_sets',
+    underscored: true,
 });
 exports.default = QuestionSet;

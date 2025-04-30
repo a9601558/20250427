@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "deploy": "npm run build && npm run start",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrations": "node run-migrations.js",
+    "start:with-migrations": "npm run migrations && npm run start"
   },
   "keywords": [],
   "author": "",

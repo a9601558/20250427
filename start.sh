@@ -14,6 +14,11 @@ cd $WORK_DIR/server
 npm install
 npm run build
 
+# 运行数据库迁移
+echo "运行数据库迁移..."
+cd $WORK_DIR/server
+node run-migrations.js
+
 # 使用PM2启动
 echo "启动服务..."
 cd $WORK_DIR

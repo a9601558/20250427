@@ -88,6 +88,7 @@ Purchase.init(
     sequelize,
     modelName: 'Purchase',
     tableName: 'purchases',
+    underscored: true,
     timestamps: true,
     indexes: [
       { fields: ['userId'] },
