@@ -377,17 +377,35 @@ export const getProgressStats = async (req: Request, res: Response) => {
       where: { userId },
     });
 
-    // 3. 整理成 Map
-    const progressMap = new Map<string, { completed: number, correct: number, totalTime: number }>();
+    // 3. 整理成 Map，包含最后访问时间
+    const progressMap = new Map<string, { 
+      completed: number, 
+      correct: number, 
+      totalTime: number, 
+      lastAccessed?: Date 
+    }>();
+
     userProgressRecords.forEach(record => {
       const qsId = record.questionSetId;
       if (!progressMap.has(qsId)) {
-        progressMap.set(qsId, { completed: 0, correct: 0, totalTime: 0 });
+        progressMap.set(qsId, { 
+          completed: 0, 
+          correct: 0, 
+          totalTime: 0,
+          lastAccessed: undefined
+        });
       }
       const stats = progressMap.get(qsId)!;
       stats.completed++;
       if (record.isCorrect) stats.correct++;
       stats.totalTime += record.timeSpent;
+
+      // 更新 lastAccessed 为最新值
+      const currentAccess = stats.lastAccessed?.getTime() || 0;
+      const thisAccess = new Date(record.updatedAt).getTime();
+      if (thisAccess > currentAccess) {
+        stats.lastAccessed = new Date(record.updatedAt);
+      }
     });
 
     // 4. 生成最终统计
@@ -397,7 +415,12 @@ export const getProgressStats = async (req: Request, res: Response) => {
       const totalQuestions = Array.isArray(questions) ? questions.length : 0;
       
       // 获取用户进度数据，如果不存在则使用默认值
-      const progress = progressMap.get(qs.id) || { completed: 0, correct: 0, totalTime: 0 };
+      const progress = progressMap.get(qs.id) || { 
+        completed: 0, 
+        correct: 0, 
+        totalTime: 0,
+        lastAccessed: undefined
+      };
       const completedQuestions = progress.completed;
       const correctAnswers = progress.correct;
       const totalTimeSpent = progress.totalTime;
@@ -416,6 +439,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
         totalTimeSpent,
         averageTimeSpent,
         accuracy,
+        lastAccessed: progress.lastAccessed?.toISOString() || null,
         total: totalQuestions,       // 兼容字段
         correct: correctAnswers,
         timeSpent: totalTimeSpent

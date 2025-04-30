@@ -26,12 +26,15 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
     return null;
   }
 
-  // 获取用户有进度记录的题库
-  const studiedSets = questionSets.filter(qs => 
-    progressStats && progressStats[qs.id] && progressStats[qs.id].lastAccessed
-  );
+  // 获取用户有进度记录的题库，添加更严格的检查
+  const studiedSets = questionSets.filter(qs => {
+    const progress = progressStats[qs.id];
+    return progress && 
+           typeof progress.lastAccessed === 'string' && 
+           progress.lastAccessed.length > 0;
+  });
 
-  // 按照最后访问时间排序
+  // 按照最后访问时间排序，添加更安全的处理
   const sortedSets = [...studiedSets].sort((a, b) => {
     const aProgress = progressStats[a.id];
     const bProgress = progressStats[b.id];
@@ -50,23 +53,33 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
     return null;
   }
 
-  // 格式化最后访问时间
-  const formatLastAccessed = (date: string | Date): string => {
-    const now = new Date();
-    const lastAccessed = new Date(date);
-    const diffTime = Math.abs(now.getTime() - lastAccessed.getTime());
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
+  // 格式化最后访问时间，添加更安全的处理
+  const formatLastAccessed = (date: string | Date | null): string => {
+    try {
+      if (!date) return '无记录';
+      
+      const now = new Date();
+      const lastAccessed = new Date(date);
+      if (isNaN(lastAccessed.getTime())) {
+        return '无记录';
+      }
+      const diffTime = Math.abs(now.getTime() - lastAccessed.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const diffHours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
 
-    if (diffDays > 0) {
-      return `${diffDays}天前`;
-    } else if (diffHours > 0) {
-      return `${diffHours}小时前`;
-    } else if (diffMinutes > 0) {
-      return `${diffMinutes}分钟前`;
-    } else {
-      return '刚刚';
+      if (diffDays > 0) {
+        return `${diffDays}天前`;
+      } else if (diffHours > 0) {
+        return `${diffHours}小时前`;
+      } else if (diffMinutes > 0) {
+        return `${diffMinutes}分钟前`;
+      } else {
+        return '刚刚';
+      }
+    } catch (error) {
+      console.error('格式化时间失败:', error);
+      return '无记录';
     }
   };
 
@@ -91,13 +104,16 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
             ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)
             : 0;
           
+          // 安全地处理lastAccessed
+          const safeDate = progress?.lastAccessed ? new Date(progress.lastAccessed) : null;
+          
           return (
             <Link 
               key={set.id} 
               to={`/quiz/${set.id}`}
               className={`flex items-center p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-600' : 'hover:bg-gray-50'} transition-colors`}
             >
-              <span className="text-xl mr-3">{set.icon || '📝'}</span>
+              <span className="text-xl mr-3">{set.icon || '📘'}</span>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'} truncate`}>
                   {set.title}
@@ -116,7 +132,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
               </div>
               <div className="ml-2 text-right">
                 <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  {progress?.lastAccessed ? formatLastAccessed(progress.lastAccessed) : '无记录'}
+                  {formatLastAccessed(safeDate)}
                 </p>
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
                   继续学习
