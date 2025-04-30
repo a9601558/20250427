@@ -342,6 +342,21 @@ function QuizPage(): JSX.Element {
     }
   };
   
+  // 重新开始测试
+  const handleReset = async () => {
+    setCurrentQuestionIndex(0);
+    setSelectedOptions([]);
+    setShowExplanation(false);
+    setAnsweredQuestions([]);
+    setCorrectAnswers(0);
+    setQuizComplete(false);
+    
+    // 重置进度统计
+    if (user && questionSet) {
+      await fetchUserProgress(true);
+    }
+  };
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -392,17 +407,10 @@ function QuizPage(): JSX.Element {
           
           <div className="flex flex-wrap gap-3 mt-6">
             <button
-              onClick={() => {
-                setCurrentQuestionIndex(0);
-                setSelectedOptions([]);
-                setShowExplanation(false);
-                setAnsweredQuestions([]);
-                setCorrectAnswers(0);
-                setQuizComplete(false);
-              }}
+              onClick={handleReset}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >
-              重新测试
+              重新开始
             </button>
             
             <button
