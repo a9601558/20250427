@@ -9,6 +9,7 @@ import { Op, QueryTypes } from 'sequelize';
 import { v1 as uuidv1 } from 'uuid';
 import { setupAssociations } from '../models/associations';
 import { questionSetAttributes } from '../utils/sequelizeHelpers';
+import { withQuestionSetAttributes } from '../utils/applyFieldMappings';
 
 // 定义数据库查询结果的接口
 interface QuestionSetRow extends RowDataPacket {
@@ -101,13 +102,11 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
 
-    const questionSets = await QuestionSet.findAll({
+    const questionSets = await QuestionSet.findAll(withQuestionSetAttributes({
       order: [['createdAt', 'DESC']],
       limit,
-      offset,
-      // 使用辅助函数进行属性映射
-      attributes: questionSetAttributes
-    });
+      offset
+    }));
 
     const total = await QuestionSet.count();
 
@@ -304,13 +303,11 @@ export const getAllCategories = async (req: Request, res: Response) => {
 // @access  Public
 export const getFeaturedQuestionSets = async (req: Request, res: Response) => {
   try {
-    const questionSets = await QuestionSet.findAll({
+    const questionSets = await QuestionSet.findAll(withQuestionSetAttributes({
       where: {
         isFeatured: true
-      },
-      // 使用辅助函数进行属性映射
-      attributes: questionSetAttributes
-    });
+      }
+    }));
 
     res.status(200).json({
       success: true,

@@ -4,7 +4,7 @@ exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = expo
 const sequelize_1 = require("sequelize");
 const models_1 = require("../models");
 const uuid_1 = require("uuid");
-const sequelizeHelpers_1 = require("../utils/sequelizeHelpers");
+const applyFieldMappings_1 = require("../utils/applyFieldMappings");
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
     res.status(status).json({
@@ -102,21 +102,18 @@ const getUserPurchases = async (req, res) => {
                 message: '未授权',
             });
         }
-        const purchases = await models_1.Purchase.findAll({
+        const purchases = await models_1.Purchase.findAll((0, applyFieldMappings_1.withPurchaseAttributes)({
             where: {
                 userId: userId,
             },
             order: [['purchaseDate', 'DESC']],
-            // 使用辅助函数进行属性映射
-            attributes: sequelizeHelpers_1.purchaseAttributes,
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'purchaseQuestionSet',
-                    attributes: sequelizeHelpers_1.purchaseQuestionSetAttributes,
+                    as: 'purchaseQuestionSet'
                 },
             ],
-        });
+        }));
         return res.status(200).json({
             success: true,
             data: purchases,

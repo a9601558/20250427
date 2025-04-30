@@ -10,7 +10,7 @@ const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
-const sequelizeHelpers_1 = require("../utils/sequelizeHelpers");
+const applyFieldMappings_1 = require("../utils/applyFieldMappings");
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
     res.status(status).json({
@@ -35,13 +35,11 @@ const getAllQuestionSets = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
-        const questionSets = await QuestionSet_1.default.findAll({
+        const questionSets = await QuestionSet_1.default.findAll((0, applyFieldMappings_1.withQuestionSetAttributes)({
             order: [['createdAt', 'DESC']],
             limit,
-            offset,
-            // 使用辅助函数进行属性映射
-            attributes: sequelizeHelpers_1.questionSetAttributes
-        });
+            offset
+        }));
         const total = await QuestionSet_1.default.count();
         res.status(200).json({
             success: true,
@@ -211,13 +209,11 @@ exports.getAllCategories = getAllCategories;
 // @access  Public
 const getFeaturedQuestionSets = async (req, res) => {
     try {
-        const questionSets = await QuestionSet_1.default.findAll({
+        const questionSets = await QuestionSet_1.default.findAll((0, applyFieldMappings_1.withQuestionSetAttributes)({
             where: {
                 isFeatured: true
-            },
-            // 使用辅助函数进行属性映射
-            attributes: sequelizeHelpers_1.questionSetAttributes
-        });
+            }
+        }));
         res.status(200).json({
             success: true,
             data: questionSets

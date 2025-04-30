@@ -4,6 +4,7 @@ import { Purchase, User, QuestionSet, sequelize } from '../models';
 import { stripePaymentIntent } from '../services/stripe';
 import { v4 as uuidv4 } from 'uuid';
 import { purchaseAttributes, purchaseQuestionSetAttributes } from '../utils/sequelizeHelpers';
+import { withPurchaseAttributes } from '../utils/applyFieldMappings';
 
 // 统一响应格式
 const sendResponse = <T>(res: Response, status: number, data: T, message?: string) => {
@@ -115,21 +116,18 @@ export const getUserPurchases = async (req: Request, res: Response) => {
       });
     }
 
-    const purchases = await Purchase.findAll({
+    const purchases = await Purchase.findAll(withPurchaseAttributes({
       where: {
         userId: userId,
       },
       order: [['purchaseDate', 'DESC']],
-      // 使用辅助函数进行属性映射
-      attributes: purchaseAttributes,
       include: [
         {
           model: QuestionSet,
-          as: 'purchaseQuestionSet',
-          attributes: purchaseQuestionSetAttributes,
+          as: 'purchaseQuestionSet'
         },
       ],
-    });
+    }));
 
     return res.status(200).json({
       success: true,

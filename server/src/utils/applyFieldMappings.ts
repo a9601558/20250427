@@ -1,7 +1,7 @@
 /**
  * 全局字段映射修复工具
  */
-import { Model, ModelCtor } from 'sequelize';
+import { Model, ModelCtor, FindOptions, Attributes, ModelStatic, Includeable, IncludeOptions } from 'sequelize';
 import QuestionSet from '../models/QuestionSet';
 import Purchase from '../models/Purchase';
 import Question from '../models/Question';
@@ -14,37 +14,54 @@ import { questionSetAttributes, purchaseAttributes, purchaseQuestionSetAttribute
 export const applyGlobalFieldMappings = () => {
   console.log('正在应用全局字段映射修复...');
 
-  // 扩展QuestionSet.findAll方法
-  const originalQuestionSetFindAll = QuestionSet.findAll;
-  QuestionSet.findAll = function(...args: any[]) {
-    if (args[0] && !args[0].attributes) {
-      args[0].attributes = questionSetAttributes;
-    }
-    return originalQuestionSetFindAll.apply(this, args);
-  };
-
-  // 扩展Purchase.findAll方法
-  const originalPurchaseFindAll = Purchase.findAll;
-  Purchase.findAll = function(...args: any[]) {
-    if (args[0] && !args[0].attributes) {
-      args[0].attributes = purchaseAttributes;
-    }
-    
-    // 如果有包含QuestionSet，添加属性映射
-    if (args[0] && args[0].include) {
-      const includes = Array.isArray(args[0].include) ? args[0].include : [args[0].include];
-      
-      for (const include of includes) {
-        if (include.model === QuestionSet && include.as === 'purchaseQuestionSet' && !include.attributes) {
-          include.attributes = purchaseQuestionSetAttributes;
-        }
-      }
-    }
-    
-    return originalPurchaseFindAll.apply(this, args);
-  };
+  // 保存原始方法的引用但不直接替换它们
+  // 而是在各个控制器中使用辅助函数
+  console.log('已创建辅助函数以便在查询中使用字段映射');
+  console.log('QuestionSet 查询应使用: questionSetAttributes');
+  console.log('Purchase 查询应使用: purchaseAttributes');
+  console.log('包含 QuestionSet 的关联查询应使用: purchaseQuestionSetAttributes');
 
   console.log('全局字段映射修复已应用');
+};
+
+/**
+ * 帮助函数：为QuestionSet添加attributes
+ * @param options 查询选项
+ * @returns 添加了attributes的查询选项
+ */
+export const withQuestionSetAttributes = <T extends FindOptions>(options: T): T => {
+  if (!options.attributes) {
+    options.attributes = questionSetAttributes;
+  }
+  return options;
+};
+
+/**
+ * 帮助函数：为Purchase添加attributes
+ * @param options 查询选项
+ * @returns 添加了attributes的查询选项
+ */
+export const withPurchaseAttributes = <T extends FindOptions>(options: T): T => {
+  if (!options.attributes) {
+    options.attributes = purchaseAttributes;
+  }
+  
+  // 如果有包含QuestionSet，添加属性映射
+  if (options.include) {
+    const includes = Array.isArray(options.include) ? options.include : [options.include];
+    
+    for (const include of includes) {
+      // 确保include是IncludeOptions类型
+      const includeOptions = include as IncludeOptions;
+      if (includeOptions.model === QuestionSet && 
+          includeOptions.as === 'purchaseQuestionSet' && 
+          !includeOptions.attributes) {
+        includeOptions.attributes = purchaseQuestionSetAttributes;
+      }
+    }
+  }
+  
+  return options;
 };
 
 /**
@@ -54,7 +71,7 @@ export const applyGlobalFieldMappings = () => {
 export const testFieldMappings = async () => {
   try {
     // 测试QuestionSet查询
-    const questionSets = await QuestionSet.findAll({ limit: 1 });
+    const questionSets = await QuestionSet.findAll(withQuestionSetAttributes({ limit: 1 }));
     console.log('QuestionSet查询结果示例:', 
       questionSets.length > 0 ? 
       JSON.stringify(questionSets[0].toJSON(), null, 2).substring(0, 200) + '...' :
@@ -62,7 +79,7 @@ export const testFieldMappings = async () => {
     );
 
     // 测试Purchase查询
-    const purchases = await Purchase.findAll({ limit: 1 });
+    const purchases = await Purchase.findAll(withPurchaseAttributes({ limit: 1 }));
     console.log('Purchase查询结果示例:', 
       purchases.length > 0 ? 
       JSON.stringify(purchases[0].toJSON(), null, 2).substring(0, 200) + '...' :

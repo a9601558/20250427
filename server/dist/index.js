@@ -15,7 +15,7 @@ const socket_1 = require("./config/socket");
 const associations_1 = require("./models/associations");
 const appstate_1 = require("./utils/appstate");
 const HomepageSettings_1 = __importDefault(require("./models/HomepageSettings"));
-const sequelizeHelpers_1 = require("./utils/sequelizeHelpers");
+const applyFieldMappings_1 = require("./utils/applyFieldMappings");
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
@@ -76,10 +76,8 @@ console.log('正在初始化模型关联...');
 (0, associations_1.setupAssociations)();
 appstate_1.appState.associationsInitialized = true;
 console.log('模型关联初始化完成');
-// 确保设置关联关系
-console.log('正在应用字段映射修复...');
-console.log('QuestionSet字段映射:', sequelizeHelpers_1.questionSetAttributes);
-console.log('Purchase字段映射:', sequelizeHelpers_1.purchaseAttributes);
+// 应用字段映射修复
+(0, applyFieldMappings_1.applyGlobalFieldMappings)();
 // 同步数据库并启动服务器
 database_1.default.sync({ alter: true }).then(() => {
     console.log('数据库同步完成');

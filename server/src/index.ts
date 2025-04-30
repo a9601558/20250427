@@ -14,6 +14,7 @@ import { setupAssociations } from './models/associations';
 import { appState } from './utils/appstate';
 import HomepageSettings from './models/HomepageSettings';
 import { questionSetAttributes, purchaseAttributes } from './utils/sequelizeHelpers';
+import { applyGlobalFieldMappings, testFieldMappings } from './utils/applyFieldMappings';
 
 // Load environment variables
 dotenv.config();
@@ -87,10 +88,8 @@ setupAssociations();
 appState.associationsInitialized = true;
 console.log('模型关联初始化完成');
 
-// 确保设置关联关系
-console.log('正在应用字段映射修复...');
-console.log('QuestionSet字段映射:', questionSetAttributes);
-console.log('Purchase字段映射:', purchaseAttributes);
+// 应用字段映射修复
+applyGlobalFieldMappings();
 
 // 同步数据库并启动服务器
 sequelize.sync({ alter: true }).then(() => {
