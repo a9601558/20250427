@@ -121,6 +121,7 @@ const redeemCode = async (req, res) => {
         // 查找对应的题库
         const questionSet = await models_1.QuestionSet.findByPk(redeemCode.questionSetId);
         if (!questionSet) {
+            console.error(`题库不存在 - 兑换码ID: ${redeemCode.id}, 题库ID: ${redeemCode.questionSetId}`);
             return res.status(404).json({
                 success: false,
                 message: '题库不存在'

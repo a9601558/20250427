@@ -772,10 +772,10 @@ export const purchaseService = {
 // 兑换码API服务
 export const redeemCodeService = {
   // 兑换代码
-  async redeemCode(code: string): Promise<ApiResponse<{purchase: Purchase}>> {
+  async redeemCode(code: string): Promise<ApiResponse<{purchase: Purchase; questionSet: QuestionSet}>> {
     try {
       const response = await api.post('/redeem-codes/redeem', { code });
-      return handleResponse<{purchase: Purchase}>(response);
+      return handleResponse<{purchase: Purchase; questionSet: QuestionSet}>(response);
     } catch (error: any) {
       return {
         success: false,

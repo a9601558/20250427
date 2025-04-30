@@ -57,7 +57,7 @@ interface UserContextType {
   getUserProgress: (questionSetId: string) => QuizProgress | undefined;
   getAnsweredQuestions: (questionSetId: string) => string[];
   isAdmin: () => boolean;
-  redeemCode: (code: string) => Promise<{ success: boolean; message: string }>;
+  redeemCode: (code: string) => Promise<{ success: boolean; message: string; quizId?: string; quizTitle?: string }>;
   generateRedeemCode: (questionSetId: string, validityDays: number, quantity: number) => Promise<{ success: boolean; codes?: RedeemCode[]; message: string }>;
   getRedeemCodes: () => Promise<RedeemCode[]>;
   getAllUsers: () => Promise<User[]>;
@@ -383,18 +383,37 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return !!user?.isAdmin;
   };
 
-  const redeemCode = async (code: string): Promise<{ success: boolean; message: string }> => {
+  const redeemCode = async (code: string): Promise<{ success: boolean; message: string; quizId?: string; quizTitle?: string }> => {
     if (!user) return { success: false, message: '请先登录' };
     try {
       const response = await redeemCodeApi.redeemCode(code);
       if (response.success) {
+        // 兑换成功，获取最新用户数据
         await fetchCurrentUser();
-        return { success: true, message: '兑换码使用成功！' };
+        
+        // 安全地获取题库ID和标题
+        const quizId = response.data?.purchase?.questionSetId;
+        const quizTitle = response.data?.questionSet?.title;
+        
+        return {
+          success: true,
+          message: '兑换成功!',
+          quizId,
+          quizTitle
+        };
       } else {
-        return { success: false, message: response.message || '兑换码使用失败' };
+        console.error('兑换码兑换失败:', response.message, response);
+        return {
+          success: false,
+          message: response.message || '兑换失败，请检查兑换码是否有效'
+        };
       }
-    } catch (error) {
-      return { success: false, message: '兑换过程中发生错误' };
+    } catch (error: any) {
+      console.error('兑换码处理错误:', error);
+      return {
+        success: false,
+        message: error.message || '兑换过程中发生错误'
+      };
     }
   };
 
