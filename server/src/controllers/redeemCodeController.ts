@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { sequelize, RedeemCode, QuestionSet, User, Purchase } from '../models';
-import { Transaction, Op } from 'sequelize';
+import { Transaction, Op, QueryTypes } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { IPurchase } from '../types';
 
@@ -114,18 +114,17 @@ export const redeemCode = async (req: Request, res: Response) => {
     // 输出调试信息
     console.log(`尝试兑换码: ${code}, 用户ID: ${userId}`);
 
-    // 查找兑换码
-    const redeemCode = await RedeemCode.findOne({
-      where: { code },
-      include: [
-        {
-          model: QuestionSet,
-          as: 'redeemQuestionSet'
-        }
-      ]
-    });
+    // 直接使用原始SQL查询获取兑换码，避免关联加载问题
+    const [redeemCodeResults] = await sequelize.query(
+      `SELECT * FROM redeem_codes WHERE code = ?`,
+      {
+        replacements: [code],
+        type: QueryTypes.SELECT
+      }
+    );
 
-    if (!redeemCode) {
+    // 检查兑换码是否存在
+    if (!redeemCodeResults) {
       console.error(`兑换码不存在: ${code}`);
       return res.status(404).json({
         success: false,
@@ -133,7 +132,9 @@ export const redeemCode = async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`找到兑换码: ${redeemCode.id}, 题库ID: ${redeemCode.questionSetId}`);
+    // 获取兑换码信息
+    const redeemCode = redeemCodeResults as any;
+    console.log(`找到兑换码: ID=${redeemCode.id}, 题库ID=${redeemCode.questionSetId}, 代码=${redeemCode.code}`);
 
     if (redeemCode.isUsed) {
       console.error(`兑换码已使用: ${code}`);
@@ -143,68 +144,69 @@ export const redeemCode = async (req: Request, res: Response) => {
       });
     }
 
-    // 直接使用关联加载的题库，如果存在
-    let questionSet: any = redeemCode.redeemQuestionSet;
-    
-    // 如果关联加载失败，尝试单独查询
-    if (!questionSet) {
-      console.log(`尝试通过ID查找题库: ${redeemCode.questionSetId}`);
-      questionSet = await QuestionSet.findByPk(redeemCode.questionSetId);
+    if (!redeemCode.questionSetId) {
+      console.error(`兑换码缺少题库ID: ${redeemCode.id}, 代码=${code}`);
+      return res.status(400).json({
+        success: false,
+        message: '兑换码配置错误，请联系管理员'
+      });
     }
 
-    if (!questionSet) {
-      // 尝试强制转换ID格式并再次查询
-      const questionSetId = String(redeemCode.questionSetId).trim();
-      console.error(`题库不存在 - 兑换码ID: ${redeemCode.id}, 题库ID: ${questionSetId}`);
-      
-      // 尝试列出所有题库的ID，以便排查问题
-      const allSets = await QuestionSet.findAll({
-        attributes: ['id', 'title']
-      });
-      
-      console.log(`数据库中的题库列表: ${JSON.stringify(allSets.map(s => ({ id: s.id, title: s.title })))}`);
-      
+    // 直接查询题库信息
+    const [questionSetResults] = await sequelize.query(
+      `SELECT * FROM question_sets WHERE id = ?`,
+      {
+        replacements: [redeemCode.questionSetId],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!questionSetResults) {
+      console.error(`题库不存在 - 兑换码ID: ${redeemCode.id}, 题库ID: ${redeemCode.questionSetId}`);
       return res.status(404).json({
         success: false,
         message: '题库不存在'
       });
     }
 
+    const questionSet = questionSetResults as any;
     console.log(`找到题库: ${questionSet.id}, 标题: ${questionSet.title}`);
 
     // 创建购买记录
-    const purchase = await Purchase.create({
-      id: uuidv4(),
-      userId,
-      questionSetId: questionSet.id,
-      purchaseDate: new Date(),
-      status: 'active',
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
-      amount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+    const purchaseId = uuidv4();
+    const now = new Date();
+    const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天有效期
 
-    console.log(`创建了购买记录: ${purchase.id}`);
+    await sequelize.query(
+      `INSERT INTO purchases (id, userId, questionSetId, purchaseDate, status, expiryDate, amount, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)`,
+      {
+        replacements: [purchaseId, userId, questionSet.id, now, expiryDate, now, now],
+        type: QueryTypes.INSERT
+      }
+    );
+
+    console.log(`创建了购买记录: ${purchaseId}`);
 
     // 更新兑换码状态
-    await redeemCode.update({
-      isUsed: true,
-      usedBy: userId,
-      usedAt: new Date()
-    });
+    await sequelize.query(
+      `UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`,
+      {
+        replacements: [userId, now, redeemCode.id],
+        type: QueryTypes.UPDATE
+      }
+    );
 
     console.log(`已更新兑换码状态为已使用`);
 
-    // 更新用户的购买记录
-    const user = await User.findByPk(userId);
-    if (user) {
-      const currentPurchases = user.purchases || [];
-      await user.update({
-        purchases: [...currentPurchases, purchase.toJSON() as IPurchase]
-      });
-      console.log(`已更新用户购买记录`);
-    }
+    // 查询创建的购买记录
+    const [purchase] = await sequelize.query(
+      `SELECT * FROM purchases WHERE id = ?`,
+      {
+        replacements: [purchaseId],
+        type: QueryTypes.SELECT
+      }
+    );
 
     res.json({
       success: true,
