@@ -216,6 +216,13 @@ const HomePage: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
+  // 用户进入首页时主动刷新进度数据
+  useEffect(() => {
+    if (user) {
+      fetchUserProgress(true); // 强制刷新进度数据
+    }
+  }, [user, fetchUserProgress]);
+
   // 根据主题设置页面背景色
   const bgClass = homeContent.theme === 'dark' 
     ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 

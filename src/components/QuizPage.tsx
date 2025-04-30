@@ -1,30 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IQuestionSet, Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi } from '../utils/api';
-import { sendProgressUpdate } from '../config/socket';
 import { useSocket } from '../contexts/SocketContext';
-import { userProgressService } from '../services/UserProgressService';
+import { userProgressService } from './services/UserProgressService';
 import { useUserProgress } from '../contexts/UserProgressContext';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
   index: number;
   isCorrect: boolean;
-}
-
-interface ProgressUpdate {
-  userId: string;
-  questionSetId: string;
-  questionId: string;  // 统一使用字符串类型
-  isCorrect: boolean;
-  timeSpent: number;
-  completedQuestions: number;
-  totalQuestions: number;
-  correctAnswers: number;
-  lastAccessed: string;
 }
 
 // 获取选项标签（A, B, C, D...）
@@ -35,7 +22,7 @@ const getOptionLabel = (index: number): string => {
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
-  const { user, addProgress, hasAccessToQuestionSet } = useUser();
+  const { user, hasAccessToQuestionSet } = useUser();
   const { socket } = useSocket();
   const { fetchUserProgress } = useUserProgress();
   
@@ -52,9 +39,8 @@ function QuizPage(): JSX.Element {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState(false);
   const [trialEnded, setTrialEnded] = useState(false);
-  const [remainingDays, setRemainingDays] = useState<number | null>(null);
   const [questionStartTime, setQuestionStartTime] = useState(0);
-  const [completedQuestions, setCompletedQuestions] = useState(0);
+  const timeoutId = useRef<NodeJS.Timeout>();
   
   // 添加 Socket 监听
   useEffect(() => {
@@ -64,14 +50,9 @@ function QuizPage(): JSX.Element {
     const handleQuestionSetAccessUpdate = (data: { 
       questionSetId: string;
       hasAccess: boolean;
-      remainingDays: number | null;
     }) => {
       if (data.questionSetId === questionSet.id) {
         setHasAccessToFullQuiz(data.hasAccess);
-        setRemainingDays(data.remainingDays);
-        if (!data.hasAccess && questionSet.trialQuestions) {
-          setTrialEnded(answeredQuestions.length >= questionSet.trialQuestions);
-        }
       }
     };
 
@@ -83,8 +64,6 @@ function QuizPage(): JSX.Element {
     }) => {
       if (data.questionSetId === questionSet.id) {
         setHasAccessToFullQuiz(true);
-        setTrialEnded(false);
-        setRemainingDays(Math.ceil((new Date(data.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
       }
     };
 
@@ -95,7 +74,7 @@ function QuizPage(): JSX.Element {
       socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
       socket.off('purchase:success', handlePurchaseSuccess);
     };
-  }, [socket, questionSet, answeredQuestions.length]);
+  }, [socket, questionSet]);
 
   // 检查访问权限
   const checkAccess = async () => {
@@ -298,7 +277,7 @@ function QuizPage(): JSX.Element {
     try {
       // 保存进度到后端
       await userProgressService.saveProgress({
-        questionId: currentQuestion.id,
+        questionId: String(currentQuestion.id),
         questionSetId: questionSet.id,
         selectedOption: currentQuestion.questionType === 'single' 
           ? selectedOptions[0] 
@@ -314,7 +293,6 @@ function QuizPage(): JSX.Element {
       socket.emit('progress:update', { userId: user.id });
 
       // 更新本地状态
-      setCompletedQuestions(prev => prev + 1);
       if (isCorrect) {
         setCorrectAnswers(prev => prev + 1);
       }
@@ -330,7 +308,7 @@ function QuizPage(): JSX.Element {
 
       // 答对自动跳到下一题
       if (isCorrect) {
-        timeoutId = setTimeout(() => {
+        timeoutId.current = setTimeout(() => {
           goToNextQuestion();
         }, 1000);
       }
@@ -338,16 +316,6 @@ function QuizPage(): JSX.Element {
       console.error('保存进度失败:', error);
       setError('保存进度失败，请重试');
     }
-  };
-  
-  // 完成测试，保存最终进度
-  const completeQuiz = async () => {
-    if (!user || !questionSet) return;
-    
-    setQuizComplete(true);
-    
-    // 保存最终进度
-    await handleAnswerSubmit();
   };
   
   // 进入下一题

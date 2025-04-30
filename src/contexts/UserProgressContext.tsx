@@ -11,6 +11,7 @@ interface ProgressStats {
   totalTimeSpent: number;
   averageTimeSpent: number;
   accuracy: number;
+  lastAccessed: string;
 }
 
 interface UserProgressContextType {

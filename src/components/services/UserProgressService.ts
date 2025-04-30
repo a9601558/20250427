@@ -16,7 +16,6 @@ interface ProgressStats {
   totalTimeSpent: number;
   averageTimeSpent: number;
   accuracy: number;
-  lastAccessed: string;
 }
 
 interface ApiResponse<T> {
@@ -48,25 +47,6 @@ class UserProgressService {
     } catch (error: any) {
       console.error('获取用户进度失败:', error?.response?.data || error.message);
       return { success: false, message: error?.response?.data?.message || '获取用户进度失败' };
-    }
-  }
-
-  async getUserProgressRecords(
-    questionSetId?: string
-  ): Promise<ApiResponse<any[]>> {
-    try {
-      const url = questionSetId 
-        ? `${this.baseUrl}/records?questionSetId=${questionSetId}`
-        : `${this.baseUrl}/records`;
-      
-      const response = await axios.get(url);
-      return response.data;
-    } catch (error: any) {
-      console.error('获取用户进度记录失败:', error?.response?.data || error.message);
-      return { 
-        success: false, 
-        message: error?.response?.data?.message || '获取用户进度记录失败' 
-      };
     }
   }
 }

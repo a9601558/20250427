@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { QuestionSet } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { useUserProgress } from '../contexts/UserProgressContext';
 
 interface RecentlyStudiedQuestionSetsProps {
   questionSets: QuestionSet[];
@@ -19,20 +20,21 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
   theme = 'light'
 }) => {
   const { user } = useUser();
+  const { progressStats } = useUserProgress();
 
-  if (!user || !user.progress || Object.keys(user.progress).length === 0) {
+  if (!user || !progressStats || Object.keys(progressStats).length === 0) {
     return null;
   }
 
   // 获取用户有进度记录的题库
   const studiedSets = questionSets.filter(qs => 
-    user.progress && user.progress[qs.id]
+    progressStats && progressStats[qs.id]
   );
 
   // 按照最后访问时间排序
   const sortedSets = [...studiedSets].sort((a, b) => {
-    const aTime = user.progress[a.id]?.lastAccessed ? new Date(user.progress[a.id].lastAccessed).getTime() : 0;
-    const bTime = user.progress[b.id]?.lastAccessed ? new Date(user.progress[b.id].lastAccessed).getTime() : 0;
+    const aTime = progressStats[a.id]?.lastAccessed ? new Date(progressStats[a.id].lastAccessed).getTime() : 0;
+    const bTime = progressStats[b.id]?.lastAccessed ? new Date(progressStats[b.id].lastAccessed).getTime() : 0;
     return bTime - aTime; // 从新到旧排序
   });
 
@@ -44,9 +46,9 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
   }
 
   // 格式化最后访问时间
-  const formatLastAccessed = (dateString: string): string => {
+  const formatLastAccessed = (date: string | Date): string => {
     const now = new Date();
-    const lastAccessed = new Date(dateString);
+    const lastAccessed = new Date(date);
     const diffTime = Math.abs(now.getTime() - lastAccessed.getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const diffHours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -79,8 +81,10 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
 
       <div className="space-y-2">
         {displaySets.map(set => {
-          const progress = user.progress[set.id];
-          const progressPercentage = Math.round((progress.completedQuestions / progress.totalQuestions) * 100);
+          const progress = progressStats[set.id];
+          const progressPercentage = progress?.totalQuestions
+            ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)
+            : 0;
           
           return (
             <Link 

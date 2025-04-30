@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
-import { initializeSocket, authenticateUser, onProgressUpdate } from '../config/socket';
+import { initializeSocket, authenticateUser } from '../config/socket';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
