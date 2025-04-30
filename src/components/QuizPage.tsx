@@ -5,7 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi } from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
-import { userProgressService } from './services/UserProgressService';
+import { userProgressService } from '../services/UserProgressService';
 import { useUserProgress } from '../contexts/UserProgressContext';
 
 // 定义答题记录类型
