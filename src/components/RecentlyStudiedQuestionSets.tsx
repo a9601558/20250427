@@ -26,29 +26,48 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
     return null;
   }
 
+  /**
+   * 安全地获取进度对象，确保不会返回 undefined
+   */
+  const getSafeProgress = (questionSetId: string) => {
+    if (!progressStats) return null;
+    
+    const progress = progressStats[questionSetId];
+    if (!progress) return null;
+    
+    // 验证属性的有效性
+    return {
+      ...progress,
+      completedQuestions: progress.completedQuestions || 0,
+      totalQuestions: progress.totalQuestions || 0,
+      lastAccessed: progress.lastAccessed || new Date().toISOString()
+    };
+  };
+
   // 获取用户有进度记录的题库，添加更严格的检查
   const studiedSets = questionSets.filter(qs => {
-    const progress = progressStats[qs.id];
+    const progress = getSafeProgress(qs.id);
     return progress && progress.completedQuestions > 0;
   });
 
   // 按照最后访问时间排序，添加更安全的处理
   const sortedSets = [...studiedSets].sort((a, b) => {
-    const aProgress = progressStats[a.id];
-    const bProgress = progressStats[b.id];
+    const aProgress = getSafeProgress(a.id);
+    const bProgress = getSafeProgress(b.id);
     
     if (!aProgress || !bProgress) return 0;
     
     const parseTime = (input?: string | Date): number => {
       try {
         return input ? new Date(input).getTime() : 0;
-      } catch {
+      } catch (error) {
+        console.error('解析时间失败:', error);
         return 0;
       }
     };
 
-    const aTime = parseTime(aProgress?.lastAccessed);
-    const bTime = parseTime(bProgress?.lastAccessed);
+    const aTime = parseTime(aProgress.lastAccessed);
+    const bTime = parseTime(bProgress.lastAccessed);
     return bTime - aTime; // 从新到旧排序
   });
 
@@ -60,7 +79,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
   }
 
   // 格式化最后访问时间，添加更安全的处理
-  const formatLastAccessed = (date: string | Date | null): string => {
+  const formatLastAccessed = (date: string | Date | null | undefined): string => {
     try {
       if (!date) return '无记录';
       
@@ -105,13 +124,14 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
 
       <div className="space-y-2">
         {displaySets.map(set => {
-          const progress = progressStats[set.id];
-          const progressPercentage = progress?.totalQuestions
+          const progress = getSafeProgress(set.id);
+          const progressPercentage = progress && progress.totalQuestions > 0
             ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)
             : 0;
           
-          // 安全地处理lastAccessed，如果不存在则使用当前时间
-          const safeDate = progress?.lastAccessed ? new Date(progress.lastAccessed) : new Date();
+          // 安全地获取最后访问时间
+          const lastAccessed = progress?.lastAccessed;
+          const displayTime = formatLastAccessed(lastAccessed);
           
           return (
             <Link 
@@ -138,7 +158,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
               </div>
               <div className="ml-2 text-right">
                 <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  {formatLastAccessed(safeDate)}
+                  {displayTime}
                 </p>
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
                   继续学习

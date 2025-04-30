@@ -291,9 +291,14 @@ function QuizPage(): JSX.Element {
       }
 
       // 立即更新本地进度，并等待更新完成
-      const updatedProgress = await fetchUserProgress(true);
-      if (!updatedProgress) {
-        throw new Error('更新本地进度失败');
+      try {
+        const updatedProgress = await fetchUserProgress(true);
+        if (!updatedProgress) {
+          console.warn('未能获取更新后的进度数据');
+        }
+      } catch (updateError) {
+        console.error('更新本地进度失败:', updateError);
+        // 继续执行，不中断用户答题流程
       }
 
       // 发送进度更新事件
@@ -315,6 +320,9 @@ function QuizPage(): JSX.Element {
 
       // 答对自动跳到下一题
       if (isCorrect) {
+        if (timeoutId.current) {
+          clearTimeout(timeoutId.current);
+        }
         timeoutId.current = setTimeout(() => {
           goToNextQuestion();
         }, 1000);
@@ -344,18 +352,46 @@ function QuizPage(): JSX.Element {
   
   // 重新开始测试
   const handleReset = async () => {
+    // 清除任何现有的定时器
+    if (timeoutId.current) {
+      clearTimeout(timeoutId.current);
+      timeoutId.current = undefined;
+    }
+
+    // 重置所有状态
     setCurrentQuestionIndex(0);
     setSelectedOptions([]);
     setShowExplanation(false);
     setAnsweredQuestions([]);
     setCorrectAnswers(0);
     setQuizComplete(false);
+    setQuestionStartTime(Date.now());
     
-    // 重置进度统计
+    console.log('重置答题状态，准备刷新进度数据');
+    
+    // 重置进度统计 - 确保先清除再重新加载
     if (user && questionSet) {
-      await fetchUserProgress(true);
+      try {
+        // 确保强制刷新进度数据
+        await fetchUserProgress(true);
+        console.log('重置后成功刷新进度数据');
+      } catch (error) {
+        console.error('重置后刷新进度数据失败:', error);
+        // 显示友好的错误提示
+        setError('刷新进度数据失败，请尝试重新加载页面');
+      }
     }
   };
+  
+  // 组件卸载时清理
+  useEffect(() => {
+    return () => {
+      // 清除超时定时器
+      if (timeoutId.current) {
+        clearTimeout(timeoutId.current);
+      }
+    };
+  }, []);
   
   if (loading) {
     return (
