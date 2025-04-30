@@ -10,6 +10,7 @@ const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
+const sequelizeHelpers_1 = require("../utils/sequelizeHelpers");
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
     res.status(status).json({
@@ -38,21 +39,8 @@ const getAllQuestionSets = async (req, res) => {
             order: [['createdAt', 'DESC']],
             limit,
             offset,
-            // 明确指定字段属性映射
-            attributes: [
-                'id',
-                'title',
-                'description',
-                'category',
-                'icon',
-                ['is_paid', 'isPaid'],
-                'price',
-                ['trial_questions', 'trialQuestions'],
-                ['is_featured', 'isFeatured'],
-                ['featured_category', 'featuredCategory'],
-                ['created_at', 'createdAt'],
-                ['updated_at', 'updatedAt']
-            ]
+            // 使用辅助函数进行属性映射
+            attributes: sequelizeHelpers_1.questionSetAttributes
         });
         const total = await QuestionSet_1.default.count();
         res.status(200).json({
@@ -110,17 +98,23 @@ exports.getQuestionSetById = getQuestionSetById;
 // @access  Private/Admin
 const createQuestionSet = async (req, res) => {
     try {
-        const { title, description, category, isFeatured, featuredCategory } = req.body;
+        const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions } = req.body;
         // 验证必填字段
         if (!title || !description || !category) {
             return sendError(res, 400, '请提供标题、描述和分类');
+        }
+        // 如果是付费题库，验证价格
+        if (isPaid && (price === undefined || price <= 0)) {
+            return sendError(res, 400, '付费题库必须设置有效的价格');
         }
         const questionSet = await QuestionSet_1.default.create({
             title,
             description,
             category,
             icon: 'default',
-            isPaid: false,
+            isPaid: isPaid || false,
+            price: isPaid ? price : null,
+            trialQuestions: isPaid ? trialQuestions : null,
             isFeatured: isFeatured || false,
             featuredCategory
         });
@@ -139,10 +133,26 @@ const updateQuestionSet = async (req, res) => {
     try {
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id);
         if (questionSet) {
-            const { title, description, category, isFeatured, featuredCategory } = req.body;
+            const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions } = req.body;
+            // 如果是付费题库，验证价格
+            if (isPaid && (price === undefined || price <= 0)) {
+                return sendError(res, 400, '付费题库必须设置有效的价格');
+            }
             questionSet.title = title || questionSet.title;
             questionSet.description = description || questionSet.description;
             questionSet.category = category || questionSet.category;
+            // 更新付费相关字段
+            if (isPaid !== undefined) {
+                questionSet.isPaid = isPaid;
+                if (isPaid) {
+                    questionSet.price = price !== undefined ? price : questionSet.price;
+                    questionSet.trialQuestions = trialQuestions !== undefined ? trialQuestions : questionSet.trialQuestions;
+                }
+                else {
+                    questionSet.price = undefined;
+                    questionSet.trialQuestions = undefined;
+                }
+            }
             questionSet.isFeatured = isFeatured !== undefined ? isFeatured : questionSet.isFeatured;
             questionSet.featuredCategory = featuredCategory !== undefined ? featuredCategory : questionSet.featuredCategory;
             const updatedQuestionSet = await questionSet.save();
@@ -205,21 +215,8 @@ const getFeaturedQuestionSets = async (req, res) => {
             where: {
                 isFeatured: true
             },
-            // 明确指定字段属性映射
-            attributes: [
-                'id',
-                'title',
-                'description',
-                'category',
-                'icon',
-                ['is_paid', 'isPaid'],
-                'price',
-                ['trial_questions', 'trialQuestions'],
-                ['is_featured', 'isFeatured'],
-                ['featured_category', 'featuredCategory'],
-                ['created_at', 'createdAt'],
-                ['updated_at', 'updatedAt']
-            ]
+            // 使用辅助函数进行属性映射
+            attributes: sequelizeHelpers_1.questionSetAttributes
         });
         res.status(200).json({
             success: true,

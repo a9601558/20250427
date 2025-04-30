@@ -4,6 +4,7 @@ exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = expo
 const sequelize_1 = require("sequelize");
 const models_1 = require("../models");
 const uuid_1 = require("uuid");
+const sequelizeHelpers_1 = require("../utils/sequelizeHelpers");
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
     res.status(status).json({
@@ -106,32 +107,13 @@ const getUserPurchases = async (req, res) => {
                 userId: userId,
             },
             order: [['purchaseDate', 'DESC']],
-            // 明确指定字段属性映射
-            attributes: [
-                'id',
-                ['user_id', 'userId'],
-                ['question_set_id', 'questionSetId'],
-                'amount',
-                'status',
-                ['payment_method', 'paymentMethod'],
-                ['transaction_id', 'transactionId'],
-                ['purchase_date', 'purchaseDate'],
-                ['expiry_date', 'expiryDate'],
-                ['created_at', 'createdAt'],
-                ['updated_at', 'updatedAt']
-            ],
+            // 使用辅助函数进行属性映射
+            attributes: sequelizeHelpers_1.purchaseAttributes,
             include: [
                 {
                     model: models_1.QuestionSet,
                     as: 'purchaseQuestionSet',
-                    attributes: [
-                        'id',
-                        'title',
-                        'category',
-                        'icon',
-                        ['is_paid', 'isPaid'],
-                        'price'
-                    ],
+                    attributes: sequelizeHelpers_1.purchaseQuestionSetAttributes,
                 },
             ],
         });

@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { Purchase, User, QuestionSet, sequelize } from '../models';
 import { stripePaymentIntent } from '../services/stripe';
 import { v4 as uuidv4 } from 'uuid';
+import { purchaseAttributes, purchaseQuestionSetAttributes } from '../utils/sequelizeHelpers';
 
 // 统一响应格式
 const sendResponse = <T>(res: Response, status: number, data: T, message?: string) => {
@@ -119,32 +120,13 @@ export const getUserPurchases = async (req: Request, res: Response) => {
         userId: userId,
       },
       order: [['purchaseDate', 'DESC']],
-      // 明确指定字段属性映射
-      attributes: [
-        'id',
-        ['user_id', 'userId'],
-        ['question_set_id', 'questionSetId'],
-        'amount',
-        'status',
-        ['payment_method', 'paymentMethod'],
-        ['transaction_id', 'transactionId'],
-        ['purchase_date', 'purchaseDate'],
-        ['expiry_date', 'expiryDate'],
-        ['created_at', 'createdAt'],
-        ['updated_at', 'updatedAt']
-      ],
+      // 使用辅助函数进行属性映射
+      attributes: purchaseAttributes,
       include: [
         {
           model: QuestionSet,
           as: 'purchaseQuestionSet',
-          attributes: [
-            'id',
-            'title',
-            'category',
-            'icon',
-            ['is_paid', 'isPaid'],
-            'price'
-          ],
+          attributes: purchaseQuestionSetAttributes,
         },
       ],
     });

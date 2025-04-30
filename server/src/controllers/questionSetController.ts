@@ -8,6 +8,7 @@ import Option from '../models/Option';
 import { Op, QueryTypes } from 'sequelize';
 import { v1 as uuidv1 } from 'uuid';
 import { setupAssociations } from '../models/associations';
+import { questionSetAttributes } from '../utils/sequelizeHelpers';
 
 // 定义数据库查询结果的接口
 interface QuestionSetRow extends RowDataPacket {
@@ -104,21 +105,8 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
       order: [['createdAt', 'DESC']],
       limit,
       offset,
-      // 明确指定字段属性映射
-      attributes: [
-        'id',
-        'title',
-        'description',
-        'category',
-        'icon',
-        ['is_paid', 'isPaid'],
-        'price',
-        ['trial_questions', 'trialQuestions'],
-        ['is_featured', 'isFeatured'],
-        ['featured_category', 'featuredCategory'],
-        ['created_at', 'createdAt'],
-        ['updated_at', 'updatedAt']
-      ]
+      // 使用辅助函数进行属性映射
+      attributes: questionSetAttributes
     });
 
     const total = await QuestionSet.count();
@@ -179,11 +167,25 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
 // @access  Private/Admin
 export const createQuestionSet = async (req: Request, res: Response) => {
   try {
-    const { title, description, category, isFeatured, featuredCategory } = req.body;
+    const { 
+      title, 
+      description, 
+      category, 
+      isFeatured, 
+      featuredCategory, 
+      isPaid, 
+      price, 
+      trialQuestions 
+    } = req.body;
 
     // 验证必填字段
     if (!title || !description || !category) {
       return sendError(res, 400, '请提供标题、描述和分类');
+    }
+
+    // 如果是付费题库，验证价格
+    if (isPaid && (price === undefined || price <= 0)) {
+      return sendError(res, 400, '付费题库必须设置有效的价格');
     }
 
     const questionSet = await QuestionSet.create({
@@ -191,7 +193,9 @@ export const createQuestionSet = async (req: Request, res: Response) => {
       description,
       category,
       icon: 'default',
-      isPaid: false,
+      isPaid: isPaid || false,
+      price: isPaid ? price : null,
+      trialQuestions: isPaid ? trialQuestions : null,
       isFeatured: isFeatured || false,
       featuredCategory
     });
@@ -211,11 +215,38 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
     const questionSet = await QuestionSet.findByPk(req.params.id);
 
     if (questionSet) {
-      const { title, description, category, isFeatured, featuredCategory } = req.body;
+      const { 
+        title, 
+        description, 
+        category, 
+        isFeatured, 
+        featuredCategory, 
+        isPaid, 
+        price, 
+        trialQuestions 
+      } = req.body;
+
+      // 如果是付费题库，验证价格
+      if (isPaid && (price === undefined || price <= 0)) {
+        return sendError(res, 400, '付费题库必须设置有效的价格');
+      }
 
       questionSet.title = title || questionSet.title;
       questionSet.description = description || questionSet.description;
       questionSet.category = category || questionSet.category;
+      
+      // 更新付费相关字段
+      if (isPaid !== undefined) {
+        questionSet.isPaid = isPaid;
+        if (isPaid) {
+          questionSet.price = price !== undefined ? price : questionSet.price;
+          questionSet.trialQuestions = trialQuestions !== undefined ? trialQuestions : questionSet.trialQuestions;
+        } else {
+          questionSet.price = undefined;
+          questionSet.trialQuestions = undefined;
+        }
+      }
+      
       questionSet.isFeatured = isFeatured !== undefined ? isFeatured : questionSet.isFeatured;
       questionSet.featuredCategory = featuredCategory !== undefined ? featuredCategory : questionSet.featuredCategory;
 
@@ -277,21 +308,8 @@ export const getFeaturedQuestionSets = async (req: Request, res: Response) => {
       where: {
         isFeatured: true
       },
-      // 明确指定字段属性映射
-      attributes: [
-        'id',
-        'title',
-        'description',
-        'category',
-        'icon',
-        ['is_paid', 'isPaid'],
-        'price',
-        ['trial_questions', 'trialQuestions'],
-        ['is_featured', 'isFeatured'],
-        ['featured_category', 'featuredCategory'],
-        ['created_at', 'createdAt'],
-        ['updated_at', 'updatedAt']
-      ]
+      // 使用辅助函数进行属性映射
+      attributes: questionSetAttributes
     });
 
     res.status(200).json({
