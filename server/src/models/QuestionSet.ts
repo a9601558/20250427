@@ -72,23 +72,28 @@ QuestionSet.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+      field: 'is_paid',
     },
     price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
+      field: 'price',
     },
     trialQuestions: {
       type: DataTypes.INTEGER,
       allowNull: true,
+      field: 'trial_questions',
     },
     isFeatured: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+      field: 'is_featured',
     },
     featuredCategory: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'featured_category',
     },
   },
   {
@@ -96,6 +101,9 @@ QuestionSet.init(
     modelName: 'QuestionSet',
     tableName: 'question_sets',
     underscored: true,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
   }
 );
 

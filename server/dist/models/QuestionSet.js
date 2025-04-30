@@ -51,28 +51,36 @@ QuestionSet.init({
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: 'is_paid',
     },
     price: {
         type: sequelize_1.DataTypes.DECIMAL(10, 2),
         allowNull: true,
+        field: 'price',
     },
     trialQuestions: {
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: true,
+        field: 'trial_questions',
     },
     isFeatured: {
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: 'is_featured',
     },
     featuredCategory: {
         type: sequelize_1.DataTypes.STRING,
         allowNull: true,
+        field: 'featured_category',
     },
 }, {
     sequelize: database_1.default,
     modelName: 'QuestionSet',
     tableName: 'question_sets',
     underscored: true,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
 });
 exports.default = QuestionSet;

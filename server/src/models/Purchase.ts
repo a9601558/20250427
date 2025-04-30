@@ -34,6 +34,7 @@ Purchase.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'user_id',
       references: {
         model: 'users',
         key: 'id'
@@ -42,6 +43,7 @@ Purchase.init(
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'question_set_id',
       references: {
         model: 'question_sets',
         key: 'id'
@@ -59,29 +61,35 @@ Purchase.init(
     paymentMethod: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'payment_method',
     },
     transactionId: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'transaction_id',
     },
     purchaseDate: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'purchase_date',
     },
     expiryDate: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'expiry_date',
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'created_at',
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'updated_at',
     },
   },
   {
@@ -90,10 +98,12 @@ Purchase.init(
     tableName: 'purchases',
     underscored: true,
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
-      { fields: ['userId'] },
-      { fields: ['questionSetId'] },
-      { fields: ['userId', 'questionSetId'] }
+      { fields: ['user_id'] },
+      { fields: ['question_set_id'] },
+      { fields: ['user_id', 'question_set_id'] }
     ]
   }
 );
