@@ -421,8 +421,12 @@ const HomePage: React.FC = () => {
     const stats = progressStats[questionSet.id];
     if (!stats) return null;
 
-    const progress = (stats.completedQuestions / stats.totalQuestions) * 100;
-    const accuracy = stats.accuracy;
+    const progress = stats.totalQuestions > 0 
+      ? (stats.completedQuestions / stats.totalQuestions) * 100 
+      : 0;
+    const accuracy = stats.completedQuestions > 0 
+      ? (stats.correctAnswers / stats.completedQuestions) * 100 
+      : 0;
 
     return (
       <div className="mt-2">
@@ -443,15 +447,17 @@ const HomePage: React.FC = () => {
   // 用户进入首页时主动刷新进度数据，使用优化后的方式
   useEffect(() => {
     if (user) {
-      // 使用setTimeout进行延迟，避免页面加载时立即触发请求
-      const timer = setTimeout(() => {
-        console.log('首页初始化，延迟请求进度数据');
-        fetchUserProgress(true); // 强制刷新进度数据
-      }, 800);
+      // 立即获取一次数据
+      fetchUserProgress(true);
       
-      return () => clearTimeout(timer);
+      // 设置定时器，每30秒更新一次数据
+      const timer = setInterval(() => {
+        fetchUserProgress(true);
+      }, 30000);
+      
+      return () => clearInterval(timer);
     }
-  }, [user?.id]); // 只依赖user.id, 而不是整个user对象
+  }, [user?.id, fetchUserProgress]);
 
   // 根据主题设置页面背景色
   const bgClass = homeContent.theme === 'dark' 
@@ -478,11 +484,6 @@ const HomePage: React.FC = () => {
       )}
       
       <div className="relative py-3 sm:max-w-4xl sm:mx-auto">
-        用户菜单 - 右上角
-        {/* <div className="absolute top-0 right-0 mt-4 mr-4 z-10">
-          <UserMenu />
-        </div> */}
-        
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             {!homeContent.bannerImage && (
@@ -523,30 +524,48 @@ const HomePage: React.FC = () => {
                       <div>
                         <p className="font-medium">已完成题目</p>
                         <p className="text-2xl font-bold">
-                          {Object.values(progressStats || {}).reduce((acc, curr) => acc + curr.completedQuestions, 0)}
+                          {Object.values(progressStats || {}).reduce((acc, curr) => 
+                            acc + (curr.completedQuestions || 0), 0
+                          )}
                         </p>
                       </div>
                       <div>
                         <p className="font-medium">平均正确率</p>
                         <p className="text-2xl font-bold">
-                          {Object.values(progressStats || {}).length > 0
-                            ? Math.round(Object.values(progressStats).reduce((acc, curr) => acc + curr.accuracy, 0) / Object.values(progressStats).length)
-                            : 0}%
+                          {(() => {
+                            const stats = Object.values(progressStats || {});
+                            if (stats.length === 0) return 0;
+                            
+                            const totalCompleted = stats.reduce((acc, curr) => 
+                              acc + (curr.completedQuestions || 0), 0
+                            );
+                            const totalCorrect = stats.reduce((acc, curr) => 
+                              acc + (curr.correctAnswers || 0), 0
+                            );
+                            
+                            return totalCompleted > 0 
+                              ? Math.round((totalCorrect / totalCompleted) * 100) 
+                              : 0;
+                          })()}%
                         </p>
                       </div>
                     </div>
                     <div className="mt-4">
                       <p className="font-medium">最近学习</p>
                       <p className="text-sm">
-                        {Object.values(progressStats || {}).length > 0
-                          ? Object.values(progressStats)
-                              .filter(prog => prog?.lastAccessed)
-                              .sort((a, b) => 
-                                new Date(b?.lastAccessed || 0).getTime() - 
-                                new Date(a?.lastAccessed || 0).getTime()
-                              )[0]
-                              ?.questionSetId || '暂无学习记录'
-                          : '暂无学习记录'}
+                        {(() => {
+                          const stats = Object.values(progressStats || {});
+                          if (stats.length === 0) return '暂无学习记录';
+                          
+                          const sortedStats = stats
+                            .filter(prog => prog?.lastAccessed)
+                            .sort((a, b) => 
+                              new Date(b?.lastAccessed || 0).getTime() - 
+                              new Date(a?.lastAccessed || 0).getTime()
+                            );
+                          
+                          return sortedStats[0]?.questionSetId || '暂无学习记录';
+                        })()}
                       </p>
                     </div>
                   </div>

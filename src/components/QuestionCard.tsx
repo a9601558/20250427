@@ -17,6 +17,9 @@ interface QuestionCardProps {
     selectedOption: string | string[];
   };
   onJumpToQuestion?: (questionIndex: number) => void;
+  isPaid?: boolean;
+  hasFullAccess?: boolean;
+  trialQuestions?: number;
 }
 
 // 提示语精简：提取为常量，便于后期i18n多语言
@@ -42,7 +45,10 @@ const QuestionCard = ({
   totalQuestions, 
   quizTitle,
   userAnsweredQuestion,
-  onJumpToQuestion
+  onJumpToQuestion,
+  isPaid = false,
+  hasFullAccess = false,
+  trialQuestions = 0
 }: QuestionCardProps) => {
   // 单选题选择一个选项，多选题选择多个选项
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -76,13 +82,17 @@ const QuestionCard = ({
     ? userAnsweredQuestion.isCorrect
     : isSubmitted && (
         question.questionType === 'single'
-          ? selectedOption === question.correctAnswer
+          ? question.options.find(opt => opt.id === selectedOption)?.isCorrect
           : (() => {
-              const correctAnswers = question.correctAnswer as string[];
+              const selectedOptionObjects = question.options.filter(opt => selectedOptions.includes(opt.id));
+              const correctOptionObjects = question.options.filter(opt => opt.isCorrect);
+              
               return (
-                selectedOptions.length === correctAnswers.length &&
-                selectedOptions.every(id => correctAnswers.includes(id)) &&
-                correctAnswers.every(id => selectedOptions.includes(id))
+                selectedOptionObjects.length === correctOptionObjects.length &&
+                selectedOptionObjects.every(opt => opt.isCorrect) &&
+                correctOptionObjects.every(correct => 
+                  selectedOptionObjects.some(selected => selected.id === correct.id)
+                )
               );
             })()
       );
@@ -144,7 +154,9 @@ const QuestionCard = ({
       if (question.questionType === 'single' && selectedOption) {
         setIsSubmitted(true);
         // 通知父组件答题结果
-        const isCorrect = selectedOption === question.correctAnswer;
+        const selectedOptionObject = question.options.find(opt => opt.id === selectedOption);
+        const isCorrect = selectedOptionObject?.isCorrect || false;
+        
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOption);
         }
@@ -152,17 +164,20 @@ const QuestionCard = ({
         if (isCorrect) {
           timeoutId = setTimeout(() => {
             handleNext();
-          }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
+          }, 1000);
         }
       } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
         setIsSubmitted(true);
-        // 比较选中的选项和正确答案（数组比较）
-        const correctAnswers = question.correctAnswer as string[];
-        // 判断所选选项是否与正确答案完全一致
+        
+        const selectedOptionObjects = question.options.filter(opt => selectedOptions.includes(opt.id));
+        const correctOptionObjects = question.options.filter(opt => opt.isCorrect);
+        
         const isCorrect = 
-          selectedOptions.length === correctAnswers.length && 
-          selectedOptions.every(option => correctAnswers.includes(option)) &&
-          correctAnswers.every(option => selectedOptions.includes(option));
+          selectedOptionObjects.length === correctOptionObjects.length &&
+          selectedOptionObjects.every(opt => opt.isCorrect) &&
+          correctOptionObjects.every(correct => 
+            selectedOptionObjects.some(selected => selected.id === correct.id)
+          );
         
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOptions);
@@ -171,7 +186,7 @@ const QuestionCard = ({
         if (isCorrect) {
           timeoutId = setTimeout(() => {
             handleNext();
-          }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
+          }, 1000);
         }
       }
     } finally {
@@ -190,8 +205,19 @@ const QuestionCard = ({
     onNext();
   };
   
+  // 判断题号是否可点击
+  const isQuestionAccessible = (index: number) => {
+    if (!isPaid || hasFullAccess) return true;
+    return index < trialQuestions;
+  };
+  
   // 处理题号跳转
   const handleJumpToQuestion = (index: number) => {
+    if (!isQuestionAccessible(index)) {
+      // 如果是付费题目且未购买，显示提示
+      return;
+    }
+    
     if (onJumpToQuestion && !isSubmittingRef.current) {
       onJumpToQuestion(index);
     }
@@ -245,20 +271,37 @@ const QuestionCard = ({
       {/* 题号小圆点导航 */}
       {onJumpToQuestion && (
         <div className="flex justify-center mb-6 flex-wrap gap-1">
-          {Array.from({ length: totalQuestions }).map((_, index) => (
-            <button
-              key={index}
-              onClick={() => handleJumpToQuestion(index)}
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-                transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                ${questionNumber === index + 1 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
-              aria-label={`跳转到第${index + 1}题`}
-            >
-              {index + 1}
-            </button>
-          ))}
+          {Array.from({ length: totalQuestions }).map((_, index) => {
+            const isAccessible = isQuestionAccessible(index);
+            return (
+              <button
+                key={index}
+                onClick={() => handleJumpToQuestion(index)}
+                disabled={!isAccessible}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+                  transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+                  ${questionNumber === index + 1 
+                    ? 'bg-blue-600 text-white' 
+                    : isAccessible
+                      ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+                  }
+                  ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
+                `}
+                aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
+                title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
+              >
+                {index + 1}
+                {!isAccessible && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -308,12 +351,19 @@ const QuestionCard = ({
               <span className={`inline-block w-5 h-5 rounded-full mr-2 ${isCorrect ? 'bg-green-500' : 'bg-red-500'} transition-colors duration-300`}></span>
               <span className={`font-medium ${isCorrect ? 'text-green-600' : 'text-red-600'} transition-colors duration-300`}>
                 {isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER}
-                {!isCorrect && question.questionType === 'single' && 
-                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${question.correctAnswer}`
-                }
-                {!isCorrect && question.questionType === 'multiple' && 
-                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${(question.correctAnswer as string[]).join(', ')}`
-                }
+                {!isCorrect && question.questionType === 'single' && (
+                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${
+                    question.options.find(opt => opt.isCorrect)?.text || ''
+                  }`
+                )}
+                {!isCorrect && question.questionType === 'multiple' && (
+                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${
+                    question.options
+                      .filter(opt => opt.isCorrect)
+                      .map(opt => opt.text)
+                      .join(', ')
+                  }`
+                )}
               </span>
             </div>
             <button

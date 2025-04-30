@@ -393,7 +393,7 @@ const ProfilePage: React.FC = () => {
               questionSetId: p.questionSetId,
               purchaseDate: p.purchaseDate,
               expiryDate: p.expiryDate,
-              amount: p.amount,
+              amount: typeof p.amount === 'string' ? parseFloat(p.amount) : (p.amount || 0), // 确保amount是数字
               status: p.status,
               paymentMethod: p.paymentMethod,
               transactionId: p.transactionId,

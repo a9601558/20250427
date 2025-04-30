@@ -1143,7 +1143,7 @@ function QuizPage(): JSX.Element {
         userAnsweredQuestion={answeredQuestions.find(q => q.index === currentQuestionIndex)}
         onJumpToQuestion={(index) => {
           // 如果试用已结束且没有购买，不允许跳转
-          if (trialEnded && !hasAccessToFullQuiz && index >= (questionSet.trialQuestions || 0)) {
+          if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
             console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
             return;
           }
@@ -1161,6 +1161,9 @@ function QuizPage(): JSX.Element {
             setSelectedOptions([]);
           }
         }}
+        isPaid={questionSet.isPaid}
+        hasFullAccess={hasAccessToFullQuiz || hasRedeemed}
+        trialQuestions={questionSet.trialQuestions || 0}
       />
       
       {/* 兑换码模态框 */}

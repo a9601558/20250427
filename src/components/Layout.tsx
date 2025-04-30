@@ -19,7 +19,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center">
             <div className="text-2xl font-bold text-blue-600">ExamTopics</div>
-            <div className="ml-2 text-sm text-gray-500">模拟练习系统</div>
           </Link>
           
           <div className="flex items-center space-x-4">
