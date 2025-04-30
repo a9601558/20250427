@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
@@ -32,6 +32,22 @@ const QuestionCard = ({
   const [isSubmitted, setIsSubmitted] = useState(!!userAnsweredQuestion);
   const [showExplanation, setShowExplanation] = useState(false);
   const navigate = useNavigate();
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  // 检查答案是否正确
+  const checkCorrectness = (): boolean => {
+    if (!isSubmitted) return false;
+    if (question.questionType === 'single') {
+      return selectedOption === question.correctAnswer;
+    } else {
+      const correctAnswers = question.correctAnswer as string[];
+      return selectedOptions.length === correctAnswers.length &&
+        selectedOptions.every(o => correctAnswers.includes(o)) &&
+        correctAnswers.every(o => selectedOptions.includes(o));
+    }
+  };
+
+  const isCorrect = checkCorrectness();
 
   const handleOptionClick = (optionId: string) => {
     if (isSubmitted) return;
@@ -61,6 +77,12 @@ const QuestionCard = ({
       if (onAnswerSubmitted) {
         onAnswerSubmitted(isCorrect, selectedOption);
       }
+      // 答对自动跳到下一题
+      if (isCorrect) {
+        timeoutId = setTimeout(() => {
+          handleNext();
+        }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
+      }
     } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
       setIsSubmitted(true);
       // 比较选中的选项和正确答案（数组比较）
@@ -74,6 +96,12 @@ const QuestionCard = ({
       if (onAnswerSubmitted) {
         onAnswerSubmitted(isCorrect, selectedOptions);
       }
+      // 答对自动跳到下一题
+      if (isCorrect) {
+        timeoutId = setTimeout(() => {
+          handleNext();
+        }, 1000); // 延迟1秒后跳转，让用户看到正确反馈
+      }
     }
   };
 
@@ -85,16 +113,14 @@ const QuestionCard = ({
     onNext();
   };
 
-  // 判断答案是否正确
-  const isCorrect = 
-    question.questionType === 'single' 
-      ? selectedOption === question.correctAnswer
-      : isSubmitted && (() => {
-          const correctAnswers = question.correctAnswer as string[];
-          return selectedOptions.length === correctAnswers.length && 
-                 selectedOptions.every(option => correctAnswers.includes(option)) &&
-                 correctAnswers.every(option => selectedOptions.includes(option));
-        })();
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, []);
 
   return (
     <div className="bg-white shadow-md rounded-lg p-6 max-w-3xl mx-auto">
@@ -202,15 +228,23 @@ const QuestionCard = ({
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            提交答案
+            {question.questionType === 'single' 
+              ? selectedOption 
+                ? '提交答案' 
+                : '请选择一个选项'
+              : selectedOptions.length > 0
+                ? '提交所有选项'
+                : '请选择至少一个选项'}
           </button>
         ) : (
-          <button
-            onClick={handleNext}
-            className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-medium"
-          >
-            下一题
-          </button>
+          !isCorrect && (
+            <button
+              onClick={handleNext}
+              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-medium"
+            >
+              下一题
+            </button>
+          )
         )}
       </div>
     </div>

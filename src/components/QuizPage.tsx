@@ -6,6 +6,8 @@ import PaymentModal from './PaymentModal';
 import { questionSetApi } from '../utils/api';
 import { sendProgressUpdate } from '../config/socket';
 import { useSocket } from '../contexts/SocketContext';
+import { userProgressService } from '../services/UserProgressService';
+import { useUserProgress } from '../contexts/UserProgressContext';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -35,6 +37,7 @@ function QuizPage(): JSX.Element {
   const navigate = useNavigate();
   const { user, addProgress, hasAccessToQuestionSet } = useUser();
   const { socket } = useSocket();
+  const { fetchUserProgress } = useUserProgress();
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -266,14 +269,9 @@ function QuizPage(): JSX.Element {
     }
   };
   
-  // 提交答案检查
+  // 处理答案提交
   const handleAnswerSubmit = async (): Promise<void> => {
     if (!currentQuestion || !user || !socket || !questionSet) return;
-
-    // 添加调试日志
-    console.log('当前题目:', currentQuestion);
-    console.log('当前选项:', selectedOptions);
-    console.log('正确选项:', currentQuestion.options.filter(o => o.isCorrect));
 
     // 判断答案是否正确
     let isCorrect = false;
@@ -283,12 +281,6 @@ function QuizPage(): JSX.Element {
       const selectedOption = selectedOptions[0];
       const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
       isCorrect = selectedOption === correctOption?.id;
-      
-      console.log('单选题判断:', {
-        selectedOption,
-        correctOptionId: correctOption?.id,
-        isCorrect
-      });
     } else {
       // 多选题：检查选中的选项是否与所有正确选项完全匹配
       const correctOptionIds = currentQuestion.options
@@ -299,36 +291,27 @@ function QuizPage(): JSX.Element {
         correctOptionIds.length === selectedOptions.length && 
         correctOptionIds.every(id => selectedOptions.includes(id)) &&
         selectedOptions.every(id => correctOptionIds.includes(id));
-      
-      console.log('多选题判断:', {
-        selectedOptions,
-        correctOptionIds,
-        isCorrect
-      });
     }
 
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
 
-    // 更新进度
-    const progressUpdate: ProgressUpdate = {
-      userId: user.id,
-      questionSetId: questionSet.id,
-      questionId: String(currentQuestion.id),
-      isCorrect,
-      timeSpent,
-      completedQuestions: answeredQuestions.length + 1,
-      totalQuestions: questionSet.questionCount || questions.length,
-      correctAnswers: answeredQuestions.filter(q => q.isCorrect).length + (isCorrect ? 1 : 0),
-      lastAccessed: new Date().toISOString()
-    };
-
     try {
-      // 发送进度更新到服务器
-      socket.emit('progress:update', progressUpdate);
-      console.log('发送进度更新:', progressUpdate);
+      // 保存进度到后端
+      await userProgressService.saveProgress({
+        questionId: currentQuestion.id,
+        questionSetId: questionSet.id,
+        selectedOption: currentQuestion.questionType === 'single' 
+          ? selectedOptions[0] 
+          : selectedOptions,
+        isCorrect,
+        timeSpent
+      });
 
-      // 也将相同的数据传递给sendProgressUpdate函数
-      sendProgressUpdate(progressUpdate);
+      // 立即更新本地进度
+      await fetchUserProgress(true);
+
+      // 发送进度更新事件
+      socket.emit('progress:update', { userId: user.id });
 
       // 更新本地状态
       setCompletedQuestions(prev => prev + 1);
@@ -344,10 +327,16 @@ function QuizPage(): JSX.Element {
         index: currentQuestionIndex,
         isCorrect
       }]);
+
+      // 答对自动跳到下一题
+      if (isCorrect) {
+        timeoutId = setTimeout(() => {
+          goToNextQuestion();
+        }, 1000);
+      }
     } catch (error) {
-      console.error('发送进度更新失败:', error);
-      // 显示错误提示
-      setError('更新进度失败，请重试');
+      console.error('保存进度失败:', error);
+      setError('保存进度失败，请重试');
     }
   };
   

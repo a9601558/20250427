@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { QuestionSet, UserProgress } from '../types';
@@ -9,6 +9,7 @@ import StudySuggestions from './StudySuggestions';
 import SocketTest from './SocketTest';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService } from '../services/api';
+import { useUserProgress } from '../contexts/UserProgressContext';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -44,9 +45,8 @@ interface ProgressStats {
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
+  const { progressStats, isLoading: progressLoading, error: progressError, fetchUserProgress } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
-  const [userProgressRecords, setUserProgressRecords] = useState<UserProgress[]>([]);
-  const [userProgressStats, setUserProgressStats] = useState<Record<string, ProgressStats>>({});
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(false);
@@ -58,6 +58,25 @@ const HomePage: React.FC = () => {
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [showUserInfo, setShowUserInfo] = useState(false);
   const navigate = useNavigate();
+
+  // 使用 useCallback 包装 fetchUserProgress 以避免不必要的重渲染
+  const handleProgressUpdate = useCallback(async (data: { userId: string }) => {
+    if (user && user.id === data.userId) {
+      // 强制刷新进度数据
+      await fetchUserProgress(true);
+    }
+  }, [user, fetchUserProgress]);
+
+  // 设置 socket 监听
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('progress:update', handleProgressUpdate);
+
+    return () => {
+      socket.off('progress:update', handleProgressUpdate);
+    };
+  }, [socket, handleProgressUpdate]);
 
   // 添加 Socket 监听
   useEffect(() => {
@@ -208,7 +227,6 @@ const HomePage: React.FC = () => {
       const response = await axios.get('/api/question-sets');
       if (response.data && response.data.success && response.data.data) {
         const questionSetsData = response.data.data;
-        setQuestionSets(questionSetsData);
         
         // 为每个题库获取题目
         for (const set of questionSetsData) {
@@ -222,6 +240,7 @@ const HomePage: React.FC = () => {
           }
         }
         
+        // 更新题库
         setQuestionSets([...questionSetsData]);
       }
     } catch (error) {
@@ -314,59 +333,9 @@ const HomePage: React.FC = () => {
     }
   };
 
-  // 获取用户进度记录
-  const fetchUserProgress = async () => {
-    try {
-      const response = await userProgressService.getUserProgress();
-      if (response.success && response.data) {
-        setUserProgressStats(response.data);
-        
-        // 打印调试信息
-        console.log('前端渲染数据', {
-          userProgressStats: response.data,
-          questionSets
-        });
-        
-        // 检查是否有不匹配的题库
-        Object.keys(response.data).forEach(questionSetId => {
-          if (!questionSets.find(q => q.id === questionSetId)) {
-            console.warn('找不到匹配的题库:', questionSetId);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('获取用户进度失败:', error);
-    }
-  };
-
-  // 修改 useEffect 依赖
-  useEffect(() => {
-    if (user) {
-      // 确保题库加载完成后再获取进度
-      if (questionSets.length > 0) {
-        fetchUserProgress();
-      }
-    }
-  }, [user, questionSets.length]);
-
-  // 修改 socket 事件处理
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on('progress:update', () => {
-      if (user && questionSets.length > 0) {
-        fetchUserProgress();  // 拉取后 setUserProgressStats 会替换旧数据
-      }
-    });
-
-    return () => {
-      socket.off('progress:update');
-    };
-  }, [socket, user, questionSets.length, fetchUserProgress]);
-
   // 修改显示进度的部分
   const renderProgressBar = (questionSet: QuestionSet) => {
-    const stats = userProgressStats[questionSet.id];
+    const stats = progressStats[questionSet.id];
     if (!stats) return null;
 
     const progress = (stats.completedQuestions / stats.totalQuestions) * 100;
