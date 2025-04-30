@@ -57,8 +57,8 @@ const getProgressByQuestionSetId = async (req, res) => {
         const progress = await UserProgress_1.default.findAll({
             where: { userId, questionSetId },
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' },
-                { model: Question_1.default, as: 'question' }
+                { model: QuestionSet_1.default, as: 'progressQuestionSet' },
+                { model: Question_1.default, as: 'progressQuestion' }
             ]
         });
         if (!progress || progress.length === 0) {
@@ -257,8 +257,8 @@ const getDetailedProgress = async (req, res) => {
             where,
             order: [['createdAt', 'DESC']],
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' },
-                { model: Question_1.default, as: 'question' }
+                { model: QuestionSet_1.default, as: 'progressQuestionSet' },
+                { model: Question_1.default, as: 'progressQuestion' }
             ]
         });
         return (0, responseUtils_1.sendResponse)(res, 200, '获取学习进度成功', progress.map(p => p.toJSON()));
@@ -406,12 +406,12 @@ const getUserProgressStats = async (req, res) => {
             include: [
                 {
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
+                    as: 'progressQuestionSet',
                     attributes: ['id', 'title']
                 },
                 {
                     model: Question_1.default,
-                    as: 'question',
+                    as: 'progressQuestion',
                     attributes: ['id', 'questionType']
                 }
             ]
@@ -426,7 +426,7 @@ const getUserProgressStats = async (req, res) => {
         // 按题目集统计
         const setStats = progressRecords.reduce((acc, record) => {
             const setId = record.questionSetId.toString();
-            const questionSet = record.get('questionSet');
+            const questionSet = record.get('progressQuestionSet');
             if (!acc[setId]) {
                 acc[setId] = {
                     title: questionSet?.title,
@@ -447,7 +447,7 @@ const getUserProgressStats = async (req, res) => {
         }, {});
         // 按题目类型统计
         const typeStats = progressRecords.reduce((acc, record) => {
-            const question = record.get('question');
+            const question = record.get('progressQuestion');
             const type = question?.questionType;
             if (!type)
                 return acc;
