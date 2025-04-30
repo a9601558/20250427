@@ -10,15 +10,27 @@ export interface User {
 }
 
 export interface UserProgress {
-  questionSetId?: string;
+  id: string;
+  userId: string;
+  questionSetId: string;
+  questionId: string;
+  isCorrect: boolean;
+  timeSpent: number;
   completedQuestions: number;
   totalQuestions: number;
   correctAnswers: number;
-  lastAccessed: string;
+  lastAccessed: Date;
   title?: string;
   totalTimeSpent: number;
   averageTimeSpent: number;
   accuracy: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  answeredQuestions?: {
+    questionId: string;
+    selectedOptionId: string;
+    isCorrect: boolean;
+  }[];
 }
 
 export interface QuestionSet {

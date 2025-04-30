@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserProgressRecords = exports.getUserProgressStats = exports.deleteProgressRecord = exports.getProgressStats = exports.getDetailedProgress = exports.createDetailedProgress = exports.resetProgress = exports.updateProgress = exports.getProgressByQuestionSetId = exports.getUserProgress = void 0;
+exports.getProgressSummary = exports.getUserProgressRecords = exports.getUserProgressStats = exports.deleteProgressRecord = exports.getProgressStats = exports.getDetailedProgress = exports.createDetailedProgress = exports.resetProgress = exports.updateProgress = exports.getProgressByQuestionSetId = exports.getUserProgress = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const Question_1 = __importDefault(require("../models/Question"));
@@ -489,3 +489,52 @@ const getUserProgressRecords = async (req, res) => {
     }
 };
 exports.getUserProgressRecords = getUserProgressRecords;
+// 获取用户进度汇总统计
+const getProgressSummary = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // 获取所有题库
+        const questionSets = await QuestionSet_1.default.findAll();
+        // 获取用户的所有进度记录
+        const userProgress = await UserProgress_1.default.findAll({
+            where: { userId },
+            include: [{
+                    model: Question_1.default,
+                    as: 'progressQuestion',
+                    attributes: ['id', 'questionSetId']
+                }]
+        });
+        // 按题库分组计算统计信息
+        const summary = questionSets.map(qs => {
+            const progressRecords = userProgress.filter(p => p.progressQuestion?.questionSetId === qs.id);
+            const totalQuestions = qs.questions?.length || 0;
+            const completedQuestions = progressRecords.length;
+            const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
+            const totalTimeSpent = progressRecords.reduce((sum, p) => sum + (p.timeSpent || 0), 0);
+            const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
+            const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
+            return {
+                questionSetId: qs.id,
+                questionSetTitle: qs.title,
+                totalQuestions,
+                completedQuestions,
+                correctAnswers,
+                totalTimeSpent,
+                averageTimeSpent,
+                accuracy
+            };
+        });
+        res.json({
+            success: true,
+            data: summary
+        });
+    }
+    catch (error) {
+        console.error('获取进度汇总统计失败:', error);
+        res.status(500).json({
+            success: false,
+            error: '获取进度汇总统计失败'
+        });
+    }
+};
+exports.getProgressSummary = getProgressSummary;

@@ -1,7 +1,27 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { User, Purchase, RedeemCode } from '../types';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
 import { initializeSocket, authenticateUser, onProgressUpdate } from '../config/socket';
+
+// 添加事件类型定义
+interface ProgressUpdateEvent {
+  questionSetId: string;
+  progress: {
+    id: string;
+    userId: string;
+    questionSetId: string;
+    questionId: string;
+    isCorrect: boolean;
+    timeSpent: number;
+    completedQuestions: number;
+    totalQuestions: number;
+    correctAnswers: number;
+    lastAccessed: string;
+    totalTimeSpent: number;
+    averageTimeSpent: number;
+    accuracy: number;
+  };
+}
 
 export interface QuizProgress {
   questionSetId: string;
@@ -40,7 +60,7 @@ interface UserContextType {
   getAllUsers: () => Promise<User[]>;
   deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
   adminRegister: (userData: Partial<User>) => Promise<{ success: boolean; message: string }>;
-  updateUserProgress: (progress: any) => void;
+  updateUserProgress: (progressUpdate: Partial<UserProgress>) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -61,23 +81,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // 初始化Socket.IO连接并处理实时进度更新及获取初始进度
   useEffect(() => {
-    if (user) {
-      // 初始化Socket连接
-      const socket = initializeSocket();
-      
-      // 用户认证
-      authenticateUser(user.id, localStorage.getItem('token') || '');
-      
-      // 监听进度更新
-      socket.on('progress:update', (data) => {
-        if (user.progress) {
-          user.progress[data.questionSetId] = {
-            ...data.progress,
-            lastAccessed: new Date(data.progress.lastAccessed)
-          };
-        }
+    if (!user) return;
+
+    const socket = initializeSocket();
+    authenticateUser(user.id, localStorage.getItem('token') || '');
+    
+    socket.on('progress:update', (data: ProgressUpdateEvent) => {
+      setUser(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          progress: {
+            ...prev.progress,
+            [data.questionSetId]: {
+              ...data.progress,
+              lastAccessed: new Date(data.progress.lastAccessed)
+            }
+          }
+        };
       });
-    }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [user]);
 
   const fetchCurrentUser = async () => {
@@ -94,6 +121,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (error) {
       localStorage.removeItem('token');
+      console.error('[UserProvider] Failed to fetch current user:', error);
       setError('An error occurred while fetching user data');
       return null;
     } finally {
@@ -120,6 +148,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
     } catch (error) {
+      console.error('[UserProvider] Login failed:', error);
       setError('An error occurred during login');
       return false;
     } finally {
@@ -146,6 +175,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
     } catch (error) {
+      console.error('[UserProvider] Registration failed:', error);
       setError('An error occurred during registration');
       return false;
     } finally {
@@ -165,6 +195,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setError(response.message || 'Failed to update user');
       }
     } catch (error) {
+      console.error('[UserProvider] Failed to update user:', error);
       setError('An error occurred while updating user');
     } finally {
       setLoading(false);
@@ -173,35 +204,49 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addProgress = async (progress: QuizProgress) => {
     if (!user) {
-      console.error('User not logged in');
+      console.error('[UserProvider] User not logged in');
       return;
     }
 
     try {
       const currentProgress = user.progress || {};
       const existingProgress = currentProgress[progress.questionSetId] || {
+        userId: user.id,
+        questionSetId: progress.questionSetId,
         completedQuestions: 0,
         totalQuestions: 0,
         correctAnswers: 0,
-        lastAccessed: new Date().toISOString()
+        lastAccessed: new Date(),
+        totalTimeSpent: 0,
+        averageTimeSpent: 0,
+        accuracy: 0
       };
 
-      const updatedProgress = {
+      const updatedProgress: UserProgress = {
         ...existingProgress,
         completedQuestions: progress.completedQuestions || existingProgress.completedQuestions,
         totalQuestions: progress.totalQuestions || existingProgress.totalQuestions,
         correctAnswers: progress.correctAnswers || existingProgress.correctAnswers,
-        lastAccessed: progress.lastAttemptDate ? progress.lastAttemptDate.toISOString() : new Date().toISOString()
+        lastAccessed: progress.lastAttemptDate || new Date(),
+        totalTimeSpent: existingProgress.totalTimeSpent,
+        averageTimeSpent: existingProgress.averageTimeSpent,
+        accuracy: existingProgress.accuracy
       };
 
-      const newProgress = {
+      // Sync with backend
+      const response = await userProgressApi.updateProgress(updatedProgress);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to update progress on server');
+      }
+
+      const newProgress: Record<string, UserProgress> = {
         ...currentProgress,
         [progress.questionSetId]: updatedProgress
       };
 
       await updateUser({ progress: newProgress });
     } catch (error) {
-      console.error('Failed to add progress:', error);
+      console.error('[UserProvider] Failed to add progress:', error);
       throw error;
     }
   };
@@ -213,7 +258,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updatedPurchases.push(purchase);
       await updateUser({ purchases: updatedPurchases });
     } catch (error) {
-      console.error('Failed to add purchase:', error);
+      console.error('[UserProvider] Failed to add purchase:', error);
     }
   };
 
@@ -270,9 +315,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const getAnsweredQuestions = (questionSetId: string): string[] => {
-    if (!user || !user.progress) return [];
-    const progress = user.progress[questionSetId];
-    return progress ? [] : [];
+    const answered = user?.progress?.[questionSetId]?.answeredQuestions;
+    return answered ? answered.map((a: { questionId: string }) => a.questionId) : [];
   };
 
   const isAdmin = (): boolean => {
@@ -356,36 +400,58 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateUserProgress = (progress: any) => {
-    setUser(prev => prev ? { ...prev, progress } : null);
+  const updateUserProgress = (progressUpdate: Partial<UserProgress>) => {
+    if (!progressUpdate.questionSetId) {
+      console.error('questionSetId is required for progress update');
+      return;
+    }
+
+    const questionSetId = progressUpdate.questionSetId;
+
+    setUser(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        progress: {
+          ...prev.progress,
+          [questionSetId]: {
+            ...prev.progress?.[questionSetId],
+            ...progressUpdate,
+            lastAccessed: new Date()
+          } as UserProgress
+        }
+      };
+    });
   };
 
+  const contextValue = useMemo(() => ({
+    user,
+    loading,
+    error,
+    login,
+    logout,
+    register,
+    updateUser,
+    addProgress,
+    addPurchase,
+    hasAccessToQuestionSet,
+    getRemainingAccessDays,
+    isQuizCompleted,
+    getQuizScore,
+    getUserProgress,
+    getAnsweredQuestions,
+    isAdmin,
+    redeemCode,
+    generateRedeemCode,
+    getRedeemCodes,
+    getAllUsers,
+    deleteUser,
+    adminRegister,
+    updateUserProgress
+  }), [user, loading, error]);
+
   return (
-    <UserContext.Provider value={{
-      user,
-      loading,
-      error,
-      login,
-      logout,
-      register,
-      updateUser,
-      addProgress,
-      addPurchase,
-      hasAccessToQuestionSet,
-      getRemainingAccessDays,
-      isQuizCompleted,
-      getQuizScore,
-      getUserProgress,
-      getAnsweredQuestions,
-      isAdmin,
-      redeemCode,
-      generateRedeemCode,
-      getRedeemCodes,
-      getAllUsers,
-      deleteUser,
-      adminRegister,
-      updateUserProgress
-    }}>
+    <UserContext.Provider value={contextValue}>
       {children}
     </UserContext.Provider>
   );

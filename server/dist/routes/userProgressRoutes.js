@@ -24,4 +24,5 @@ router.post('/:questionSetId', userProgressController_1.updateProgress);
 router.get('/:userId', userProgressController_1.getUserProgress);
 router.get('/:userId/:questionSetId', userProgressController_1.getProgressByQuestionSetId);
 router.delete('/:userId/:questionSetId', userProgressController_1.resetProgress);
+router.get('/summary', userProgressController_1.getProgressSummary);
 exports.default = router;

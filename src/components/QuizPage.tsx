@@ -179,17 +179,25 @@ function QuizPage(): JSX.Element {
                 q.options = [];
               }
               
-              // 处理选项
-              const processedOptions = q.options.map((opt, index) => ({
-                id: opt.id || opt.optionIndex || `option-${Math.random().toString(36).substr(2, 9)}`,
-                text: opt.text,
-                isCorrect: opt.isCorrect,
-                label: getOptionLabel(index) // 添加字母标签
-              }));
+              // 处理选项 - 使用固定的ID生成方式
+              const processedOptions = q.options.map((opt, index) => {
+                // 使用题目ID和选项索引生成固定ID
+                const optionId = opt.id || `q${q.id}-opt${index}`;
+                return {
+                  id: optionId,
+                  text: opt.text,
+                  isCorrect: opt.isCorrect,
+                  label: getOptionLabel(index) // 添加字母标签
+                };
+              });
               
               return {
                 ...q,
-                options: processedOptions
+                options: processedOptions,
+                // 确保correctAnswer字段与选项ID对应
+                correctAnswer: q.questionType === 'single' 
+                  ? processedOptions.find(opt => opt.isCorrect)?.id
+                  : processedOptions.filter(opt => opt.isCorrect).map(opt => opt.id)
               };
             });
             
@@ -262,6 +270,11 @@ function QuizPage(): JSX.Element {
   const handleAnswerSubmit = async (): Promise<void> => {
     if (!currentQuestion || !user || !socket || !questionSet) return;
 
+    // 添加调试日志
+    console.log('当前题目:', currentQuestion);
+    console.log('当前选项:', selectedOptions);
+    console.log('正确选项:', currentQuestion.options.filter(o => o.isCorrect));
+
     // 判断答案是否正确
     let isCorrect = false;
     
@@ -270,6 +283,12 @@ function QuizPage(): JSX.Element {
       const selectedOption = selectedOptions[0];
       const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
       isCorrect = selectedOption === correctOption?.id;
+      
+      console.log('单选题判断:', {
+        selectedOption,
+        correctOptionId: correctOption?.id,
+        isCorrect
+      });
     } else {
       // 多选题：检查选中的选项是否与所有正确选项完全匹配
       const correctOptionIds = currentQuestion.options
@@ -280,6 +299,12 @@ function QuizPage(): JSX.Element {
         correctOptionIds.length === selectedOptions.length && 
         correctOptionIds.every(id => selectedOptions.includes(id)) &&
         selectedOptions.every(id => correctOptionIds.includes(id));
+      
+      console.log('多选题判断:', {
+        selectedOptions,
+        correctOptionIds,
+        isCorrect
+      });
     }
 
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
@@ -288,7 +313,7 @@ function QuizPage(): JSX.Element {
     const progressUpdate: ProgressUpdate = {
       userId: user.id,
       questionSetId: questionSet.id,
-      questionId: String(currentQuestion.id), // 转换为字符串
+      questionId: String(currentQuestion.id),
       isCorrect,
       timeSpent,
       completedQuestions: answeredQuestions.length + 1,

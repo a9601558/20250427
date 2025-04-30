@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { QuestionSet } from '../types';
+import { QuestionSet, UserProgress } from '../types';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import RecentlyStudiedQuestionSets from './RecentlyStudiedQuestionSets';
 import StudySuggestions from './StudySuggestions';
 import SocketTest from './SocketTest';
 import { useSocket } from '../contexts/SocketContext';
+import { userProgressService } from '../services/api';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -31,10 +32,21 @@ const defaultHomeContent: HomeContentData = {
   theme: 'light'
 };
 
+interface ProgressStats {
+  totalQuestions: number;
+  completedQuestions: number;
+  correctAnswers: number;
+  totalTimeSpent: number;
+  averageTimeSpent: number;
+  accuracy: number;
+}
+
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [userProgressRecords, setUserProgressRecords] = useState<UserProgress[]>([]);
+  const [userProgressStats, setUserProgressStats] = useState<Record<string, ProgressStats>>({});
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(false);
@@ -302,6 +314,131 @@ const HomePage: React.FC = () => {
     }
   };
 
+  // 获取用户进度记录
+  const fetchUserProgress = async () => {
+    try {
+      const response = await userProgressService.getUserProgress();
+      if (response.success && response.data) {
+        setUserProgressStats(response.data);
+        
+        // 打印调试信息
+        console.log('前端渲染数据', {
+          userProgressStats: response.data,
+          questionSets
+        });
+        
+        // 检查是否有不匹配的题库
+        Object.keys(response.data).forEach(questionSetId => {
+          if (!questionSets.find(q => q.id === questionSetId)) {
+            console.warn('找不到匹配的题库:', questionSetId);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('获取用户进度失败:', error);
+    }
+  };
+
+  // 修改 useEffect 依赖
+  useEffect(() => {
+    if (user) {
+      // 确保题库加载完成后再获取进度
+      if (questionSets.length > 0) {
+        fetchUserProgress();
+      }
+    }
+  }, [user, questionSets.length]);
+
+  // 修改 socket 事件处理
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('progress:update', (updatedProgress: UserProgress) => {
+      // 使用函数式更新确保使用最新状态
+      setUserProgressStats(prevStats => {
+        const newStats = { ...prevStats };
+        const questionSetId = updatedProgress.questionSetId;
+        
+        if (!newStats[questionSetId]) {
+          newStats[questionSetId] = {
+            ...updatedProgress,
+            completedQuestions: 0,
+            totalQuestions: 0,
+            correctAnswers: 0,
+            totalTimeSpent: 0,
+            averageTimeSpent: 0,
+            accuracy: 0
+          };
+        }
+        
+        // 更新统计信息
+        const stats = newStats[questionSetId];
+        stats.completedQuestions++;
+        if (updatedProgress.isCorrect) stats.correctAnswers++;
+        stats.totalTimeSpent += updatedProgress.timeSpent;
+        stats.averageTimeSpent = stats.totalTimeSpent / stats.completedQuestions;
+        stats.accuracy = (stats.correctAnswers / stats.completedQuestions) * 100;
+        
+        return newStats;
+      });
+    });
+
+    return () => {
+      socket.off('progress:update');
+    };
+  }, [socket]);
+
+  // 修改显示进度的部分
+  const renderProgressBar = (questionSet: QuestionSet) => {
+    const stats = userProgressStats[questionSet.id];
+    if (!stats) return null;
+
+    const progress = (stats.completedQuestions / stats.totalQuestions) * 100;
+    const accuracy = stats.accuracy;
+
+    return (
+      <div className="mt-2">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>完成进度: {Math.round(progress)}%</span>
+          <span>正确率: {Math.round(accuracy)}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+          <div
+            className="bg-blue-600 h-2 rounded-full"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // 在题库卡片中添加进度显示
+  const renderQuestionSetCard = (questionSet: QuestionSet) => {
+    const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
+    
+    return (
+      <div key={questionSet.id} className="bg-white rounded-lg shadow-md p-4">
+        <h3 className="text-lg font-semibold">{questionSet.title}</h3>
+        <p className="text-gray-600 mt-1">{questionSet.description}</p>
+        {renderProgressBar(questionSet)}
+        <div className="mt-4 flex justify-between items-center">
+          <span className="text-sm text-gray-500">
+            {hasAccess ? `剩余 ${remainingDays} 天` : '需要购买'}
+          </span>
+          <button
+            onClick={() => handleStartQuiz(questionSet)}
+            className={`px-4 py-2 rounded-md ${
+              hasAccess ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'
+            }`}
+            disabled={!hasAccess}
+          >
+            开始练习
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -510,26 +647,7 @@ const HomePage: React.FC = () => {
                       </div>
                       
                       {/* 用户进度指示器 */}
-                      {user && user.progress && user.progress[questionSet.id] && (
-                        <div className="mb-4">
-                          <div className="flex justify-between text-sm text-gray-500 mb-1">
-                            <span>完成进度</span>
-                            <span>
-                              {Math.round((user.progress[questionSet.id].completedQuestions / 
-                                user.progress[questionSet.id].totalQuestions) * 100)}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-600 h-2 rounded-full" 
-                              style={{ 
-                                width: `${(user.progress[questionSet.id].completedQuestions / 
-                                  user.progress[questionSet.id].totalQuestions) * 100}%` 
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
+                      {renderProgressBar(questionSet)}
                       
                       <button
                         onClick={() => handleStartQuiz(questionSet)}

@@ -9,7 +9,8 @@ import {
   getProgressStats,
   deleteProgressRecord,
   getUserProgressStats,
-  getUserProgressRecords
+  getUserProgressRecords,
+  getProgressSummary
 } from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 
@@ -36,5 +37,7 @@ router.post('/:questionSetId', updateProgress);
 router.get('/:userId', getUserProgress);
 router.get('/:userId/:questionSetId', getProgressByQuestionSetId);
 router.delete('/:userId/:questionSetId', resetProgress);
+
+router.get('/summary', getProgressSummary);
 
 export default router; 

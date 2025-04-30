@@ -332,23 +332,34 @@ export const questionSetService = {
     try {
       const response = await api.get('/user-progress/stats');
       const data = response.data.data;
-      // 转换数据格式，使用progressQuestionSet
+      
+      // 转换数据格式，添加数据校验
       const formattedData: Record<string, UserProgress> = {};
       data.forEach((progress: any) => {
-        if (progress.questionSetId) {  // 确保有题库ID
-          formattedData[progress.questionSetId] = {
-            questionSetId: progress.questionSetId,
-            completedQuestions: progress.completedQuestions || 0,
-            totalQuestions: progress.totalQuestions || 0,
-            correctAnswers: progress.correctAnswers || 0,
-            lastAccessed: progress.lastAccessed,
-            title: progress.questionSet?.title,
-            totalTimeSpent: progress.totalTimeSpent || 0,
-            averageTimeSpent: progress.averageTimeSpent || 0,
-            accuracy: progress.accuracy || 0
-          };
+        // 数据校验
+        if (!progress.questionSetId || !progress.questionSet) {
+          console.warn('Invalid progress data:', progress);
+          return;
         }
+        
+        formattedData[progress.questionSetId] = {
+          id: progress.id,
+          userId: progress.userId,
+          questionSetId: progress.questionSetId,
+          questionId: progress.questionId,
+          isCorrect: progress.isCorrect,
+          timeSpent: progress.timeSpent || 0,
+          completedQuestions: progress.completedQuestions || 0,
+          totalQuestions: progress.totalQuestions || 0,
+          correctAnswers: progress.correctAnswers || 0,
+          lastAccessed: progress.lastAccessed,
+          title: progress.questionSet?.title,
+          totalTimeSpent: progress.totalTimeSpent || 0,
+          averageTimeSpent: progress.averageTimeSpent || 0,
+          accuracy: progress.accuracy || 0
+        };
       });
+      
       return {
         success: true,
         data: formattedData
@@ -499,23 +510,34 @@ export const userProgressService = {
     try {
       const response = await api.get('/user-progress/stats');
       const data = response.data.data;
-      // 转换数据格式，使用progressQuestionSet
+      
+      // 转换数据格式，添加数据校验
       const formattedData: Record<string, UserProgress> = {};
       data.forEach((progress: any) => {
-        if (progress.questionSetId) {  // 确保有题库ID
-          formattedData[progress.questionSetId] = {
-            questionSetId: progress.questionSetId,
-            completedQuestions: progress.completedQuestions || 0,
-            totalQuestions: progress.totalQuestions || 0,
-            correctAnswers: progress.correctAnswers || 0,
-            lastAccessed: progress.lastAccessed,
-            title: progress.questionSet?.title,
-            totalTimeSpent: progress.totalTimeSpent || 0,
-            averageTimeSpent: progress.averageTimeSpent || 0,
-            accuracy: progress.accuracy || 0
-          };
+        // 数据校验
+        if (!progress.questionSetId || !progress.questionSet) {
+          console.warn('Invalid progress data:', progress);
+          return;
         }
+        
+        formattedData[progress.questionSetId] = {
+          id: progress.id,
+          userId: progress.userId,
+          questionSetId: progress.questionSetId,
+          questionId: progress.questionId,
+          isCorrect: progress.isCorrect,
+          timeSpent: progress.timeSpent || 0,
+          completedQuestions: progress.completedQuestions || 0,
+          totalQuestions: progress.totalQuestions || 0,
+          correctAnswers: progress.correctAnswers || 0,
+          lastAccessed: progress.lastAccessed,
+          title: progress.questionSet?.title,
+          totalTimeSpent: progress.totalTimeSpent || 0,
+          averageTimeSpent: progress.averageTimeSpent || 0,
+          accuracy: progress.accuracy || 0
+        };
       });
+      
       return {
         success: true,
         data: formattedData
@@ -530,10 +552,10 @@ export const userProgressService = {
   },
   
   // 获取用户原始进度记录
-  async getUserProgressRecords(): Promise<ApiResponse<any[]>> {
+  async getUserProgressRecords(): Promise<ApiResponse<UserProgress[]>> {
     try {
       const response = await api.get('/user-progress/records');
-      return handleResponse<any[]>(response);
+      return handleResponse<UserProgress[]>(response);
     } catch (error: any) {
       return {
         success: false,

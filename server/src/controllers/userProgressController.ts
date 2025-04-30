@@ -582,4 +582,60 @@ export const getUserProgressRecords = async (req: Request, res: Response) => {
     console.error('获取进度记录失败:', error);
     return sendError(res, 500, '获取进度记录失败', error);
   }
+};
+
+// 获取用户进度汇总统计
+export const getProgressSummary = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    
+    // 获取所有题库
+    const questionSets = await QuestionSet.findAll();
+    
+    // 获取用户的所有进度记录
+    const userProgress = await UserProgress.findAll({
+      where: { userId },
+      include: [{
+        model: Question,
+        as: 'progressQuestion',
+        attributes: ['id', 'questionSetId']
+      }]
+    });
+    
+    // 按题库分组计算统计信息
+    const summary = questionSets.map(qs => {
+      const progressRecords = userProgress.filter(p => 
+        p.progressQuestion?.questionSetId === qs.id
+      );
+      
+      const totalQuestions = qs.questions?.length || 0;
+      const completedQuestions = progressRecords.length;
+      const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
+      const totalTimeSpent = progressRecords.reduce((sum, p) => sum + (p.timeSpent || 0), 0);
+      const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
+      const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
+      
+      return {
+        questionSetId: qs.id,
+        questionSetTitle: qs.title,
+        totalQuestions,
+        completedQuestions,
+        correctAnswers,
+        totalTimeSpent,
+        averageTimeSpent,
+        accuracy
+      };
+    });
+    
+    res.json({
+      success: true,
+      data: summary
+    });
+  } catch (error) {
+    console.error('获取进度汇总统计失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取进度汇总统计失败'
+    });
+  }
 }; 

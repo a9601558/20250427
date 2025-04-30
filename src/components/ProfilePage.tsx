@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { userProgressService, questionSetService } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 // 原始进度记录类型
 interface ProgressRecord {
@@ -11,7 +12,7 @@ interface ProgressRecord {
   questionId: string;
   isCorrect: boolean;
   timeSpent: number;
-  createdAt?: string;
+  createdAt?: Date;
   progressQuestionSet?: {
     id: string;
     title: string;
@@ -21,25 +22,85 @@ interface ProgressRecord {
 // 进度统计类型
 interface ProgressStats {
   questionSetId: string;
-  title?: string;
+  title: string;
   completedQuestions: number;
   correctAnswers: number;
   totalTimeSpent: number;
   averageTimeSpent: number;
   accuracy: number;
+  answeredQuestions?: {
+    questionId: string;
+    selectedOptionId: string;
+    isCorrect: boolean;
+  }[];
 }
 
 // 题库信息
 interface QuestionSet {
-  id: string;
-  title: string;
+    id: string;
+    title: string;
 }
+
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+};
+
+interface ProgressCardProps {
+  stats: ProgressStats;
+}
+
+const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
+  const navigate = useNavigate();
+
+  return (
+    <div 
+      className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer"
+      onClick={() => navigate(`/question-set/${stats.questionSetId}`)}
+    >
+      <h2 className="text-lg font-semibold mb-3 text-blue-700 truncate">{stats.title}</h2>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Completed Questions:</span>
+          <span className="font-medium">{stats.completedQuestions}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Correct Answers:</span>
+          <span className="font-medium">{stats.correctAnswers}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Accuracy:</span>
+          <span className="font-medium">{stats.accuracy.toFixed(1)}%</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Avg. Time Per Question:</span>
+          <span className="font-medium">{formatTime(stats.averageTimeSpent)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Total Time Spent:</span>
+          <span className="font-medium">{formatTime(stats.totalTimeSpent)}</span>
+        </div>
+        <div className="mt-4 pt-3 border-t border-gray-100">
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-green-500 rounded-full" 
+              style={{ width: `${stats.accuracy}%` }}
+            ></div>
+          </div>
+          <p className="text-xs text-gray-500 mt-1 text-right">Accuracy</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ProfilePage: React.FC = () => {
   const { user } = useUser();
   const { socket } = useSocket();
   const [progressStats, setProgressStats] = useState<ProgressStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   // 在前端计算进度统计
   const calculateProgressStats = useCallback((records: ProgressRecord[], questionSets: Map<string, QuestionSet>) => {
@@ -79,7 +140,7 @@ const ProfilePage: React.FC = () => {
         const correctAnswers = finalRecords.filter(r => r.isCorrect).length;
         const totalTimeSpent = finalRecords.reduce((sum, r) => sum + r.timeSpent, 0);
         const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
-        const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
+        const accuracy = Math.min(100, (correctAnswers / completedQuestions) * 100);
         
         // 获取题库标题
         const title = questionSets.get(questionSetId)?.title || 
@@ -102,39 +163,46 @@ const ProfilePage: React.FC = () => {
   }, []);
 
   // 处理实时进度更新
-  const handleProgressUpdate = useCallback((data: ProgressRecord) => {
+  const handleProgressUpdate = useMemo(() => (data: ProgressRecord) => {
     setProgressStats(prevStats => {
-      // 复制现有统计
       const statsCopy = [...prevStats];
-      
-      // 查找相关题库的统计
       const existingStatIndex = statsCopy.findIndex(
         stat => stat.questionSetId === data.questionSetId
       );
       
       if (existingStatIndex >= 0) {
-        // 更新现有统计 - 这里假设是一个新答题记录
-        // 实际应用中可能需要更复杂的逻辑来处理题目重复作答的情况
         const stat = statsCopy[existingStatIndex];
         
-        // 为简化处理，这里假设每次事件都是新题目
-        // 实际应用可能需要通过API重新获取完整统计
-        const newCompletedQuestions = stat.completedQuestions + 1;
-        const newCorrectAnswers = data.isCorrect 
-          ? stat.correctAnswers + 1 
-          : stat.correctAnswers;
-        const newTotalTimeSpent = stat.totalTimeSpent + data.timeSpent;
+        // 检查是否是重复的题目
+        const isNewQuestion = !stat.answeredQuestions?.some(
+          q => q.questionId === data.questionId
+        );
         
-        statsCopy[existingStatIndex] = {
-          ...stat,
-          completedQuestions: newCompletedQuestions,
-          correctAnswers: newCorrectAnswers,
-          totalTimeSpent: newTotalTimeSpent,
-          averageTimeSpent: newTotalTimeSpent / newCompletedQuestions,
-          accuracy: (newCorrectAnswers / newCompletedQuestions) * 100
-        };
+        if (isNewQuestion) {
+          const newCompletedQuestions = stat.completedQuestions + 1;
+          const newCorrectAnswers = data.isCorrect 
+            ? stat.correctAnswers + 1 
+            : stat.correctAnswers;
+          const newTotalTimeSpent = stat.totalTimeSpent + data.timeSpent;
+          
+          statsCopy[existingStatIndex] = {
+            ...stat,
+            completedQuestions: newCompletedQuestions,
+            correctAnswers: newCorrectAnswers,
+            totalTimeSpent: newTotalTimeSpent,
+            averageTimeSpent: newTotalTimeSpent / newCompletedQuestions,
+            accuracy: Math.min(100, (newCorrectAnswers / newCompletedQuestions) * 100),
+            answeredQuestions: [
+              ...(stat.answeredQuestions || []),
+              {
+                questionId: data.questionId,
+                selectedOptionId: '', // 这里需要从data中获取
+                isCorrect: data.isCorrect
+              }
+            ]
+          };
+        }
       } else {
-        // 添加新题库统计
         statsCopy.push({
           questionSetId: data.questionSetId,
           title: data.progressQuestionSet?.title || 'Unknown Set',
@@ -142,7 +210,12 @@ const ProfilePage: React.FC = () => {
           correctAnswers: data.isCorrect ? 1 : 0,
           totalTimeSpent: data.timeSpent,
           averageTimeSpent: data.timeSpent,
-          accuracy: data.isCorrect ? 100 : 0
+          accuracy: data.isCorrect ? 100 : 0,
+          answeredQuestions: [{
+            questionId: data.questionId,
+            selectedOptionId: '', // 这里需要从data中获取
+            isCorrect: data.isCorrect
+          }]
         });
       }
       
@@ -157,7 +230,6 @@ const ProfilePage: React.FC = () => {
       try {
         setIsLoading(true);
         
-        // 获取所有题库信息
         const questionSetsResponse = await questionSetService.getAllQuestionSets();
         const questionSetsMap = new Map<string, QuestionSet>();
         
@@ -167,11 +239,9 @@ const ProfilePage: React.FC = () => {
           });
         }
         
-        // 获取原始进度记录
         const progressResponse = await userProgressService.getUserProgressRecords();
         
         if (progressResponse.success && progressResponse.data) {
-          // 计算统计数据
           const stats = calculateProgressStats(progressResponse.data, questionSetsMap);
           setProgressStats(stats);
         } else {
@@ -179,7 +249,7 @@ const ProfilePage: React.FC = () => {
         }
       } catch (error) {
         toast.error('Failed to load progress data');
-        console.error('Error fetching progress:', error);
+        console.error('[ProfilePage] Error fetching progress:', error);
       } finally {
         setIsLoading(false);
       }
@@ -187,13 +257,12 @@ const ProfilePage: React.FC = () => {
 
     fetchProgressData();
 
-    // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
 
     return () => {
       socket.off('progress:update', handleProgressUpdate);
     };
-  }, [socket, user, calculateProgressStats, handleProgressUpdate]);
+  }, [socket, user, calculateProgressStats]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-64">
@@ -206,45 +275,18 @@ const ProfilePage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-6">Learning Progress</h1>
       {progressStats.length === 0 ? (
         <div className="bg-white p-6 rounded-lg shadow text-center">
-          <p className="text-gray-600">No progress data available. Start practicing to see your progress!</p>
+          <p className="text-gray-600 mb-4">🎯 你还没有开始答题，点击这里开始练习！</p>
+          <button
+            onClick={() => navigate('/question-sets')}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+          >
+            开始练习
+          </button>
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {progressStats.map((stats) => (
-            <div key={stats.questionSetId} className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-              <h2 className="text-lg font-semibold mb-3 text-blue-700 truncate">{stats.title}</h2>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Completed Questions:</span>
-                  <span className="font-medium">{stats.completedQuestions}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Correct Answers:</span>
-                  <span className="font-medium">{stats.correctAnswers}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Accuracy:</span>
-                  <span className="font-medium">{stats.accuracy.toFixed(1)}%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Avg. Time Per Question:</span>
-                  <span className="font-medium">{Math.round(stats.averageTimeSpent)} sec</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Time Spent:</span>
-                  <span className="font-medium">{Math.round(stats.totalTimeSpent)} sec</span>
-                </div>
-                <div className="mt-4 pt-3 border-t border-gray-100">
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 rounded-full" 
-                      style={{ width: `${stats.accuracy}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1 text-right">Accuracy</p>
-                </div>
-              </div>
-            </div>
+            <ProgressCard key={stats.questionSetId} stats={stats} />
           ))}
         </div>
       )}
