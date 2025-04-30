@@ -54,8 +54,11 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
     setMessage('正在验证兑换码...');
     
     try {
+      console.log('[RedeemCodeForm] 开始兑换码:', redeemCode.trim());
       // 调用 UserContext 中的 redeemCode 函数，并将结果类型扩展为 RedeemCodeResult
       const result = await redeemCodeFunction(redeemCode.trim()) as RedeemCodeResult;
+      
+      console.log('[RedeemCodeForm] 兑换结果:', result);
       
       if (result.success) {
         setStatus('success');
@@ -63,6 +66,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
         
         // 查找已兑换的题库信息
         if (result.quizId) {
+          console.log('[RedeemCodeForm] 找到题库ID:', result.quizId);
           const set = questionSets.find(s => s.id === result.quizId);
           
           if (set) {
@@ -71,21 +75,30 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               title: result.quizTitle || set.title
             });
             
-            // 调用成功回调函数
-            if (onRedeemSuccess) {
-              onRedeemSuccess(result.quizId);
-            }
+            // 添加短暂延迟，确保状态已更新
+            setTimeout(() => {
+              console.log('[RedeemCodeForm] 调用成功回调');
+              // 调用成功回调函数
+              if (onRedeemSuccess) {
+                onRedeemSuccess(result.quizId!);
+              }
+            }, 500);
           } else {
             // 如果本地找不到题库信息，使用 API 返回的信息
+            console.log('[RedeemCodeForm] 本地未找到题库，使用API返回的信息');
             setRedeemedSet({
               id: result.quizId,
               title: result.quizTitle || '已兑换的题库',
               icon: '📚'
             });
             
-            if (onRedeemSuccess) {
-              onRedeemSuccess(result.quizId);
-            }
+            // 添加短暂延迟，确保状态已更新
+            setTimeout(() => {
+              console.log('[RedeemCodeForm] 调用成功回调');
+              if (onRedeemSuccess) {
+                onRedeemSuccess(result.quizId!);
+              }
+            }, 500);
           }
         }
       } else {

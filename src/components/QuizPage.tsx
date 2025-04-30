@@ -84,54 +84,87 @@ function QuizPage(): JSX.Element {
   const checkAccess = async () => {
     if (!questionSet) return;
     
+    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限`);
+    
     // 如果是免费题库，直接授权访问
     if (!questionSet.isPaid) {
+      console.log(`[checkAccess] 免费题库，允许访问`);
       setHasAccessToFullQuiz(true);
       return;
     }
     
     // 未登录用户不检查权限，在需要时会提示登录
     if (!user) {
+      console.log(`[checkAccess] 用户未登录，无权限`);
       setHasAccessToFullQuiz(false);
       return;
     }
+    
+    console.log(`[checkAccess] 用户已登录，ID: ${user.id}`);
+    console.log(`[checkAccess] 用户购买记录:`, user.purchases);
     
     // 检查用户是否有访问权限 - 多种情况检查
     let hasAccess = false;
     
     // 检查购买记录 - 包括兼容不同的关联字段名
     if (user.purchases && user.purchases.length > 0) {
-      const purchase = user.purchases.find(p => 
-        p.questionSetId === questionSet.id || 
-        (p.purchaseQuestionSet && p.purchaseQuestionSet.id === questionSet.id)
-      );
+      console.log(`[checkAccess] 检查购买记录，题库ID: ${questionSet.id}`);
+      
+      // 增加更详细的日志
+      user.purchases.forEach((p, index) => {
+        console.log(`[checkAccess] 购买记录 #${index}:`, p);
+        console.log(`[checkAccess] 比较: ${p.questionSetId} vs ${questionSet.id}, 结果: ${p.questionSetId === questionSet.id}`);
+      });
+      
+      const purchase = user.purchases.find(p => {
+        // 确保正确比较字符串
+        const pureId = String(questionSet.id).trim();
+        const purchaseSetId = String(p.questionSetId).trim();
+        const match = purchaseSetId === pureId;
+        console.log(`[checkAccess] 比较精确ID: "${purchaseSetId}" vs "${pureId}", 匹配: ${match}`);
+        return match || (p.purchaseQuestionSet && p.purchaseQuestionSet.id === questionSet.id);
+      });
       
       if (purchase) {
+        console.log(`[checkAccess] 找到匹配的购买记录:`, purchase);
         const expiryDate = new Date(purchase.expiryDate);
         const now = new Date();
         hasAccess = expiryDate > now;
+        console.log(`[checkAccess] 有效期检查: ${expiryDate.toISOString()} > ${now.toISOString()}, 结果: ${hasAccess}`);
+      } else {
+        console.log(`[checkAccess] 未找到匹配的购买记录`);
       }
+    } else {
+      console.log(`[checkAccess] 用户没有购买记录`);
     }
     
     // 检查questionSet自身的hasAccess字段(通过socket实时更新)
     if (questionSet.hasAccess !== undefined) {
-      hasAccess = questionSet.hasAccess;
+      console.log(`[checkAccess] 题库自带hasAccess属性: ${questionSet.hasAccess}`);
+      hasAccess = hasAccess || questionSet.hasAccess;
     }
     
     // 用户直接的访问检查函数
     if (hasAccessToQuestionSet) {
-      hasAccess = hasAccess || hasAccessToQuestionSet(questionSet.id);
+      const directAccess = hasAccessToQuestionSet(questionSet.id);
+      console.log(`[checkAccess] 通过hasAccessToQuestionSet检查: ${directAccess}`);
+      console.log(`[checkAccess] 调用hasAccessToQuestionSet('${questionSet.id}')`);
+      hasAccess = hasAccess || directAccess;
     }
     
+    console.log(`[checkAccess] 最终访问权限结果: ${hasAccess}`);
     setHasAccessToFullQuiz(hasAccess);
     
     // 如果没有访问权限，检查试用状态
     if (!hasAccess && questionSet.trialQuestions) {
-      setTrialEnded(answeredQuestions.length >= questionSet.trialQuestions);
+      const trialStatus = answeredQuestions.length >= questionSet.trialQuestions;
+      console.log(`[checkAccess] 试用状态检查: 已答题数 ${answeredQuestions.length} >= 试用题数 ${questionSet.trialQuestions}, 结果: ${trialStatus}`);
+      setTrialEnded(trialStatus);
     }
 
     // 通过 Socket 检查访问权限
     if (socket && user) {
+      console.log(`[checkAccess] 通过Socket发送检查请求`);
       socket.emit('questionSet:checkAccess', {
         userId: user.id,
         questionSetId: questionSet.id
@@ -139,10 +172,14 @@ function QuizPage(): JSX.Element {
     }
   };
   
-  // 在获取题库数据后检查访问权限
+  // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查
   useEffect(() => {
+    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}`);
+    if (user && user.purchases) {
+      console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
+    }
     checkAccess();
-  }, [questionSet, user, answeredQuestions.length]);
+  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length]);
   
   // 获取题库和题目数据
   useEffect(() => {
@@ -519,7 +556,7 @@ function QuizPage(): JSX.Element {
               <div className="ml-3">
                 <p className="text-sm text-yellow-700">
                   您已完成免费试用的 {questionSet.trialQuestions} 道题目。
-                  要继续访问完整题库的 {questions.length} 道题目，请购买完整版。
+                  要继续访问完整题库的 {questions.length} 道题目，请购买完整版或使用兑换码。
                 </p>
               </div>
             </div>
@@ -534,12 +571,21 @@ function QuizPage(): JSX.Element {
               购买后可访问全部 {questions.length} 道题目，有效期6个月。
               您已经完成了 {answeredQuestions.length} 道题目，其中答对了 {correctAnswers} 题。
             </p>
-            <button 
-              onClick={() => setShowPaymentModal(true)}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-            >
-              立即购买
-            </button>
+            <div className="flex flex-col space-y-3">
+              <button 
+                onClick={() => setShowPaymentModal(true)}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+              >
+                立即购买
+              </button>
+              
+              <button
+                onClick={() => setShowRedeemCodeModal(true)}
+                className="w-full bg-green-50 text-green-700 border border-green-300 py-2 px-4 rounded hover:bg-green-100"
+              >
+                使用兑换码
+              </button>
+            </div>
           </div>
           
           <div className="flex justify-between mt-4">
@@ -578,6 +624,43 @@ function QuizPage(): JSX.Element {
               setTrialEnded(false);
             }}
           />
+        )}
+        
+        {/* 兑换码模态窗口 */}
+        {showRedeemCodeModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">题库兑换码</h2>
+                <button
+                  onClick={() => setShowRedeemCodeModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <RedeemCodeForm onRedeemSuccess={(quizId) => {
+                console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
+                setShowRedeemCodeModal(false);
+                
+                // 强制刷新题库访问权限
+                setTimeout(() => {
+                  console.log(`[QuizPage] 开始强制重新检查访问权限`);
+                  checkAccess();
+                  
+                  // 如果兑换的就是当前题库，强制刷新页面以确保加载最新状态
+                  if (quizId === questionSetId) {
+                    console.log(`[QuizPage] 兑换的是当前题库，刷新页面`);
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 1000);
+                  }
+                }, 500);
+              }} />
+            </div>
+          </div>
         )}
       </div>
     );
@@ -647,9 +730,23 @@ function QuizPage(): JSX.Element {
                 </svg>
               </button>
             </div>
-            <RedeemCodeForm onRedeemSuccess={() => {
+            <RedeemCodeForm onRedeemSuccess={(quizId) => {
+              console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
-              checkAccess();
+              
+              // 强制刷新题库访问权限
+              setTimeout(() => {
+                console.log(`[QuizPage] 开始强制重新检查访问权限`);
+                checkAccess();
+                
+                // 如果兑换的就是当前题库，强制刷新页面以确保加载最新状态
+                if (quizId === questionSetId) {
+                  console.log(`[QuizPage] 兑换的是当前题库，刷新页面`);
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1000);
+                }
+              }, 500);
             }} />
           </div>
         </div>
