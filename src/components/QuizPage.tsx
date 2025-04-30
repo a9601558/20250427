@@ -111,6 +111,7 @@ function QuizPage(): JSX.Element {
     if (!questionSet.isPaid) {
       console.log(`[checkAccess] 免费题库，允许访问`);
       setHasAccessToFullQuiz(true);
+      setTrialEnded(false); // 确保重置试用状态
       return;
     }
     
@@ -118,6 +119,11 @@ function QuizPage(): JSX.Element {
     if (!user) {
       console.log(`[checkAccess] 用户未登录，无权限`);
       setHasAccessToFullQuiz(false);
+      
+      // 检查试用状态
+      if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
+        setTrialEnded(true);
+      }
       return;
     }
     
@@ -183,8 +189,13 @@ function QuizPage(): JSX.Element {
     console.log(`[checkAccess] 最终访问权限结果: ${hasAccess}`);
     setHasAccessToFullQuiz(hasAccess);
     
+    // 如果有访问权限，确保试用结束状态重置
+    if (hasAccess) {
+      console.log(`[checkAccess] 用户有访问权限，重置试用结束状态`);
+      setTrialEnded(false);
+    }
     // 如果没有访问权限，检查试用状态
-    if (!hasAccess && questionSet.trialQuestions) {
+    else if (questionSet.trialQuestions) {
       const trialStatus = answeredQuestions.length >= questionSet.trialQuestions;
       console.log(`[checkAccess] 试用状态检查: 已答题数 ${answeredQuestions.length} >= 试用题数 ${questionSet.trialQuestions}, 结果: ${trialStatus}`);
       setTrialEnded(trialStatus);
@@ -332,9 +343,10 @@ function QuizPage(): JSX.Element {
       
       console.log(`[QuizPage] 比较ID: 事件ID=${eventQuizId}, 当前题库ID=${currentQuizId}`);
       
-      // 即使ID不完全匹配，也先刷新一次权限
-      setHasAccessToFullQuiz(true);
-      setTrialEnded(false);
+      // 立即更新UI状态，无论ID是否匹配
+      console.log(`[QuizPage] 立即更新UI状态: 重置试用状态和访问权限`);
+      setHasAccessToFullQuiz(true);  // 确保设置为true
+      setTrialEnded(false);          // 确保重置试用结束状态
       
       // 如果是当前题库，执行更深入的检查
       if (eventQuizId === currentQuizId || customEvent.detail?.forceRefresh) {
@@ -707,8 +719,21 @@ function QuizPage(): JSX.Element {
             questionSet={questionSet}
             onClose={() => setShowPaymentModal(false)}
             onSuccess={() => {
+              console.log(`[QuizPage] 支付成功回调，更新访问权限`);
               setHasAccessToFullQuiz(true);
               setTrialEnded(false);
+              setShowPaymentModal(false);
+              
+              // 尝试通过Socket再次检查权限，确保状态一致性
+              if (socket && user) {
+                setTimeout(() => {
+                  console.log(`[QuizPage] 支付成功后检查权限`);
+                  socket.emit('questionSet:checkAccess', {
+                    userId: user.id,
+                    questionSetId: String(questionSet.id).trim()
+                  });
+                }, 300);
+              }
             }}
           />
         )}
@@ -732,15 +757,45 @@ function QuizPage(): JSX.Element {
                 console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
                 setShowRedeemCodeModal(false);
                 
-                // 直接设置访问权限，与购买成功逻辑保持一致
-                console.log(`[QuizPage] 直接设置访问权限为true`);
+                // 立即更新UI状态
+                console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
                 setHasAccessToFullQuiz(true);
                 setTrialEnded(false);
+                
+                // 延迟发送自定义事件确保完整处理
+                setTimeout(() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('redeem:success', { 
+                      detail: { 
+                        quizId, 
+                        forceRefresh: true,
+                        source: 'QuizPageRedeemForm',
+                        timestamp: Date.now()
+                      } 
+                    }));
+                  }
+                }, 200);
                 
                 // 后台异步执行权限检查以确保数据完整性
                 setTimeout(() => {
                   console.log(`[QuizPage] 后台检查访问权限`);
                   checkAccess();
+                  
+                  // 通过Socket请求确认权限
+                  if (socket && user && questionSet) {
+                    console.log(`[QuizPage] 通过Socket请求确认权限`);
+                    socket.emit('questionSet:checkAccess', {
+                      userId: user.id,
+                      questionSetId: String(questionSet.id).trim()
+                    });
+                    
+                    // 明确设置访问权限
+                    socket.emit('questionSet:accessUpdate', {
+                      userId: user.id,
+                      questionSetId: String(questionSet.id).trim(),
+                      hasAccess: true
+                    });
+                  }
                 }, 500);
               }} />
             </div>
@@ -838,15 +893,45 @@ function QuizPage(): JSX.Element {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
               
-              // 直接设置访问权限，与购买成功逻辑保持一致
-              console.log(`[QuizPage] 直接设置访问权限为true`);
+              // 立即更新UI状态
+              console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
               setHasAccessToFullQuiz(true);
               setTrialEnded(false);
+              
+              // 延迟发送自定义事件确保完整处理
+              setTimeout(() => {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('redeem:success', { 
+                    detail: { 
+                      quizId, 
+                      forceRefresh: true,
+                      source: 'QuizPageRedeemForm',
+                      timestamp: Date.now()
+                    } 
+                  }));
+                }
+              }, 200);
               
               // 后台异步执行权限检查以确保数据完整性
               setTimeout(() => {
                 console.log(`[QuizPage] 后台检查访问权限`);
                 checkAccess();
+                
+                // 通过Socket请求确认权限
+                if (socket && user && questionSet) {
+                  console.log(`[QuizPage] 通过Socket请求确认权限`);
+                  socket.emit('questionSet:checkAccess', {
+                    userId: user.id,
+                    questionSetId: String(questionSet.id).trim()
+                  });
+                  
+                  // 明确设置访问权限
+                  socket.emit('questionSet:accessUpdate', {
+                    userId: user.id,
+                    questionSetId: String(questionSet.id).trim(),
+                    hasAccess: true
+                  });
+                }
               }, 500);
             }} />
           </div>

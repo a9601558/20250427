@@ -78,13 +78,25 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
             // 全局发送兑换成功事件，强制刷新
             if (typeof window !== 'undefined') {
               console.log('[RedeemCodeForm] 发送全局兑换成功事件');
+              
+              // 确保事件细节完整
+              const eventDetail = { 
+                quizId: result.quizId,
+                forceRefresh: true,
+                timestamp: Date.now()
+              };
+              
+              // 分发事件
               window.dispatchEvent(new CustomEvent('redeem:success', { 
-                detail: { 
-                  quizId: result.quizId,
-                  forceRefresh: true,
-                  timestamp: Date.now()
-                } 
+                detail: eventDetail
               }));
+              
+              // 确保事件被处理 - 延迟再次分发以防止事件丢失
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('redeem:success', { 
+                  detail: eventDetail
+                }));
+              }, 500);
             }
             
             // 添加短暂延迟，确保状态已更新
@@ -94,7 +106,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               if (onRedeemSuccess) {
                 onRedeemSuccess(result.quizId!);
               }
-            }, 500);
+            }, 800);
           } else {
             // 如果本地找不到题库信息，使用 API 返回的信息
             console.log('[RedeemCodeForm] 本地未找到题库，使用API返回的信息');
