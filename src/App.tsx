@@ -14,9 +14,9 @@ import { UserProgressProvider } from './contexts/UserProgressContext';
 
 const App: React.FC = () => {
   return (
-    <UserProgressProvider>
+    <UserProvider>
       <SocketProvider>
-        <UserProvider>
+        <UserProgressProvider>
           <Router>
             <Layout>
               <Routes>
@@ -46,9 +46,9 @@ const App: React.FC = () => {
             draggable
             pauseOnHover
           />
-        </UserProvider>
+        </UserProgressProvider>
       </SocketProvider>
-    </UserProgressProvider>
+    </UserProvider>
   );
 };
 
