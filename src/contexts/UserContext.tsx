@@ -134,7 +134,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             [data.questionSetId]: {
               ...data.progress,
                 lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
-              }
+            }
           }
         };
       });
@@ -176,14 +176,128 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await userApi.login(username, password);
       if (response.success && response.data) {
-        localStorage.setItem('token', response.data.token);
+        const token = response.data.token || '';
+        localStorage.setItem('token', token);
+        
+        // 处理用户数据存在的情况
         if (response.data.user) {
-          setUser(response.data.user);
-          notifyUserChange(response.data.user); // 通知用户变化
+          const userData = response.data.user;
+          setUser(userData);
+          
+          // 登录后初始化Socket连接
+          const socketInstance = initializeSocket();
+          authenticateUser(userData.id, token);
+          
+          // 延迟一下再检查题库权限，确保Socket连接已建立
+          setTimeout(() => {
+            console.log("[UserContext] 登录成功，开始检查题库访问权限");
+            
+            // 获取所有题库ID并检查权限
+            if (socketInstance) {
+              // 检查已购买题库
+              const purchasedQuestionSetIds = userData.purchases?.map(p => p.questionSetId) || [];
+              console.log(`[UserContext] 已购买题库: ${purchasedQuestionSetIds.length}个`);
+              
+              // 检查已兑换题库 - 根据用户类型可能有不同的字段名
+              const redeemedQuestionSetIds: string[] = [];
+              
+              // 检查redeems字段（如果存在）
+              if (Array.isArray((userData as any).redeems)) {
+                const redeemIds = (userData as any).redeems
+                  .map((r: any) => r.questionSetId)
+                  .filter(Boolean);
+                redeemedQuestionSetIds.push(...redeemIds);
+              }
+              
+              // 检查redeemedCodes字段（如果存在）
+              if (Array.isArray((userData as any).redeemedCodes)) {
+                const redeemCodeIds = (userData as any).redeemedCodes
+                  .map((r: any) => r.questionSetId)
+                  .filter(Boolean);
+                redeemedQuestionSetIds.push(...redeemCodeIds);
+              }
+              
+              console.log(`[UserContext] 已兑换题库: ${redeemedQuestionSetIds.length}个`);
+              
+              // 合并去重
+              const allQuestionSetIds = [...new Set([...purchasedQuestionSetIds, ...redeemedQuestionSetIds])];
+              console.log(`[UserContext] 总共需要检查: ${allQuestionSetIds.length}个题库`);
+              
+              if (allQuestionSetIds.length > 0) {
+                // 批量检查
+                socketInstance.emit('questionSet:checkAccessBatch', {
+                  userId: userData.id,
+                  questionSetIds: allQuestionSetIds
+                });
+                
+                // 逐个检查作为备份
+                allQuestionSetIds.forEach(questionSetId => {
+                  if (questionSetId) {
+                    socketInstance.emit('questionSet:checkAccess', {
+                      userId: userData.id,
+                      questionSetId: String(questionSetId).trim()
+                    });
+                  }
+                });
+              }
+            }
+          }, 500);
+          
+          notifyUserChange(userData); // 通知用户变化
           return true;
         } else {
+          // 用户数据不存在，尝试获取
           const userResponse = await fetchCurrentUser(); 
           if (userResponse) {
+            // 同样需要检查题库权限
+            const socketInstance = initializeSocket();
+            authenticateUser(userResponse.id, token);
+            
+            setTimeout(() => {
+              if (socketInstance) {
+                const purchasedQuestionSetIds = userResponse.purchases?.map(p => p.questionSetId) || [];
+                
+                // 检查已兑换题库 - 根据用户类型可能有不同的字段名
+                const redeemedQuestionSetIds: string[] = [];
+                
+                // 检查redeems字段（如果存在）
+                if (Array.isArray((userResponse as any).redeems)) {
+                  const redeemIds = (userResponse as any).redeems
+                    .map((r: any) => r.questionSetId)
+                    .filter(Boolean);
+                  redeemedQuestionSetIds.push(...redeemIds);
+                }
+                
+                // 检查redeemedCodes字段（如果存在）
+                if (Array.isArray((userResponse as any).redeemedCodes)) {
+                  const redeemCodeIds = (userResponse as any).redeemedCodes
+                    .map((r: any) => r.questionSetId)
+                    .filter(Boolean);
+                  redeemedQuestionSetIds.push(...redeemCodeIds);
+                }
+                
+                const allQuestionSetIds = [...new Set([...purchasedQuestionSetIds, ...redeemedQuestionSetIds])];
+                
+                if (allQuestionSetIds.length > 0) {
+                  // 批量检查
+                  socketInstance.emit('questionSet:checkAccessBatch', {
+                    userId: userResponse.id,
+                    questionSetIds: allQuestionSetIds
+                  });
+                  
+                  // 逐个检查作为备份
+                  allQuestionSetIds.forEach(questionSetId => {
+                    if (questionSetId) {
+                      socketInstance.emit('questionSet:checkAccess', {
+                        userId: userResponse.id,
+                        questionSetId: String(questionSetId).trim()
+                      });
+                    }
+                  });
+                }
+              }
+            }, 500);
+            
             notifyUserChange(userResponse); // 通知用户变化
           }
           return userResponse !== null;

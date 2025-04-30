@@ -123,7 +123,7 @@ export const getUserPurchases = async (req: Request, res: Response) => {
       order: [['purchaseDate', 'DESC']],
       include: [
         {
-          model: QuestionSet,
+        model: QuestionSet,
           as: 'purchaseQuestionSet'
         },
       ],

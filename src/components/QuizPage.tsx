@@ -99,7 +99,7 @@ function QuizPage(): JSX.Element {
       return false;
     }
   }, []);
-
+  
   // 添加 Socket 监听
   useEffect(() => {
     if (!socket || !questionSet) return;
@@ -894,12 +894,12 @@ function QuizPage(): JSX.Element {
               您已经完成了 {answeredQuestions.length} 道题目，其中答对了 {correctAnswers} 题。
             </p>
             <div className="flex flex-col space-y-3">
-              <button 
-                onClick={() => setShowPaymentModal(true)}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-              >
-                立即购买
-              </button>
+            <button 
+              onClick={() => setShowPaymentModal(true)}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+            >
+              立即购买
+            </button>
               
               <button
                 onClick={() => setShowRedeemCodeModal(true)}
@@ -1178,9 +1178,9 @@ function QuizPage(): JSX.Element {
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                    </svg>
               </button>
-            </div>
+              </div>
             <RedeemCodeForm onRedeemSuccess={(quizId) => {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
@@ -1237,8 +1237,8 @@ function QuizPage(): JSX.Element {
                 }
               }, 500);
             }} />
-          </div>
         </div>
+      </div>
       )}
     </div>
   );

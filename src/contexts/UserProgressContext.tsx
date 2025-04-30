@@ -250,8 +250,8 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.log("组件挂载，初始化进度");
       const timer = setTimeout(() => {
         fetchUserProgress().catch(err => {
-          console.error("初始化进度失败:", err);
-        });
+        console.error("初始化进度失败:", err);
+      });
       }, 500);
       
       return () => clearTimeout(timer);

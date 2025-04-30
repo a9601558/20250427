@@ -172,7 +172,7 @@ const HomePage: React.FC = () => {
   // 添加Socket监听，使用依赖更少的方式
   useEffect(() => {
     if (!socket) return;
-    
+
     // 监听批量题库访问状态更新
     const handleBatchAccessUpdate = (data: { 
       updates: Array<{
@@ -190,18 +190,18 @@ const HomePage: React.FC = () => {
         data.updates.forEach(update => {
           const index = newSets.findIndex(set => set.id === update.questionSetId);
           if (index !== -1) {
-            newSets[index] = {
-              ...newSets[index],
+        newSets[index] = {
+          ...newSets[index],
               hasAccess: update.hasAccess,
               remainingDays: update.remainingDays
-            };
+        };
           }
         });
         
         return newSets;
       });
     };
-    
+
     // 只监听批量更新事件
     socket.on('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
     
@@ -224,9 +224,9 @@ const HomePage: React.FC = () => {
         return newSets;
       });
     };
-    
+
     socket.on('questionSet:accessUpdate', handleAccessUpdate);
-    
+
     return () => {
       socket.off('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
       socket.off('questionSet:accessUpdate', handleAccessUpdate);
@@ -438,7 +438,7 @@ const HomePage: React.FC = () => {
                 </p>
               </div>
             )}
-          
+            
             
             {!user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
@@ -543,9 +543,9 @@ const HomePage: React.FC = () => {
                         </h3>
                         {isPaid && (
                           <div className="flex flex-col items-end">
-                            <span className="px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-full">
-                              ¥{questionSet.price}
-                            </span>
+                          <span className="px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-full">
+                            ¥{questionSet.price}
+                          </span>
                             {questionSet.trialQuestions && questionSet.trialQuestions > 0 && (
                               <span className="text-xs text-gray-600 mt-1">
                                 可试用 {questionSet.trialQuestions} 题
@@ -559,7 +559,7 @@ const HomePage: React.FC = () => {
                       
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
-                          <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500">
                             {questionSet.questionCount || questionSet.trialQuestions || "多"} 道题目
                           </span>
                           {isPaid && (
