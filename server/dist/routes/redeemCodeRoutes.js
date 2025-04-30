@@ -27,4 +27,8 @@ router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, redeemCo
 // @route   GET /api/redeem-codes/user
 // @access  Private
 router.get('/user', authMiddleware_1.protect, redeemCodeController_1.getUserRedeemCodes);
+// @desc    Fix redeem code question set association
+// @route   PUT /api/redeem-codes/:id/fix-question-set
+// @access  Private/Admin
+router.put('/:id/fix-question-set', authMiddleware_1.protect, authMiddleware_1.admin, redeemCodeController_1.fixRedeemCodeQuestionSet);
 exports.default = router;

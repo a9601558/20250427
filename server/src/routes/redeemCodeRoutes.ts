@@ -4,7 +4,8 @@ import {
   getRedeemCodes,
   redeemCode,
   deleteRedeemCode,
-  getUserRedeemCodes
+  getUserRedeemCodes,
+  fixRedeemCodeQuestionSet
 } from '../controllers/redeemCodeController';
 import { protect, admin } from '../middleware/authMiddleware';
 
@@ -34,5 +35,10 @@ router.delete('/:id', protect, admin, deleteRedeemCode);
 // @route   GET /api/redeem-codes/user
 // @access  Private
 router.get('/user', protect, getUserRedeemCodes);
+
+// @desc    Fix redeem code question set association
+// @route   PUT /api/redeem-codes/:id/fix-question-set
+// @access  Private/Admin
+router.put('/:id/fix-question-set', protect, admin, fixRedeemCodeQuestionSet);
 
 export default router; 

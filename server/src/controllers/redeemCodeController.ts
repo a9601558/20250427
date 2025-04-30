@@ -111,34 +111,66 @@ export const redeemCode = async (req: Request, res: Response) => {
     const { code } = req.body;
     const userId = req.user.id;
 
+    // 输出调试信息
+    console.log(`尝试兑换码: ${code}, 用户ID: ${userId}`);
+
     // 查找兑换码
     const redeemCode = await RedeemCode.findOne({
-      where: { code }
+      where: { code },
+      include: [
+        {
+          model: QuestionSet,
+          as: 'redeemQuestionSet'
+        }
+      ]
     });
 
     if (!redeemCode) {
+      console.error(`兑换码不存在: ${code}`);
       return res.status(404).json({
         success: false,
         message: '兑换码不存在'
       });
     }
 
+    console.log(`找到兑换码: ${redeemCode.id}, 题库ID: ${redeemCode.questionSetId}`);
+
     if (redeemCode.isUsed) {
+      console.error(`兑换码已使用: ${code}`);
       return res.status(400).json({
         success: false,
         message: '兑换码已被使用'
       });
     }
 
-    // 查找对应的题库
-    const questionSet = await QuestionSet.findByPk(redeemCode.questionSetId);
+    // 直接使用关联加载的题库，如果存在
+    let questionSet: any = redeemCode.redeemQuestionSet;
+    
+    // 如果关联加载失败，尝试单独查询
     if (!questionSet) {
-      console.error(`题库不存在 - 兑换码ID: ${redeemCode.id}, 题库ID: ${redeemCode.questionSetId}`);
+      console.log(`尝试通过ID查找题库: ${redeemCode.questionSetId}`);
+      questionSet = await QuestionSet.findByPk(redeemCode.questionSetId);
+    }
+
+    if (!questionSet) {
+      // 尝试强制转换ID格式并再次查询
+      const questionSetId = String(redeemCode.questionSetId).trim();
+      console.error(`题库不存在 - 兑换码ID: ${redeemCode.id}, 题库ID: ${questionSetId}`);
+      
+      // 尝试列出所有题库的ID，以便排查问题
+      const allSets = await QuestionSet.findAll({
+        attributes: ['id', 'title']
+      });
+      
+      console.log(`数据库中的题库列表: ${JSON.stringify(allSets.map(s => ({ id: s.id, title: s.title })))}`);
+      
       return res.status(404).json({
         success: false,
         message: '题库不存在'
       });
     }
+
+    console.log(`找到题库: ${questionSet.id}, 标题: ${questionSet.title}`);
 
     // 创建购买记录
     const purchase = await Purchase.create({
@@ -153,12 +185,16 @@ export const redeemCode = async (req: Request, res: Response) => {
       updatedAt: new Date()
     });
 
+    console.log(`创建了购买记录: ${purchase.id}`);
+
     // 更新兑换码状态
     await redeemCode.update({
       isUsed: true,
       usedBy: userId,
       usedAt: new Date()
     });
+
+    console.log(`已更新兑换码状态为已使用`);
 
     // 更新用户的购买记录
     const user = await User.findByPk(userId);
@@ -167,6 +203,7 @@ export const redeemCode = async (req: Request, res: Response) => {
       await user.update({
         purchases: [...currentPurchases, purchase.toJSON() as IPurchase]
       });
+      console.log(`已更新用户购买记录`);
     }
 
     res.json({
@@ -277,6 +314,56 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Fix redeem code question set association
+// @route   PUT /api/redeem-codes/:id/fix-question-set
+// @access  Private/Admin
+export const fixRedeemCodeQuestionSet = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { questionSetId } = req.body;
+
+    if (!questionSetId) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供有效的题库ID'
+      });
+    }
+
+    // 查找兑换码
+    const redeemCode = await RedeemCode.findByPk(id);
+    if (!redeemCode) {
+      return res.status(404).json({
+        success: false,
+        message: '兑换码不存在'
+      });
+    }
+
+    // 检查题库是否存在
+    const questionSet = await QuestionSet.findByPk(questionSetId);
+    if (!questionSet) {
+      return res.status(404).json({
+        success: false,
+        message: '题库不存在'
+      });
+    }
+
+    // 更新兑换码关联的题库
+    await redeemCode.update({ questionSetId });
+
+    res.json({
+      success: true,
+      message: '兑换码关联已成功修复',
+      data: { redeemCode }
+    });
+  } catch (error: any) {
+    console.error('修复兑换码关联失败:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '服务器错误'
     });
   }
 }; 
