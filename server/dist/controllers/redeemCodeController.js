@@ -153,14 +153,14 @@ const redeemCode = async (req, res) => {
         const purchaseId = (0, uuid_1.v4)();
         const now = new Date();
         const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天有效期
-        await models_1.sequelize.query(`INSERT INTO purchases (id, userId, questionSetId, purchaseDate, status, expiryDate, amount, createdAt, updatedAt)
+        await models_1.sequelize.query(`INSERT INTO purchases (id, user_id, question_set_id, purchase_date, status, expiry_date, amount, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)`, {
             replacements: [purchaseId, userId, questionSet.id, now, expiryDate, now, now],
             type: sequelize_1.QueryTypes.INSERT
         });
         console.log(`创建了购买记录: ${purchaseId}`);
         // 更新兑换码状态
-        await models_1.sequelize.query(`UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`, {
+        await models_1.sequelize.query(`UPDATE redeem_codes SET is_used = 1, used_by = ?, used_at = ? WHERE id = ?`, {
             replacements: [userId, now, redeemCode.id],
             type: sequelize_1.QueryTypes.UPDATE
         });
