@@ -41,6 +41,7 @@ interface UserContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
+  userChangeEvent: { userId: string | null; timestamp: number };
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (userData: Partial<User>) => Promise<boolean>;
@@ -69,6 +70,16 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  // 创建一个用户变化事件
+  const [userChangeEvent, setUserChangeEvent] = useState<{userId: string | null, timestamp: number}>({userId: null, timestamp: 0});
+
+  // 当用户变化时触发事件
+  const notifyUserChange = useCallback((newUser: User | null) => {
+    setUserChangeEvent({
+      userId: newUser?.id || null,
+      timestamp: Date.now()
+    });
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -138,9 +149,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.setItem('token', response.data.token);
         if (response.data.user) {
           setUser(response.data.user);
+          notifyUserChange(response.data.user); // 通知用户变化
           return true;
         } else {
           const userResponse = await fetchCurrentUser(); 
+          if (userResponse) {
+            notifyUserChange(userResponse); // 通知用户变化
+          }
           return userResponse !== null;
         }
       } else {
@@ -158,6 +173,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     localStorage.removeItem('token');
+    notifyUserChange(null); // 通知用户登出
     setUser(null);
   };
 
@@ -169,6 +185,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.success && response.data) {
         localStorage.setItem('token', response.data.token);
         setUser(response.data.user);
+        notifyUserChange(response.data.user); // 通知用户变化
         return true;
       } else {
         setError(response.message || 'Registration failed');
@@ -432,6 +449,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     user,
     loading,
     error,
+    userChangeEvent, // 导出事件给其他上下文
     login,
     logout,
     register,
@@ -452,7 +470,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     deleteUser,
     adminRegister,
     updateUserProgress
-  }), [user, loading, error]);
+  }), [user, loading, error, userChangeEvent]);
 
   return (
     <UserContext.Provider value={contextValue}>

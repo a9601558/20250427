@@ -36,10 +36,10 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
   // 按照最后访问时间排序
   const sortedSets = [...progressQuestionSets].sort((a, b) => {
     const aTime = progressStats[a.id]?.lastAccessed
-      ? new Date(progressStats[a.id].lastAccessed).getTime()
+      ? new Date(progressStats[a.id]?.lastAccessed).getTime()
       : 0;
     const bTime = progressStats[b.id]?.lastAccessed
-      ? new Date(progressStats[b.id].lastAccessed).getTime()
+      ? new Date(progressStats[b.id]?.lastAccessed).getTime()
       : 0;
     return bTime - aTime; // 从新到旧排序
   });

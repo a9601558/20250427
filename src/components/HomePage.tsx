@@ -475,8 +475,8 @@ const HomePage: React.FC = () => {
                           ? Object.values(progressStats)
                               .filter(prog => prog?.lastAccessed)
                               .sort((a, b) => 
-                                new Date(b.lastAccessed || 0).getTime() - 
-                                new Date(a.lastAccessed || 0).getTime()
+                                new Date(b?.lastAccessed || 0).getTime() - 
+                                new Date(a?.lastAccessed || 0).getTime()
                               )[0]
                               ?.questionSetId || '暂无学习记录'
                           : '暂无学习记录'}
