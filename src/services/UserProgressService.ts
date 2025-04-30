@@ -28,9 +28,16 @@ interface ApiResponse<T> {
 class UserProgressService {
   private baseUrl = '/api/user-progress';
 
+  private getAuthHeader() {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   async saveProgress(params: SaveProgressParams): Promise<ApiResponse<void>> {
     try {
-      const response = await axios.post(`${this.baseUrl}/save`, params);
+      const response = await axios.post(`${this.baseUrl}/save`, params, {
+        headers: this.getAuthHeader()
+      });
       return response.data;
     } catch (error: any) {
       console.error('保存进度失败:', error?.response?.data || error.message);
@@ -43,7 +50,9 @@ class UserProgressService {
       const url = questionSetId 
         ? `${this.baseUrl}/stats?questionSetId=${questionSetId}`
         : `${this.baseUrl}/stats`;
-      const response = await axios.get(url);
+      const response = await axios.get(url, {
+        headers: this.getAuthHeader()
+      });
       return response.data;
     } catch (error: any) {
       console.error('获取用户进度失败:', error?.response?.data || error.message);
@@ -59,7 +68,9 @@ class UserProgressService {
         ? `${this.baseUrl}/records?questionSetId=${questionSetId}`
         : `${this.baseUrl}/records`;
       
-      const response = await axios.get(url);
+      const response = await axios.get(url, {
+        headers: this.getAuthHeader()
+      });
       return response.data;
     } catch (error: any) {
       console.error('获取用户进度记录失败:', error?.response?.data || error.message);
