@@ -438,8 +438,7 @@ const getUserProgressStats = async (req, res) => {
             if (record.isCorrect)
                 acc[setId].correct++;
             acc[setId].timeSpent += record.timeSpent;
-            // 更新最后访问时间
-            if (acc[setId].lastAccessed && new Date(record.updatedAt) > new Date(acc[setId].lastAccessed)) {
+            if (new Date(record.updatedAt) > new Date(acc[setId].lastAccessed)) {
                 acc[setId].lastAccessed = record.updatedAt.toISOString();
             }
             return acc;
@@ -454,13 +453,17 @@ const getUserProgressStats = async (req, res) => {
                 acc[type] = {
                     total: 0,
                     correct: 0,
-                    timeSpent: 0
+                    timeSpent: 0,
+                    lastAccessed: record.updatedAt.toISOString()
                 };
             }
             acc[type].total++;
             if (record.isCorrect)
                 acc[type].correct++;
             acc[type].timeSpent += record.timeSpent;
+            if (new Date(record.updatedAt) > new Date(acc[type].lastAccessed)) {
+                acc[type].lastAccessed = record.updatedAt.toISOString();
+            }
             return acc;
         }, {});
         // 计算每个统计的准确率和平均时间
