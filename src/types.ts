@@ -50,6 +50,7 @@ export interface QuestionSet {
   // Runtime properties
   hasAccess?: boolean;
   remainingDays?: number | null;
+  questionCount?: number;
 }
 
 export type QuestionType = 'single' | 'multiple';

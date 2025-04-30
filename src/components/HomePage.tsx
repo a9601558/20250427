@@ -316,7 +316,7 @@ const HomePage: React.FC = () => {
     return questionSets;
   };
 
-  // 获取题库访问状态
+  // 优化获取题库访问状态的函数
   const getQuestionSetAccessStatus = (questionSet: QuestionSet) => {
     // 如果是免费题库，直接返回有访问权限
     if (!questionSet.isPaid) {
@@ -328,8 +328,20 @@ const HomePage: React.FC = () => {
       return { hasAccess: false, remainingDays: null };
     }
     
-    // 查找用户的购买记录
-    const purchase = user.purchases?.find(p => p.questionSetId === questionSet.id);
+    // 直接使用题库的hasAccess属性(通过socket实时更新)
+    if (questionSet.hasAccess !== undefined) {
+      return { 
+        hasAccess: questionSet.hasAccess, 
+        remainingDays: questionSet.remainingDays || null 
+      };
+    }
+    
+    // 查找用户的购买记录 - 增强兼容性处理
+    const purchase = user.purchases?.find(p => 
+      p.questionSetId === questionSet.id || 
+      (p.purchaseQuestionSet && p.purchaseQuestionSet.id === questionSet.id)
+    );
+    
     if (!purchase) {
       return { hasAccess: false, remainingDays: null };
     }
@@ -654,12 +666,18 @@ const HomePage: React.FC = () => {
                       
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-sm text-gray-500">
-                          {questionSet.questions?.length || 0} 道题目
+                          {questionSet.questions?.length || questionSet.questionCount || 0} 道题目
                         </span>
-                        {isPaid && user && hasAccess && remainingDays !== null && (
-                          <span className="text-sm text-green-600">
-                            剩余 {remainingDays} 天
-                          </span>
+                        {isPaid && (
+                          hasAccess && remainingDays !== null ? (
+                            <span className="text-sm text-green-600">
+                              剩余 {remainingDays} 天
+                            </span>
+                          ) : (
+                            <span className="text-sm text-orange-500">
+                              需要购买
+                            </span>
+                          )
                         )}
                       </div>
                       
@@ -670,14 +688,13 @@ const HomePage: React.FC = () => {
                         onClick={() => handleStartQuiz(questionSet)}
                         className={`w-full py-2 px-4 rounded-md text-white font-medium ${
                           !hasAccess && isPaid
-                            ? 'bg-gray-400 cursor-not-allowed'
+                            ? 'bg-yellow-500 hover:bg-yellow-600'
                             : 'bg-blue-600 hover:bg-blue-700'
                         }`}
-                        disabled={!hasAccess && isPaid}
                       >
                         {!hasAccess && isPaid
-                          ? '需要购买'
-                          : user && user.progress && user.progress[questionSet.id]
+                          ? '立即购买'
+                          : user && progressStats && progressStats[questionSet.id]
                             ? '继续练习'
                             : '开始练习'}
                       </button>

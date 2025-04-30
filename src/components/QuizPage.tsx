@@ -92,8 +92,33 @@ function QuizPage(): JSX.Element {
       return;
     }
     
-    // 检查用户是否有访问权限
-    const hasAccess = hasAccessToQuestionSet(questionSet.id);
+    // 检查用户是否有访问权限 - 多种情况检查
+    let hasAccess = false;
+    
+    // 检查购买记录 - 包括兼容不同的关联字段名
+    if (user.purchases && user.purchases.length > 0) {
+      const purchase = user.purchases.find(p => 
+        p.questionSetId === questionSet.id || 
+        (p.purchaseQuestionSet && p.purchaseQuestionSet.id === questionSet.id)
+      );
+      
+      if (purchase) {
+        const expiryDate = new Date(purchase.expiryDate);
+        const now = new Date();
+        hasAccess = expiryDate > now;
+      }
+    }
+    
+    // 检查questionSet自身的hasAccess字段(通过socket实时更新)
+    if (questionSet.hasAccess !== undefined) {
+      hasAccess = questionSet.hasAccess;
+    }
+    
+    // 用户直接的访问检查函数
+    if (hasAccessToQuestionSet) {
+      hasAccess = hasAccess || hasAccessToQuestionSet(questionSet.id);
+    }
+    
     setHasAccessToFullQuiz(hasAccess);
     
     // 如果没有访问权限，检查试用状态
@@ -487,7 +512,7 @@ function QuizPage(): JSX.Element {
               <div className="ml-3">
                 <p className="text-sm text-yellow-700">
                   您已完成免费试用的 {questionSet.trialQuestions} 道题目。
-                  要继续访问完整题库，请购买完整版。
+                  要继续访问完整题库的 {questions.length} 道题目，请购买完整版。
                 </p>
               </div>
             </div>
@@ -498,7 +523,10 @@ function QuizPage(): JSX.Element {
               <h3 className="text-lg font-medium">完整题库访问</h3>
               <span className="text-xl font-bold text-green-600">¥{questionSet.price}</span>
             </div>
-            <p className="text-gray-600 mb-4">购买后可访问全部 {questions.length} 道题目，有效期6个月。</p>
+            <p className="text-gray-600 mb-4">
+              购买后可访问全部 {questions.length} 道题目，有效期6个月。
+              您已经完成了 {answeredQuestions.length} 道题目，其中答对了 {correctAnswers} 题。
+            </p>
             <button 
               onClick={() => setShowPaymentModal(true)}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
@@ -507,14 +535,21 @@ function QuizPage(): JSX.Element {
             </button>
           </div>
           
-          <div className="flex justify-between">
+          <div className="flex justify-between mt-4">
             <button
               onClick={() => navigate('/')}
               className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
             >
               返回首页
             </button>
-            {user ? null : (
+            {user ? (
+              <button
+                onClick={() => navigate('/profile')}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                查看已购题库
+              </button>
+            ) : (
               <button
                 onClick={() => navigate('/login')}
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
