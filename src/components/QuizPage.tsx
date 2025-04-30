@@ -43,6 +43,7 @@ function QuizPage(): JSX.Element {
   const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState(false);
   const [trialEnded, setTrialEnded] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState(0);
+  const [hasRedeemed, setHasRedeemed] = useState(false); // Track if user has redeemed a code
   const timeoutId = useRef<NodeJS.Timeout>();
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   
@@ -105,7 +106,15 @@ function QuizPage(): JSX.Element {
   const checkAccess = async () => {
     if (!questionSet) return;
     
-    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限`);
+    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 已兑换状态: ${hasRedeemed}`);
+    
+    // 如果用户已经兑换过码，直接授权访问并跳过所有其他检查
+    if (hasRedeemed) {
+      console.log(`[checkAccess] 用户已兑换码，直接授权访问`);
+      setHasAccessToFullQuiz(true);
+      setTrialEnded(false);
+      return;
+    }
     
     // 如果是免费题库，直接授权访问
     if (!questionSet.isPaid) {
@@ -332,6 +341,52 @@ function QuizPage(): JSX.Element {
     }
   }, [questions, loading]);
   
+  // 检查 localStorage 中是否有已兑换记录
+  useEffect(() => {
+    if (questionSet?.id) {
+      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
+      if (redeemedQuizIds) {
+        try {
+          const redeemedIds = JSON.parse(redeemedQuizIds);
+          if (Array.isArray(redeemedIds) && redeemedIds.includes(questionSet.id)) {
+            console.log(`[QuizPage] 检测到题库 ${questionSet.id} 已兑换记录`);
+            setHasRedeemed(true);
+            setHasAccessToFullQuiz(true);
+            setTrialEnded(false);
+          }
+        } catch (e) {
+          console.error('解析已兑换题库ID列表失败', e);
+        }
+      }
+    }
+  }, [questionSet?.id]);
+  
+  // 保存已兑换的题库ID到localStorage
+  const saveRedeemedQuizId = (quizId: string) => {
+    try {
+      // 获取现有的已兑换题库ID列表
+      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
+      let redeemedIds: string[] = [];
+      
+      if (redeemedQuizIds) {
+        redeemedIds = JSON.parse(redeemedQuizIds);
+        // 确保是数组
+        if (!Array.isArray(redeemedIds)) {
+          redeemedIds = [];
+        }
+      }
+      
+      // 如果ID不在列表中，添加它
+      if (!redeemedIds.includes(quizId)) {
+        redeemedIds.push(quizId);
+        localStorage.setItem('redeemedQuizIds', JSON.stringify(redeemedIds));
+        console.log(`[QuizPage] 已将题库 ${quizId} 添加到已兑换列表`);
+      }
+    } catch (e) {
+      console.error('保存已兑换题库ID失败', e);
+    }
+  };
+  
   // 监听兑换码成功事件
   useEffect(() => {
     // 创建正确类型的事件处理函数
@@ -347,6 +402,14 @@ function QuizPage(): JSX.Element {
       console.log(`[QuizPage] 立即更新UI状态: 重置试用状态和访问权限`);
       setHasAccessToFullQuiz(true);  // 确保设置为true
       setTrialEnded(false);          // 确保重置试用结束状态
+      setHasRedeemed(true);          // 标记为已兑换
+      
+      // 保存已兑换状态到localStorage
+      if (eventQuizId) {
+        saveRedeemedQuizId(eventQuizId);
+      } else if (currentQuizId) {
+        saveRedeemedQuizId(currentQuizId);
+      }
       
       // 如果是当前题库，执行更深入的检查
       if (eventQuizId === currentQuizId || customEvent.detail?.forceRefresh) {
@@ -395,7 +458,8 @@ function QuizPage(): JSX.Element {
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
-    if (trialEnded && !hasAccessToFullQuiz) {
+    // 但如果已经兑换了代码，则忽略此限制
+    if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
       return;
     }
     
@@ -640,7 +704,7 @@ function QuizPage(): JSX.Element {
   }
   
   // 如果达到试用上限并且没有购买，显示购买提示
-  if (trialEnded && !hasAccessToFullQuiz) {
+  if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow p-6">
@@ -761,7 +825,11 @@ function QuizPage(): JSX.Element {
                 console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
                 setHasAccessToFullQuiz(true);
                 setTrialEnded(false);
+                setHasRedeemed(true); // 标记为已兑换
                 
+                // 保存已兑换状态到localStorage
+                saveRedeemedQuizId(quizId);
+
                 // 延迟发送自定义事件确保完整处理
                 setTimeout(() => {
                   if (typeof window !== 'undefined') {
@@ -897,7 +965,11 @@ function QuizPage(): JSX.Element {
               console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
               setHasAccessToFullQuiz(true);
               setTrialEnded(false);
+              setHasRedeemed(true); // 标记为已兑换
               
+              // 保存已兑换状态到localStorage
+              saveRedeemedQuizId(quizId);
+
               // 延迟发送自定义事件确保完整处理
               setTimeout(() => {
                 if (typeof window !== 'undefined') {
