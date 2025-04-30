@@ -112,27 +112,56 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       
       // 创建购买记录
       const purchase = {
-        questionSetId: questionSet.id,
+        id: `purchase_${Math.random().toString(36).substring(2, 12)}`, // 确保有唯一ID
+        userId: user.id,
+        questionSetId: String(questionSet.id).trim(), // 确保ID格式一致
         purchaseDate: now.toISOString(),
         expiryDate: expiryDate.toISOString(),
         transactionId: transactionId,
+        paymentMethod: 'card',
+        status: 'active', // 确保状态是active
         amount: questionSet.price || 0
       };
+
+      console.log(`[支付] 创建购买记录:`, purchase);
       
       // 添加购买记录
-      addPurchase(purchase);
+      await addPurchase(purchase);
+      console.log(`[支付] 购买记录已添加到用户状态`);
+      
+      // 通过socket发送实时通知
+      const socket = (window as any).socket;
+      if (socket) {
+        console.log(`[支付] 通过socket发送购买成功通知`);
+        // 发送购买成功事件
+        socket.emit('purchase:success', {
+          userId: user.id,
+          questionSetId: purchase.questionSetId,
+          purchaseId: purchase.id,
+          expiryDate: purchase.expiryDate
+        });
+        
+        // 发送访问权限更新事件
+        socket.emit('questionSet:accessUpdate', {
+          userId: user.id,
+          questionSetId: purchase.questionSetId,
+          hasAccess: true
+        });
+      }
       
       // 总是显示成功消息
       setSuccessMessage(`支付成功！您现在可以访问《${questionSet.title}》题库的所有内容，有效期至 ${expiryDate.toLocaleDateString()}`);
       
-      // 如果提供了成功回调，则立即调用而不是延迟
+      // 如果提供了成功回调，则延迟调用以确保状态已更新
       if (onSuccess) {
-        onSuccess();
+        console.log(`[支付] 调用onSuccess回调`);
+        setTimeout(() => {
+          onSuccess();
+        }, 300);
       }
     } catch (err) {
+      console.error('[支付错误]:', err);
       setError('支付处理过程中发生错误，请重试');
-      // 在生产环境中应使用适当的错误记录服务
-      // console.error('支付错误:', err);
     } finally {
       setIsProcessing(false);
     }

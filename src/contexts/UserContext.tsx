@@ -314,11 +314,67 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addPurchase = async (purchase: Purchase) => {
     if (!user) return;
     try {
+      console.log(`[addPurchase] 开始添加购买记录:`, purchase);
+      
+      // 确保ID格式正确
+      const formattedPurchase = {
+        ...purchase,
+        questionSetId: String(purchase.questionSetId).trim()
+      };
+      
+      // 检查是否已存在相同ID的购买记录
       const updatedPurchases = [...(user.purchases || [])];
-      updatedPurchases.push(purchase);
+      if (!updatedPurchases.some(p => p.id === formattedPurchase.id)) {
+        updatedPurchases.push(formattedPurchase);
+        
+        console.log(`[addPurchase] 更新前用户购买记录数量: ${user.purchases?.length || 0}`);
+        console.log(`[addPurchase] 更新后用户购买记录数量: ${updatedPurchases.length}`);
+        
+        // 创建更新后的用户对象
+        const updatedUser = {
+          ...user,
+          purchases: updatedPurchases
+        };
+        
+        // 更新用户状态
+        setUser(updatedUser);
+        
+        // 尝试通过socket通知权限更新
+        if (socket) {
+          console.log(`[addPurchase] 通过socket发送权限更新通知: ${formattedPurchase.questionSetId}`);
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: formattedPurchase.questionSetId,
+            hasAccess: true
+          });
+          
+          // 发送购买成功事件
+          socket.emit('purchase:success', {
+            userId: user.id,
+            questionSetId: formattedPurchase.questionSetId,
+            purchaseId: formattedPurchase.id,
+            expiryDate: formattedPurchase.expiryDate
+          });
+        }
+        
+        // 通知用户状态变化
+        notifyUserChange(updatedUser);
+        
+        // 强制刷新用户数据
+        setTimeout(() => {
+          console.log(`[addPurchase] 开始获取最新用户数据`);
+          fetchCurrentUser();
+        }, 500);
+      } else {
+        console.log(`[addPurchase] 购买记录ID已存在，跳过添加: ${formattedPurchase.id}`);
+      }
+      
+      // 同步更新到数据库
       await updateUser({ purchases: updatedPurchases });
+      console.log(`[addPurchase] 购买记录已同步到数据库`);
     } catch (error) {
-      console.error('[UserProvider] Failed to add purchase:', error);
+      console.error('[addPurchase] 添加购买记录失败:', error);
+      throw error;
     }
   };
 

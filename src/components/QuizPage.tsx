@@ -55,8 +55,15 @@ function QuizPage(): JSX.Element {
       questionSetId: string;
       hasAccess: boolean;
     }) => {
+      console.log(`[Socket事件] 收到访问权限更新: questionSetId=${data.questionSetId}, hasAccess=${data.hasAccess}`);
       if (data.questionSetId === questionSet.id) {
+        console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}`);
         setHasAccessToFullQuiz(data.hasAccess);
+        
+        // 权限开启后，同时确保试用结束状态重置
+        if (data.hasAccess) {
+          setTrialEnded(false);
+        }
       }
     };
 
@@ -66,15 +73,29 @@ function QuizPage(): JSX.Element {
       purchaseId: string;
       expiryDate: string;
     }) => {
-      if (data.questionSetId === questionSet.id) {
+      console.log(`[Socket事件] 收到购买成功事件: questionSetId=${data.questionSetId}, 当前题库=${questionSet.id}`);
+      const isMatch = String(data.questionSetId).trim() === String(questionSet.id).trim();
+      console.log(`[Socket事件] 是否匹配当前题库: ${isMatch}`);
+      
+      if (isMatch) {
+        console.log(`[Socket事件] 设置题库访问权限为true`);
         setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+        
+        // 主动检查一次权限
+        setTimeout(() => {
+          console.log(`[Socket事件] 购买后延迟检查权限`);
+          checkAccess();
+        }, 300);
       }
     };
 
+    console.log(`[Socket] 注册题库访问和购买事件监听`);
     socket.on('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
     socket.on('purchase:success', handlePurchaseSuccess);
 
     return () => {
+      console.log(`[Socket] 移除事件监听`);
       socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
       socket.off('purchase:success', handlePurchaseSuccess);
     };
@@ -146,9 +167,9 @@ function QuizPage(): JSX.Element {
     }
     
     // 检查questionSet自身的hasAccess字段(通过socket实时更新)
-    if (questionSet.hasAccess !== undefined) {
+    if (questionSet.hasAccess) {
       console.log(`[checkAccess] 题库自带hasAccess属性: ${questionSet.hasAccess}`);
-      hasAccess = hasAccess || questionSet.hasAccess;
+      hasAccess = true;
     }
     
     // 用户直接的访问检查函数
@@ -174,7 +195,7 @@ function QuizPage(): JSX.Element {
       console.log(`[checkAccess] 通过Socket发送检查请求`);
       socket.emit('questionSet:checkAccess', {
         userId: user.id,
-        questionSetId: questionSet.id
+        questionSetId: String(questionSet.id).trim()
       });
     }
   };
