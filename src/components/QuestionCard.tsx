@@ -383,14 +383,31 @@ const QuestionCard = ({
               </button>
             </div>
             <RedeemCodeForm onRedeemSuccess={(quizId) => {
-              console.log(`[QuestionCard] 兑换码成功回调，题库ID: ${quizId}`);
+              console.log(`[QuestionCard] 发送兑换成功事件，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
               
               // 使用自定义事件通知父组件，避免使用window.location.reload()
               if (typeof window !== 'undefined') {
+                console.log(`[QuestionCard] 发送兑换成功事件，题库ID: ${quizId}`);
                 window.dispatchEvent(new CustomEvent('redeem:success', { 
-                  detail: { quizId } 
+                  detail: { 
+                    quizId, 
+                    forceRefresh: true,
+                    source: 'QuestionCard',
+                    timestamp: Date.now()
+                  } 
                 }));
+                
+                // 尝试直接获取socket并发送事件
+                const socket = (window as any).socket;
+                if (socket) {
+                  console.log(`[QuestionCard] 通过socket发送权限更新通知`);
+                  socket.emit('questionSet:accessUpdate', {
+                    userId: 'current',
+                    questionSetId: quizId,
+                    hasAccess: true
+                  });
+                }
               }
             }} />
           </div>

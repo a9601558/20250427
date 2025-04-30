@@ -3,6 +3,7 @@ import { sequelize, RedeemCode, QuestionSet, User, Purchase } from '../models';
 import { Transaction, Op, QueryTypes } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { IPurchase } from '../types';
+import { getSocketIO } from '../socket'; // Import the getSocketIO function
 
 // @desc    Generate redeem codes
 // @route   POST /api/redeem-codes/generate
@@ -207,6 +208,39 @@ export const redeemCode = async (req: Request, res: Response) => {
         type: QueryTypes.SELECT
       }
     );
+
+    // 查询用户的socket_id
+    const [userSocketResult] = await sequelize.query(
+      `SELECT socket_id FROM users WHERE id = ?`,
+      {
+        replacements: [userId],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    // 如果用户在线，通过Socket.IO发送兑换成功通知
+    const userSocket = userSocketResult as any;
+    if (userSocket && userSocket.socket_id) {
+      try {
+        const io = getSocketIO();
+        // 发送题库访问权限更新
+        io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
+          questionSetId: questionSet.id,
+          hasAccess: true
+        });
+
+        // 发送兑换成功事件
+        io.to(userSocket.socket_id).emit('redeem:success', {
+          questionSetId: questionSet.id,
+          purchaseId: purchaseId,
+          expiryDate: expiryDate
+        });
+        
+        console.log(`已通过Socket发送兑换成功事件到客户端`);
+      } catch (error) {
+        console.error('发送Socket事件失败:', error);
+      }
+    }
 
     res.json({
       success: true,

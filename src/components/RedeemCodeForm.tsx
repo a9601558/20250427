@@ -75,6 +75,18 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               title: result.quizTitle || set.title
             });
             
+            // 全局发送兑换成功事件，强制刷新
+            if (typeof window !== 'undefined') {
+              console.log('[RedeemCodeForm] 发送全局兑换成功事件');
+              window.dispatchEvent(new CustomEvent('redeem:success', { 
+                detail: { 
+                  quizId: result.quizId,
+                  forceRefresh: true,
+                  timestamp: Date.now()
+                } 
+              }));
+            }
+            
             // 添加短暂延迟，确保状态已更新
             setTimeout(() => {
               console.log('[RedeemCodeForm] 调用成功回调');
@@ -91,6 +103,18 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               title: result.quizTitle || '已兑换的题库',
               icon: '📚'
             });
+            
+            // 全局发送兑换成功事件，强制刷新
+            if (typeof window !== 'undefined') {
+              console.log('[RedeemCodeForm] 发送全局兑换成功事件');
+              window.dispatchEvent(new CustomEvent('redeem:success', { 
+                detail: { 
+                  quizId: result.quizId,
+                  forceRefresh: true, 
+                  timestamp: Date.now()
+                } 
+              }));
+            }
             
             // 添加短暂延迟，确保状态已更新
             setTimeout(() => {

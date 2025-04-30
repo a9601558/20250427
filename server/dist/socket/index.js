@@ -3,14 +3,26 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeSocket = void 0;
+exports.initializeSocket = exports.getSocketIO = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const User_1 = __importDefault(require("../models/User"));
 const Purchase_1 = __importDefault(require("../models/Purchase"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
+// Store a reference to the IO server
+let ioInstance;
+// Function to get the socket.io instance
+const getSocketIO = () => {
+    if (!ioInstance) {
+        throw new Error('Socket.IO has not been initialized');
+    }
+    return ioInstance;
+};
+exports.getSocketIO = getSocketIO;
 const initializeSocket = (io) => {
+    // Store the io instance for later use
+    ioInstance = io;
     io.on('connection', (socket) => {
         console.log('Client connected:', socket.id);
         // 处理用户认证
@@ -302,6 +314,52 @@ const initializeSocket = (io) => {
                 console.error('Error checking expired purchases:', error);
             }
         }, 60 * 60 * 1000); // 每小时检查一次
+        // 处理兑换码成功事件
+        socket.on('redeem:success', async (data) => {
+            try {
+                // 验证必要参数
+                if (!data.userId || !data.questionSetId) {
+                    socket.emit('error', { message: '缺少必要参数' });
+                    return;
+                }
+                const user = await User_1.default.findByPk(data.userId);
+                if (!user) {
+                    socket.emit('error', { message: '用户不存在' });
+                    return;
+                }
+                const questionSet = await QuestionSet_1.default.findByPk(data.questionSetId);
+                if (!questionSet) {
+                    socket.emit('error', { message: '题库不存在' });
+                    return;
+                }
+                // 查询购买记录
+                const purchase = await Purchase_1.default.findOne({
+                    where: {
+                        ...(data.purchaseId ? { id: data.purchaseId } : {}),
+                        userId: user.id,
+                        questionSetId: questionSet.id
+                    }
+                });
+                // 发送成功消息给客户端
+                if (user.socket_id) {
+                    // 发送题库访问权限更新
+                    io.to(user.socket_id).emit('questionSet:accessUpdate', {
+                        questionSetId: questionSet.id,
+                        hasAccess: true,
+                        purchaseId: purchase?.id
+                    });
+                    // 发送兑换成功事件
+                    io.to(user.socket_id).emit('redeem:success', {
+                        questionSetId: questionSet.id,
+                        purchaseId: purchase?.id,
+                        expiryDate: purchase?.expiryDate
+                    });
+                }
+            }
+            catch (error) {
+                console.error('Error handling redeem success:', error);
+            }
+        });
         // 处理进度更新
         socket.on('progress:update', async (data) => {
             try {

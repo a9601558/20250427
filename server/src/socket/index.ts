@@ -9,12 +9,26 @@ import UserProgress from '../models/UserProgress';
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { IProgressSummary } from '../types';
 
+// Store a reference to the IO server
+let ioInstance: SocketIOServer;
+
 interface PurchaseWithUser extends Purchase {
   user?: User;
   questionSet?: QuestionSet;
 }
 
+// Function to get the socket.io instance
+export const getSocketIO = (): SocketIOServer => {
+  if (!ioInstance) {
+    throw new Error('Socket.IO has not been initialized');
+  }
+  return ioInstance;
+};
+
 export const initializeSocket = (io: SocketIOServer) => {
+  // Store the io instance for later use
+  ioInstance = io;
+
   io.on('connection', (socket: Socket) => {
     console.log('Client connected:', socket.id);
 
@@ -324,6 +338,61 @@ export const initializeSocket = (io: SocketIOServer) => {
         console.error('Error checking expired purchases:', error);
       }
     }, 60 * 60 * 1000); // 每小时检查一次
+
+    // 处理兑换码成功事件
+    socket.on('redeem:success', async (data: {
+      userId: string;
+      questionSetId: string;
+      purchaseId: string;
+    }) => {
+      try {
+        // 验证必要参数
+        if (!data.userId || !data.questionSetId) {
+          socket.emit('error', { message: '缺少必要参数' });
+          return;
+        }
+
+        const user = await User.findByPk(data.userId);
+        if (!user) {
+          socket.emit('error', { message: '用户不存在' });
+          return;
+        }
+
+        const questionSet = await QuestionSet.findByPk(data.questionSetId);
+        if (!questionSet) {
+          socket.emit('error', { message: '题库不存在' });
+          return;
+        }
+
+        // 查询购买记录
+        const purchase = await Purchase.findOne({
+          where: {
+            ...(data.purchaseId ? { id: data.purchaseId } : {}),
+            userId: user.id,
+            questionSetId: questionSet.id
+          }
+        });
+
+        // 发送成功消息给客户端
+        if (user.socket_id) {
+          // 发送题库访问权限更新
+          io.to(user.socket_id).emit('questionSet:accessUpdate', {
+            questionSetId: questionSet.id,
+            hasAccess: true,
+            purchaseId: purchase?.id
+          });
+
+          // 发送兑换成功事件
+          io.to(user.socket_id).emit('redeem:success', {
+            questionSetId: questionSet.id,
+            purchaseId: purchase?.id,
+            expiryDate: purchase?.expiryDate
+          });
+        }
+      } catch (error) {
+        console.error('Error handling redeem success:', error);
+      }
+    });
 
     // 处理进度更新
     socket.on('progress:update', async (data: {

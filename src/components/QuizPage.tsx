@@ -323,23 +323,62 @@ function QuizPage(): JSX.Element {
   
   // 监听兑换码成功事件
   useEffect(() => {
-    const handleRedeemSuccess = (e: CustomEvent) => {
-      console.log(`[QuizPage] 接收到兑换码成功事件:`, e.detail);
-      if (e.detail?.quizId === questionSet?.id) {
-        console.log(`[QuizPage] 题库ID匹配，更新访问权限`);
-        setHasAccessToFullQuiz(true);
-        setTrialEnded(false);
-        // 主动检查一次权限
-        checkAccess();
+    // 创建正确类型的事件处理函数
+    const handleRedeemSuccess = async (e: Event) => {
+      const customEvent = e as CustomEvent;
+      console.log(`[QuizPage] 接收到兑换码成功事件:`, customEvent.detail);
+      const eventQuizId = String(customEvent.detail?.quizId || '').trim();
+      const currentQuizId = String(questionSet?.id || '').trim();
+      
+      console.log(`[QuizPage] 比较ID: 事件ID=${eventQuizId}, 当前题库ID=${currentQuizId}`);
+      
+      // 即使ID不完全匹配，也先刷新一次权限
+      setHasAccessToFullQuiz(true);
+      setTrialEnded(false);
+      
+      // 如果是当前题库，执行更深入的检查
+      if (eventQuizId === currentQuizId || customEvent.detail?.forceRefresh) {
+        console.log(`[QuizPage] 题库ID匹配或强制刷新，更新访问权限并刷新数据`);
+        
+        // 使用setTimeout确保状态更新后再检查权限
+        setTimeout(() => {
+          // 主动检查权限
+          console.log(`[QuizPage] 兑换后重新检查权限`);
+          checkAccess();
+          
+          // 获取最新进度
+          if (fetchUserProgress) {
+            console.log(`[QuizPage] 兑换后刷新用户进度`);
+            fetchUserProgress(true).catch(err => {
+              console.error(`[QuizPage] 刷新进度出错:`, err);
+            });
+          }
+        }, 300);
+        
+        // 尝试通过Socket再次检查权限
+        if (socket && user) {
+          console.log(`[QuizPage] 通过Socket重新发送检查请求`);
+          socket.emit('questionSet:checkAccess', {
+            userId: user.id,
+            questionSetId: String(questionSet?.id).trim()
+          });
+          
+          // 手动触发访问权限更新事件
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: String(questionSet?.id).trim(),
+            hasAccess: true
+          });
+        }
       }
     };
     
-    window.addEventListener('redeem:success', handleRedeemSuccess as EventListener);
+    window.addEventListener('redeem:success', handleRedeemSuccess);
     
     return () => {
-      window.removeEventListener('redeem:success', handleRedeemSuccess as EventListener);
+      window.removeEventListener('redeem:success', handleRedeemSuccess);
     };
-  }, [questionSet?.id]);
+  }, [questionSet?.id, socket, user, fetchUserProgress]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
