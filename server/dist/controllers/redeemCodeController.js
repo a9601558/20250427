@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fixRedeemCodeQuestionSet = exports.getUserRedeemCodes = exports.deleteRedeemCode = exports.redeemCode = exports.getRedeemCodes = exports.generateRedeemCodes = void 0;
+exports.batchFixRedeemCodes = exports.debugRedeemCodes = exports.fixRedeemCodeQuestionSet = exports.getUserRedeemCodes = exports.deleteRedeemCode = exports.redeemCode = exports.getRedeemCodes = exports.generateRedeemCodes = void 0;
 const models_1 = require("../models");
 const uuid_1 = require("uuid");
 // @desc    Generate redeem codes
@@ -316,7 +316,7 @@ const fixRedeemCodeQuestionSet = async (req, res) => {
             });
         }
         // 更新兑换码关联的题库
-        await redeemCode.update({ questionSetId });
+        await redeemCode.update({ questionSetId: String(questionSetId) });
         res.json({
             success: true,
             message: '兑换码关联已成功修复',
@@ -332,3 +332,142 @@ const fixRedeemCodeQuestionSet = async (req, res) => {
     }
 };
 exports.fixRedeemCodeQuestionSet = fixRedeemCodeQuestionSet;
+// @desc    Debug redeem codes and question sets
+// @route   GET /api/redeem-codes/debug
+// @access  Private/Admin
+const debugRedeemCodes = async (req, res) => {
+    try {
+        // 获取所有兑换码
+        const redeemCodes = await models_1.RedeemCode.findAll({
+            attributes: ['id', 'code', 'questionSetId', 'isUsed', 'createdAt']
+        });
+        // 获取所有题库
+        const questionSets = await models_1.QuestionSet.findAll({
+            attributes: ['id', 'title']
+        });
+        // 创建题库ID映射
+        const questionSetMap = new Map();
+        questionSets.forEach(qs => {
+            questionSetMap.set(qs.id, qs.title);
+        });
+        // 检查每个兑换码是否有对应的题库
+        const issues = [];
+        const validCodes = [];
+        for (const code of redeemCodes) {
+            if (!questionSetMap.has(code.questionSetId)) {
+                issues.push({
+                    codeId: code.id,
+                    code: code.code,
+                    questionSetId: code.questionSetId,
+                    issue: '题库不存在'
+                });
+            }
+            else {
+                validCodes.push({
+                    codeId: code.id,
+                    code: code.code,
+                    questionSetId: code.questionSetId,
+                    questionSetTitle: questionSetMap.get(code.questionSetId),
+                    isUsed: code.isUsed,
+                    createdAt: code.createdAt
+                });
+            }
+        }
+        res.json({
+            success: true,
+            data: {
+                totalRedeemCodes: redeemCodes.length,
+                totalQuestionSets: questionSets.length,
+                issues,
+                validCodes
+            }
+        });
+    }
+    catch (error) {
+        console.error('Debug redeem codes error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || '服务器错误'
+        });
+    }
+};
+exports.debugRedeemCodes = debugRedeemCodes;
+// @desc    Batch fix redeem code question set associations
+// @route   POST /api/redeem-codes/batch-fix
+// @access  Private/Admin
+const batchFixRedeemCodes = async (req, res) => {
+    try {
+        const { codeToQuestionSetMap } = req.body;
+        if (!codeToQuestionSetMap || typeof codeToQuestionSetMap !== 'object') {
+            return res.status(400).json({
+                success: false,
+                message: '请提供有效的兑换码和题库ID映射'
+            });
+        }
+        const results = {
+            total: Object.keys(codeToQuestionSetMap).length,
+            successful: 0,
+            failed: 0,
+            details: []
+        };
+        // 逐个处理每个兑换码
+        for (const [codeId, questionSetId] of Object.entries(codeToQuestionSetMap)) {
+            try {
+                // 检查题库是否存在
+                const questionSet = await models_1.QuestionSet.findByPk(String(questionSetId));
+                if (!questionSet) {
+                    results.failed++;
+                    results.details.push({
+                        codeId,
+                        success: false,
+                        message: '题库不存在'
+                    });
+                    continue;
+                }
+                // 查找兑换码
+                const redeemCode = await models_1.RedeemCode.findByPk(codeId);
+                if (!redeemCode) {
+                    results.failed++;
+                    results.details.push({
+                        codeId,
+                        success: false,
+                        message: '兑换码不存在'
+                    });
+                    continue;
+                }
+                // 更新兑换码关联的题库
+                await redeemCode.update({ questionSetId: String(questionSetId) });
+                results.successful++;
+                results.details.push({
+                    codeId,
+                    success: true,
+                    message: '更新成功',
+                    oldQuestionSetId: redeemCode.questionSetId,
+                    newQuestionSetId: questionSetId
+                });
+            }
+            catch (error) {
+                console.error(`处理兑换码 ${codeId} 时出错:`, error);
+                results.failed++;
+                results.details.push({
+                    codeId,
+                    success: false,
+                    message: error.message || '处理出错'
+                });
+            }
+        }
+        res.json({
+            success: true,
+            message: `已处理 ${results.total} 个兑换码，成功 ${results.successful} 个，失败 ${results.failed} 个`,
+            data: results
+        });
+    }
+    catch (error) {
+        console.error('批量修复兑换码关联失败:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || '服务器错误'
+        });
+    }
+};
+exports.batchFixRedeemCodes = batchFixRedeemCodes;

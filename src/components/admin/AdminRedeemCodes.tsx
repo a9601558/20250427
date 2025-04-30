@@ -18,6 +18,9 @@ const AdminRedeemCodes: React.FC = () => {
   const [editingCodeId, setEditingCodeId] = useState<string | null>(null);
   const [newQuestionSetId, setNewQuestionSetId] = useState<string>('');
   const [updatingCode, setUpdatingCode] = useState(false);
+  const [debuggingResults, setDebuggingResults] = useState<any>(null);
+  const [isDebugging, setIsDebugging] = useState(false);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // 加载题库和兑换码数据
   useEffect(() => {
@@ -145,26 +148,154 @@ const AdminRedeemCodes: React.FC = () => {
       // 获取token用于验证
       const token = localStorage.getItem('token');
       
+      console.log(`正在发送修复请求: codeId=${codeId}, newQuestionSetId=${newQuestionSetId}`);
+      
       const response = await axios.put(
         `/api/redeem-codes/${codeId}/fix-question-set`, 
         { questionSetId: newQuestionSetId },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
+      
+      console.log('修复请求响应:', response.data);
       
       if (response.data.success) {
         // 刷新兑换码列表
         const updatedCodes = await getRedeemCodes();
         setRedeemCodes(updatedCodes);
-        setStatusMessage('兑换码题库关联已成功修复');
+        setStatusMessage(`兑换码题库关联已成功修复为: ${getQuestionSetTitle(newQuestionSetId)}`);
         setEditingCodeId(null);
       } else {
-        setStatusMessage(response.data.message || '修复兑换码关联失败');
+        setStatusMessage(`修复失败: ${response.data.message || '未知错误'}`);
       }
     } catch (error: any) {
       console.error('修复兑换码关联失败:', error);
-      setStatusMessage(error.response?.data?.message || '修复兑换码关联失败');
+      // 详细记录错误信息
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        setStatusMessage(`修复失败(${error.response.status}): ${error.response.data?.message || '服务器错误'}`);
+      } else if (error.request) {
+        console.error('未收到响应:', error.request);
+        setStatusMessage('服务器未响应，请检查网络连接');
+      } else {
+        console.error('请求配置错误:', error.message);
+        setStatusMessage(`请求错误: ${error.message}`);
+      }
     } finally {
       setUpdatingCode(false);
+    }
+  };
+
+  // 调试功能 - 检查兑换码和题库的一致性
+  const debugRedeemCodes = async () => {
+    setIsDebugging(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      console.log('正在调试兑换码数据...');
+      
+      const response = await axios.get(
+        `/api/redeem-codes/debug`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      console.log('调试结果:', response.data);
+      
+      if (response.data.success) {
+        setDebuggingResults(response.data.data);
+        setShowDebugInfo(true);
+        
+        if (response.data.data.issues.length > 0) {
+          setStatusMessage(`发现 ${response.data.data.issues.length} 个兑换码存在问题，请查看详情`);
+        } else {
+          setStatusMessage('没有发现问题的兑换码');
+        }
+      } else {
+        setStatusMessage(`调试失败: ${response.data.message || '未知错误'}`);
+      }
+    } catch (error: any) {
+      console.error('调试兑换码失败:', error);
+      
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        setStatusMessage(`调试失败(${error.response.status}): ${error.response.data?.message || '服务器错误'}`);
+      } else if (error.request) {
+        console.error('未收到响应:', error.request);
+        setStatusMessage('服务器未响应，请检查网络连接');
+      } else {
+        console.error('请求配置错误:', error.message);
+        setStatusMessage(`请求错误: ${error.message}`);
+      }
+    } finally {
+      setIsDebugging(false);
+    }
+  };
+  
+  // 批量修复问题兑换码
+  const batchFixRedeemCodes = async () => {
+    if (!debuggingResults || !debuggingResults.issues || debuggingResults.issues.length === 0) {
+      setStatusMessage('没有需要修复的兑换码');
+      return;
+    }
+    
+    if (!selectedQuestionSetId) {
+      setStatusMessage('请选择一个要关联的题库');
+      return;
+    }
+    
+    setIsDebugging(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // 创建修复映射
+      const codeToQuestionSetMap: Record<string, string> = {};
+      debuggingResults.issues.forEach((issue: any) => {
+        codeToQuestionSetMap[issue.codeId] = selectedQuestionSetId;
+      });
+      
+      console.log('准备批量修复兑换码:', codeToQuestionSetMap);
+      
+      const response = await axios.post(
+        `/api/redeem-codes/batch-fix`,
+        { codeToQuestionSetMap },
+        { headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }}
+      );
+      
+      console.log('批量修复结果:', response.data);
+      
+      if (response.data.success) {
+        setStatusMessage(response.data.message || '成功修复兑换码');
+        
+        // 刷新数据
+        const updatedCodes = await getRedeemCodes();
+        setRedeemCodes(updatedCodes);
+        
+        // 重新运行调试
+        await debugRedeemCodes();
+      } else {
+        setStatusMessage(`修复失败: ${response.data.message || '未知错误'}`);
+      }
+    } catch (error: any) {
+      console.error('批量修复兑换码失败:', error);
+      
+      if (error.response) {
+        setStatusMessage(`修复失败(${error.response.status}): ${error.response.data?.message || '服务器错误'}`);
+      } else if (error.request) {
+        setStatusMessage('服务器未响应，请检查网络连接');
+      } else {
+        setStatusMessage(`请求错误: ${error.message}`);
+      }
+    } finally {
+      setIsDebugging(false);
     }
   };
 
@@ -345,6 +476,24 @@ const AdminRedeemCodes: React.FC = () => {
           <h3 className="text-lg font-medium text-gray-900">兑换码列表</h3>
           
           <div className="flex space-x-2">
+            <button
+              onClick={debugRedeemCodes}
+              className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
+              disabled={isDebugging}
+            >
+              {isDebugging ? '正在检查...' : '检查兑换码问题'}
+            </button>
+            
+            {debuggingResults && debuggingResults.issues.length > 0 && (
+              <button
+                onClick={batchFixRedeemCodes}
+                className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                disabled={isDebugging || !selectedQuestionSetId}
+              >
+                批量修复 {debuggingResults.issues.length} 个问题兑换码
+              </button>
+            )}
+            
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as 'all' | 'used' | 'unused')}
@@ -420,6 +569,48 @@ const AdminRedeemCodes: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* 调试信息显示 */}
+      {showDebugInfo && debuggingResults && (
+        <div className="bg-gray-50 p-4 mb-4 rounded-lg border border-gray-200">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-medium text-gray-700">调试信息</h4>
+            <button
+              onClick={() => setShowDebugInfo(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="text-sm">
+            <p className="mb-1">总兑换码数量: <span className="font-medium">{debuggingResults.totalRedeemCodes}</span></p>
+            <p className="mb-1">总题库数量: <span className="font-medium">{debuggingResults.totalQuestionSets}</span></p>
+            <p className="mb-3">
+              有问题的兑换码: 
+              <span className={`font-medium ${debuggingResults.issues.length > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {debuggingResults.issues.length}
+              </span>
+            </p>
+            
+            {debuggingResults.issues.length > 0 && (
+              <div className="mt-2">
+                <p className="text-red-600 font-medium mb-1">问题详情:</p>
+                <ul className="text-xs bg-white p-2 rounded border border-gray-200 max-h-32 overflow-y-auto">
+                  {debuggingResults.issues.map((issue: any, index: number) => (
+                    <li key={index} className="mb-1 pb-1 border-b border-gray-100">
+                      <span className="font-mono">Code: {issue.code}</span> → 
+                      <span className="text-red-500 ml-1">{issue.issue}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

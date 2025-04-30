@@ -31,4 +31,12 @@ router.get('/user', authMiddleware_1.protect, redeemCodeController_1.getUserRede
 // @route   PUT /api/redeem-codes/:id/fix-question-set
 // @access  Private/Admin
 router.put('/:id/fix-question-set', authMiddleware_1.protect, authMiddleware_1.admin, redeemCodeController_1.fixRedeemCodeQuestionSet);
+// @desc    Debug redeem codes and question sets
+// @route   GET /api/redeem-codes/debug
+// @access  Private/Admin
+router.get('/debug', authMiddleware_1.protect, authMiddleware_1.admin, redeemCodeController_1.debugRedeemCodes);
+// @desc    Batch fix redeem codes
+// @route   POST /api/redeem-codes/batch-fix
+// @access  Private/Admin
+router.post('/batch-fix', authMiddleware_1.protect, authMiddleware_1.admin, redeemCodeController_1.batchFixRedeemCodes);
 exports.default = router;

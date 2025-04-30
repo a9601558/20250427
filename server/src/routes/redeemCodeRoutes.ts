@@ -5,7 +5,9 @@ import {
   redeemCode,
   deleteRedeemCode,
   getUserRedeemCodes,
-  fixRedeemCodeQuestionSet
+  fixRedeemCodeQuestionSet,
+  debugRedeemCodes,
+  batchFixRedeemCodes
 } from '../controllers/redeemCodeController';
 import { protect, admin } from '../middleware/authMiddleware';
 
@@ -40,5 +42,15 @@ router.get('/user', protect, getUserRedeemCodes);
 // @route   PUT /api/redeem-codes/:id/fix-question-set
 // @access  Private/Admin
 router.put('/:id/fix-question-set', protect, admin, fixRedeemCodeQuestionSet);
+
+// @desc    Debug redeem codes and question sets
+// @route   GET /api/redeem-codes/debug
+// @access  Private/Admin
+router.get('/debug', protect, admin, debugRedeemCodes);
+
+// @desc    Batch fix redeem codes
+// @route   POST /api/redeem-codes/batch-fix
+// @access  Private/Admin
+router.post('/batch-fix', protect, admin, batchFixRedeemCodes);
 
 export default router; 
