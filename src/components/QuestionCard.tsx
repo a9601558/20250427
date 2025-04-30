@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
+import RedeemCodeForm from './RedeemCodeForm';
 
 interface QuestionCardProps {
   question: Question;
@@ -31,6 +32,7 @@ const QuestionCard = ({
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(!!userAnsweredQuestion);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
 
@@ -137,8 +139,16 @@ const QuestionCard = ({
             返回主页
           </button>
         </div>
-        <div className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-sm">
-          {quizTitle}
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowRedeemCodeModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            使用兑换码
+          </button>
+          <div className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-sm">
+            {quizTitle}
+          </div>
         </div>
       </div>
 
@@ -247,6 +257,32 @@ const QuestionCard = ({
           )
         )}
       </div>
+
+      {/* Redeem Code Modal */}
+      {showRedeemCodeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">题库兑换码</h2>
+              <button
+                onClick={() => setShowRedeemCodeModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <RedeemCodeForm onRedeemSuccess={() => {
+              setShowRedeemCodeModal(false);
+              // Refresh access status after successful redemption
+              if (onAnswerSubmitted) {
+                onAnswerSubmitted(true, []);
+              }
+            }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
