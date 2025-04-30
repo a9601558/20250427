@@ -132,7 +132,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
               </div>
               <div className="ml-2 text-right">
                 <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
-                  {formatLastAccessed(safeDate)}
+                  {safeDate && !isNaN(safeDate.getTime()) ? formatLastAccessed(safeDate) : '无记录'}
                 </p>
                 <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>
                   继续学习
