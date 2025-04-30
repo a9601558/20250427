@@ -121,28 +121,28 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 使用防抖，确保socket只初始化一次
     const timer = setTimeout(() => {
-      const socket = initializeSocket();
-      authenticateUser(user.id, localStorage.getItem('token') || '');
-      
-      socket.on('progress:update', (data: ProgressUpdateEvent) => {
-        setUser(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            progress: {
-              ...prev.progress,
-              [data.questionSetId]: {
-                ...data.progress,
+    const socket = initializeSocket();
+    authenticateUser(user.id, localStorage.getItem('token') || '');
+    
+    socket.on('progress:update', (data: ProgressUpdateEvent) => {
+      setUser(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          progress: {
+            ...prev.progress,
+            [data.questionSetId]: {
+              ...data.progress,
                 lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
               }
-            }
-          };
-        });
+          }
+        };
       });
+    });
 
-      return () => {
-        socket.disconnect();
-      };
+    return () => {
+      socket.disconnect();
+    };
     }, 300);
     
     return () => clearTimeout(timer);
