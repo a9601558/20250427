@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useEffect, ReactNode, useCa
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
 import { initializeSocket, authenticateUser } from '../config/socket';
+import apiClient from '../utils/api-client';
+import { userProgressService } from '../services/UserProgressService';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -200,6 +202,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     // 确保先改变状态，再调用notifyUserChange
     localStorage.removeItem('token');
+    
+    // 清除API客户端缓存和状态
+    apiClient.clearCache();
+    apiClient.setAuthHeader(null);
+    userProgressService.clearCachedUserId();
+    
     setUser(null);
     
     // 短暂延迟后通知其他组件，避免状态更新冲突

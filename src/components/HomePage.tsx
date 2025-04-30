@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { QuestionSet, UserProgress } from '../types';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
@@ -10,6 +9,7 @@ import SocketTest from './SocketTest';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService } from '../services/api';
 import { useUserProgress } from '../contexts/UserProgressContext';
+import apiClient from '../utils/api-client';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -33,19 +33,11 @@ const defaultHomeContent: HomeContentData = {
   theme: 'light'
 };
 
-interface ProgressStats {
-  totalQuestions: number;
-  completedQuestions: number;
-  correctAnswers: number;
-  totalTimeSpent: number;
-  averageTimeSpent: number;
-  accuracy: number;
-}
 
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
-  const { progressStats, isLoading: progressLoading, error: progressError, fetchUserProgress } = useUserProgress();
+  const { progressStats, fetchUserProgress } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -178,12 +170,34 @@ const HomePage: React.FC = () => {
         setLoading(true);
         setErrorMessage(null);
 
-        await fetchQuestionSets();
+        // 并行请求首页数据，减少请求阻塞
+        const [questionsetsData, settingsData, categoriesData] = await Promise.allSettled([
+          // 获取题库列表 - 缓存2分钟
+          apiClient.get('/api/question-sets', undefined, { 
+            cacheDuration: 120000,
+            retries: 3 
+          }),
+          
+          // 获取首页设置 - 缓存5分钟
+          apiClient.get('/api/homepage/content', undefined, { 
+            cacheDuration: 300000,
+            retries: 2
+          }),
+          
+          // 获取精选分类 - 缓存5分钟
+          apiClient.get('/api/homepage/featured-categories', undefined, { 
+            cacheDuration: 300000
+          })
+        ]);
 
-        // 获取首页设置
-        const settingsResponse = await axios.get('/api/homepage/content');
-        if (settingsResponse.data && settingsResponse.data.success && settingsResponse.data.data) {
-          const contentData = settingsResponse.data.data;
+        // 处理题库列表数据
+        if (questionsetsData.status === 'fulfilled' && questionsetsData.value?.success) {
+          await processQuestionSets(questionsetsData.value.data);
+        }
+
+        // 处理首页设置数据
+        if (settingsData.status === 'fulfilled' && settingsData.value?.success) {
+          const contentData = settingsData.value.data;
           setWelcomeData({
             title: contentData.welcomeTitle || defaultHomeContent.welcomeTitle,
             description: contentData.welcomeDescription || defaultHomeContent.welcomeDescription
@@ -191,12 +205,11 @@ const HomePage: React.FC = () => {
           setHomeContent(contentData);
         }
 
-        // 获取精选分类
-        const categoriesResponse = await axios.get('/api/homepage/featured-categories');
-        if (categoriesResponse.data && categoriesResponse.data.success && categoriesResponse.data.data) {
+        // 处理分类数据
+        if (categoriesData.status === 'fulfilled' && categoriesData.value?.success) {
           setHomeContent(prev => ({
             ...prev,
-            featuredCategories: categoriesResponse.data.data
+            featuredCategories: categoriesData.value.data
           }));
         }
       } catch (error) {
@@ -207,54 +220,78 @@ const HomePage: React.FC = () => {
       }
     };
 
+    // 请求数据
     fetchData();
 
-    // 设置定时刷新，每30秒更新一次题库数据
-    const intervalId = setInterval(fetchData, 30000);
+    // 设置定时刷新，每2分钟更新一次题库数据（间隔从30秒改为2分钟减少请求次数）
+    const intervalId = setInterval(() => {
+      // 清除所有过期缓存（超过cacheDuration的）
+      fetchQuestionSets();
+    }, 120000); // 2分钟
 
     // 组件卸载时清除定时器
     return () => clearInterval(intervalId);
   }, []);
 
-  // 用户进入首页时主动刷新进度数据
-  useEffect(() => {
-    if (user) {
-      // 使用setTimeout进行延迟，避免页面加载时立即触发请求
-      const timer = setTimeout(() => {
-        console.log('首页初始化，延迟请求进度数据');
-        fetchUserProgress(true); // 强制刷新进度数据
-      }, 800);
-      
-      return () => clearTimeout(timer);
+  // 优化处理题库数据逻辑
+  const processQuestionSets = async (questionSetsData: QuestionSet[]) => {
+    if (!Array.isArray(questionSetsData) || questionSetsData.length === 0) {
+      return;
     }
-  }, [user?.id]); // 只依赖user.id, 而不是整个user对象
 
-  // 根据主题设置页面背景色
-  const bgClass = homeContent.theme === 'dark' 
-    ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
-    : 'min-h-screen bg-gray-50 py-6 flex flex-col justify-center sm:py-12';
-
-  // 修改获取题库列表的函数
-  const fetchQuestionSets = async () => {
-    try {
-      const response = await axios.get('/api/question-sets');
-      if (response.data && response.data.success && response.data.data) {
-        const questionSetsData = response.data.data;
-        
-        // 为每个题库获取题目
-        for (const set of questionSetsData) {
+    // 做一个副本以避免可能的并发修改问题
+    const questionSetsCopy = [...questionSetsData];
+    
+    // 批量获取题目数据，最多并行5个请求
+    const batchSize = 5;
+    const batches = Math.ceil(questionSetsCopy.length / batchSize);
+    
+    for (let i = 0; i < batches; i++) {
+      const batchStart = i * batchSize;
+      const batchEnd = Math.min(batchStart + batchSize, questionSetsCopy.length);
+      const currentBatch = questionSetsCopy.slice(batchStart, batchEnd);
+      
+      // 使用 Promise.allSettled 并行获取当前批次中每个题库的题目
+      await Promise.allSettled(
+        currentBatch.map(async (set) => {
           try {
-            const questionsResponse = await axios.get(`/api/questions?questionSetId=${set.id}&include=options`);
-            if (questionsResponse.data && questionsResponse.data.success) {
-              set.questions = questionsResponse.data.data;
+            // 使用我们的apiClient，带缓存控制
+            const response = await apiClient.get(
+              `/api/questions?questionSetId=${set.id}&include=options`, 
+              undefined,
+              { cacheDuration: 300000 } // 5分钟缓存
+            );
+            
+            if (response && response.success) {
+              set.questions = response.data;
             }
           } catch (err) {
             console.warn(`获取题库 ${set.id} 的题目失败:`, err);
           }
-        }
-        
-        // 更新题库
-        setQuestionSets([...questionSetsData]);
+        })
+      );
+      
+      // 每批次完成后等待100ms，避免连续批次请求过快触发429
+      if (i < batches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // 更新题库
+    setQuestionSets(questionSetsCopy);
+  };
+
+  // 修改获取题库列表的函数
+  const fetchQuestionSets = async () => {
+    try {
+      // 使用我们新的apiClient
+      const response = await apiClient.get('/api/question-sets', undefined, { 
+        forceRefresh: true, // 强制刷新缓存
+        cacheDuration: 120000 // 2分钟缓存
+      });
+      
+      if (response && response.success) {
+        await processQuestionSets(response.data);
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
@@ -335,9 +372,13 @@ const HomePage: React.FC = () => {
     setCategoryLoading(true);
     
     try {
-      const response = await axios.get(`/api/question-sets?category=${category}`);
-      if (response.data.success) {
-        setQuestionSets(response.data.data);
+      // 使用apiClient，短期缓存（只缓存30秒）
+      const response = await apiClient.get(`/api/question-sets?category=${category}`, undefined, {
+        cacheDuration: 30000
+      });
+      
+      if (response.success) {
+        setQuestionSets(response.data);
       }
     } catch (error) {
       console.error('获取分类题库失败:', error);
@@ -370,32 +411,23 @@ const HomePage: React.FC = () => {
     );
   };
 
-  // 在题库卡片中添加进度显示
-  const renderQuestionSetCard = (questionSet: QuestionSet) => {
-    const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
-    
-    return (
-      <div key={questionSet.id} className="bg-white rounded-lg shadow-md p-4">
-        <h3 className="text-lg font-semibold">{questionSet.title}</h3>
-        <p className="text-gray-600 mt-1">{questionSet.description}</p>
-        {renderProgressBar(questionSet)}
-        <div className="mt-4 flex justify-between items-center">
-          <span className="text-sm text-gray-500">
-            {hasAccess ? `剩余 ${remainingDays} 天` : '需要购买'}
-          </span>
-          <button
-            onClick={() => handleStartQuiz(questionSet)}
-            className={`px-4 py-2 rounded-md ${
-              hasAccess ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'
-            }`}
-            disabled={!hasAccess}
-          >
-            开始练习
-          </button>
-        </div>
-      </div>
-    );
-  };
+  // 用户进入首页时主动刷新进度数据，使用优化后的方式
+  useEffect(() => {
+    if (user) {
+      // 使用setTimeout进行延迟，避免页面加载时立即触发请求
+      const timer = setTimeout(() => {
+        console.log('首页初始化，延迟请求进度数据');
+        fetchUserProgress(true); // 强制刷新进度数据
+      }, 800);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user?.id]); // 只依赖user.id, 而不是整个user对象
+
+  // 根据主题设置页面背景色
+  const bgClass = homeContent.theme === 'dark' 
+    ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
+    : 'min-h-screen bg-gray-50 py-6 flex flex-col justify-center sm:py-12';
 
   if (loading) {
     return (

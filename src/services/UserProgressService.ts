@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '../utils/api-client';
 import { userService } from './api';
 
 interface SaveProgressParams {
@@ -28,6 +28,7 @@ interface ApiResponse<T> {
 
 class UserProgressService {
   private baseUrl = '/api/user-progress';
+  private cachedUserId: string | null = null;
 
   private getAuthHeader() {
     const token = localStorage.getItem('token');
@@ -56,11 +57,18 @@ class UserProgressService {
           message: '问题ID或题库ID无效' 
         };
       }
-
-      const response = await axios.post(`${this.baseUrl}/save`, validatedParams, {
-        headers: this.getAuthHeader()
-      });
-      return response.data;
+      
+      // 使用apiClient的post方法
+      const response = await apiClient.post(
+        `${this.baseUrl}/save`, 
+        validatedParams, 
+        {
+          retries: 3,
+          retryDelay: 500
+        }
+      );
+      
+      return response;
     } catch (error: any) {
       console.error('保存进度失败:', error?.response?.data || error.message);
       return { success: false, message: error?.response?.data?.message || '保存进度失败' };
@@ -69,24 +77,35 @@ class UserProgressService {
 
   async getUserProgress(questionSetId?: string): Promise<ApiResponse<Record<string, ProgressStats>>> {
     try {
-      const currentUser = await userService.getCurrentUser();
-      if (!currentUser.success || !currentUser.data) {
-        throw new Error('无法获取当前用户信息');
+      // 优先使用缓存的用户ID，避免不必要的请求
+      let userId = this.cachedUserId;
+      
+      // 如果没有缓存的用户ID，就获取当前用户
+      if (!userId) {
+        const currentUser = await userService.getCurrentUser();
+        if (!currentUser.success || !currentUser.data) {
+          throw new Error('无法获取当前用户信息');
+        }
+        userId = currentUser.data.id;
+        this.cachedUserId = userId;
       }
 
       const url = questionSetId 
-        ? `${this.baseUrl}/stats/${currentUser.data.id}?questionSetId=${questionSetId}`
-        : `${this.baseUrl}/stats/${currentUser.data.id}`;
+        ? `${this.baseUrl}/stats/${userId}?questionSetId=${questionSetId}`
+        : `${this.baseUrl}/stats/${userId}`;
 
-      console.log("获取用户进度，用户ID:", currentUser.data.id); // 添加日志
+      console.log("获取用户进度，用户ID:", userId);
 
-      const response = await axios.get(url, {
-        headers: this.getAuthHeader()
+      // 使用apiClient的get方法，添加缓存和重试
+      const response = await apiClient.get(url, undefined, {
+        cacheDuration: 30000, // 缓存30秒
+        retries: 2,
+        retryDelay: 400
       });
 
-      if (response.data.success && response.data.data) {
+      if (response.success && response.data) {
         // 确保每个进度记录都有lastAccessed字段，使用更严格的检查和默认值
-        const processedData = Object.entries(response.data.data).reduce((acc, [key, value]) => {
+        const processedData = Object.entries(response.data).reduce((acc, [key, value]) => {
           // 首先确保value是非空对象
           if (!value || typeof value !== 'object') {
             acc[key] = {
@@ -118,7 +137,7 @@ class UserProgressService {
           return acc;
         }, {} as Record<string, ProgressStats>);
 
-        console.log("处理后的进度数据:", processedData); // 添加日志
+        console.log("处理后的进度数据:", processedData);
 
         return {
           success: true,
@@ -126,7 +145,7 @@ class UserProgressService {
         };
       }
 
-      return response.data;
+      return response;
     } catch (error: any) {
       console.error('获取用户进度失败:', error?.response?.data || error.message);
       return { success: false, message: error?.response?.data?.message || '获取用户进度失败' };
@@ -141,14 +160,16 @@ class UserProgressService {
         ? `${this.baseUrl}/records?questionSetId=${questionSetId}`
         : `${this.baseUrl}/records`;
       
-      const response = await axios.get(url, {
-        headers: this.getAuthHeader()
+      // 使用apiClient的get方法
+      const response = await apiClient.get(url, undefined, {
+        cacheDuration: 60000, // 缓存1分钟
+        retries: 2
       });
 
       // 确保返回数据的安全性和一致性
-      if (response.data.success && Array.isArray(response.data.data)) {
+      if (response.success && Array.isArray(response.data)) {
         // 确保每条记录都有必要的字段
-        const processedRecords = response.data.data.map((record: any) => {
+        const processedRecords = response.data.map((record: any) => {
           return {
             ...record,
             questionId: record.questionId || '',
@@ -167,9 +188,9 @@ class UserProgressService {
         };
       }
       
-      return response.data.success 
-        ? response.data 
-        : { success: false, message: response.data.message || '获取记录失败', data: [] };
+      return response.success 
+        ? response 
+        : { success: false, message: response.message || '获取记录失败', data: [] };
     } catch (error: any) {
       console.error('获取用户进度记录失败:', error?.response?.data || error.message);
       return { 
@@ -178,6 +199,11 @@ class UserProgressService {
         data: [] // 返回空数组而不是 undefined
       };
     }
+  }
+  
+  // 清除用户ID缓存，在用户登出时调用
+  clearCachedUserId() {
+    this.cachedUserId = null;
   }
 }
 
