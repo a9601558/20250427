@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
 import { initializeSocket, authenticateUser } from '../config/socket';
@@ -72,12 +72,33 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
   // 创建一个用户变化事件
   const [userChangeEvent, setUserChangeEvent] = useState<{userId: string | null, timestamp: number}>({userId: null, timestamp: 0});
+  // 添加一个上次通知时间引用，用于防抖
+  const lastNotifyTimeRef = useRef<number>(0);
+  // 添加当前用户ID引用，用于比较
+  const prevUserIdRef = useRef<string | null>(null);
 
   // 当用户变化时触发事件
   const notifyUserChange = useCallback((newUser: User | null) => {
+    // 获取新用户ID
+    const newUserId = newUser?.id || null;
+    // 获取当前时间
+    const now = Date.now();
+    
+    // 如果与上次通知的用户ID相同且时间间隔小于500ms，则忽略此次通知
+    if (newUserId === prevUserIdRef.current && now - lastNotifyTimeRef.current < 500) {
+      console.log('忽略重复的用户变更通知:', newUserId);
+      return;
+    }
+    
+    // 更新上次通知时间和用户ID
+    lastNotifyTimeRef.current = now;
+    prevUserIdRef.current = newUserId;
+    
+    // 触发事件
+    console.log('发送用户变更通知:', newUserId);
     setUserChangeEvent({
-      userId: newUser?.id || null,
-      timestamp: Date.now()
+      userId: newUserId,
+      timestamp: now
     });
   }, []);
 
@@ -94,29 +115,34 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (!user) return;
 
-    const socket = initializeSocket();
-    authenticateUser(user.id, localStorage.getItem('token') || '');
-    
-    socket.on('progress:update', (data: ProgressUpdateEvent) => {
-      setUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          progress: {
-            ...prev.progress,
-            [data.questionSetId]: {
-              ...data.progress,
-              lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
+    // 使用防抖，确保socket只初始化一次
+    const timer = setTimeout(() => {
+      const socket = initializeSocket();
+      authenticateUser(user.id, localStorage.getItem('token') || '');
+      
+      socket.on('progress:update', (data: ProgressUpdateEvent) => {
+        setUser(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            progress: {
+              ...prev.progress,
+              [data.questionSetId]: {
+                ...data.progress,
+                lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
+              }
             }
-          }
-        };
+          };
+        });
       });
-    });
 
-    return () => {
-      socket.disconnect();
-    };
-  }, [user]);
+      return () => {
+        socket.disconnect();
+      };
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [user?.id]); // 只监听user.id，而不是整个user对象，减少不必要的重新渲染
 
   const fetchCurrentUser = async () => {
     setLoading(true);
@@ -172,9 +198,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    // 确保先改变状态，再调用notifyUserChange
     localStorage.removeItem('token');
-    notifyUserChange(null); // 通知用户登出
     setUser(null);
+    
+    // 短暂延迟后通知其他组件，避免状态更新冲突
+    setTimeout(() => {
+      notifyUserChange(null); // 通知用户登出
+    }, 100);
   };
 
   const register = async (userData: Partial<User>): Promise<boolean> => {

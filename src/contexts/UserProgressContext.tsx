@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useSocket } from './SocketContext';
 import { userProgressService } from '../services/UserProgressService';
 import { useUser } from './UserContext';
@@ -93,6 +93,10 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUserId, setLastUserId] = useState<string | null>(null);
+  // 添加请求控制标志，防止重复请求
+  const [isRequesting, setIsRequesting] = useState(false);
+  // 添加请求计数器，用于调试
+  const requestCountRef = useRef(0);
 
   // 添加全局引用用于调试
   if (process.env.NODE_ENV !== 'production') {
@@ -100,7 +104,8 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
       progressStats,
       user,
       lastUserId,
-      reset: () => setProgressStats({})
+      reset: () => setProgressStats({}),
+      requestCount: requestCountRef.current
     };
   }
 
@@ -125,18 +130,28 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
   }, []);
 
-  // 获取用户进度，支持强制更新
+  // 获取用户进度，支持强制更新，添加防抖和重复请求控制
   const fetchUserProgress = useCallback(async (forceUpdate = true) => {
+    // 防止无用户时请求
     if (!user) {
       console.log('用户未登录，无法获取进度');
       return;
     }
 
+    // 防止重复请求
+    if (isRequesting) {
+      console.log('已有进度请求正在进行中，忽略此次请求');
+      return;
+    }
+
     try {
+      setIsRequesting(true);
       setIsLoading(true);
       setError(null);
 
-      console.log("当前用户ID:", user.id);
+      // 增加请求计数，用于调试
+      requestCountRef.current += 1;
+      console.log(`请求进度 #${requestCountRef.current}, 用户ID: ${user.id}`);
 
       const response = await userProgressService.getUserProgress();
       if (response.success && response.data) {
@@ -167,70 +182,54 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return {};
     } finally {
       setIsLoading(false);
+      // 短暂延迟后才允许下一次请求，防止快速连续请求
+      setTimeout(() => {
+        setIsRequesting(false);
+      }, 500);
     }
-  }, [user]);
+  }, [user, isRequesting]);
 
-  // 监听用户变化事件，确保在用户切换时重置进度
+  // 用户变化事件和用户ID变化二选一即可，这里合并成一个useEffect
   useEffect(() => {
-    console.log("用户变化事件:", userChangeEvent);
-    
-    // 如果是用户登出
-    if (!userChangeEvent.userId) {
+    // 处理用户登出情况
+    if (!user) {
       console.log("用户登出，清空进度");
       setProgressStats({});
       setLastUserId(null);
       return;
     }
-    
-    // 如果是用户登录或切换
-    if (userChangeEvent.userId !== lastUserId) {
-      console.log(`用户切换: ${lastUserId || 'none'} -> ${userChangeEvent.userId}，重置进度`);
+
+    // 处理用户切换情况
+    if (user.id !== lastUserId) {
+      console.log(`用户切换: ${lastUserId || 'none'} -> ${user.id}，重置进度`);
+      
       // 先清空旧数据
       setProgressStats({});
-      setLastUserId(userChangeEvent.userId);
+      setLastUserId(user.id);
       
-      // 然后获取新数据
-      if (userChangeEvent.userId) {
-        console.log("拉取新用户进度:", userChangeEvent.userId);
-        fetchUserProgress(true).catch(err => {
-          console.error("拉取新用户进度失败:", err);
-        });
-      }
+      // 用setTimeout延迟请求，避免组件渲染期间的过多请求
+      const timer = setTimeout(() => {
+        if (!isRequesting) {
+          console.log("拉取新用户进度:", user.id);
+          fetchUserProgress().catch(err => {
+            console.error("拉取新用户进度失败:", err);
+          });
+        }
+      }, 300);
+      
+      return () => clearTimeout(timer);
     }
-  }, [userChangeEvent, fetchUserProgress, lastUserId]);
-
-  // 保留原有的用户ID监听，作为额外保障
-  useEffect(() => {
-    if (user?.id) {
-      console.log("用户ID变化，刷新进度:", user.id);
-      
-      // 检查是否是不同用户，如果是则先清空状态
-      if (lastUserId !== user.id) {
-        console.log("用户ID与上次不同，先清空进度");
-        setProgressStats({});
-        setLastUserId(user.id);
-      }
-      
-      fetchUserProgress(true).catch(err => {
-        console.error("自动刷新进度失败:", err);
-      });
-    } else {
-      // 用户登出时清空进度
-      console.log("用户登出，清空进度");
-      setProgressStats({});
-      setLastUserId(null);
-    }
-  }, [user?.id, fetchUserProgress, lastUserId]);
+  }, [user, lastUserId, fetchUserProgress, isRequesting]);
 
   // 监听进度更新事件
   useEffect(() => {
     if (!socket || !user) return;
 
     const handleProgressUpdate = async (data: { userId: string }) => {
-      if (data.userId === user.id) {
+      if (data.userId === user.id && !isRequesting) {
         console.log("收到进度更新事件，刷新进度");
         try {
-          await fetchUserProgress(true);
+          await fetchUserProgress();
         } catch (err) {
           console.error("更新进度失败:", err);
         }
@@ -242,16 +241,22 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       socket.off('progress:update', handleProgressUpdate);
     };
-  }, [socket, user, fetchUserProgress]);
+  }, [socket, user, fetchUserProgress, isRequesting]);
 
-  // 组件挂载时完成初始化
+  // 组件挂载时完成初始化 - 只在初始挂载时执行一次
   useEffect(() => {
-    if (user) {
-      fetchUserProgress(true).catch(err => {
-        console.error("初始化进度失败:", err);
-      });
+    // 只有当组件挂载且用户存在且不在请求中时才执行
+    if (user && !isRequesting) {
+      console.log("组件挂载，初始化进度");
+      const timer = setTimeout(() => {
+        fetchUserProgress().catch(err => {
+          console.error("初始化进度失败:", err);
+        });
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, []); // 空依赖数组，确保只执行一次
 
   return (
     <UserProgressContext.Provider value={{

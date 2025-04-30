@@ -219,9 +219,15 @@ const HomePage: React.FC = () => {
   // 用户进入首页时主动刷新进度数据
   useEffect(() => {
     if (user) {
-      fetchUserProgress(true); // 强制刷新进度数据
+      // 使用setTimeout进行延迟，避免页面加载时立即触发请求
+      const timer = setTimeout(() => {
+        console.log('首页初始化，延迟请求进度数据');
+        fetchUserProgress(true); // 强制刷新进度数据
+      }, 800);
+      
+      return () => clearTimeout(timer);
     }
-  }, [user, fetchUserProgress]);
+  }, [user?.id]); // 只依赖user.id, 而不是整个user对象
 
   // 根据主题设置页面背景色
   const bgClass = homeContent.theme === 'dark' 
