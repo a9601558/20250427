@@ -395,9 +395,9 @@ exports.deleteProgressRecord = deleteProgressRecord;
 const getUserProgressStats = async (req, res) => {
     try {
         const { userId } = req.params;
-        // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
         const currentUserId = req.user.id;
-        if (userId !== currentUserId && req.user.role !== 'admin') {
+        // 修改权限检查逻辑：允许用户访问自己的进度，或管理员访问任何用户的进度
+        if (userId !== currentUserId && !req.user.isAdmin) {
             return (0, responseUtils_1.sendError)(res, 403, '无权访问此用户的进度统计');
         }
         // 获取用户的所有进度记录，包括关联的题目集和题目信息
