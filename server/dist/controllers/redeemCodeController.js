@@ -160,7 +160,7 @@ const redeemCode = async (req, res) => {
         });
         console.log(`创建了购买记录: ${purchaseId}`);
         // 更新兑换码状态
-        await models_1.sequelize.query(`UPDATE redeem_codes SET is_used = 1, used_by = ?, used_at = ? WHERE id = ?`, {
+        await models_1.sequelize.query(`UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`, {
             replacements: [userId, now, redeemCode.id],
             type: sequelize_1.QueryTypes.UPDATE
         });

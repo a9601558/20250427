@@ -190,7 +190,7 @@ export const redeemCode = async (req: Request, res: Response) => {
 
     // 更新兑换码状态
     await sequelize.query(
-      `UPDATE redeem_codes SET is_used = 1, used_by = ?, used_at = ? WHERE id = ?`,
+      `UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`,
       {
         replacements: [userId, now, redeemCode.id],
         type: QueryTypes.UPDATE
