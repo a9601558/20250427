@@ -8,11 +8,13 @@ import { useSocket } from '../contexts/SocketContext';
 import { userProgressService } from '../services/UserProgressService';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import RedeemCodeForm from './RedeemCodeForm';
+import QuestionCard from './QuestionCard';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
   index: number;
   isCorrect: boolean;
+  selectedOption: string | string[];
 }
 
 // 获取选项标签（A, B, C, D...）
@@ -352,7 +354,10 @@ function QuizPage(): JSX.Element {
       // 更新已回答问题列表
       setAnsweredQuestions(prev => [...prev, {
         index: currentQuestionIndex,
-        isCorrect
+        isCorrect,
+        selectedOption: currentQuestion.questionType === 'single' 
+          ? selectedOptions[0] 
+          : selectedOptions
       }]);
 
       // 答对自动跳到下一题
@@ -617,97 +622,38 @@ function QuizPage(): JSX.Element {
       </div>
       
       {/* 当前题目 */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">
-          {currentQuestionIndex + 1}. {currentQuestion.text}
-          <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-            {currentQuestion.questionType === 'single' ? '单选题' : '多选题'}
-          </span>
-        </h2>
-        
-        {/* 选项列表 */}
-        <div className="space-y-3 mb-6">
-          {currentQuestion.options.map((option, index) => {
-            const isSelected = selectedOptions.includes(option.id);
-            return (
-              <div 
-                key={option.id}
-                onClick={() => {
-                  if (!showExplanation && !(trialEnded && !hasAccessToFullQuiz)) {
-                    handleOptionSelect(option.id);
-                  }
-                }}
-                className={`p-3 border rounded-lg cursor-pointer flex justify-between items-center ${
-                  showExplanation
-                    ? option.isCorrect
-                      ? 'bg-green-50 border-green-300'
-                      : isSelected
-                        ? 'bg-red-50 border-red-300'
-                        : 'border-gray-200'
-                    : isSelected
-                      ? 'bg-blue-50 border-blue-300'
-                      : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50'
-                }`}
+      <QuestionCard
+        question={currentQuestion}
+        onNext={goToNextQuestion}
+        onAnswerSubmitted={handleAnswerSubmit}
+        questionNumber={currentQuestionIndex + 1}
+        totalQuestions={questions.length}
+        quizTitle={questionSet.title}
+        userAnsweredQuestion={answeredQuestions.find(q => q.index === currentQuestionIndex)}
+      />
+      
+      {/* 兑换码模态框 */}
+      {showRedeemCodeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">题库兑换码</h2>
+              <button
+                onClick={() => setShowRedeemCodeModal(false)}
+                className="text-gray-500 hover:text-gray-700"
               >
-                <div className="flex items-center">
-                  <span className={`w-6 h-6 flex items-center justify-center rounded-full border mr-3 ${
-                    isSelected ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300'
-                  }`}>
-                    {option.label || getOptionLabel(index)}
-                  </span>
-                  <span>{option.text}</span>
-                </div>
-                
-                {/* 正确/错误标记（只在显示解析时） */}
-                {showExplanation && (
-                  option.isCorrect ? (
-                    <svg className="h-5 w-5 text-green-500 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  ) : isSelected ? (
-                    <svg className="h-5 w-5 text-red-500 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  ) : null
-                )}
-              </div>
-            );
-          })}
-        </div>
-        
-        {/* 题目解析 */}
-        {showExplanation && (
-          <div className="bg-blue-50 p-4 rounded-lg mb-6">
-            <h3 className="text-md font-medium text-blue-800 mb-2">解析</h3>
-            <p className="text-blue-700">{currentQuestion.explanation}</p>
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <RedeemCodeForm onRedeemSuccess={() => {
+              setShowRedeemCodeModal(false);
+              checkAccess();
+            }} />
           </div>
-        )}
-        
-        {/* 按钮区域 */}
-        <div className="flex justify-between">
-          {!showExplanation ? (
-            <button
-              onClick={() => handleAnswerSubmit()}
-              disabled={selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz)}
-              className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
-                selectedOptions.length === 0 || (trialEnded && !hasAccessToFullQuiz) ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              提交答案
-            </button>
-          ) : (
-            <button
-              onClick={goToNextQuestion}
-              disabled={trialEnded && !hasAccessToFullQuiz}
-              className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${
-                trialEnded && !hasAccessToFullQuiz ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {currentQuestionIndex < questions.length - 1 ? '下一题' : '完成测试'}
-            </button>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
