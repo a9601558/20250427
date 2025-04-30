@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IQuestionSet, Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
@@ -47,6 +47,59 @@ function QuizPage(): JSX.Element {
   const timeoutId = useRef<NodeJS.Timeout>();
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   
+  // 保存访问权限到localStorage - 以题库ID为key
+  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
+    if (!questionSetId) return;
+    
+    try {
+      const normalizedId = String(questionSetId).trim();
+      console.log(`[QuizPage] 保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+      
+      // 获取当前访问权限列表
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      let accessRights: {[key: string]: boolean} = {};
+      
+      if (accessRightsStr) {
+        try {
+          accessRights = JSON.parse(accessRightsStr);
+        } catch (e) {
+          console.error('[QuizPage] 解析访问权限记录失败，将创建新记录', e);
+        }
+      }
+      
+      // 更新访问权限
+      accessRights[normalizedId] = hasAccess;
+      
+      // 保存回localStorage
+      localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
+      console.log(`[QuizPage] 已保存题库 ${normalizedId} 的访问权限`);
+    } catch (e) {
+      console.error('[QuizPage] 保存访问权限失败', e);
+    }
+  }, []);
+  
+  // 从localStorage获取访问权限
+  const getAccessFromLocalStorage = useCallback((questionSetId: string): boolean => {
+    if (!questionSetId) return false;
+    
+    try {
+      const normalizedId = String(questionSetId).trim();
+      console.log(`[QuizPage] 获取题库 ${normalizedId} 的访问权限`);
+      
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (!accessRightsStr) return false;
+      
+      const accessRights = JSON.parse(accessRightsStr);
+      const hasAccess = !!accessRights[normalizedId];
+      
+      console.log(`[QuizPage] 题库 ${normalizedId} 的本地存储访问权限: ${hasAccess}`);
+      return hasAccess;
+    } catch (e) {
+      console.error('[QuizPage] 获取访问权限失败', e);
+      return false;
+    }
+  }, []);
+
   // 添加 Socket 监听
   useEffect(() => {
     if (!socket || !questionSet) return;
@@ -112,6 +165,16 @@ function QuizPage(): JSX.Element {
     if (hasRedeemed) {
       console.log(`[checkAccess] 用户已兑换码，直接授权访问`);
       setHasAccessToFullQuiz(true);
+      saveAccessToLocalStorage(questionSet.id, true);
+      setTrialEnded(false);
+      return;
+    }
+    
+    // 检查本地存储中的访问权限
+    const localStorageAccess = getAccessFromLocalStorage(questionSet.id);
+    if (localStorageAccess) {
+      console.log(`[checkAccess] 本地存储显示用户有访问权限，直接授权访问`);
+      setHasAccessToFullQuiz(true);
       setTrialEnded(false);
       return;
     }
@@ -120,6 +183,7 @@ function QuizPage(): JSX.Element {
     if (!questionSet.isPaid) {
       console.log(`[checkAccess] 免费题库，允许访问`);
       setHasAccessToFullQuiz(true);
+      saveAccessToLocalStorage(questionSet.id, true);
       setTrialEnded(false); // 确保重置试用状态
       return;
     }
@@ -128,6 +192,7 @@ function QuizPage(): JSX.Element {
     if (!user) {
       console.log(`[checkAccess] 用户未登录，无权限`);
       setHasAccessToFullQuiz(false);
+      saveAccessToLocalStorage(questionSet.id, false);
       
       // 检查试用状态
       if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
@@ -197,6 +262,7 @@ function QuizPage(): JSX.Element {
     
     console.log(`[checkAccess] 最终访问权限结果: ${hasAccess}`);
     setHasAccessToFullQuiz(hasAccess);
+    saveAccessToLocalStorage(questionSet.id, hasAccess);
     
     // 如果有访问权限，确保试用结束状态重置
     if (hasAccess) {
@@ -222,12 +288,12 @@ function QuizPage(): JSX.Element {
   
   // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查
   useEffect(() => {
-    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}`);
+    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${hasRedeemed}`);
     if (user && user.purchases) {
       console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
     checkAccess();
-  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length]);
+  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, hasRedeemed]);
   
   // 获取题库和题目数据
   useEffect(() => {
@@ -345,18 +411,39 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     if (questionSet?.id) {
       const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
+      console.log(`[QuizPage] 检查localStorage存储的已兑换题库IDs:`, redeemedQuizIds);
+      
       if (redeemedQuizIds) {
         try {
           const redeemedIds = JSON.parse(redeemedQuizIds);
-          if (Array.isArray(redeemedIds) && redeemedIds.includes(questionSet.id)) {
-            console.log(`[QuizPage] 检测到题库 ${questionSet.id} 已兑换记录`);
-            setHasRedeemed(true);
-            setHasAccessToFullQuiz(true);
-            setTrialEnded(false);
+          
+          // 标准化当前题库ID
+          const normalizedCurrentId = String(questionSet.id).trim();
+          console.log(`[QuizPage] 当前题库ID (标准化): "${normalizedCurrentId}"`);
+          
+          // 检查是否已兑换，使用一致的ID格式比较
+          if (Array.isArray(redeemedIds)) {
+            // 输出所有已兑换ID，以便调试
+            console.log(`[QuizPage] 所有已兑换题库IDs:`, redeemedIds);
+            
+            // 将所有ID标准化后再比较
+            const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedCurrentId);
+            console.log(`[QuizPage] 题库 ${normalizedCurrentId} 是否已兑换: ${isRedeemed}`);
+            
+            if (isRedeemed) {
+              console.log(`[QuizPage] 检测到题库 ${normalizedCurrentId} 已兑换记录，启用完整访问权限`);
+              setHasRedeemed(true);
+              setHasAccessToFullQuiz(true);
+              setTrialEnded(false);
+            }
+          } else {
+            console.log(`[QuizPage] localStorage中的redeemedIds不是数组:`, redeemedIds);
           }
         } catch (e) {
           console.error('解析已兑换题库ID列表失败', e);
         }
+      } else {
+        console.log(`[QuizPage] localStorage中未找到已兑换题库记录`);
       }
     }
   }, [questionSet?.id]);
@@ -364,23 +451,42 @@ function QuizPage(): JSX.Element {
   // 保存已兑换的题库ID到localStorage
   const saveRedeemedQuizId = (quizId: string) => {
     try {
+      if (!quizId) {
+        console.error(`[QuizPage] 无法保存空的题库ID`);
+        return;
+      }
+      
+      // 标准化ID
+      const normalizedId = String(quizId).trim();
+      console.log(`[QuizPage] 准备保存已兑换题库ID: "${normalizedId}"`);
+      
       // 获取现有的已兑换题库ID列表
       const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
       let redeemedIds: string[] = [];
       
       if (redeemedQuizIds) {
-        redeemedIds = JSON.parse(redeemedQuizIds);
-        // 确保是数组
-        if (!Array.isArray(redeemedIds)) {
+        try {
+          const parsed = JSON.parse(redeemedQuizIds);
+          // 确保是数组
+          redeemedIds = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('解析现有已兑换题库ID列表失败，将创建新列表', e);
           redeemedIds = [];
         }
       }
       
+      // 标准化所有现有ID
+      redeemedIds = redeemedIds.map(id => String(id).trim());
+      console.log(`[QuizPage] 现有已兑换题库IDs: `, redeemedIds);
+      
       // 如果ID不在列表中，添加它
-      if (!redeemedIds.includes(quizId)) {
-        redeemedIds.push(quizId);
-        localStorage.setItem('redeemedQuizIds', JSON.stringify(redeemedIds));
-        console.log(`[QuizPage] 已将题库 ${quizId} 添加到已兑换列表`);
+      if (!redeemedIds.includes(normalizedId)) {
+        redeemedIds.push(normalizedId);
+        const newList = JSON.stringify(redeemedIds);
+        localStorage.setItem('redeemedQuizIds', newList);
+        console.log(`[QuizPage] 已将题库 "${normalizedId}" 添加到已兑换列表，更新后列表:`, newList);
+      } else {
+        console.log(`[QuizPage] 题库 "${normalizedId}" 已在兑换列表中，无需添加`);
       }
     } catch (e) {
       console.error('保存已兑换题库ID失败', e);
@@ -403,6 +509,14 @@ function QuizPage(): JSX.Element {
       setHasAccessToFullQuiz(true);  // 确保设置为true
       setTrialEnded(false);          // 确保重置试用结束状态
       setHasRedeemed(true);          // 标记为已兑换
+      
+      // 保存访问权限到 localStorage
+      if (eventQuizId) {
+        saveAccessToLocalStorage(eventQuizId, true);
+      }
+      if (currentQuizId && currentQuizId !== eventQuizId) {
+        saveAccessToLocalStorage(currentQuizId, true);
+      }
       
       // 保存已兑换状态到localStorage
       if (eventQuizId) {
@@ -454,6 +568,15 @@ function QuizPage(): JSX.Element {
       window.removeEventListener('redeem:success', handleRedeemSuccess);
     };
   }, [questionSet?.id, socket, user, fetchUserProgress]);
+  
+  // 监听模态窗口状态变化，重新检查访问权限
+  useEffect(() => {
+    if (!showPaymentModal && !showRedeemCodeModal) {
+      // 模态窗口关闭时，再次检查访问权限，确保状态一致
+      console.log('[QuizPage] 模态窗口关闭，重新检查访问权限');
+      checkAccess();
+    }
+  }, [showPaymentModal, showRedeemCodeModal]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
@@ -635,6 +758,69 @@ function QuizPage(): JSX.Element {
     };
   }, []);
   
+  // 在组件挂载时检查localStorage中的访问权限
+  useEffect(() => {
+    console.log('[QuizPage] 组件挂载，检查localStorage中的访问权限');
+    
+    if (questionSet?.id) {
+      // 检查localStorage中是否有访问权限
+      const hasStoredAccess = getAccessFromLocalStorage(questionSet.id);
+      
+      if (hasStoredAccess) {
+        console.log(`[QuizPage] 本地存储中发现题库 ${questionSet.id} 的访问权限`);
+        setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+      }
+      
+      // 检查localStorage中是否有已兑换记录
+      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
+      if (redeemedQuizIds) {
+        try {
+          const redeemedIds = JSON.parse(redeemedQuizIds);
+          const normalizedCurrentId = String(questionSet.id).trim();
+          
+          if (Array.isArray(redeemedIds)) {
+            const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedCurrentId);
+            console.log(`[QuizPage] 题库 ${normalizedCurrentId} 是否已兑换: ${isRedeemed}`);
+            
+            if (isRedeemed) {
+              console.log(`[QuizPage] 题库已兑换，设置状态`);
+              setHasRedeemed(true);
+              setHasAccessToFullQuiz(true);
+              setTrialEnded(false);
+            }
+          }
+        } catch (e) {
+          console.error('[QuizPage] 检查localStorage兑换状态失败', e);
+        }
+      }
+    }
+  }, [questionSet?.id, getAccessFromLocalStorage]);
+  
+  // 初始化访问状态 - 在题库信息加载后执行
+  useEffect(() => {
+    if (questionSet?.id && !loading) {
+      const hasStoredAccess = getAccessFromLocalStorage(questionSet.id);
+      console.log(`[QuizPage] 题库 ${questionSet.id} 完成加载，检查本地存储访问权限: ${hasStoredAccess}`);
+      
+      if (hasStoredAccess) {
+        console.log(`[QuizPage] 本地存储显示题库 ${questionSet.id} 有访问权限，设置状态`);
+        setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+        
+        // 通知服务器确认访问权限
+        if (socket && user) {
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: String(questionSet.id).trim(),
+            hasAccess: true,
+            source: 'localStorage'
+          });
+        }
+      }
+    }
+  }, [questionSet?.id, loading, getAccessFromLocalStorage, socket, user]);
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -661,50 +847,23 @@ function QuizPage(): JSX.Element {
   
   const currentQuestion = questions[currentQuestionIndex];
   
-  if (quizComplete) {
-    const score = Math.round((correctAnswers / questions.length) * 100);
-    
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-center mb-8">测试完成！</h1>
-        
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">{questionSet.title}</h2>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-            <div className="mb-4 md:mb-0">
-              <p className="text-gray-600">总题数: <span className="font-medium">{questions.length}</span></p>
-              <p className="text-gray-600">正确答案: <span className="font-medium">{correctAnswers}</span></p>
-            </div>
-            
-            <div className="text-center bg-blue-50 p-4 rounded-lg">
-              <p className="text-lg text-gray-700">得分</p>
-              <p className="text-3xl font-bold text-blue-600">{score}%</p>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-3 mt-6">
-            <button
-              onClick={handleReset}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              重新开始
-            </button>
-            
-            <button
-              onClick={() => navigate('/')}
-              className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
-            >
-              返回首页
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  // 如果达到试用上限并且没有购买，显示购买提示
+  // 直接检查localStorage中的兑换记录，确保即使状态未正确同步也能正常显示
+  let isRedeemedFromStorage = false;
+  if (questionSet) {
+    try {
+      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
+      if (redeemedQuizIds) {
+        const redeemedIds = JSON.parse(redeemedQuizIds);
+        isRedeemedFromStorage = Array.isArray(redeemedIds) && 
+          redeemedIds.some(id => String(id).trim() === String(questionSet.id).trim());
+      }
+    } catch (e) {
+      console.error('[QuizPage] 检查localStorage兑换状态失败', e);
+    }
   }
   
-  // 如果达到试用上限并且没有购买，显示购买提示
-  if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
+  if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed && !isRedeemedFromStorage) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow p-6">
@@ -788,6 +947,11 @@ function QuizPage(): JSX.Element {
               setTrialEnded(false);
               setShowPaymentModal(false);
               
+              // 保存访问权限到localStorage
+              if (questionSet) {
+                saveAccessToLocalStorage(questionSet.id, true);
+              }
+              
               // 尝试通过Socket再次检查权限，确保状态一致性
               if (socket && user) {
                 setTimeout(() => {
@@ -795,6 +959,14 @@ function QuizPage(): JSX.Element {
                   socket.emit('questionSet:checkAccess', {
                     userId: user.id,
                     questionSetId: String(questionSet.id).trim()
+                  });
+                  
+                  // 明确告知服务器更新访问权限
+                  socket.emit('questionSet:accessUpdate', {
+                    userId: user.id,
+                    questionSetId: String(questionSet.id).trim(),
+                    hasAccess: true,
+                    source: 'payment'
                   });
                 }, 300);
               }
@@ -827,9 +999,15 @@ function QuizPage(): JSX.Element {
                 setTrialEnded(false);
                 setHasRedeemed(true); // 标记为已兑换
                 
+                // 保存访问权限到localStorage
+                saveAccessToLocalStorage(quizId, true);
+                if (questionSet) {
+                  saveAccessToLocalStorage(questionSet.id, true);
+                }
+                
                 // 保存已兑换状态到localStorage
                 saveRedeemedQuizId(quizId);
-
+                
                 // 延迟发送自定义事件确保完整处理
                 setTimeout(() => {
                   if (typeof window !== 'undefined') {
@@ -861,7 +1039,8 @@ function QuizPage(): JSX.Element {
                     socket.emit('questionSet:accessUpdate', {
                       userId: user.id,
                       questionSetId: String(questionSet.id).trim(),
-                      hasAccess: true
+                      hasAccess: true,
+                      source: 'redemption'
                     });
                   }
                 }, 500);
@@ -869,6 +1048,48 @@ function QuizPage(): JSX.Element {
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+  
+  if (quizComplete) {
+    const score = Math.round((correctAnswers / questions.length) * 100);
+    
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-center mb-8">测试完成！</h1>
+        
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">{questionSet.title}</h2>
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+            <div className="mb-4 md:mb-0">
+              <p className="text-gray-600">总题数: <span className="font-medium">{questions.length}</span></p>
+              <p className="text-gray-600">正确答案: <span className="font-medium">{correctAnswers}</span></p>
+            </div>
+            
+            <div className="text-center bg-blue-50 p-4 rounded-lg">
+              <p className="text-lg text-gray-700">得分</p>
+              <p className="text-3xl font-bold text-blue-600">{score}%</p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3 mt-6">
+            <button
+              onClick={handleReset}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              重新开始
+            </button>
+            
+            <button
+              onClick={() => navigate('/')}
+              className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
+            >
+              返回首页
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -967,9 +1188,15 @@ function QuizPage(): JSX.Element {
               setTrialEnded(false);
               setHasRedeemed(true); // 标记为已兑换
               
+              // 保存访问权限到localStorage
+              saveAccessToLocalStorage(quizId, true);
+              if (questionSet) {
+                saveAccessToLocalStorage(questionSet.id, true);
+              }
+              
               // 保存已兑换状态到localStorage
               saveRedeemedQuizId(quizId);
-
+              
               // 延迟发送自定义事件确保完整处理
               setTimeout(() => {
                 if (typeof window !== 'undefined') {
@@ -1001,7 +1228,8 @@ function QuizPage(): JSX.Element {
                   socket.emit('questionSet:accessUpdate', {
                     userId: user.id,
                     questionSetId: String(questionSet.id).trim(),
-                    hasAccess: true
+                    hasAccess: true,
+                    source: 'redemption'
                   });
                 }
               }, 500);
