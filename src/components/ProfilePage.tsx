@@ -4,7 +4,6 @@ import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import PurchaseCenter from './PurchaseCenter';
 
 // 原始进度记录类型
 interface ProgressRecord {
@@ -221,8 +220,8 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   const now = new Date();
   const isExpired = expiryDate < now;
   
-  // 计算剩余天数
-  const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  // 计算剩余天数 - 使用Math.max确保不显示负数
+  const remainingDays = isExpired ? 0 : Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
   // 获取题库标题
   const title = redeem.redeemQuestionSet?.title || '未知题库';
@@ -374,7 +373,7 @@ const ProfilePage: React.FC = () => {
     }
   }, [calculateProgressStats]);
 
-  // 获取用户购买数据
+  // 获取购买数据
   const fetchPurchases = useCallback(async () => {
     if (!user) return;
     
@@ -383,9 +382,10 @@ const ProfilePage: React.FC = () => {
       const response = await purchaseService.getUserPurchases();
       
       if (response.success && response.data) {
-        // 确保返回的数据格式正确
+        // 确保返回的数据格式正确，并过滤掉通过兑换码获得的记录
         const validPurchases = response.data
           .filter((p: any) => p && p.questionSetId) // 过滤掉无效记录
+          .filter((p: any) => p.amount > 0 && p.paymentMethod !== 'redeem') // 过滤掉通过兑换码获得的题库
           .map((p: any) => {
             // 确保必需字段
             const purchase: Purchase = {
@@ -468,17 +468,54 @@ const ProfilePage: React.FC = () => {
     fetchPurchases();
     fetchRedeemCodes();
 
+    // 发送验证请求，检查所有题库的访问状态
+    const checkAccessForAllSets = () => {
+      // 组合购买和兑换的所有题库ID
+      const allQuestionSetIds = new Set([
+        ...purchases.map(p => p.questionSetId), 
+        ...redeemCodes.map(r => r.questionSetId)
+      ]);
+      
+      // 为每个题库发送访问权限验证请求
+      allQuestionSetIds.forEach(questionSetId => {
+        if (questionSetId) {
+          socket.emit('questionSet:checkAccess', {
+            userId: user.id,
+            questionSetId
+          });
+        }
+      });
+    };
+    
+    // 立即检查访问状态
+    checkAccessForAllSets();
+    
+    // 题库数据变化时再次检查
+    const handleDataUpdate = () => {
+      setTimeout(checkAccessForAllSets, 500); // 延迟一点执行，确保数据已更新
+    };
+
     // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
-    socket.on('purchase:success', fetchPurchases);
-    socket.on('redeem:success', fetchRedeemCodes);
+    socket.on('purchase:success', () => {
+      fetchPurchases();
+      handleDataUpdate();
+    });
+    socket.on('redeem:success', () => {
+      fetchRedeemCodes();
+      handleDataUpdate();
+    });
+    
+    // 监听连接状态变化，重连时重新检查权限
+    socket.on('connect', checkAccessForAllSets);
 
     return () => {
       socket.off('progress:update', handleProgressUpdate);
-      socket.off('purchase:success', fetchPurchases);
-      socket.off('redeem:success', fetchRedeemCodes);
+      socket.off('purchase:success');
+      socket.off('redeem:success');
+      socket.off('connect', checkAccessForAllSets);
     };
-  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes]);
+  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, purchases, redeemCodes]);
 
   // 切换标签页
   const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed') => {
