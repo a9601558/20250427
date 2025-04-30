@@ -331,6 +331,10 @@ const getProgressStats = async (req, res) => {
             const totalTimeSpent = progress.totalTime;
             const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
             const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
+            // 确保 lastAccessed 始终有值
+            const lastAccessed = progress.lastAccessed
+                ? progress.lastAccessed.toISOString()
+                : new Date().toISOString();
             return {
                 questionSetId: qs.id,
                 questionSet: {
@@ -343,7 +347,7 @@ const getProgressStats = async (req, res) => {
                 totalTimeSpent,
                 averageTimeSpent,
                 accuracy,
-                lastAccessed: progress.lastAccessed?.toISOString() || null,
+                lastAccessed,
                 total: totalQuestions, // 兼容字段
                 correct: correctAnswers,
                 timeSpent: totalTimeSpent
