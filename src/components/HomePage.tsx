@@ -53,6 +53,7 @@ const HomePage: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedQuestionSet, setSelectedQuestionSet] = useState<QuestionSet | null>(null);
   const navigate = useNavigate();
+  const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
 
   // 减少进度更新回调函数的依赖
   const handleProgressUpdate = useCallback(async (data: { userId: string }) => {
@@ -175,6 +176,77 @@ const HomePage: React.FC = () => {
     setQuestionSets(updatedData);
   };
 
+  // Add helper functions for localStorage access status cache at the top of the component
+  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
+    try {
+      const accessCache = localStorage.getItem('questionSetAccessCache') || '{}';
+      const cache = JSON.parse(accessCache);
+      
+      // Update the cache with fresh data
+      cache[questionSetId] = {
+        hasAccess,
+        remainingDays,
+        timestamp: Date.now()
+      };
+      
+      // Save back to localStorage
+      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
+      console.log(`[HomePage] 已保存题库 ${questionSetId} 的访问权限到缓存`);
+    } catch (error) {
+      console.error('[HomePage] 保存访问权限缓存失败:', error);
+    }
+  }, []);
+
+  const getAccessFromLocalStorage = useCallback((questionSetId: string) => {
+    try {
+      const accessCache = localStorage.getItem('questionSetAccessCache') || '{}';
+      const cache = JSON.parse(accessCache);
+      
+      // Check if we have cached data for this question set
+      if (cache[questionSetId]) {
+        const cacheAge = Date.now() - cache[questionSetId].timestamp;
+        // Cache is valid for 24 hours (86400000 ms)
+        if (cacheAge < 86400000) {
+          console.log(`[HomePage] 从缓存读取题库 ${questionSetId} 的访问权限`);
+          return cache[questionSetId];
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('[HomePage] 读取访问权限缓存失败:', error);
+      return null;
+    }
+  }, []);
+
+  // Add useEffect to load cached access status when component mounts
+  useEffect(() => {
+    if (!questionSets.length) return;
+    
+    console.log('[HomePage] 检查缓存的题库访问权限');
+    
+    setQuestionSets(prevSets => {
+      const newSets = [...prevSets];
+      let hasUpdates = false;
+      
+      newSets.forEach((set, index) => {
+        const cachedAccess = getAccessFromLocalStorage(set.id);
+        if (cachedAccess) {
+          // Update from cache only if not already set
+          if (set.hasAccess !== cachedAccess.hasAccess || set.remainingDays !== cachedAccess.remainingDays) {
+            newSets[index] = {
+              ...newSets[index],
+              hasAccess: cachedAccess.hasAccess,
+              remainingDays: cachedAccess.remainingDays
+            };
+            hasUpdates = true;
+          }
+        }
+      });
+      
+      return hasUpdates ? newSets : prevSets;
+    });
+  }, [questionSets.length, getAccessFromLocalStorage]);
+
   // 添加Socket监听，使用依赖更少的方式
   useEffect(() => {
     if (!socket) return;
@@ -189,6 +261,8 @@ const HomePage: React.FC = () => {
     }) => {
       if (!data.updates || !Array.isArray(data.updates) || data.updates.length === 0) return;
       
+      console.log('[HomePage] 收到批量题库访问状态更新:', data.updates);
+      
       setQuestionSets(prevSets => {
         const newSets = [...prevSets];
         
@@ -196,11 +270,14 @@ const HomePage: React.FC = () => {
         data.updates.forEach(update => {
           const index = newSets.findIndex(set => set.id === update.questionSetId);
           if (index !== -1) {
-        newSets[index] = {
-          ...newSets[index],
+            newSets[index] = {
+              ...newSets[index],
               hasAccess: update.hasAccess,
               remainingDays: update.remainingDays
-        };
+            };
+            
+            // Save to localStorage cache
+            saveAccessToLocalStorage(update.questionSetId, update.hasAccess, update.remainingDays);
           }
         });
         
@@ -217,6 +294,8 @@ const HomePage: React.FC = () => {
       hasAccess: boolean;
       remainingDays: number | null;
     }) => {
+      console.log('[HomePage] 收到单个题库访问状态更新:', data);
+      
       setQuestionSets(prevSets => {
         const index = prevSets.findIndex(set => set.id === data.questionSetId);
         if (index === -1) return prevSets;
@@ -227,6 +306,10 @@ const HomePage: React.FC = () => {
           hasAccess: data.hasAccess,
           remainingDays: data.remainingDays
         };
+        
+        // Save to localStorage cache
+        saveAccessToLocalStorage(data.questionSetId, data.hasAccess, data.remainingDays);
+        
         return newSets;
       });
     };
@@ -238,6 +321,48 @@ const HomePage: React.FC = () => {
       socket.off('questionSet:accessUpdate', handleAccessUpdate);
     };
   }, [socket]);
+
+  // 监听全局兑换码成功事件
+  useEffect(() => {
+    const handleRedeemSuccess = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { quizId, remainingDays = 180 } = customEvent.detail || {};
+      
+      console.log('[HomePage] 接收到兑换码成功事件:', { quizId, remainingDays });
+      
+      if (quizId) {
+        setQuestionSets(prevSets => {
+          return prevSets.map(set => {
+            if (set.id === quizId) {
+              console.log('[HomePage] 更新题库访问状态:', set.title);
+              
+              // Save to localStorage cache
+              saveAccessToLocalStorage(quizId, true, remainingDays);
+              
+              // Add to recently updated sets for animation
+              setRecentlyUpdatedSets(prev => ({
+                ...prev,
+                [quizId]: Date.now()
+              }));
+              
+              return {
+                ...set,
+                hasAccess: true,
+                remainingDays
+              };
+            }
+            return set;
+          });
+        });
+      }
+    };
+    
+    window.addEventListener('redeem:success', handleRedeemSuccess);
+    
+    return () => {
+      window.removeEventListener('redeem:success', handleRedeemSuccess);
+    };
+  }, []);
 
   // 修改获取题库列表的函数，减少不必要的刷新
   const fetchQuestionSets = async () => {
@@ -534,14 +659,22 @@ const HomePage: React.FC = () => {
                 return (
                   <div 
                     key={questionSet.id}
-                    className={`bg-white rounded-lg shadow-md overflow-hidden border ${
+                    className={`bg-white rounded-lg shadow-md overflow-hidden border relative ${
                       !hasAccess && isPaid 
                         ? 'border-yellow-200' 
                         : hasAccess && isPaid 
                           ? 'border-green-200' 
                           : 'border-gray-200'
+                    } ${recentlyUpdatedSets[questionSet.id] && Date.now() - recentlyUpdatedSets[questionSet.id] < 5000 
+                        ? 'animate-pulse ring-4 ring-green-400 ring-opacity-50' 
+                        : ''
                     }`}
                   >
+                    {recentlyUpdatedSets[questionSet.id] && Date.now() - recentlyUpdatedSets[questionSet.id] < 5000 && (
+                      <div className="absolute top-0 right-0 bg-green-500 text-white px-3 py-1 transform rotate-45 translate-x-3 translate-y-1 shadow-md animate-bounce">
+                        🎉 购买成功
+                      </div>
+                    )}
                     <div className="p-6">
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="text-xl font-semibold text-gray-900">
@@ -649,15 +782,26 @@ const HomePage: React.FC = () => {
           isOpen={showPaymentModal}
           questionSet={selectedQuestionSet}
           onClose={() => setShowPaymentModal(false)}
-          onSuccess={() => {
+          onSuccess={(purchaseInfo) => {
+            console.log('[HomePage] 支付成功, 收到购买信息:', purchaseInfo);
+            
             // 支付成功后，更新题库的访问状态
             setQuestionSets(prevSets => {
               return prevSets.map(set => {
-                if (set.id === selectedQuestionSet.id) {
+                if (set.id === purchaseInfo.questionSetId) {
+                  // Save to localStorage cache
+                  saveAccessToLocalStorage(purchaseInfo.questionSetId, true, purchaseInfo.remainingDays);
+                  
+                  // Add to recently updated sets for animation
+                  setRecentlyUpdatedSets(prev => ({
+                    ...prev,
+                    [purchaseInfo.questionSetId]: Date.now()
+                  }));
+                  
                   return {
                     ...set,
                     hasAccess: true,
-                    remainingDays: 180 // 默认6个月有效期
+                    remainingDays: purchaseInfo.remainingDays || 180
                   };
                 }
                 return set;
@@ -666,7 +810,7 @@ const HomePage: React.FC = () => {
             // 关闭模态框
             setShowPaymentModal(false);
             // 导航到题库页面
-            navigate(`/quiz/${selectedQuestionSet.id}`);
+            navigate(`/quiz/${purchaseInfo.questionSetId}`);
           }}
         />
       )}

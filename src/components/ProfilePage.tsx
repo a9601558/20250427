@@ -220,51 +220,76 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   const now = new Date();
   const isExpired = expiryDate < now;
   
-  // 计算剩余天数 - 使用Math.max确保不显示负数
-  const remainingDays = isExpired ? 0 : Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  // 更精确地计算剩余天数 - 直接使用Math.max确保不显示负数
+  const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
   // 获取题库标题
   const title = redeem.redeemQuestionSet?.title || '未知题库';
   
   return (
-    <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+    <div className="bg-white p-5 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300">
       <div className="flex justify-between items-start mb-4">
-        <h2 className="text-lg font-semibold text-blue-700 truncate">{title}</h2>
+        <div>
+          <h2 className="text-lg font-bold text-blue-700 truncate">{title}</h2>
+          <p className="text-xs text-gray-500 mt-1">兑换码：{redeem.code.substring(0, 4)}****</p>
+        </div>
         {isExpired ? (
-          <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">已过期</span>
+          <span className="px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">已过期</span>
         ) : (
-          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">有效</span>
+          <span className="px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">有效</span>
         )}
       </div>
       
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">兑换日期:</span>
-          <span className="text-sm font-medium">{formatDate(redeem.usedAt)}</span>
+      <div className="space-y-3 text-sm">
+        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+          <span className="text-gray-600">兑换日期</span>
+          <span className="font-medium">{formatDate(redeem.usedAt)}</span>
         </div>
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">到期日期:</span>
-          <span className="text-sm font-medium">{formatDate(redeem.expiryDate)}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">兑换码:</span>
-          <span className="text-sm font-medium">{redeem.code.substring(0, 4)}****</span>
+        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+          <span className="text-gray-600">到期日期</span>
+          <span className="font-medium">{formatDate(redeem.expiryDate)}</span>
         </div>
         
         {!isExpired && (
           <div className="flex justify-between items-center mt-2">
-            <span className="text-sm text-gray-600">剩余天数:</span>
-            <span className="text-sm font-medium text-green-600">{remainingDays} 天</span>
+            <span className="text-gray-600">剩余有效期</span>
+            <div className="flex items-center">
+              <svg className="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"></path>
+              </svg>
+              <span className="font-medium text-green-600">{remainingDays} 天</span>
+            </div>
+          </div>
+        )}
+        
+        {isExpired && (
+          <div className="flex justify-between items-center mt-2">
+            <span className="text-gray-600">状态</span>
+            <span className="font-medium text-red-600">已过期</span>
           </div>
         )}
       </div>
       
-      <div className="mt-4 pt-4 border-t border-gray-100">
+      <div className="mt-5 pt-3 border-t border-gray-100">
+        {!isExpired && (
+          <div className="mb-4 flex items-center">
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (remainingDays / 180) * 100)}%` }}></div>
+            </div>
+            <span className="ml-2 text-xs text-gray-500">{Math.round((remainingDays / 180) * 100)}%</span>
+          </div>
+        )}
+        
         <button
           onClick={() => navigate(`/quiz/${redeem.questionSetId}`)}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md transition-colors"
+          className={`w-full py-2.5 rounded-lg transition-colors font-medium text-white ${
+            isExpired 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+          disabled={isExpired}
         >
-          开始学习
+          {isExpired ? '题库已过期' : '开始学习'}
         </button>
       </div>
     </div>

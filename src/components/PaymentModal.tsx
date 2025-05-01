@@ -6,7 +6,10 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   questionSet: QuestionSet;
-  onSuccess?: () => void;
+  onSuccess: (purchaseInfo: {
+    questionSetId: string;
+    remainingDays: number;
+  }) => void;
 }
 
 // Stripe公钥 - 在生产环境应该使用环境变量
@@ -156,7 +159,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       if (onSuccess) {
         console.log(`[支付] 调用onSuccess回调`);
         setTimeout(() => {
-          onSuccess();
+          const purchaseInfo = {
+            questionSetId: purchase.questionSetId,
+            remainingDays: Math.ceil((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+          };
+          onSuccess(purchaseInfo);
         }, 300);
       }
     } catch (err) {
@@ -244,7 +251,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
                 <div className="flex">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414-1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <div className="ml-3">
