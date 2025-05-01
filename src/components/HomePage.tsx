@@ -1197,6 +1197,16 @@ const HomePage: React.FC = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full px-6 py-3 rounded-full border-none focus:outline-none focus:ring-0 text-gray-700"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      // 触发搜索逻辑
+                      const filtered = questionSets.filter(set => 
+                        set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                        set.category.toLowerCase().includes(searchTerm.toLowerCase())
+                      );
+                      console.log(`[HomePage] 搜索: "${searchTerm}", 找到 ${filtered.length} 个结果`);
+                    }
+                  }}
                 />
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -1216,14 +1226,38 @@ const HomePage: React.FC = () => {
                 )}
                 
                 <button
-                  onClick={() => handleStartQuiz(questionSets[0] || recommendedSets[0])}
+                  onClick={() => {
+                    // 搜索按钮逻辑
+                    if (searchTerm.trim()) {
+                      console.log(`[HomePage] 搜索: "${searchTerm}"`);
+                      // 已经在getFilteredQuestionSets函数中处理搜索逻辑
+                      // 这里可以滚动到结果区域
+                      document.getElementById('question-sets-section')?.scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start'
+                      });
+                    } else {
+                      handleStartQuiz(questionSets[0] || recommendedSets[0]);
+                    }
+                  }}
                   className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-full transition-colors duration-300 flex items-center"
                 >
-                  <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  开始学习
+                  {searchTerm.trim() ? (
+                    <>
+                      <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      搜索
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      开始学习
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1361,7 +1395,7 @@ const HomePage: React.FC = () => {
         </div>
 
         {/* 题库列表 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div id="question-sets-section" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {getFilteredQuestionSets().map(set => (
             <BaseCard
               key={set.id}

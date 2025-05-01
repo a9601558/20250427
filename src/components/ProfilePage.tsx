@@ -1558,9 +1558,21 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  // 练习错题
+  // 更新错题练习功能
   const handlePracticeWrongAnswers = (questionSetId: string) => {
-    navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
+    // 创建问题ID列表，用于URL参数传递
+    const group = groupedWrongAnswers().find(g => g.questionSetId === questionSetId);
+    
+    if (group && group.wrongAnswers.length > 0) {
+      // 收集错题的questionId
+      const wrongQuestionIds = group.wrongAnswers.map(answer => answer.questionId).join(',');
+      
+      // 导航到指定题库，并传递错题ID列表和错题模式参数
+      navigate(`/quiz/${questionSetId}?mode=wrong-answers&questions=${wrongQuestionIds}`);
+    } else {
+      // 如果没有找到错题，使用原有的方式
+      navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
+    }
   };
 
   return (

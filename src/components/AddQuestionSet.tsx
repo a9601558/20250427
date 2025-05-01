@@ -30,6 +30,9 @@ const AddQuestionSet: React.FC = () => {
   const [isPaid, setIsPaid] = useState(false);
   const [price, setPrice] = useState('');
   const [trialQuestions, setTrialQuestions] = useState('0');
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [featuredCategory, setFeaturedCategory] = useState('');
+  const [featuredCategories, setFeaturedCategories] = useState<string[]>([]);
   
   // 题目管理
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -40,6 +43,26 @@ const AddQuestionSet: React.FC = () => {
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   const navigate = useNavigate();
+
+  // 加载精选分类
+  useEffect(() => {
+    const fetchFeaturedCategories = async () => {
+      try {
+        const response = await axios.get('/api/homepage/featured-categories');
+        if (response.data && response.data.success && Array.isArray(response.data.data)) {
+          setFeaturedCategories(response.data.data);
+          // 默认选择第一个分类
+          if (response.data.data.length > 0) {
+            setFeaturedCategory(response.data.data[0]);
+          }
+        }
+      } catch (error) {
+        console.error('获取精选分类失败:', error);
+      }
+    };
+    
+    fetchFeaturedCategories();
+  }, []);
 
   // 添加题目
   const handleAddQuestion = (newQuestion: Question) => {
@@ -101,6 +124,8 @@ const AddQuestionSet: React.FC = () => {
         isPaid,
         price: isPaid ? price : undefined,
         trialQuestions: isPaid ? trialQuestions : undefined,
+        isFeatured, // 添加是否精选
+        featuredCategory: isFeatured ? featuredCategory : undefined, // 添加精选分类
         questions: questions.map((q, index) => ({
           text: q.text,
           explanation: q.explanation || '',
@@ -136,6 +161,8 @@ const AddQuestionSet: React.FC = () => {
         setIsPaid(false);
         setPrice('');
         setTrialQuestions('0');
+        setIsFeatured(false);
+        setFeaturedCategory('');
         setQuestions([]);
         setSuccessMessage('题库创建成功！');
         navigate('/');
@@ -255,6 +282,45 @@ const AddQuestionSet: React.FC = () => {
                 placeholder="输入题库描述"
               />
             </div>
+          </div>
+          
+          {/* 精选设置 */}
+          <div className="mt-4 mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <label className="inline-flex items-center mb-3">
+              <input
+                type="checkbox"
+                checked={isFeatured}
+                onChange={(e) => setIsFeatured(e.target.checked)}
+                className="form-checkbox text-blue-600"
+              />
+              <span className="ml-2 text-blue-800">设为精选题库</span>
+            </label>
+            
+            {isFeatured && featuredCategories.length > 0 && (
+              <div>
+                <label className="block text-gray-700 mb-2">精选分类</label>
+                <select
+                  value={featuredCategory}
+                  onChange={(e) => setFeaturedCategory(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  {featuredCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-blue-600 mt-2">
+                  精选题库将在首页特别展示，并按照精选分类归类
+                </p>
+              </div>
+            )}
+            
+            {isFeatured && featuredCategories.length === 0 && (
+              <p className="text-sm text-yellow-600">
+                没有可用的精选分类。请先在管理页面设置精选分类。
+              </p>
+            )}
           </div>
           
           <div className="mt-4">

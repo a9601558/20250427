@@ -556,6 +556,12 @@ function QuizPage(): JSX.Element {
       
       try {
         setLoading(true);
+        
+        // 解析URL参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode');
+        const specificQuestions = urlParams.get('questions');
+        
         // 获取题库详情
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
@@ -616,7 +622,28 @@ function QuizPage(): JSX.Element {
             
             // 保存原始题目顺序
             setOriginalQuestions(processedQuestions);
-            setQuestions(processedQuestions);
+            
+            // 如果是错题练习模式且指定了问题ID，则筛选题目
+            if (mode === 'wrong-answers' && specificQuestions) {
+              console.log('[QuizPage] 错题练习模式，筛选指定题目');
+              const questionIds = specificQuestions.split(',');
+              
+              // 只保留指定ID的题目
+              const filteredQuestions = processedQuestions.filter((q: Question) => 
+                questionIds.includes(String(q.id))
+              );
+              
+              if (filteredQuestions.length > 0) {
+                console.log(`[QuizPage] 筛选后的题目数量: ${filteredQuestions.length}`);
+                setQuestions(filteredQuestions);
+              } else {
+                // 如果筛选后没有题目，使用全部题目
+                console.log('[QuizPage] 未找到指定题目，使用全部题目');
+                setQuestions(processedQuestions);
+              }
+            } else {
+              setQuestions(processedQuestions);
+            }
           } else {
             console.error("题库中没有题目");
             setError('此题库不包含任何题目');
@@ -1090,10 +1117,10 @@ function QuizPage(): JSX.Element {
     };
   }, [user]);
   
-  // 在现有的useEffect中添加获取用户进度的逻辑
+  // 在现有的useEffect中增强获取用户进度的逻辑
   useEffect(() => {
     if (questionSet?.id && user?.id && questions.length > 0 && !loading) {
-      console.log('尝试加载上次进度...');
+      console.log('[QuizPage] 尝试加载上次进度...');
       
       // 检查用户是否有进度记录
       const fetchLastProgress = async () => {
@@ -1103,25 +1130,53 @@ function QuizPage(): JSX.Element {
           
           if (response.success && response.data) {
             const progressData = response.data;
-            console.log('获取到进度数据:', progressData);
+            console.log('[QuizPage] 获取到进度数据:', progressData);
             
             // 如果有保存的最后题目索引，直接使用
             if (progressData.lastQuestionIndex !== undefined && 
                 progressData.lastQuestionIndex >= 0 && 
                 progressData.lastQuestionIndex < questions.length) {
-              console.log(`从上次进度开始: 第${progressData.lastQuestionIndex + 1}题`);
+              console.log(`[QuizPage] 从上次进度开始: 第${progressData.lastQuestionIndex + 1}题`);
               setCurrentQuestionIndex(progressData.lastQuestionIndex);
+              
+              // 重置选项状态，确保从干净状态开始
+              setSelectedOptions([]);
+              setShowExplanation(false);
+              
+              // 更新已回答问题列表，确保答题卡显示正确
+              if (progressData.answeredQuestions && Array.isArray(progressData.answeredQuestions)) {
+                const answeredQs = progressData.answeredQuestions.map((q: any) => ({
+                  index: q.questionIndex || q.index || 0,
+                  isCorrect: q.isCorrect || false,
+                  selectedOption: q.selectedOption || q.selectedOptionId || ''
+                }));
+                console.log('[QuizPage] 重建已答题列表:', answeredQs);
+                setAnsweredQuestions(answeredQs);
+              }
             } 
-            // 否则尝试根据完成题目数推算
-            else if (progressData.completedQuestions && progressData.completedQuestions > 0) {
-              // 根据已完成题目数计算下一题位置
-              const nextIndex = Math.min(progressData.completedQuestions, questions.length - 1);
-              console.log(`根据完成题数设置位置: 第${nextIndex + 1}题`);
+            // 否则尝试根据已回答题目数决定从哪里开始
+            else if (progressData.answeredQuestions && progressData.answeredQuestions.length > 0) {
+              // 找出最大的已答题索引
+              const lastAnsweredIndex = Math.max(
+                ...progressData.answeredQuestions.map((q: any) => q.questionIndex || q.index || 0)
+              );
+              // 从下一题开始
+              const nextIndex = Math.min(lastAnsweredIndex + 1, questions.length - 1);
+              console.log(`[QuizPage] 根据已答题记录设置位置: 第${nextIndex + 1}题`);
               setCurrentQuestionIndex(nextIndex);
+              
+              // 更新已回答问题列表
+              const answeredQs = progressData.answeredQuestions.map((q: any) => ({
+                index: q.questionIndex || q.index || 0,
+                isCorrect: q.isCorrect || false,
+                selectedOption: q.selectedOptionId || q.selectedOption || ''
+              }));
+              console.log('[QuizPage] 重建已答题列表:', answeredQs);
+              setAnsweredQuestions(answeredQs);
             }
           }
         } catch (error) {
-          console.error('加载上次进度失败:', error);
+          console.error('[QuizPage] 加载上次进度失败:', error);
         }
       };
       
