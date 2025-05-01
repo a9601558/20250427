@@ -440,6 +440,133 @@ const QuestionCard = ({
     checkLocalAccessRights(questionSetId) ||
     isPaid === false; // 免费题库
 
+  // 在QuestionCard组件中添加答题状态保存功能
+  useEffect(() => {
+    // 加载已保存的答题状态
+    const loadSavedState = () => {
+      try {
+        if (!questionSetId || !question.id) return;
+        
+        // 构建本地存储的键名
+        const storageKey = `quiz_state_${questionSetId}_${question.id}`;
+        const savedStateStr = localStorage.getItem(storageKey);
+        
+        if (savedStateStr) {
+          const savedState = JSON.parse(savedStateStr);
+          
+          // 恢复已选择的选项
+          if (question.questionType === 'single' && savedState.selectedOption) {
+            setSelectedOption(savedState.selectedOption);
+          } else if (question.questionType === 'multiple' && savedState.selectedOptions) {
+            setSelectedOptions(savedState.selectedOptions);
+          }
+          
+          // 恢复已提交状态
+          if (savedState.isSubmitted) {
+            setIsSubmitted(true);
+            
+            // 如果之前已经提交过答案，同时通知父组件
+            if (onAnswerSubmitted && !userAnsweredQuestion) {
+              const isCorrect = savedState.isCorrect;
+              const selectedOpt = question.questionType === 'single' 
+                ? savedState.selectedOption 
+                : savedState.selectedOptions;
+                
+              // 延迟触发以确保组件已完全加载
+              setTimeout(() => {
+                onAnswerSubmitted(isCorrect, selectedOpt);
+              }, 300);
+            }
+            
+            // 自动显示解析
+            if (savedState.showExplanation) {
+              setShowExplanation(true);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('加载已保存的答题状态失败:', error);
+      }
+    };
+    
+    // 初始加载
+    if (!userAnsweredQuestion) {
+      loadSavedState();
+    }
+    
+    // 监听页面可见性变化
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveCurrentState();
+      }
+    };
+    
+    // 监听beforeunload事件
+    const handleBeforeUnload = () => {
+      saveCurrentState();
+    };
+    
+    // 在组件卸载时保存状态
+    const saveOnUnmount = () => {
+      saveCurrentState();
+    };
+    
+    // 添加事件监听器
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // 清理函数
+    return () => {
+      saveOnUnmount();
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [question.id, questionSetId, question.questionType, userAnsweredQuestion, onAnswerSubmitted]);
+
+  // 保存当前答题状态到localStorage
+  const saveCurrentState = () => {
+    try {
+      if (!questionSetId || !question.id) return;
+      
+      // 构建本地存储的键名
+      const storageKey = `quiz_state_${questionSetId}_${question.id}`;
+      
+      // 如果已经提交过，计算是否正确
+      let isCorrectAnswer = false;
+      if (isSubmitted) {
+        if (question.questionType === 'single') {
+          const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+          isCorrectAnswer = selectedOption === correctOptionId;
+        } else {
+          const correctOptionIds = question.options
+            .filter(opt => opt.isCorrect)
+            .map(opt => opt.id);
+            
+          const lengthMatch = selectedOptions.length === correctOptionIds.length;
+          const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
+          const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+          
+          isCorrectAnswer = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
+        }
+      }
+      
+      // 保存状态
+      const stateToSave = {
+        questionId: question.id,
+        selectedOption: question.questionType === 'single' ? selectedOption : null,
+        selectedOptions: question.questionType === 'multiple' ? selectedOptions : [],
+        isSubmitted,
+        isCorrect: isCorrectAnswer,
+        showExplanation,
+        timestamp: new Date().toISOString()
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
+    } catch (error) {
+      console.error('保存答题状态失败:', error);
+    }
+  };
+
   return (
     <div className="bg-white shadow-md rounded-lg p-6 max-w-3xl mx-auto">
       {/* 顶部导航和标题 */}
@@ -470,7 +597,9 @@ const QuestionCard = ({
 
       {/* 问题标题和进度 */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">问题 {questionNumber || 1} / {totalQuestions || 1}</h2>
+        <h2 className="text-xl font-semibold text-gray-800">
+          问题 {questionNumber || 1} / {totalQuestions > 0 ? totalQuestions : 1}
+        </h2>
         <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm">
           {question.questionType === 'single' ? '单选题' : '多选题'}
         </span>

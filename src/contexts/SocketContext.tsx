@@ -1,172 +1,214 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Socket } from 'socket.io-client';
-import { initializeSocket, disconnectSocket } from '../config/socket';
-import { toast } from 'react-toastify';
-import { useUser } from './UserContext'; // 导入UserContext
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { useUser } from './UserContext';
 
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
-  connectionError: string | null;
   reconnect: () => void;
+  lastError: string | null;
 }
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
-  connectionError: null,
-  reconnect: () => {}
+  reconnect: () => {},
+  lastError: null
 });
 
-interface SocketProviderProps {
-  children: ReactNode;
-}
-
-export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const { user } = useUser(); // 获取当前用户状态
-
-  const setupSocketListeners = (socket: Socket) => {
-    socket.on('connect', () => {
-      console.log('Socket连接成功，ID:', socket.id);
-      setIsConnected(true);
-      setConnectionError(null);
-      setReconnectAttempts(0);
-      
-      // 可以在这里添加显示连接成功的提示
-      // toast.success('Socket连接已建立');
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.log(`Socket断开连接: ${reason}`);
-      setIsConnected(false);
-      
-      if (reason === 'io server disconnect') {
-        // 服务器主动断开连接，需要手动重连
-        toast.error('服务器断开了连接，请重新连接');
-      } else {
-        // 其他原因导致的断开连接，Socket.IO会自动尝试重连
-        toast.warning('连接已断开，正在尝试重新连接...');
-      }
-    });
-
-    socket.on('connect_error', (error) => {
-      console.error('Socket连接错误:', {
-        message: error.message,
-        type: error.name,
-        stack: error.stack
-      });
-      
-      setIsConnected(false);
-      setConnectionError(error.message);
-      setReconnectAttempts(prev => prev + 1);
-      
-      // 三次重连失败后显示错误提示
-      if (reconnectAttempts >= 2) {
-        const errorMsg = `Socket连接失败: ${error.message}`;
-        toast.error(errorMsg);
-        console.error(errorMsg, '，请检查网络或联系管理员');
-      }
-    });
-
-    socket.on('access_error', (error: { message: string }) => {
-      console.error('Socket权限错误:', error.message);
-      toast.error(`访问错误: ${error.message}`);
-    });
-
-    socket.on('reconnect_attempt', (attempt) => {
-      console.log(`Socket重连尝试 #${attempt}`);
-      // 可以在这里添加显示重连尝试的提示
-    });
-
-    socket.on('reconnect', (attempt) => {
-      console.log(`Socket重连成功，尝试次数: ${attempt}`);
-      setIsConnected(true);
-      setConnectionError(null);
-      toast.success('已重新连接到服务器');
-    });
-
-    socket.on('reconnect_failed', () => {
-      console.error('Socket重连失败');
-      setConnectionError('无法重新连接到服务器');
-      toast.error('重连失败，请刷新页面或检查网络连接');
-    });
-
-    // 使用Socket自定义事件
-    socket.on('error', (errorMessage: string) => {
-      console.error('Socket错误:', errorMessage);
-      toast.error(`Socket错误: ${errorMessage}`);
-    });
-  };
-
-  // 初始化Socket - 在用户登录状态变化时重新连接
-  useEffect(() => {
-    try {
-      // 如果当前有socket，先断开连接
-      if (socket) {
-        console.log('用户状态变化，关闭现有Socket连接');
-        disconnectSocket();
-        setSocket(null);
-      }
-      
-      console.log('用户状态已变化，初始化新的Socket连接');
-      // 用户登录后才连接socket
-      if (user?.id) {
-        console.log(`以用户 ${user.id} 身份连接Socket`);
-        const socketInstance = initializeSocket();
-        setSocket(socketInstance);
-        setupSocketListeners(socketInstance);
-      }
-      
-      // 组件卸载时关闭Socket连接
-      return () => {
-        console.log('关闭Socket连接');
-        disconnectSocket();
-        setSocket(null);
-      };
-    } catch (error: any) {
-      console.error('初始化Socket失败:', error);
-      const errorMessage = error?.message || '未知错误';
-      setConnectionError(errorMessage);
-      toast.error(`Socket初始化失败: ${errorMessage}`);
-    }
-  }, [user?.id]); // 依赖于user.id，确保用户变化时重新初始化
-
-  // 提供手动重连功能
-  const reconnect = () => {
-    try {
-      console.log('尝试手动重连Socket');
-      
-      // 先关闭现有连接
-      if (socket) {
-        disconnectSocket();
-        setSocket(null);
-      }
-      
-      // 然后重新建立连接
-      const newSocket = initializeSocket();
-      setSocket(newSocket);
-      setupSocketListeners(newSocket);
-      toast.info('正在尝试重新连接...');
-    } catch (error: any) {
-      console.error('手动重连失败:', error);
-      const errorMessage = error?.message || '未知错误';
-      setConnectionError(errorMessage);
-      toast.error(`重连失败: ${errorMessage}`);
-    }
-  };
-
-  return (
-    <SocketContext.Provider value={{ socket, isConnected, connectionError, reconnect }}>
-      {children}
-    </SocketContext.Provider>
-  );
-};
-
-// 创建自定义Hook来使用Socket上下文
 export const useSocket = () => useContext(SocketContext);
 
-export default SocketContext; 
+export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const { user } = useUser();
+  
+  // 使用useRef存储重连计数器和定时器引用，减少不必要的渲染
+  const reconnectCount = useRef(0);
+  const reconnectTimerId = useRef<NodeJS.Timeout | null>(null);
+  const reconnectDelay = useRef(1000); // 初始重连延迟1秒
+  const maxReconnectDelay = 30000; // 最大重连延迟30秒
+  const maxReconnectAttempts = 10; // 最大重连尝试次数
+  const requestsCount = useRef<{[key: string]: {count: number, lastTime: number}}>({});
+  
+  // 使用节流函数减少请求频率
+  const throttleRequest = (eventName: string, data: any, interval = 2000) => {
+    const now = Date.now();
+    const requestKey = `${eventName}-${JSON.stringify(data)}`;
+    
+    if (!requestsCount.current[requestKey]) {
+      requestsCount.current[requestKey] = { count: 0, lastTime: 0 };
+    }
+    
+    const reqInfo = requestsCount.current[requestKey];
+    
+    // 如果在间隔时间内已经发送过相同请求，则忽略
+    if (now - reqInfo.lastTime < interval) {
+      console.log(`[Socket] 节流: 忽略重复的 ${eventName} 请求`);
+      return false;
+    }
+    
+    // 更新请求时间和计数
+    reqInfo.lastTime = now;
+    reqInfo.count++;
+    
+    return true;
+  };
+  
+  // 初始化socket连接
+  const initSocket = () => {
+    if (socket) {
+      console.log('[Socket] 关闭旧连接');
+      socket.disconnect();
+    }
+    
+    console.log('[Socket] 初始化新连接');
+    
+    // 创建新的Socket实例
+    const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+    const newSocket = io(SOCKET_URL, {
+      transports: ['websocket'],
+      timeout: 10000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      autoConnect: true,
+      query: user ? { userId: user.id } : undefined
+    });
+    
+    // 添加断线重连和错误处理
+    newSocket.on('connect', () => {
+      console.log('[Socket] 已连接到服务器');
+      setIsConnected(true);
+      setLastError(null);
+      reconnectCount.current = 0;
+      reconnectDelay.current = 1000;
+      
+      // 如果用户已登录，发送认证信息
+      if (user) {
+        newSocket.emit('auth', { userId: user.id, token: localStorage.getItem('token') });
+      }
+    });
+    
+    // 优化断开连接处理
+    newSocket.on('disconnect', (reason) => {
+      console.log(`[Socket] 断开连接: ${reason}`);
+      
+      // 只在非主动断开的情况下更新状态，避免不必要的重连
+      if (reason !== 'io client disconnect') {
+        setIsConnected(false);
+        
+        // 实现指数退避重连
+        if (reconnectCount.current < maxReconnectAttempts) {
+          console.log(`[Socket] 将在 ${reconnectDelay.current/1000}秒后尝试重连...`);
+          
+          // 清除之前的重连定时器
+          if (reconnectTimerId.current) {
+            clearTimeout(reconnectTimerId.current);
+          }
+          
+          // 设置新的重连定时器
+          reconnectTimerId.current = setTimeout(() => {
+            reconnectCount.current++;
+            reconnectDelay.current = Math.min(reconnectDelay.current * 2, maxReconnectDelay);
+            console.log(`[Socket] 第 ${reconnectCount.current} 次尝试重连`);
+            newSocket.connect();
+          }, reconnectDelay.current);
+        } else {
+          setLastError('已达到最大重连次数，请刷新页面');
+        }
+      }
+    });
+    
+    // 处理连接错误，避免异常渲染
+    newSocket.on('connect_error', (error) => {
+      console.error('[Socket] 连接错误:', error);
+      setLastError(`连接错误: ${error.message}`);
+      
+      // 不立即触发重连，而是让断开连接事件处理器来处理重连
+      // 这可以防止多个重连计时器
+    });
+    
+    // 截获所有事件，优化请求频率
+    const originalEmit = newSocket.emit;
+    newSocket.emit = function(eventName: string, ...args: any[]) {
+      // 不限制内部事件
+      if (eventName.startsWith('connect') || eventName === 'auth') {
+        return originalEmit.apply(this, [eventName, ...args]);
+      }
+      
+      // 对外部事件进行节流
+      if (throttleRequest(eventName, args[0])) {
+        return originalEmit.apply(this, [eventName, ...args]);
+      }
+      
+      // 返回空对象以保持API兼容性
+      return {} as any;
+    };
+    
+    // 保存socket实例
+    setSocket(newSocket);
+    
+    return newSocket;
+  };
+  
+  // 监听用户认证状态变化，更新Socket连接
+  useEffect(() => {
+    // 用户登录或登出时重新初始化Socket
+    const newSocket = initSocket();
+    
+    // 组件卸载时清理
+    return () => {
+      console.log('[Socket] 组件卸载，断开连接');
+      if (reconnectTimerId.current) {
+        clearTimeout(reconnectTimerId.current);
+      }
+      newSocket.disconnect();
+    };
+  }, [user?.id]); // 仅在用户ID变化时重新连接
+  
+  // 手动重连函数
+  const reconnect = () => {
+    console.log('[Socket] 手动触发重连');
+    reconnectCount.current = 0;
+    reconnectDelay.current = 1000;
+    initSocket();
+  };
+  
+  // 定期清理请求计数，防止内存泄漏
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      Object.keys(requestsCount.current).forEach(key => {
+        if (now - requestsCount.current[key].lastTime > 600000) { // 10分钟未使用则清理
+          delete requestsCount.current[key];
+        }
+      });
+    }, 300000); // 每5分钟清理一次
+    
+    return () => clearInterval(cleanupInterval);
+  }, []);
+  
+  return (
+    <SocketContext.Provider value={{ socket, isConnected, reconnect, lastError }}>
+      {children}
+      {lastError && !isConnected && reconnectCount.current >= maxReconnectAttempts && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-md">
+          <div className="flex items-center">
+            <div>
+              <p className="font-bold">连接失败</p>
+              <p className="text-sm">{lastError}</p>
+            </div>
+            <button 
+              onClick={reconnect}
+              className="ml-4 bg-red-200 hover:bg-red-300 text-red-800 py-1 px-2 rounded text-sm"
+            >
+              重试连接
+            </button>
+          </div>
+        </div>
+      )}
+    </SocketContext.Provider>
+  );
+}; 

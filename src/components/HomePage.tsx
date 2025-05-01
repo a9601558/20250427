@@ -38,6 +38,7 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   accessType: AccessType;
   remainingDays: number | null;
   validityPeriod: number;
+  featuredCategory?: string; // 添加精选分类字段
 }
 
 // 使用本地接口替代
@@ -234,11 +235,20 @@ const HomePage: React.FC = () => {
     
     // 再根据分类过滤
     if (activeCategory !== 'all') {
+      // 直接按选中的分类筛选
       filteredSets = filteredSets.filter(set => set.category === activeCategory);
     } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+      // 在全部模式，且有精选分类时，只显示精选分类或标记为精选的题库
       filteredSets = filteredSets.filter(set => 
-        homeContent.featuredCategories.includes(set.category) || set.isFeatured
+        // 属于精选分类
+        homeContent.featuredCategories.includes(set.category) || 
+        // 或者本身被标记为精选
+        set.isFeatured === true || 
+        // 或者精选分类与题库精选分类匹配
+        (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory))
       );
+      
+      console.log(`[HomePage] 精选分类过滤: 共${filteredSets.length}个符合条件的题库`);
     }
     
     return filteredSets;
@@ -257,143 +267,50 @@ const HomePage: React.FC = () => {
         setErrorMessage(null);
 
         // 并行请求首页数据，减少请求阻塞
-        const [questionsetsData, settingsData, categoriesData, purchasesData] = await Promise.allSettled([
-          // 获取题库列表 - 统一使用10分钟缓存
-          apiClient.get('/api/question-sets', undefined, { 
-            cacheDuration: 600000, // 10分钟缓存
-            retries: 3 
-          }),
-          
-          // 获取首页设置 - 缓存10分钟
+        const [settingsData, categoriesData] = await Promise.all([
+          // 获取首页设置 - 增加重试机制，无缓存确保实时数据
           apiClient.get('/api/homepage/content', undefined, { 
-            cacheDuration: 600000,
+            cacheDuration: 0,
             retries: 2
           }),
           
-          // 获取精选分类 - 缓存10分钟
+          // 获取精选分类 - 增加重试机制，无缓存确保实时数据
           apiClient.get('/api/homepage/featured-categories', undefined, { 
-            cacheDuration: 600000
-          }),
-          
-          // 获取用户的购买记录 - 只有用户登录后才请求
-          user?.id ? apiClient.get('/api/purchases/active') : Promise.resolve(null)
+            cacheDuration: 0,
+            retries: 2
+          })
         ]);
 
-        // 处理题库列表数据
-        if (questionsetsData.status === 'fulfilled' && questionsetsData.value?.success) {
-          await processQuestionSets(questionsetsData.value.data);
-        } else {
-          console.error('[HomePage] 获取题库列表失败:', 
-            questionsetsData.status === 'rejected' ? questionsetsData.reason : questionsetsData.value?.message
-          );
-        }
-
         // 处理首页设置数据
-        if (settingsData.status === 'fulfilled' && settingsData.value?.success) {
-          const contentData = settingsData.value.data;
+        if (settingsData.success && settingsData.data) {
+          const contentData = settingsData.data;
+          console.log('[HomePage] 成功获取首页设置:', contentData);
           setHomeContent(contentData);
+          
+          // 更新active category
+          if (activeCategory === 'all' && contentData.featuredCategories?.length > 0) {
+            setActiveCategory('all'); // 保持全部选中，但更新分类列表
+          }
         } else {
           console.error('[HomePage] 获取首页设置失败:', 
-            settingsData.status === 'rejected' ? settingsData.reason : settingsData.value?.message
+            settingsData.message || '未知错误'
           );
         }
 
         // 处理分类数据
-        if (categoriesData.status === 'fulfilled' && categoriesData.value?.success) {
+        if (categoriesData.success && categoriesData.data) {
+          console.log('[HomePage] 成功获取精选分类:', categoriesData.data);
+          // 确保更新所有地方
           setHomeContent(prev => ({
             ...prev,
-            featuredCategories: categoriesData.value.data
+            featuredCategories: categoriesData.data
           }));
         } else {
           console.error('[HomePage] 获取精选分类失败:', 
-            categoriesData.status === 'rejected' ? categoriesData.reason : categoriesData.value?.message
+            categoriesData.message || '未知错误'
           );
         }
 
-        // 处理购买记录数据
-        if (purchasesData.status === 'fulfilled' && purchasesData.value?.success && user?.id) {
-          console.log(`[HomePage] 获取到 ${purchasesData.value.data.length} 条有效的购买记录:`, 
-            JSON.stringify(purchasesData.value.data)
-          );
-          
-          if (purchasesData.value.data && purchasesData.value.data.length > 0) {
-            // 更新题库的访问权限状态
-            setQuestionSets(prevSets => {
-              const newSets = [...prevSets];
-              
-              purchasesData.value.data.forEach((purchase: PurchaseData) => {
-                const setIndex = newSets.findIndex(set => set.id === purchase.questionSetId);
-                if (setIndex !== -1) {
-                  console.log(`[HomePage] 更新题库 "${newSets[setIndex].title}" 的访问权限，ID: ${purchase.questionSetId}`);
-                  newSets[setIndex] = {
-                    ...newSets[setIndex],
-                    hasAccess: true,
-                    remainingDays: purchase.remainingDays,
-                    accessType: 'paid'
-                  };
-                  
-                  // 保存到本地缓存
-                  saveAccessToLocalStorage(purchase.questionSetId, true, purchase.remainingDays);
-                } else {
-                  console.error(`[HomePage] 未找到对应题库，ID: ${purchase.questionSetId}`);
-                  
-                  // 列出所有题库ID以便调试
-                  console.log(`[HomePage] 所有题库ID:`, newSets.map(set => set.id));
-                }
-              });
-              
-              return newSets;
-            });
-          } else {
-            console.warn(`[HomePage] 获取到空的购买记录数组，尝试从user对象中读取purchase数据`);
-            
-            // 尝试从用户对象中获取purchase数据
-            if (user && user.purchases && Array.isArray(user.purchases) && user.purchases.length > 0) {
-              console.log(`[HomePage] 从user对象获取到 ${user.purchases.length} 条购买记录`);
-              
-              setQuestionSets(prevSets => {
-                const newSets = [...prevSets];
-                
-                (user?.purchases || []).forEach(purchase => {
-                  if (!purchase.questionSetId) {
-                    console.error(`[HomePage] 购买记录缺少questionSetId:`, purchase);
-                    return;
-                  }
-                  
-                  const setIndex = newSets.findIndex(set => set.id === purchase.questionSetId);
-                  if (setIndex !== -1) {
-                    console.log(`[HomePage] 从user对象更新题库 "${newSets[setIndex].title}" 的访问权限`);
-                    
-                    // 计算剩余天数
-                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-                    const remainingDays = expiryDate && !isNaN(expiryDate.getTime()) 
-                      ? Math.max(1, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                      : 30;
-                    
-                    newSets[setIndex] = {
-                      ...newSets[setIndex],
-                      hasAccess: true,
-                      remainingDays,
-                      accessType: 'paid'
-                    };
-                    
-                    // 保存到本地缓存
-                    saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
-                  }
-                });
-                
-                return newSets;
-              });
-            }
-          }
-        } else if (purchasesData.status === 'fulfilled' && user?.id) {
-          console.error('[HomePage] 获取购买记录返回错误:', 
-            purchasesData.value?.message || '未知错误', 
-            purchasesData.value?.error || ''
-          );
-        } else if (purchasesData.status === 'rejected' && user?.id) {
-          console.error('[HomePage] 获取购买记录失败:', purchasesData.reason);
-        }
       } catch (error) {
         console.error('[HomePage] 获取数据失败:', error);
         setErrorMessage('获取数据失败，请稍后重试');
@@ -404,8 +321,11 @@ const HomePage: React.FC = () => {
 
     // 请求数据
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+    
+    // 设置定期刷新 - 每10分钟刷新一次首页设置和分类
+    const interval = setInterval(fetchData, 600000);
+    return () => clearInterval(interval);
+  }, [activeCategory]);
 
   // 异步处理题库列表数据 - 经过封装的函数
   const processQuestionSets = async (data: BaseQuestionSet[]) => {
