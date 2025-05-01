@@ -1172,195 +1172,203 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      {/* 如果有横幅图片，则显示 */}
-      {homeContent.bannerImage && (
-        <div className="w-full h-40 md:h-60 bg-cover bg-center mb-6" style={{ backgroundImage: `url(${homeContent.bannerImage})` }}>
-          <div className="bg-black bg-opacity-40 w-full h-full flex items-center justify-center">
-            <h1 className="text-4xl font-bold text-white">{homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}</h1>
-          </div>
-        </div>
-      )}
-      
-      <div className="relative py-3 sm:max-w-4xl sm:mx-auto">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-10">
-            {!homeContent.bannerImage && (
-              <h1 className={`text-3xl font-bold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} md:text-4xl`}>
-                {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
-              </h1>
-            )}
-            <p className={`mt-3 text-base ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5`}>
+      {/* 现代化顶部英雄区域 - 替代原来的横幅 */}
+      <div className="relative bg-gradient-to-br from-blue-600 to-indigo-800 pb-10 mb-10 overflow-hidden">
+        {/* 装饰性圆形 */}
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-500 rounded-full opacity-10"></div>
+        <div className="absolute top-1/2 left-10 w-32 h-32 bg-blue-400 rounded-full opacity-20"></div>
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-indigo-400 rounded-full opacity-10"></div>
+        
+        <div className="container mx-auto px-4 pt-16 pb-20 relative z-10">
+          <div className="max-w-5xl mx-auto text-center">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+              {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
+            </h1>
+            <p className="text-xl text-blue-100 mb-10 max-w-3xl mx-auto">
               {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
             </p>
             
-            {/* 公告信息 */}
-            {homeContent.announcements && (
-              <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-gray-700' : 'bg-yellow-50'} border ${homeContent.theme === 'dark' ? 'border-gray-600' : 'border-yellow-100'} rounded-lg p-4 mx-auto max-w-2xl`}>
-                <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                  📢 {homeContent.announcements}
-                </p>
-              </div>
-            )}
-            
-            {/* 考试倒计时组件 */}
-            <div className="mt-6 mx-auto max-w-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>考试倒计时</h2>
-                <span className="text-sm text-gray-500">与个人中心同步</span>
-              </div>
-              <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
-            </div>
-
-            {/* 搜索栏 */}
-            <div className="mt-6 mx-auto max-w-2xl">
-              <div className="relative flex">
+            {/* 搜索栏 - 移至英雄区域中央 */}
+            <div className="relative w-full max-w-2xl mx-auto">
+              <div className="relative flex bg-white rounded-full shadow-lg overflow-hidden p-1">
                 <input
                   type="text"
                   placeholder="搜索题库名称或分类..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`w-full px-4 py-2.5 pl-10 pr-4 rounded-lg border ${
-                    homeContent.theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  className="w-full px-6 py-3 rounded-full border-none focus:outline-none focus:ring-0 text-gray-700"
                 />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className={`h-5 w-5 ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                   </svg>
                 </div>
+                
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
-                    className={`absolute inset-y-0 right-0 pr-3 flex items-center ${
-                      homeContent.theme === 'dark' ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
-                    }`}
+                    className="absolute inset-y-0 right-16 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                   >
                     <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
                   </button>
                 )}
+                
                 <button
-                  onClick={() => setSearchTerm('')}
-                  className={`ml-2 px-4 py-2 rounded-lg ${
-                    homeContent.theme === 'dark' 
-                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  } transition-colors`}
+                  onClick={() => handleStartQuiz(questionSets[0] || recommendedSets[0])}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-full transition-colors duration-300 flex items-center"
                 >
-                  清空
-                </button>
-              </div>
-            </div>
-
-            {/* 推荐题库栏 */}
-            {recommendedSets.length > 0 && (
-              <div className="mt-8 mx-auto">
-                <div className="flex items-center mb-4">
-                  <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>推荐题库</h2>
-                  <span className={`ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full`}>精选</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {recommendedSets.map(set => (
-                    <BaseCard 
-                      key={set.id} 
-                      set={{...set, accessType: set.accessType}} 
-                      onStartQuiz={handleStartQuiz} 
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {!user && (
-              <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
-                <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2`}>随时开始，无需登录</h3>
-                <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-blue-200' : 'text-blue-600'} mb-4`}>
-                  您可以直接开始答题，但登录后可以保存答题进度、查看错题记录，以及收藏喜欢的题库。
-                </p>
-                <button 
-                  onClick={() => {
-                    // 触发登录弹窗而不是跳转到登录页面
-                    const loginEvent = new CustomEvent('auth:showLogin', { 
-                      detail: { 
-                        redirect: false,
-                        returnUrl: window.location.pathname
-                      } 
-                    });
-                    window.dispatchEvent(loginEvent);
-                  }}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  登录账号
+                  开始学习
                 </button>
               </div>
-            )}
-            
-            {/* 管理员入口 */}
-            {user && isAdmin() && (
-              <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-r from-purple-50 to-pink-50'} border ${homeContent.theme === 'dark' ? 'border-purple-800' : 'border-purple-100'} rounded-lg p-4 mx-auto max-w-2xl shadow-sm`}>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className={`text-md font-medium ${homeContent.theme === 'dark' ? 'text-purple-300' : 'text-purple-800'}`}>管理员控制面板</h3>
-                    <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-purple-200' : 'text-purple-600'}`}>
-                      您可以管理用户、题库和网站内容
-                    </p>
-                  </div>
-                  <Link 
-                    to="/admin"
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                  >
-                    <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    进入管理后台
-                  </Link>
-                </div>
-              </div>
-            )}
-            
-            {/* 分类选择器 */}
-            <div className="mb-8 flex flex-wrap justify-center gap-2">
-              <button 
-                onClick={() => handleCategoryChange('all')}
-                className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  activeCategory === 'all' 
-                    ? `bg-blue-600 text-white` 
-                    : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                }`}
-              >
-                全部题库
-              </button>
-              {homeContent.featuredCategories.map(category => (
-                <button 
-                  key={category}
-                  onClick={() => handleCategoryChange(category)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
-                    activeCategory === category 
-                      ? `bg-blue-600 text-white` 
-                      : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
             </div>
+          </div>
+        </div>
+        
+        {/* 波浪形分隔线 */}
+        <div className="absolute bottom-0 left-0 right-0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" className="w-full">
+            <path fill="#fff" fillOpacity="1" d="M0,288L48,272C96,256,192,224,288,213.3C384,203,480,213,576,229.3C672,245,768,267,864,261.3C960,256,1056,224,1152,208C1248,192,1344,192,1392,192L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+          </svg>
+        </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
+        {/* 公告信息 - 改为更现代的卡片式设计 */}
+        {homeContent.announcements && (
+          <div className="relative bg-white rounded-2xl p-6 shadow-xl mb-10 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300">
+            <div className="absolute -left-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
+              <svg className="h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              </svg>
+            </div>
+            <p className="text-gray-700">
+              <span className="font-bold text-blue-600 mr-2">📢 公告:</span>
+              {homeContent.announcements}
+            </p>
+          </div>
+        )}
 
-            {/* 题库列表 */}
+        {/* 考试倒计时组件 */}
+        <div className="mt-6 mx-auto max-w-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>考试倒计时</h2>
+            <span className="text-sm text-gray-500">与个人中心同步</span>
+          </div>
+          <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
+        </div>
+
+        {/* 推荐题库栏 */}
+        {recommendedSets.length > 0 && (
+          <div className="mt-8 mx-auto">
+            <div className="flex items-center mb-4">
+              <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>推荐题库</h2>
+              <span className={`ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full`}>精选</span>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {getFilteredQuestionSets().map(set => (
-                <BaseCard
-                  key={set.id}
-                  set={set}
-                  onStartQuiz={handleStartQuiz}
+              {recommendedSets.map(set => (
+                <BaseCard 
+                  key={set.id} 
+                  set={{...set, accessType: set.accessType}} 
+                  onStartQuiz={handleStartQuiz} 
                 />
               ))}
             </div>
           </div>
+        )}
+        
+        {!user && (
+          <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
+            <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2`}>随时开始，无需登录</h3>
+            <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-blue-200' : 'text-blue-600'} mb-4`}>
+              您可以直接开始答题，但登录后可以保存答题进度、查看错题记录，以及收藏喜欢的题库。
+            </p>
+            <button 
+              onClick={() => {
+                // 触发登录弹窗而不是跳转到登录页面
+                const loginEvent = new CustomEvent('auth:showLogin', { 
+                  detail: { 
+                    redirect: false,
+                    returnUrl: window.location.pathname
+                  } 
+                });
+                window.dispatchEvent(loginEvent);
+              }}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              登录账号
+            </button>
+          </div>
+        )}
+        
+        {/* 管理员入口 */}
+        {user && isAdmin() && (
+          <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-r from-purple-50 to-pink-50'} border ${homeContent.theme === 'dark' ? 'border-purple-800' : 'border-purple-100'} rounded-lg p-4 mx-auto max-w-2xl shadow-sm`}>
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className={`text-md font-medium ${homeContent.theme === 'dark' ? 'text-purple-300' : 'text-purple-800'}`}>管理员控制面板</h3>
+                <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-purple-200' : 'text-purple-600'}`}>
+                  您可以管理用户、题库和网站内容
+                </p>
+              </div>
+              <Link 
+                to="/admin"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+              >
+                <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                进入管理后台
+              </Link>
+            </div>
+          </div>
+        )}
+        
+        {/* 分类选择器 */}
+        <div className="mb-8 flex flex-wrap justify-center gap-2">
+          <button 
+            onClick={() => handleCategoryChange('all')}
+            className={`px-4 py-2 rounded-full text-sm font-medium ${
+              activeCategory === 'all' 
+                ? `bg-blue-600 text-white` 
+                : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+            }`}
+          >
+            全部题库
+          </button>
+          {homeContent.featuredCategories.map(category => (
+            <button 
+              key={category}
+              onClick={() => handleCategoryChange(category)}
+              className={`px-4 py-2 rounded-full text-sm font-medium ${
+                activeCategory === category 
+                  ? `bg-blue-600 text-white` 
+                  : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+              }`}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+
+        {/* 题库列表 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {getFilteredQuestionSets().map(set => (
+            <BaseCard
+              key={set.id}
+              set={set}
+              onStartQuiz={handleStartQuiz}
+            />
+          ))}
         </div>
       </div>
     </div>

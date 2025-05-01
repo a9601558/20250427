@@ -218,11 +218,176 @@ function QuizPage(): JSX.Element {
     };
   }, [socket, questionSet]);
 
-  // 检查访问权限
+  // 添加一个更全面的权限检查函数，确保跨设备兑换状态一致
+  const checkFullAccessFromAllSources = useCallback(() => {
+    if (!questionSet) return false;
+    
+    console.log(`[QuizPage] 全面检查题库 ${questionSet.id} 的访问权限来源`);
+    
+    // 1. 检查localStorage中的访问权限记录
+    let hasAccess = false;
+    try {
+      // 检查一般访问权限
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (accessRightsStr) {
+        const accessRights = JSON.parse(accessRightsStr);
+        const localAccess = !!accessRights[questionSet.id];
+        hasAccess = hasAccess || localAccess;
+        console.log(`[QuizPage] localStorage访问权限检查: ${localAccess}`);
+      }
+      
+      // 检查兑换记录 - 使用更宽松的ID匹配
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedStr) {
+        try {
+          const redeemedIds = JSON.parse(redeemedStr);
+          const targetId = String(questionSet.id).trim();
+          
+          // 确保是数组
+          if (Array.isArray(redeemedIds)) {
+            // 使用更宽松的匹配逻辑，避免因ID格式不同而无法匹配
+            const isRedeemed = redeemedIds.some(id => {
+              const redeemedId = String(id).trim();
+              // 精确匹配
+              const exactMatch = redeemedId === targetId;
+              // 包含匹配 - 处理有可能带前缀后缀的ID
+              const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
+                && Math.abs(redeemedId.length - targetId.length) <= 3
+                && redeemedId.length > 5 && targetId.length > 5;
+                
+              return exactMatch || partialMatch;
+            });
+            
+            hasAccess = hasAccess || isRedeemed;
+            console.log(`[QuizPage] localStorage兑换记录检查: ${isRedeemed}, 匹配ID: ${targetId}`);
+          }
+        } catch (e) {
+          console.error('[QuizPage] 解析localStorage兑换记录失败', e);
+        }
+      }
+    } catch (e) {
+      console.error('[QuizPage] 检查localStorage权限失败', e);
+    }
+    
+    // 2. 检查用户购买记录
+    if (user && user.purchases && Array.isArray(user.purchases)) {
+      const purchase = user.purchases.find(p => {
+        const purchaseId = String(p.questionSetId || '').trim();
+        const targetId = String(questionSet.id || '').trim();
+        
+        // 使用更宽松的匹配逻辑
+        const exactMatch = purchaseId === targetId;
+        const partialMatch = (purchaseId.includes(targetId) || targetId.includes(purchaseId)) 
+          && Math.abs(purchaseId.length - targetId.length) <= 3
+          && purchaseId.length > 5 && targetId.length > 5;
+        
+        return exactMatch || partialMatch;
+      });
+      
+      if (purchase) {
+        const now = new Date();
+        const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+        const isExpired = expiryDate && expiryDate <= now;
+        const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status; // 允许缺失状态
+        
+        const purchaseHasAccess = !isExpired && isActive;
+        hasAccess = hasAccess || purchaseHasAccess;
+        console.log(`[QuizPage] 用户购买记录检查: ${purchaseHasAccess}`);
+      }
+    }
+    
+    // 3. 检查questionSet自身的hasAccess属性
+    if (questionSet.hasAccess) {
+      hasAccess = true;
+      console.log(`[QuizPage] 题库hasAccess属性: true`);
+    }
+    
+    // 4. 检查当前组件状态
+    const componentStateAccess = hasAccessToFullQuiz || hasRedeemed;
+    hasAccess = hasAccess || componentStateAccess;
+    console.log(`[QuizPage] 组件状态检查: hasAccessToFullQuiz=${hasAccessToFullQuiz}, hasRedeemed=${hasRedeemed}`);
+    
+    // 5. 检查免费题库
+    const isFreeAccess = !questionSet.isPaid;
+    hasAccess = hasAccess || isFreeAccess;
+    console.log(`[QuizPage] 免费题库检查: ${isFreeAccess}`);
+    
+    console.log(`[QuizPage] 全面权限检查最终结果: ${hasAccess}`);
+    return hasAccess;
+  }, [questionSet, user, hasAccessToFullQuiz, hasRedeemed]);
+
+  // 在现有的useEffect中增强跨设备权限同步
+  useEffect(() => {
+    // 仅当用户已登录且题库信息加载后执行
+    if (!user?.id || !questionSet) return;
+    
+    console.log('[QuizPage] 用户登录后主动进行跨设备权限同步检查');
+    
+    // 首先检查所有可能的访问权限来源
+    const hasFullAccess = checkFullAccessFromAllSources();
+    
+    // 如果发现有访问权限，立即更新状态并保存到localStorage
+    if (hasFullAccess) {
+      console.log('[QuizPage] 检测到访问权限，更新状态');
+      setHasAccessToFullQuiz(true);
+      setTrialEnded(false);
+      saveAccessToLocalStorage(questionSet.id, true);
+      
+      // 通知服务器更新权限状态
+      if (socket) {
+        console.log('[QuizPage] 向服务器发送权限更新');
+        socket.emit('questionSet:accessUpdate', {
+          userId: user.id,
+          questionSetId: String(questionSet.id).trim(),
+          hasAccess: true,
+          source: 'crossDeviceSync'
+        });
+      }
+    }
+    // 只检查一次，避免重复
+  }, [user?.id, questionSet?.id, checkFullAccessFromAllSources, saveAccessToLocalStorage, socket]);
+
+  // 修改trialEnded的判定逻辑，避免错误提示购买
+  useEffect(() => {
+    if (!questionSet) return;
+    
+    console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}`);
+    
+    // 首先全面检查是否有权限访问
+    const hasFullAccess = checkFullAccessFromAllSources();
+    
+    // 如果有访问权限，确保不会显示试用结束
+    if (hasFullAccess) {
+      console.log(`[QuizPage] 用户有完整访问权限，设置trialEnded=false`);
+      setHasAccessToFullQuiz(true);
+      setTrialEnded(false);
+      return;
+    }
+    
+    // 只有在无权限且达到试用题目数量限制时才设置试用结束
+    if (!hasFullAccess && questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
+      console.log(`[QuizPage] 试用题目已达上限 (${answeredQuestions.length}/${questionSet.trialQuestions})，设置trialEnded=true`);
+      setTrialEnded(true);
+    } else {
+      setTrialEnded(false);
+    }
+  }, [answeredQuestions.length, questionSet, checkFullAccessFromAllSources]);
+
+  // 在权限检查函数中增强对兑换状态的识别
   const checkAccess = async () => {
     if (!questionSet) return;
     
     console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 已兑换状态: ${hasRedeemed}`);
+    
+    // 首先全面检查所有可能的访问权限来源
+    const hasFullAccess = checkFullAccessFromAllSources();
+    if (hasFullAccess) {
+      console.log(`[checkAccess] 全面检查发现用户有访问权限`);
+      setHasAccessToFullQuiz(true);
+      saveAccessToLocalStorage(questionSet.id, true);
+      setTrialEnded(false);
+      return;
+    }
     
     // 如果用户已经兑换过码，直接授权访问并跳过所有其他检查
     if (hasRedeemed) {
@@ -964,199 +1129,92 @@ function QuizPage(): JSX.Element {
     }
   }, [questionSet?.id, user?.id, questions.length, loading]);
 
-  // 修复在移动设备上登录后访问权限问题
+  // 修改判断显示购买提示的条件，确保有完整权限验证
+  // 使用现有的函数做权限判断
+  const shouldShowPurchasePrompt = () => {
+    // 如果没有加载完成或者出错，不显示提示
+    if (!questionSet || error || loading) return false;
+    
+    // 首先检查所有可能的访问权限来源
+    const hasFullAccess = checkFullAccessFromAllSources();
+    
+    // 只有在以下情况才显示购买提示：
+    // 1. 确实是付费题库
+    // 2. 用户没有任何访问权限
+    // 3. 已经超过试用题目数量
+    return (
+      questionSet.isPaid && 
+      !hasFullAccess && 
+      questionSet.trialQuestions !== undefined && 
+      questionSet.trialQuestions !== null &&
+      answeredQuestions.length >= questionSet.trialQuestions
+    );
+  };
+  
+  // 修复跨设备同步问题 - 确保页面加载完成后立即执行全面权限检查
   useEffect(() => {
-    // 检查题库访问权限的函数
-    const checkFullAccessToQuestionSet = () => {
-      if (!questionSet) return;
+    if (!questionSet || !user?.id) return;
+    
+    console.log(`[QuizPage] 页面加载完成，立即进行全面权限检查`);
+    
+    // 使用延时确保DOM和状态已完全加载
+    const timer = setTimeout(() => {
+      // 执行全面权限检查
+      const hasAccess = checkFullAccessFromAllSources();
+      console.log(`[QuizPage] 初始化权限检查结果: ${hasAccess}`);
       
-      console.log(`[QuizPage] 检查题库 ${questionSet.id} 的完整访问权限...`);
-      
-      // 1. 先检查localStorage中是否有访问权限记录
-      let hasLocalAccess = false;
-      try {
-        const accessRightsStr = localStorage.getItem('quizAccessRights');
-        if (accessRightsStr) {
-          const accessRights = JSON.parse(accessRightsStr);
-          hasLocalAccess = !!accessRights[questionSet.id];
-          console.log(`[QuizPage] localStorage中的访问记录: ${hasLocalAccess}`);
-        }
-      } catch (e) {
-        console.error('[QuizPage] 检查本地权限失败', e);
-      }
-      
-      // 2. 检查用户购买记录
-      let hasPurchaseAccess = false;
-      if (user && user.purchases && Array.isArray(user.purchases)) {
-        const purchase = user.purchases.find(p => {
-          const purchaseId = String(p.questionSetId || '').trim();
-          const targetId = String(questionSet.id || '').trim();
-          
-          // 使用更宽松的匹配逻辑，避免ID格式差异导致的问题
-          const isExactMatch = purchaseId === targetId;
-          
-          // 有时ID可能包含额外的前缀或后缀，尝试部分匹配
-          const containsId = purchaseId.includes(targetId) || targetId.includes(purchaseId);
-          const similarLength = Math.abs(purchaseId.length - targetId.length) <= 2;
-          const isPartialMatch = containsId && similarLength && purchaseId.length > 10 && targetId.length > 10;
-          
-          const isMatch = isExactMatch || isPartialMatch;
-          console.log(`[QuizPage] 比较购买记录: ${purchaseId} vs ${targetId}, 匹配: ${isMatch}`);
-          return isMatch;
-        });
-        
-        // 判断购买记录是否有效
-        if (purchase) {
-          const now = new Date();
-          const expiryDate = new Date(purchase.expiryDate);
-          const isExpired = expiryDate <= now;
-          const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
-          
-          hasPurchaseAccess = !isExpired && isActive;
-          console.log(`[QuizPage] 找到购买记录: 状态=${purchase.status}, 过期时间=${purchase.expiryDate}, 是否过期=${isExpired}, 是否有权限=${hasPurchaseAccess}`);
-          
-          // 如果有权限，立即保存到localStorage
-          if (hasPurchaseAccess) {
-            saveAccessToLocalStorage(questionSet.id, true);
-          }
-        }
-        console.log(`[QuizPage] 用户购买记录检查结果: ${hasPurchaseAccess}`);
-      }
-      
-      // 3. 检查兑换记录
-      let hasRedeemAccess = false;
-      try {
-        const redeemedIdsStr = localStorage.getItem('redeemedQuestionSetIds');
-        if (redeemedIdsStr) {
-          const redeemedIds = JSON.parse(redeemedIdsStr);
-          const targetId = String(questionSet.id).trim();
-          
-          if (Array.isArray(redeemedIds)) {
-            // 使用更宽松的匹配逻辑检查兑换记录
-            hasRedeemAccess = redeemedIds.some(id => {
-              const redeemedId = String(id || '').trim();
-              // 精确匹配
-              const exactMatch = redeemedId === targetId;
-              // 部分匹配
-              const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
-                && Math.abs(redeemedId.length - targetId.length) <= 2
-                && redeemedId.length > 10 && targetId.length > 10;
-                
-              return exactMatch || partialMatch;
-            });
-          }
-          console.log(`[QuizPage] 本地兑换记录检查结果: ${hasRedeemAccess}`);
-        }
-      } catch (e) {
-        console.error('[QuizPage] 检查兑换记录失败', e);
-      }
-      
-      // 4. 检查题库自带的hasAccess属性
-      const hasDirectAccess = questionSet.hasAccess === true;
-      console.log(`[QuizPage] 题库自带hasAccess属性: ${hasDirectAccess}`);
-      
-      // 5. 检查hasAccessToQuestionSet函数
-      let hasFunctionAccess = false;
-      if (hasAccessToQuestionSet) {
-        hasFunctionAccess = hasAccessToQuestionSet(questionSet.id);
-        console.log(`[QuizPage] hasAccessToQuestionSet函数检查结果: ${hasFunctionAccess}`);
-      }
-      
-      // 6. 如果是免费题库，直接有权限
-      const isFreeQuestionSet = !questionSet.isPaid;
-      console.log(`[QuizPage] 是否为免费题库: ${isFreeQuestionSet}`);
-      
-      // 最终确定访问权限
-      const finalHasAccess = hasLocalAccess || hasPurchaseAccess || hasRedeemAccess || 
-                            hasDirectAccess || hasFunctionAccess || isFreeQuestionSet || hasRedeemed;
-      
-      console.log(`[QuizPage] 最终访问权限决定: ${finalHasAccess}`);
-      setHasAccessToFullQuiz(finalHasAccess);
-      
-      // 如果有访问权限，确保试用结束状态重置
-      if (finalHasAccess) {
+      // 如果发现有访问权限，立即更新状态和界面
+      if (hasAccess) {
+        setHasAccessToFullQuiz(true);
         setTrialEnded(false);
         
-        // 保存到localStorage以便下次使用
-        saveAccessToLocalStorage(questionSet.id, true);
-        
-        // 通知服务器更新权限
-        if (socket && user) {
+        // 通知服务器更新权限状态（跨设备同步）
+        if (socket) {
+          console.log(`[QuizPage] 向服务器同步权限状态`);
           socket.emit('questionSet:accessUpdate', {
             userId: user.id,
             questionSetId: String(questionSet.id).trim(),
             hasAccess: true,
-            source: 'crossDeviceSync'
+            source: 'pageInit'
           });
         }
       }
-    };
+    }, 500); // 给予足够时间让其他useEffect完成
     
-    // 执行检查
-    checkFullAccessToQuestionSet();
-    
-    // 当用户状态或题库信息变化时重新检查
-  }, [questionSet, user, hasAccessToQuestionSet, socket, hasRedeemed, saveAccessToLocalStorage]);
-
-  // 添加用户登录处理 - 确保在新设备登录时立即获取权限
+    return () => clearTimeout(timer);
+  }, [questionSet?.id, user?.id, checkFullAccessFromAllSources]);
+  
+  // 监听用户切换设备和登录事件
   useEffect(() => {
-    if (user && questionSet?.id) {
-      console.log(`[QuizPage] 用户已登录(${user.id})，检查题库(${questionSet.id})访问权限`);
-      
-      // 强制同步服务器数据 - 解决不同设备登录时的权限问题
-      const syncUserData = async () => {
-        if (socket) {
-          console.log('[QuizPage] 通过Socket请求最新用户购买信息和权限数据');
-          
-          // 检查访问权限
-          socket.emit('questionSet:checkAccess', {
-            userId: user.id,
-            questionSetId: String(questionSet.id).trim(),
-            forceRefresh: true
-          });
-          
-          // 请求同步所有购买数据
-          socket.emit('user:syncPurchases', {
-            userId: user.id,
-            deviceId: navigator.userAgent // 帮助服务器识别不同设备
-          });
-        }
-        
-        // 如果此时用户已有购买记录，但页面仍显示需要购买
-        // 可能是权限检查逻辑出了问题，做一次额外的检查
-        if (!hasAccessToFullQuiz && user.purchases && user.purchases.length > 0) {
-          console.log('[QuizPage] 用户有购买记录但无访问权限，进行额外检查');
-          setTimeout(() => {
-            checkAccess();
-          }, 500);
-        }
-      };
-      
-      syncUserData();
-    }
-  }, [user?.id, questionSet?.id]);
-
-  // 监听Socket购买同步事件
-  useEffect(() => {
-    if (!socket || !user) return;
+    if (!socket || !user?.id) return;
     
-    // 处理购买记录同步
-    const handlePurchaseSync = (data: any) => {
-      console.log('[QuizPage] 收到购买记录同步数据:', data);
-      if (data.success && questionSet) {
-        console.log('[QuizPage] 同步后重新检查访问权限');
+    // 用户切换设备事件处理
+    const handleDeviceSync = (data: any) => {
+      console.log(`[QuizPage] 收到设备同步事件`, data);
+      
+      // 如果收到同步事件，强制重新检查权限
+      if (questionSet) {
         checkAccess();
       }
     };
     
-    // 监听购买记录同步响应
-    socket.on('user:purchasesSynced', handlePurchaseSync);
+    // 监听设备同步事件
+    socket.on('user:deviceSync', handleDeviceSync);
+    
+    // 发送设备同步请求
+    socket.emit('user:requestDeviceSync', {
+      userId: user.id,
+      deviceInfo: {
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      }
+    });
     
     return () => {
-      socket.off('user:purchasesSynced', handlePurchaseSync);
+      socket.off('user:deviceSync', handleDeviceSync);
     };
-  }, [socket, user, questionSet]);
-
+  }, [socket, user?.id, questionSet]);
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -1164,7 +1222,7 @@ function QuizPage(): JSX.Element {
       </div>
     );
   }
-  
+   
   if (error || !questionSet || questions.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -1183,23 +1241,8 @@ function QuizPage(): JSX.Element {
   
   const currentQuestion = questions[currentQuestionIndex];
   
-  // 如果达到试用上限并且没有购买，显示购买提示
-  // 直接检查localStorage中的兑换记录，确保即使状态未正确同步也能正常显示
-  let isRedeemedFromStorage = false;
-  if (questionSet) {
-    try {
-      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
-      if (redeemedQuestionSetIds) {
-        const redeemedIds = JSON.parse(redeemedQuestionSetIds);
-        isRedeemedFromStorage = Array.isArray(redeemedIds) && 
-          redeemedIds.some(id => String(id).trim() === String(questionSet.id).trim());
-      }
-    } catch (e) {
-      console.error('[QuizPage] 检查localStorage兑换状态失败', e);
-    }
-  }
-  
-  if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed && !isRedeemedFromStorage) {
+  // 在这里检查是否应该显示购买提示
+  if (shouldShowPurchasePrompt()) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow p-6">

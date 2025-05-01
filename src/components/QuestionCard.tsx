@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
 import RedeemCodeForm from './RedeemCodeForm';
+import { toast } from 'react-toastify';
 
 interface QuestionCardProps {
   question: Question;
@@ -319,7 +320,9 @@ const QuestionCard = ({
   
   // 判断题号是否可点击
   const isQuestionAccessible = (index: number) => {
-    if (!isPaid || hasFullAccess) return true;
+    // 使用hasCompleteAccess变量来判断是否有权限
+    if (hasCompleteAccess) return true;
+    // 否则检查是否在试用题目数量范围内
     return index < trialQuestions;
   };
   
@@ -327,6 +330,10 @@ const QuestionCard = ({
   const handleJumpToQuestion = (index: number) => {
     if (!isQuestionAccessible(index)) {
       // 如果是付费题目且未购买，显示提示
+      // 检查是否需要购买或兑换
+      if (isPaid && !hasCompleteAccess) {
+        toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
+      }
       return;
     }
     
@@ -381,6 +388,57 @@ const QuestionCard = ({
       );
     });
   };
+
+  // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
+  const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
+    try {
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (!redeemedStr) return false;
+      
+      const redeemedIds = JSON.parse(redeemedStr);
+      if (!Array.isArray(redeemedIds)) return false;
+      
+      // 标准化ID
+      const targetId = String(questionSetId).trim();
+      
+      // 使用更宽松的匹配逻辑检查兑换记录
+      return redeemedIds.some(id => {
+        const redeemedId = String(id || '').trim();
+        // 精确匹配
+        const exactMatch = redeemedId === targetId;
+        // 部分匹配 - 处理ID可能带前缀或后缀的情况
+        const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
+          && Math.abs(redeemedId.length - targetId.length) <= 3
+          && redeemedId.length > 5 && targetId.length > 5;
+          
+        return exactMatch || partialMatch;
+      });
+    } catch (e) {
+      console.error('检查兑换状态失败', e);
+      return false;
+    }
+  };
+  
+  // 检查access权限
+  const checkLocalAccessRights = (questionSetId: string): boolean => {
+    try {
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (!accessRightsStr) return false;
+      
+      const accessRights = JSON.parse(accessRightsStr);
+      return !!accessRights[questionSetId];
+    } catch (e) {
+      console.error('检查访问权限失败', e);
+      return false;
+    }
+  };
+  
+  // 合并所有访问权限检查
+  const hasCompleteAccess = 
+    hasFullAccess || 
+    checkLocalRedeemedStatus(questionSetId) || 
+    checkLocalAccessRights(questionSetId) ||
+    isPaid === false; // 免费题库
 
   return (
     <div className="bg-white shadow-md rounded-lg p-6 max-w-3xl mx-auto">
