@@ -1,7 +1,47 @@
-import { Model, DataTypes, Optional } from 'sequelize';
+import { Model, DataTypes, Optional, Sequelize } from 'sequelize';
 import sequelize from '../config/database';
 import bcrypt from 'bcrypt';
 import { IUser, IPurchase, IRedeemCode, IProgressSummary } from '../types';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+
+// 确保有一个有效的 Sequelize 实例
+let sequelizeInstance = sequelize;
+
+// 如果导入的 sequelize 为 null 或 undefined，则创建一个本地实例
+if (!sequelizeInstance) {
+  console.log('警告: 从 config/database 导入的 Sequelize 实例为空，创建本地实例');
+  
+  // 加载环境变量
+  const envPath = path.join(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    console.log(`加载环境变量文件: ${envPath}`);
+    dotenv.config({ path: envPath });
+  }
+
+  // 创建新的 Sequelize 实例
+  sequelizeInstance = new Sequelize(
+    process.env.DB_NAME || 'quiz_app',
+    process.env.DB_USER || 'root',
+    process.env.DB_PASSWORD || '',
+    {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      dialect: 'mysql',
+      logging: console.log,
+      pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      dialectOptions: {
+        connectTimeout: 10000
+      }
+    }
+  );
+}
 
 export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns'>;
 
@@ -134,7 +174,7 @@ User.init(
     },
   },
   {
-    sequelize,
+    sequelize: sequelizeInstance,
     modelName: 'User',
     tableName: 'users',
     timestamps: true,
