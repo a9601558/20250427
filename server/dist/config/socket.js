@@ -6,6 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.initializeSocket = exports.io = void 0;
 const socket_io_1 = require("socket.io");
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const dotenv_1 = __importDefault(require("dotenv"));
+// 加载环境变量
+dotenv_1.default.config();
 // 初始化 Socket.IO
 const initializeSocket = (server) => {
     exports.io = new socket_io_1.Server(server, {
@@ -14,10 +18,24 @@ const initializeSocket = (server) => {
             methods: ['GET', 'POST']
         }
     });
-    // 添加中间件记录连接
+    // 添加认证中间件
     exports.io.use((socket, next) => {
-        console.log('New client connecting...');
-        next();
+        const token = socket.handshake.auth.token;
+        if (!token) {
+            console.log('Socket连接没有提供token');
+            return next(new Error('未提供认证令牌'));
+        }
+        try {
+            const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+            const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
+            socket.userId = decoded.id; // 将用户ID绑定到socket实例
+            console.log(`Socket认证成功: 用户ID ${socket.userId}`);
+            next();
+        }
+        catch (error) {
+            console.error('Socket认证失败:', error);
+            next(new Error('认证失败'));
+        }
     });
     // 监听数据包
     exports.io.engine.on('packet', (packet) => {
@@ -25,33 +43,57 @@ const initializeSocket = (server) => {
     });
     // 处理连接
     exports.io.on('connection', (socket) => {
-        console.log('Client connected');
-        // 监听传输升级
-        socket.conn.on('upgrade', (transport) => {
-            console.log('Transport upgraded to:', transport.name);
-        });
-        // 处理用户认证
-        socket.on('authenticate', async (data) => {
+        console.log(`用户 ${socket.userId} 已连接`);
+        // 将socket加入以用户ID命名的房间
+        if (socket.userId) {
+            socket.join(socket.userId);
+            console.log(`用户 ${socket.userId} 加入个人房间`);
+        }
+        // 处理题库访问权限检查
+        socket.on('questionSet:checkAccess', (data) => {
             try {
-                const { userId } = data;
-                if (!userId) {
-                    socket.emit('auth_error', { message: '缺少用户ID' });
+                // 安全检查：确保只能查询自己的权限
+                if (data.userId !== socket.userId) {
+                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
+                    socket.emit('access_error', { message: '权限验证失败' });
                     return;
                 }
-                // 将socket加入用户房间
-                socket.join(userId);
-                console.log(`用户 ${userId} 已认证并加入房间`);
-                socket.emit('auth_success', { message: '认证成功' });
+                // 继续处理题库访问权限检查...
+                console.log(`检查用户 ${data.userId} 对题库 ${data.questionSetId} 的访问权限`);
+                // 这里放原有的访问权限检查逻辑
             }
             catch (error) {
-                console.error('认证错误:', error);
-                socket.emit('auth_error', { message: '认证失败' });
+                console.error('检查访问权限出错:', error);
+                socket.emit('access_error', { message: '检查访问权限失败' });
+            }
+        });
+        // 批量检查题库访问权限
+        socket.on('questionSet:checkAccessBatch', (data) => {
+            try {
+                // 安全检查：确保只能查询自己的权限
+                if (data.userId !== socket.userId) {
+                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
+                    socket.emit('access_error', { message: '权限验证失败' });
+                    return;
+                }
+                console.log(`批量检查用户 ${data.userId} 对 ${data.questionSetIds.length} 个题库的访问权限`);
+                // 这里放原有的批量访问权限检查逻辑
+            }
+            catch (error) {
+                console.error('批量检查访问权限出错:', error);
+                socket.emit('access_error', { message: '批量检查访问权限失败' });
             }
         });
         // 处理进度更新
         socket.on('progress:update', async (data) => {
             try {
-                const { userId, questionSetId, questionId, isCorrect, timeSpent } = data;
+                // 安全检查：确保只能更新自己的进度
+                if (data.userId !== socket.userId) {
+                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
+                    socket.emit('progress_error', { message: '权限验证失败' });
+                    return;
+                }
+                const { userId, questionSetId, questionId, isCorrect, timeSpent, lastQuestionIndex } = data;
                 // 验证参数
                 if (!userId || !questionSetId || !questionId) {
                     socket.emit('progress_error', { message: '缺少必要参数' });
@@ -68,7 +110,8 @@ const initializeSocket = (server) => {
                     completedQuestions: 1,
                     totalQuestions: 1,
                     correctAnswers: isCorrect ? 1 : 0,
-                    lastAccessed: new Date()
+                    lastAccessed: new Date(),
+                    lastQuestionIndex: lastQuestionIndex // 保存最后题目索引
                 });
                 console.log(`用户进度已${created ? '创建' : '更新'}: ${userId}, ${questionSetId}`);
                 // 转换为纯对象
@@ -91,7 +134,7 @@ const initializeSocket = (server) => {
         });
         // 处理断开连接
         socket.on('disconnect', (reason) => {
-            console.log('Client disconnected, reason:', reason);
+            console.log(`用户 ${socket.userId} 断开连接, 原因: ${reason}`);
         });
     });
 };

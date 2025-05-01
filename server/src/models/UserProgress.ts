@@ -16,6 +16,7 @@ export interface UserProgressAttributes {
   completedQuestions?: number;
   totalQuestions?: number;
   correctAnswers?: number;
+  lastQuestionIndex?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -35,6 +36,7 @@ class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAtt
   public completedQuestions?: number;
   public totalQuestions?: number;
   public correctAnswers?: number;
+  public lastQuestionIndex?: number;
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -93,6 +95,10 @@ UserProgress.init(
       allowNull: true,
     },
     correctAnswers: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    lastQuestionIndex: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },

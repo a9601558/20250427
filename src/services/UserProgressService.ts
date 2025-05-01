@@ -7,6 +7,7 @@ interface SaveProgressParams {
   selectedOption: string | string[];
   isCorrect: boolean;
   timeSpent: number;
+  lastQuestionIndex?: number;
 }
 
 interface ProgressStats {

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { Socket } from 'socket.io-client';
 import { initializeSocket, disconnectSocket } from '../config/socket';
 import { toast } from 'react-toastify';
+import { useUser } from './UserContext'; // 导入UserContext
 
 interface SocketContextType {
   socket: Socket | null;
@@ -26,6 +27,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const { user } = useUser(); // 获取当前用户状态
 
   const setupSocketListeners = (socket: Socket) => {
     socket.on('connect', () => {
@@ -70,6 +72,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       }
     });
 
+    socket.on('access_error', (error: { message: string }) => {
+      console.error('Socket权限错误:', error.message);
+      toast.error(`访问错误: ${error.message}`);
+    });
+
     socket.on('reconnect_attempt', (attempt) => {
       console.log(`Socket重连尝试 #${attempt}`);
       // 可以在这里添加显示重连尝试的提示
@@ -95,13 +102,24 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     });
   };
 
-  // 初始化Socket
+  // 初始化Socket - 在用户登录状态变化时重新连接
   useEffect(() => {
     try {
-      console.log('初始化Socket连接');
-      const socketInstance = initializeSocket();
-      setSocket(socketInstance);
-      setupSocketListeners(socketInstance);
+      // 如果当前有socket，先断开连接
+      if (socket) {
+        console.log('用户状态变化，关闭现有Socket连接');
+        disconnectSocket();
+        setSocket(null);
+      }
+      
+      console.log('用户状态已变化，初始化新的Socket连接');
+      // 用户登录后才连接socket
+      if (user?.id) {
+        console.log(`以用户 ${user.id} 身份连接Socket`);
+        const socketInstance = initializeSocket();
+        setSocket(socketInstance);
+        setupSocketListeners(socketInstance);
+      }
       
       // 组件卸载时关闭Socket连接
       return () => {
@@ -115,7 +133,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       setConnectionError(errorMessage);
       toast.error(`Socket初始化失败: ${errorMessage}`);
     }
-  }, []);
+  }, [user?.id]); // 依赖于user.id，确保用户变化时重新初始化
 
   // 提供手动重连功能
   const reconnect = () => {

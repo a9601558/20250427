@@ -31,6 +31,9 @@ const initializeSocket = (): Socket => {
   if (!socket) {
     console.log('初始化Socket.IO连接，使用当前域名');
     
+    // 获取用户令牌
+    const token = localStorage.getItem('token');
+    
     // 配置Socket.IO客户端
     socket = io(SOCKET_URL, {
       path: '/socket.io/', // 确保路径以斜杠结尾
@@ -44,6 +47,9 @@ const initializeSocket = (): Socket => {
       withCredentials: false, // 通常为false，除非需要跨域携带cookies
       upgrade: true, // 允许传输升级
       rejectUnauthorized: false, // 允许自签名证书
+      auth: {
+        token: token // 添加JWT令牌到auth属性
+      },
       extraHeaders: {
         "Connection": "keep-alive", // 保持连接活跃
         "X-Client-Version": "1.0" // 添加客户端版本标识

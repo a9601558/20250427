@@ -30,10 +30,11 @@ require("./models/UserProgress");
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const questionSetRoutes_1 = __importDefault(require("./routes/questionSetRoutes"));
 const questionRoutes_1 = __importDefault(require("./routes/questionRoutes"));
+const userProgressRoutes_1 = __importDefault(require("./routes/userProgressRoutes"));
 const purchaseRoutes_1 = __importDefault(require("./routes/purchaseRoutes"));
 const redeemCodeRoutes_1 = __importDefault(require("./routes/redeemCodeRoutes"));
 const homepageRoutes_1 = __importDefault(require("./routes/homepageRoutes"));
-const userProgressRoutes_1 = __importDefault(require("./routes/userProgressRoutes"));
+const wrongAnswerRoutes_1 = __importDefault(require("./routes/wrongAnswerRoutes"));
 // Initialize express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -54,10 +55,11 @@ app.use(limiter);
 app.use('/api/users', userRoutes_1.default);
 app.use('/api/question-sets', questionSetRoutes_1.default);
 app.use('/api/questions', questionRoutes_1.default);
+app.use('/api/user-progress', userProgressRoutes_1.default);
 app.use('/api/purchases', purchaseRoutes_1.default);
 app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
 app.use('/api/homepage', homepageRoutes_1.default);
-app.use('/api/user-progress', userProgressRoutes_1.default);
+app.use('/api/wrong-answers', wrongAnswerRoutes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

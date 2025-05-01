@@ -17,6 +17,7 @@ class UserProgress extends sequelize_1.Model {
     completedQuestions;
     totalQuestions;
     correctAnswers;
+    lastQuestionIndex;
     // 时间戳
     createdAt;
     updatedAt;
@@ -71,6 +72,10 @@ UserProgress.init({
         allowNull: true,
     },
     correctAnswers: {
+        type: sequelize_1.DataTypes.INTEGER,
+        allowNull: true,
+    },
+    lastQuestionIndex: {
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: true,
     },
