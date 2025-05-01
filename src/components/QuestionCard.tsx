@@ -278,6 +278,41 @@ const QuestionCard = ({
       </div>
       
       {/* 题号小圆点导航 */}
+      {/* (移除此部分) */}
+
+      {/* 添加到选项下方的题号导航 */}
+      {/* 选项 */}
+      <div className="mb-6">
+        {question.options.map((option, index) => (
+          <div 
+            key={option.id}
+            id={`option-${index}`}
+            tabIndex={0}
+            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
+            className={`focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-md`}
+          >
+            <QuestionOption
+              option={option}
+              index={index}
+              isSelected={
+                question.questionType === 'single' 
+                  ? selectedOption === option.id 
+                  : selectedOptions.includes(option.id)
+              }
+              isCorrect={
+                isSubmitted
+                  ? option.isCorrect ? option.id : null
+                  : null
+              }
+              isSubmitted={isSubmitted}
+              isMultiple={question.questionType === 'multiple'}
+              onClick={() => handleOptionClick(option.id)}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* 题号小圆点导航，移动到这里 */}
       {onJumpToQuestion && (
         <div className="flex justify-center mb-6 flex-wrap gap-1">
           {Array.from({ length: totalQuestions }).map((_, index) => {
@@ -317,37 +352,6 @@ const QuestionCard = ({
       {/* 问题内容 */}
       <div className="mb-6">
         <p className="text-gray-700 text-lg mb-4">{question.question}</p>
-      </div>
-
-      {/* 选项 */}
-      <div className="mb-6">
-        {question.options.map((option, index) => (
-          <div 
-            key={option.id}
-            id={`option-${index}`}
-            tabIndex={0}
-            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
-            className={`focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-md`}
-          >
-            <QuestionOption
-              option={option}
-              index={index}
-              isSelected={
-                question.questionType === 'single' 
-                  ? selectedOption === option.id 
-                  : selectedOptions.includes(option.id)
-              }
-              isCorrect={
-                isSubmitted
-                  ? option.isCorrect ? option.id : null
-                  : null
-              }
-              isSubmitted={isSubmitted}
-              isMultiple={question.questionType === 'multiple'}
-              onClick={() => handleOptionClick(option.id)}
-            />
-          </div>
-        ))}
       </div>
 
       {/* 解析 */}

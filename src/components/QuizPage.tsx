@@ -96,6 +96,8 @@ function QuizPage(): JSX.Element {
   const [hasRedeemed, setHasRedeemed] = useState(false); // Track if user has redeemed a code
   const timeoutId = useRef<NodeJS.Timeout>();
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
+  const [isRandomMode, setIsRandomMode] = useState(false);
+  const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
   
   // 保存访问权限到localStorage - 以题库ID为key
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
@@ -414,6 +416,8 @@ function QuizPage(): JSX.Element {
               };
             });
             
+            // 保存原始题目顺序
+            setOriginalQuestions(processedQuestions);
             setQuestions(processedQuestions);
           } else {
             console.error("题库中没有题目");
@@ -431,7 +435,7 @@ function QuizPage(): JSX.Element {
     };
     
     fetchQuestionSet();
-  }, [questionSetId]);
+  }, [questionSetId, getQuestions]);
   
   // 监听题库更新
   useEffect(() => {
@@ -637,14 +641,14 @@ function QuizPage(): JSX.Element {
   
   // 处理答案提交
   const handleAnswerSubmit = async (isCorrect: boolean, selectedOpt: string | string[]): Promise<void> => {
-    if (!currentQuestion || !user || !socket || !questionSet) return;
+    if (!questions[currentQuestionIndex] || !user || !socket || !questionSet) return;
 
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
 
     try {
       // 保存进度到后端
       const saveResponse = await userProgressService.saveProgress({
-        questionId: String(currentQuestion.id),
+        questionId: String(questions[currentQuestionIndex].id),
         questionSetId: questionSet.id,
         selectedOption: selectedOpt, // 使用从QuestionCard传入的选项
         isCorrect,
@@ -670,7 +674,7 @@ function QuizPage(): JSX.Element {
       const progressEvent = { 
         userId: user.id,
         questionSetId: questionSet.id,
-        questionId: String(currentQuestion.id),
+        questionId: String(questions[currentQuestionIndex].id),
         isCorrect,
         timeSpent,
         completedQuestions: (user.progress?.[questionSet.id]?.completedQuestions || 0) + (isCorrect ? 1 : 0),
@@ -835,6 +839,31 @@ function QuizPage(): JSX.Element {
       }
     }
   }, [questionSet?.id, loading, getAccessFromLocalStorage, socket, user]);
+  
+  // 随机题目顺序的函数
+  const shuffleQuestions = () => {
+    if (originalQuestions.length === 0) return;
+    
+    // 使用Fisher-Yates算法打乱题目顺序
+    const shuffled = [...originalQuestions];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    setQuestions(shuffled);
+    setCurrentQuestionIndex(0);
+    setSelectedOptions([]);
+    setIsRandomMode(true);
+  };
+
+  // 恢复原始题目顺序
+  const restoreOriginalOrder = () => {
+    setQuestions([...originalQuestions]);
+    setCurrentQuestionIndex(0);
+    setSelectedOptions([]);
+    setIsRandomMode(false);
+  };
   
   if (loading) {
     return (
@@ -1133,32 +1162,57 @@ function QuizPage(): JSX.Element {
           </div>
         ) : null}
         
-        {/* 答题卡组件 */}
-        <AnswerCard
-          totalQuestions={questions.length}
-          answeredQuestions={answeredQuestions}
-          currentIndex={currentQuestionIndex}
-          onJump={(index) => {
-            // 如果试用已结束且没有购买，不允许跳转
-            if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
-              console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
-              return;
-            }
+        {/* 只有免费题库或已购买题库才显示答题卡和随机模式切换 */}
+        {(!questionSet.isPaid || hasAccessToFullQuiz || hasRedeemed) && (
+          <div className="flex flex-col space-y-4">
+            {/* 随机模式切换 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="mr-2 text-sm font-medium text-gray-700">随机答题模式:</span>
+                <button
+                  onClick={isRandomMode ? restoreOriginalOrder : shuffleQuestions}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    isRandomMode 
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  } transition-colors`}
+                >
+                  {isRandomMode ? '恢复顺序' : '打乱题目'}
+                </button>
+              </div>
+              {isRandomMode && (
+                <span className="text-xs text-orange-600">随机模式下，题目顺序已被打乱</span>
+              )}
+            </div>
             
-            // 确保没有未提交的答案
-            const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
-            if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
-              if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
-                setCurrentQuestionIndex(index);
-                setSelectedOptions([]);
-              }
-            } else {
-              console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
-              setCurrentQuestionIndex(index);
-              setSelectedOptions([]);
-            }
-          }}
-        />
+            {/* 答题卡组件 */}
+            <AnswerCard
+              totalQuestions={questions.length}
+              answeredQuestions={answeredQuestions}
+              currentIndex={currentQuestionIndex}
+              onJump={(index) => {
+                // 如果试用已结束且没有购买，不允许跳转
+                if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
+                  console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
+                  return;
+                }
+                
+                // 确保没有未提交的答案
+                const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
+                if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
+                  if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
+                    setCurrentQuestionIndex(index);
+                    setSelectedOptions([]);
+                  }
+                } else {
+                  console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
+                  setCurrentQuestionIndex(index);
+                  setSelectedOptions([]);
+                }
+              }}
+            />
+          </div>
+        )}
         
         {/* 进度条 */}
         <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
@@ -1176,7 +1230,7 @@ function QuizPage(): JSX.Element {
       
       {/* 当前题目 */}
       <QuestionCard
-        question={currentQuestion}
+        question={questions[currentQuestionIndex]}
         onNext={goToNextQuestion}
         onAnswerSubmitted={(isCorrect, selectedOpt) => {
           handleAnswerSubmit(isCorrect, selectedOpt);
