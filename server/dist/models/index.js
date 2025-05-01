@@ -23,8 +23,6 @@ const HomepageSettings_1 = __importDefault(require("./HomepageSettings"));
 exports.HomepageSettings = HomepageSettings_1.default;
 const UserProgress_1 = __importDefault(require("./UserProgress"));
 exports.UserProgress = UserProgress_1.default;
-const associations_1 = require("./associations");
-// 初始化模型关联
-console.log('正在初始化模型关联...');
-(0, associations_1.setupAssociations)();
-console.log('模型关联初始化完成');
+// 不要在这里初始化模型关联，避免重复
+// 关联初始化已经在 index.ts 中进行
+console.log('模型已导入，关联将在应用启动时初始化');

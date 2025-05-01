@@ -12,10 +12,9 @@ import HomepageSettings from './HomepageSettings';
 import UserProgress from './UserProgress';
 import { setupAssociations } from './associations';
 
-// 初始化模型关联
-console.log('正在初始化模型关联...');
-setupAssociations();
-console.log('模型关联初始化完成');
+// 不要在这里初始化模型关联，避免重复
+// 关联初始化已经在 index.ts 中进行
+console.log('模型已导入，关联将在应用启动时初始化');
 
 // Export models
 export {
