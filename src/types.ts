@@ -93,7 +93,7 @@ export interface RedeemCode {
   createdAt: string;
   usedBy?: string;
   usedAt?: string;
-  quizId?: string; // 兼容旧代码
+  // 已移除 quizId 字段，统一使用 questionSetId
   expiryDate?: string;
 }
 

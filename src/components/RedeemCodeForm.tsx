@@ -7,12 +7,12 @@ import { QuestionSet } from '../types';
 interface RedeemCodeResult {
   success: boolean;
   message: string;
-  quizId?: string;
+  questionSetId?: string;
   quizTitle?: string;
 }
 
 interface RedeemCodeFormProps {
-  onRedeemSuccess?: (quizId: string) => void;
+  onRedeemSuccess?: (questionSetId: string) => void;
 }
 
 const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
@@ -65,9 +65,9 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
         setMessage(result.message || '兑换成功！');
         
         // 查找已兑换的题库信息
-        if (result.quizId) {
-          console.log('[RedeemCodeForm] 找到题库ID:', result.quizId);
-          const set = questionSets.find(s => s.id === result.quizId);
+        if (result.questionSetId) {
+          console.log('[RedeemCodeForm] 找到题库ID:', result.questionSetId);
+          const set = questionSets.find(s => s.id === result.questionSetId);
           
           if (set) {
             setRedeemedSet({
@@ -81,7 +81,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               
               // 确保事件细节完整
               const eventDetail = { 
-                quizId: result.quizId,
+                questionSetId: result.questionSetId,
                 forceRefresh: true,
                 timestamp: Date.now()
               };
@@ -104,14 +104,14 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               console.log('[RedeemCodeForm] 调用成功回调');
               // 调用成功回调函数
               if (onRedeemSuccess) {
-                onRedeemSuccess(result.quizId!);
+                onRedeemSuccess(result.questionSetId!);
               }
             }, 800);
           } else {
             // 如果本地找不到题库信息，使用 API 返回的信息
             console.log('[RedeemCodeForm] 本地未找到题库，使用API返回的信息');
             setRedeemedSet({
-              id: result.quizId,
+              id: result.questionSetId,
               title: result.quizTitle || '已兑换的题库',
               icon: '📚'
             });
@@ -121,7 +121,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               console.log('[RedeemCodeForm] 发送全局兑换成功事件');
               window.dispatchEvent(new CustomEvent('redeem:success', { 
                 detail: { 
-                  quizId: result.quizId,
+                  questionSetId: result.questionSetId,
                   forceRefresh: true, 
                   timestamp: Date.now()
                 } 
@@ -132,7 +132,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
             setTimeout(() => {
               console.log('[RedeemCodeForm] 调用成功回调');
               if (onRedeemSuccess) {
-                onRedeemSuccess(result.quizId!);
+                onRedeemSuccess(result.questionSetId!);
               }
             }, 500);
           }

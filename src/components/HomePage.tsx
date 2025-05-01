@@ -34,6 +34,19 @@ const defaultHomeContent: HomeContentData = {
   theme: 'light'
 };
 
+// Add this helper function after the defaultHomeContent definition
+const calculateQuestionCount = (set: QuestionSet): number => {
+  if (typeof set.questionCount === 'number' && set.questionCount > 0) {
+    return set.questionCount;
+  }
+  if (Array.isArray(set.questions) && set.questions.length > 0) {
+    return set.questions.length;
+  }
+  if (typeof set.trialQuestions === 'number' && set.trialQuestions > 0) {
+    return set.trialQuestions;
+  }
+  return 0; // 如果都没有，返回0
+};
 
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
@@ -44,22 +57,11 @@ const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [welcomeData, setWelcomeData] = useState({
-    title: '在线题库练习系统',
-    description: '选择以下任一题库开始练习，测试您的知识水平'
-  });
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
-  const [showUserInfo, setShowUserInfo] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedQuestionSet, setSelectedQuestionSet] = useState<QuestionSet | null>(null);
   const navigate = useNavigate();
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
-
-  // 减少进度更新回调函数的依赖
-  const handleProgressUpdate = useCallback(async (data: { userId: string }) => {
-    // 不再需要在首页处理进度更新
-    console.log('Progress update received, but ignored in HomePage');
-  }, []); // 移除所有依赖
 
   // 在获取题库列表后检查访问权限 - 只在首次加载和用户变化时执行
   useEffect(() => {
@@ -117,10 +119,6 @@ const HomePage: React.FC = () => {
         // 处理首页设置数据
         if (settingsData.status === 'fulfilled' && settingsData.value?.success) {
           const contentData = settingsData.value.data;
-          setWelcomeData({
-            title: contentData.welcomeTitle || defaultHomeContent.welcomeTitle,
-            description: contentData.welcomeDescription || defaultHomeContent.welcomeDescription
-          });
           setHomeContent(contentData);
         }
 
@@ -160,14 +158,8 @@ const HomePage: React.FC = () => {
     // 避免重复状态更新导致频繁渲染
     const updatedData = data.map(set => ({
       ...set,
-      // 更严谨地判断题目数量来源
-      questionCount: typeof set.questionCount === 'number' && set.questionCount > 0
-        ? set.questionCount
-        : Array.isArray(set.questions) && set.questions.length > 0
-          ? set.questions.length
-          : typeof set.trialQuestions === 'number' && set.trialQuestions > 0
-            ? set.trialQuestions
-            : 20, // 默认值
+      // 使用统一的题目数量计算逻辑
+      questionCount: calculateQuestionCount(set),
       // 设置默认图片
       icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
     }));
@@ -326,23 +318,26 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const handleRedeemSuccess = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const { quizId, remainingDays = 180 } = customEvent.detail || {};
       
-      console.log('[HomePage] 接收到兑换码成功事件:', { quizId, remainingDays });
+      // 优先使用 questionSetId，兼容旧版本的 quizId
+      const questionSetId = customEvent.detail?.questionSetId || customEvent.detail?.quizId;
+      const remainingDays = customEvent.detail?.remainingDays ?? 180; // 默认180天
       
-      if (quizId) {
+      console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
+      
+      if (questionSetId) {
         setQuestionSets(prevSets => {
           return prevSets.map(set => {
-            if (set.id === quizId) {
+            if (set.id === questionSetId) {
               console.log('[HomePage] 更新题库访问状态:', set.title);
               
               // Save to localStorage cache
-              saveAccessToLocalStorage(quizId, true, remainingDays);
+              saveAccessToLocalStorage(questionSetId, true, remainingDays);
               
               // Add to recently updated sets for animation
               setRecentlyUpdatedSets(prev => ({
                 ...prev,
-                [quizId]: Date.now()
+                [questionSetId]: Date.now() 
               }));
               
               return {
@@ -383,24 +378,101 @@ const HomePage: React.FC = () => {
     }
   };
 
-  // 修改获取要显示的题库的函数
-  const getFilteredQuestionSets = (): QuestionSet[] => {
+  // Optimize getFilteredQuestionSets to filter by category
+  const getFilteredQuestionSets = useCallback((): QuestionSet[] => {
     if (!questionSets || questionSets.length === 0) {
       return [];
     }
     
-    // 如果有精选分类，优先显示精选分类的题库
-    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-      return questionSets.filter(set => 
-        homeContent.featuredCategories.includes(set.category) || set.isFeatured
-      );
+    // If "all" is selected, show featured or all question sets
+    if (activeCategory === 'all') {
+      if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+        return questionSets.filter(set => 
+          homeContent.featuredCategories.includes(set.category) || set.isFeatured
+        );
+      }
+      return questionSets;
     }
     
-    // 否则显示所有题库
-    return questionSets;
+    // Filter by selected category
+    return questionSets.filter(set => set.category === activeCategory);
+  }, [questionSets, activeCategory, homeContent.featuredCategories]);
+
+  // Optimize handleCategoryChange to avoid API calls
+  const handleCategoryChange = (category: string) => {
+    setActiveCategory(category);
+    // No API call - we'll filter the data client-side
   };
 
-  // 优化获取题库访问状态的函数
+  // 修改显示进度的部分
+  const renderProgressBar = (questionSet: QuestionSet) => {
+    const stats = progressStats[questionSet.id];
+    if (!stats) return null;
+
+    const progress = stats.totalQuestions > 0 
+      ? (stats.completedQuestions / stats.totalQuestions) * 100 
+      : 0;
+    const accuracy = stats.completedQuestions > 0 
+      ? (stats.correctAnswers / stats.completedQuestions) * 100 
+      : 0;
+
+    return (
+      <div className="mt-2">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>完成进度: {Math.round(progress)}%</span>
+          <span>正确率: {Math.round(accuracy)}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+          <div
+            className="bg-blue-600 h-2 rounded-full"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // 根据主题设置页面背景色
+  const bgClass = homeContent.theme === 'dark' 
+    ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
+    : 'min-h-screen bg-gray-50 py-6 flex flex-col justify-center sm:py-12';
+
+  // Add back the handleStartQuiz function
+  const handleStartQuiz = (questionSet: QuestionSet) => {
+    // 免费题库，直接开始
+    if (!questionSet.isPaid) {
+      navigate(`/quiz/${questionSet.id}`);
+      return;
+    }
+    
+    // 未登录用户，重定向到登录页
+    if (!user) {
+      // 保存当前题库ID，以便登录后返回
+      sessionStorage.setItem('redirectQuestionSetId', questionSet.id);
+      navigate('/login');
+      return;
+    }
+    
+    const { hasAccess } = getQuestionSetAccessStatus(questionSet);
+    
+    // 已购买，直接开始
+    if (hasAccess) {
+      navigate(`/quiz/${questionSet.id}`);
+      return;
+    }
+    
+    // 有试用题目，可以开始试用
+    if (questionSet.trialQuestions && questionSet.trialQuestions > 0) {
+      navigate(`/quiz/${questionSet.id}`);
+      return;
+    }
+    
+    // 无试用题目，显示购买提示
+    setSelectedQuestionSet(questionSet);
+    setShowPaymentModal(true);
+  };
+
+  // Add back the getQuestionSetAccessStatus function
   const getQuestionSetAccessStatus = (questionSet: QuestionSet) => {
     // 如果是免费题库，直接返回有访问权限
     if (!questionSet.isPaid) {
@@ -441,95 +513,6 @@ const HomePage: React.FC = () => {
     };
   };
 
-  // 处理开始答题
-  const handleStartQuiz = (questionSet: QuestionSet) => {
-    // 免费题库，直接开始
-    if (!questionSet.isPaid) {
-      navigate(`/quiz/${questionSet.id}`);
-      return;
-    }
-    
-    // 未登录用户，重定向到登录页
-    if (!user) {
-      // 保存当前题库ID，以便登录后返回
-      sessionStorage.setItem('redirectQuizId', questionSet.id);
-      navigate('/login');
-      return;
-    }
-    
-    const { hasAccess } = getQuestionSetAccessStatus(questionSet);
-    
-    // 已购买，直接开始
-    if (hasAccess) {
-      navigate(`/quiz/${questionSet.id}`);
-      return;
-    }
-    
-    // 有试用题目，可以开始试用
-    if (questionSet.trialQuestions && questionSet.trialQuestions > 0) {
-      navigate(`/quiz/${questionSet.id}`);
-      return;
-    }
-    
-    // 无试用题目，显示购买提示
-    setSelectedQuestionSet(questionSet);
-    setShowPaymentModal(true);
-  };
-
-  // 处理分类切换
-  const handleCategoryChange = async (category: string) => {
-    setActiveCategory(category);
-    setCategoryLoading(true);
-    
-    try {
-      // 使用apiClient，短期缓存（只缓存30秒）
-      const response = await apiClient.get(`/api/question-sets?category=${category}`, undefined, {
-        cacheDuration: 30000
-      });
-      
-      if (response.success) {
-        setQuestionSets(response.data);
-      }
-    } catch (error) {
-      console.error('获取分类题库失败:', error);
-    } finally {
-      setCategoryLoading(false);
-    }
-  };
-
-  // 修改显示进度的部分
-  const renderProgressBar = (questionSet: QuestionSet) => {
-    const stats = progressStats[questionSet.id];
-    if (!stats) return null;
-
-    const progress = stats.totalQuestions > 0 
-      ? (stats.completedQuestions / stats.totalQuestions) * 100 
-      : 0;
-    const accuracy = stats.completedQuestions > 0 
-      ? (stats.correctAnswers / stats.completedQuestions) * 100 
-      : 0;
-
-    return (
-      <div className="mt-2">
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>完成进度: {Math.round(progress)}%</span>
-          <span>正确率: {Math.round(accuracy)}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-          <div
-            className="bg-blue-600 h-2 rounded-full"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  // 根据主题设置页面背景色
-  const bgClass = homeContent.theme === 'dark' 
-    ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
-    : 'min-h-screen bg-gray-50 py-6 flex flex-col justify-center sm:py-12';
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -544,7 +527,7 @@ const HomePage: React.FC = () => {
       {homeContent.bannerImage && (
         <div className="w-full h-40 md:h-60 bg-cover bg-center mb-6" style={{ backgroundImage: `url(${homeContent.bannerImage})` }}>
           <div className="bg-black bg-opacity-40 w-full h-full flex items-center justify-center">
-            <h1 className="text-4xl font-bold text-white">{welcomeData.title}</h1>
+            <h1 className="text-4xl font-bold text-white">{homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}</h1>
           </div>
         </div>
       )}
@@ -554,11 +537,11 @@ const HomePage: React.FC = () => {
           <div className="text-center mb-10">
             {!homeContent.bannerImage && (
               <h1 className={`text-3xl font-bold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'} md:text-4xl`}>
-                {welcomeData.title}
+                {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
               </h1>
             )}
             <p className={`mt-3 text-base ${homeContent.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5`}>
-              {welcomeData.description}
+              {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
             </p>
             
             {/* 公告信息 */}
@@ -640,180 +623,42 @@ const HomePage: React.FC = () => {
               </button>
             ))}
           </div>
-          
-          {/* 显示题库列表 */}
-          {categoryLoading ? (
-            <div className="text-center py-8">
-              <svg className="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <p className="mt-2 text-sm text-gray-500">加载中...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {getFilteredQuestionSets().map(questionSet => {
-                const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
-                const isPaid = questionSet.isPaid;
-                
-                return (
-                  <div 
-                    key={questionSet.id}
-                    className={`bg-white rounded-lg shadow-md overflow-hidden border relative ${
-                      !hasAccess && isPaid 
-                        ? 'border-yellow-200' 
-                        : hasAccess && isPaid 
-                          ? 'border-green-200' 
-                          : 'border-gray-200'
-                    } ${recentlyUpdatedSets[questionSet.id] && Date.now() - recentlyUpdatedSets[questionSet.id] < 5000 
-                        ? 'animate-pulse ring-4 ring-green-400 ring-opacity-50' 
-                        : ''
-                    }`}
-                  >
-                    {recentlyUpdatedSets[questionSet.id] && Date.now() - recentlyUpdatedSets[questionSet.id] < 5000 && (
-                      <div className="absolute top-0 right-0 bg-green-500 text-white px-3 py-1 transform rotate-45 translate-x-3 translate-y-1 shadow-md animate-bounce">
-                        🎉 购买成功
-                      </div>
-                    )}
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          {questionSet.title}
-                        </h3>
-                        {isPaid && (
-                          <div className="flex flex-col items-end">
-                          <span className="px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-full">
-                            ¥{questionSet.price}
-                          </span>
-                            {questionSet.trialQuestions && questionSet.trialQuestions > 0 && (
-                              <span className="text-xs text-gray-600 mt-1">
-                                可试用 {questionSet.trialQuestions} 题
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <p className="text-gray-600 mb-4">{questionSet.description}</p>
-                      
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center">
-                        <span className="text-sm text-gray-500">
-                            {typeof questionSet.questionCount === 'number' && questionSet.questionCount > 0
-                              ? questionSet.questionCount
-                              : Array.isArray(questionSet.questions) && questionSet.questions.length > 0
-                                ? questionSet.questions.length
-                                : typeof questionSet.trialQuestions === 'number' && questionSet.trialQuestions > 0
-                                  ? questionSet.trialQuestions
-                                  : "多"} 道题目
-                          </span>
-                          {isPaid && (
-                            <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${
-                              hasAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {hasAccess ? '已购买' : '付费题库'}
-                            </span>
-                          )}
-                        </div>
-                        {isPaid && (
-                          hasAccess && remainingDays !== null ? (
-                            <span className="text-sm text-green-600 font-medium">
-                              剩余 {remainingDays} 天
-                            </span>
-                          ) : questionSet.trialQuestions && questionSet.trialQuestions > 0 ? (
-                            <span className="text-sm text-orange-500 font-medium">
-                              可试用 {questionSet.trialQuestions} 题
-                            </span>
-                          ) : (
-                            <span className="text-sm text-orange-500 font-medium">
-                              需要购买
-                            </span>
-                          )
-                        )}
-                      </div>
-                      
-                      {/* 用户进度指示器 */}
-                      {renderProgressBar(questionSet)}
-                      
+
+          {/* 题库列表 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {getFilteredQuestionSets().map(questionSet => (
+              <div key={questionSet.id} className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="px-4 py-5 sm:p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">
+                        {questionSet.title}
+                      </h3>
+                      <p className="mt-1 text-sm leading-5 font-medium text-gray-500">
+                        {questionSet.description}
+                      </p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0 flex">
                       <button
                         onClick={() => handleStartQuiz(questionSet)}
-                        className={`w-full py-2 px-4 rounded-md text-white font-medium ${
-                          !hasAccess && isPaid
-                            ? 'bg-yellow-500 hover:bg-yellow-600'
-                            : 'bg-blue-600 hover:bg-blue-700'
-                        }`}
+                        className="px-2 py-1 border border-gray-300 rounded-md text-sm leading-5 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        aria-label={`开始练习: ${questionSet.title}`}
                       >
-                        {!hasAccess && isPaid
-                          ? questionSet.trialQuestions && questionSet.trialQuestions > 0
-                            ? '免费试用'
-                            : '立即购买'
-                          : user && progressStats && progressStats[questionSet.id]
-                            ? '继续练习'
-                            : '开始练习'}
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
                       </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-          
-          {/* 错误消息显示 */}
-          {errorMessage && (
-            <div className="max-w-4xl mx-auto mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              <p>{errorMessage}</p>
-            </div>
-          )}
+                  <div className="mt-2 text-sm leading-5 font-medium text-gray-500">
+                    {renderProgressBar(questionSet)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-
-      <div className="mt-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {isAdmin() && (
-          <div className="mb-10">
-            <h2 className="text-xl font-bold mb-4">管理员工具</h2>
-            <SocketTest />
-          </div>
-        )}
-      </div>
-
-      {/* 支付模态窗口 */}
-      {showPaymentModal && selectedQuestionSet && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          questionSet={selectedQuestionSet}
-          onClose={() => setShowPaymentModal(false)}
-          onSuccess={(purchaseInfo) => {
-            console.log('[HomePage] 支付成功, 收到购买信息:', purchaseInfo);
-            
-            // 支付成功后，更新题库的访问状态
-            setQuestionSets(prevSets => {
-              return prevSets.map(set => {
-                if (set.id === purchaseInfo.questionSetId) {
-                  // Save to localStorage cache
-                  saveAccessToLocalStorage(purchaseInfo.questionSetId, true, purchaseInfo.remainingDays);
-                  
-                  // Add to recently updated sets for animation
-                  setRecentlyUpdatedSets(prev => ({
-                    ...prev,
-                    [purchaseInfo.questionSetId]: Date.now()
-                  }));
-                  
-                  return {
-                    ...set,
-                    hasAccess: true,
-                    remainingDays: purchaseInfo.remainingDays || 180
-                  };
-                }
-                return set;
-              });
-            });
-            // 关闭模态框
-            setShowPaymentModal(false);
-            // 导航到题库页面
-            navigate(`/quiz/${purchaseInfo.questionSetId}`);
-          }}
-        />
-      )}
     </div>
   );
 };

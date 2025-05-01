@@ -58,7 +58,7 @@ interface UserContextType {
   getUserProgress: (questionSetId: string) => QuizProgress | undefined;
   getAnsweredQuestions: (questionSetId: string) => string[];
   isAdmin: () => boolean;
-  redeemCode: (code: string) => Promise<{ success: boolean; message: string; quizId?: string; quizTitle?: string }>;
+  redeemCode: (code: string) => Promise<{ success: boolean; message: string; questionSetId?: string; quizTitle?: string }>;
   generateRedeemCode: (questionSetId: string, validityDays: number, quantity: number) => Promise<{ success: boolean; codes?: RedeemCode[]; message: string }>;
   getRedeemCodes: () => Promise<RedeemCode[]>;
   getAllUsers: () => Promise<User[]>;
@@ -580,7 +580,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return !!user?.isAdmin;
   };
 
-  const redeemCode = async (code: string): Promise<{ success: boolean; message: string; quizId?: string; quizTitle?: string }> => {
+  const redeemCode = async (code: string): Promise<{ success: boolean; message: string; questionSetId?: string; quizTitle?: string }> => {
     if (!user) return { success: false, message: '请先登录' };
     try {
       console.log(`[RedeemCode] 开始兑换码: ${code}`);
@@ -672,17 +672,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         
         // 安全地获取题库ID和标题
-        const quizId = questionSet?.id || 
+        const questionSetId = questionSet?.id || 
                       rawPurchase?.questionSetId || 
                       (rawPurchase as any)?.question_set_id;
         const quizTitle = questionSet?.title;
         
-        console.log(`[RedeemCode] 返回兑换结果:`, { quizId, quizTitle });
+        console.log(`[RedeemCode] 返回兑换结果:`, { questionSetId, quizTitle });
         
         return {
           success: true,
           message: '兑换成功!',
-          quizId,
+          questionSetId,
           quizTitle
         };
       } else {

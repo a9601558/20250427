@@ -439,45 +439,19 @@ const QuestionCard = ({
                 </svg>
               </button>
             </div>
-            <RedeemCodeForm onRedeemSuccess={(quizId) => {
-              console.log(`[QuestionCard] 发送兑换成功事件，题库ID: ${quizId}`);
-              setShowRedeemCodeModal(false);
+            <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
+              console.log(`[QuestionCard] 发送兑换成功事件，题库ID: ${questionSetId}`);
               
-              // 使用自定义事件通知父组件，避免使用window.location.reload()
-              if (typeof window !== 'undefined') {
-                console.log(`[QuestionCard] 发送兑换成功事件，题库ID: ${quizId}`);
-                
-                // 创建详细的事件对象
-                const eventDetail = { 
-                  quizId, 
-                  forceRefresh: true,
-                  source: 'QuestionCard',
-                  timestamp: Date.now()
-                };
-                
-                // 分发事件
-                window.dispatchEvent(new CustomEvent('redeem:success', { 
-                  detail: eventDetail
-                }));
-                
-                // 延迟再次发送以确保事件被处理
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('redeem:success', { 
-                    detail: eventDetail
-                  }));
-                }, 800);
-                
-                // 尝试直接获取socket并发送事件
-                const socket = (window as any).socket;
-                if (socket) {
-                  console.log(`[QuestionCard] 通过socket发送权限更新通知`);
-                  socket.emit('questionSet:accessUpdate', {
-                    userId: 'current',
-                    questionSetId: quizId,
-                    hasAccess: true
-                  });
+              // 创建和分发自定义事件
+              const event = new CustomEvent('redeem:success', {
+                detail: {
+                  questionSetId,
+                  remainingDays: 180, // 默认180天有效期
+                  forceRefresh: true
                 }
-              }
+              });
+              
+              window.dispatchEvent(event);
             }} />
           </div>
         </div>

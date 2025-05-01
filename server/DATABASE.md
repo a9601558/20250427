@@ -28,14 +28,14 @@
 
 ### 3. 选项表 (options)
 - **id**: UUID (主键)
-- **questionId**: UUID (外键，关联题目表)
+- ****: UUID (外键，关联题目表)
 - **text**: TEXT (选项内容)
 - **isCorrect**: BOOLEAN (是否正确答案)
 - **optionIndex**: VARCHAR(5) (选项索引，如A、B、C、D)
 - **createdAt**: DATETIME
 - **updatedAt**: DATETIME
 
-### 4. 首页设置表 (homepage_settings)
+### 4questionId. 首页设置表 (homepage_settings)
 - **id**: INTEGER (主键)
 - **welcome_title**: VARCHAR(255) (欢迎标题)
 - **welcome_description**: TEXT (欢迎描述)

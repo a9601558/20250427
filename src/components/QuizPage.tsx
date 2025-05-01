@@ -410,12 +410,12 @@ function QuizPage(): JSX.Element {
   // 检查 localStorage 中是否有已兑换记录
   useEffect(() => {
     if (questionSet?.id) {
-      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
-      console.log(`[QuizPage] 检查localStorage存储的已兑换题库IDs:`, redeemedQuizIds);
+      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
+      console.log(`[QuizPage] 检查localStorage存储的已兑换题库IDs:`, redeemedQuestionSetIds);
       
-      if (redeemedQuizIds) {
+      if (redeemedQuestionSetIds) {
         try {
-          const redeemedIds = JSON.parse(redeemedQuizIds);
+          const redeemedIds = JSON.parse(redeemedQuestionSetIds);
           
           // 标准化当前题库ID
           const normalizedCurrentId = String(questionSet.id).trim();
@@ -437,7 +437,7 @@ function QuizPage(): JSX.Element {
               setTrialEnded(false);
             }
           } else {
-            console.log(`[QuizPage] localStorage中的redeemedIds不是数组:`, redeemedIds);
+            console.log(`[QuizPage] localStorage中的redeemedQuestionSetIds不是数组:`, redeemedIds);
           }
         } catch (e) {
           console.error('解析已兑换题库ID列表失败', e);
@@ -449,125 +449,109 @@ function QuizPage(): JSX.Element {
   }, [questionSet?.id]);
   
   // 保存已兑换的题库ID到localStorage
-  const saveRedeemedQuizId = (quizId: string) => {
+  const saveRedeemedQuestionSetId = (questionSetId: string) => {
+    console.log(`[QuizPage] 保存已兑换题库ID: ${questionSetId}`);
+    
+    if (!questionSetId) {
+      console.error('[QuizPage] 无法保存空的题库ID');
+      return;
+    }
+    
     try {
-      if (!quizId) {
-        console.error(`[QuizPage] 无法保存空的题库ID`);
-        return;
-      }
+      const normalizedId = String(questionSetId).trim();
+      console.log(`[QuizPage] 规范化题库ID: ${normalizedId}`);
       
-      // 标准化ID
-      const normalizedId = String(quizId).trim();
-      console.log(`[QuizPage] 准备保存已兑换题库ID: "${normalizedId}"`);
+      // 获取现有的已兑换题库IDs
+      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
+      console.log(`[QuizPage] 现有的已兑换题库IDs: ${redeemedQuestionSetIds}`);
       
-      // 获取现有的已兑换题库ID列表
-      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
-      let redeemedIds: string[] = [];
+      let newList = '';
       
-      if (redeemedQuizIds) {
+      if (redeemedQuestionSetIds) {
         try {
-          const parsed = JSON.parse(redeemedQuizIds);
-          // 确保是数组
-          redeemedIds = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          console.error('解析现有已兑换题库ID列表失败，将创建新列表', e);
-          redeemedIds = [];
+          const parsed = JSON.parse(redeemedQuestionSetIds);
+          console.log(`[QuizPage] 解析的已兑换题库IDs:`, parsed);
+          
+          // 检查是否已存在
+          if (Array.isArray(parsed) && !parsed.includes(normalizedId)) {
+            parsed.push(normalizedId);
+            newList = JSON.stringify(parsed);
+          } else if (typeof parsed === 'string' && parsed !== normalizedId) {
+            newList = JSON.stringify([parsed, normalizedId]);
+          } else {
+            newList = JSON.stringify([normalizedId]);
+          }
+        } catch (error) {
+          console.error('[QuizPage] 解析已兑换题库IDs失败:', error);
+          newList = JSON.stringify([normalizedId]);
         }
-      }
-      
-      // 标准化所有现有ID
-      redeemedIds = redeemedIds.map(id => String(id).trim());
-      console.log(`[QuizPage] 现有已兑换题库IDs: `, redeemedIds);
-      
-      // 如果ID不在列表中，添加它
-      if (!redeemedIds.includes(normalizedId)) {
-        redeemedIds.push(normalizedId);
-        const newList = JSON.stringify(redeemedIds);
-        localStorage.setItem('redeemedQuizIds', newList);
-        console.log(`[QuizPage] 已将题库 "${normalizedId}" 添加到已兑换列表，更新后列表:`, newList);
       } else {
-        console.log(`[QuizPage] 题库 "${normalizedId}" 已在兑换列表中，无需添加`);
+        newList = JSON.stringify([normalizedId]);
       }
-    } catch (e) {
-      console.error('保存已兑换题库ID失败', e);
+      
+      console.log(`[QuizPage] 保存新的已兑换题库IDs列表:`, newList);
+      localStorage.setItem('redeemedQuestionSetIds', newList);
+    } catch (error) {
+      console.error('[QuizPage] 保存已兑换题库ID失败:', error);
     }
   };
   
   // 监听兑换码成功事件
   useEffect(() => {
-    // 创建正确类型的事件处理函数
-    const handleRedeemSuccess = async (e: Event) => {
+    const handleRedeemSuccess = (e: Event) => {
+      console.log(`[QuizPage] 收到兑换成功事件`);
       const customEvent = e as CustomEvent;
-      console.log(`[QuizPage] 接收到兑换码成功事件:`, customEvent.detail);
-      const eventQuizId = String(customEvent.detail?.quizId || '').trim();
-      const currentQuizId = String(questionSet?.id || '').trim();
       
-      console.log(`[QuizPage] 比较ID: 事件ID=${eventQuizId}, 当前题库ID=${currentQuizId}`);
+      // 从事件中获取题库ID
+      const eventQuestionSetId = String(customEvent.detail?.questionSetId || '').trim();
       
-      // 立即更新UI状态，无论ID是否匹配
-      console.log(`[QuizPage] 立即更新UI状态: 重置试用状态和访问权限`);
-      setHasAccessToFullQuiz(true);  // 确保设置为true
-      setTrialEnded(false);          // 确保重置试用结束状态
-      setHasRedeemed(true);          // 标记为已兑换
+      // 兼容旧版本事件中可能存在的quizId
+      const quizId = String(customEvent.detail?.quizId || '').trim();
+      const effectiveId = eventQuestionSetId || quizId; // 优先使用questionSetId
       
-      // 保存访问权限到 localStorage
-      if (eventQuizId) {
-        saveAccessToLocalStorage(eventQuizId, true);
-      }
-      if (currentQuizId && currentQuizId !== eventQuizId) {
-        saveAccessToLocalStorage(currentQuizId, true);
-      }
+      const currentQuestionSetId = String(questionSet?.id || '').trim();
       
-      // 保存已兑换状态到localStorage
-      if (eventQuizId) {
-        saveRedeemedQuizId(eventQuizId);
-      } else if (currentQuizId) {
-        saveRedeemedQuizId(currentQuizId);
-      }
+      console.log(`[QuizPage] 比较ID: 事件ID=${effectiveId}, 当前题库ID=${currentQuestionSetId}`);
       
-      // 如果是当前题库，执行更深入的检查
-      if (eventQuizId === currentQuizId || customEvent.detail?.forceRefresh) {
-        console.log(`[QuizPage] 题库ID匹配或强制刷新，更新访问权限并刷新数据`);
+      // 更新本地状态和存储
+      if (questionSet) {
+        console.log(`[QuizPage] 更新本地状态和存储`);
+        setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+        setHasRedeemed(true);
         
-        // 使用setTimeout确保状态更新后再检查权限
-        setTimeout(() => {
-          // 主动检查权限
-          console.log(`[QuizPage] 兑换后重新检查权限`);
+        // 保存访问权限到localStorage
+        if (effectiveId) {
+          saveAccessToLocalStorage(effectiveId, true);
+        }
+        
+        // 如果当前题库ID与事件ID不同，也保存当前题库的访问权限
+        if (currentQuestionSetId && currentQuestionSetId !== effectiveId) {
+          saveAccessToLocalStorage(currentQuestionSetId, true);
+        }
+        
+        // 保存已兑换的题库ID
+        if (effectiveId) {
+          saveRedeemedQuestionSetId(effectiveId);
+        } else if (currentQuestionSetId) {
+          saveRedeemedQuestionSetId(currentQuestionSetId);
+        }
+        
+        // 刷新数据
+        if (effectiveId === currentQuestionSetId || customEvent.detail?.forceRefresh) {
+          console.log(`[QuizPage] 强制刷新数据`);
           checkAccess();
-          
-          // 获取最新进度
-          if (fetchUserProgress) {
-            console.log(`[QuizPage] 兑换后刷新用户进度`);
-            fetchUserProgress(true).catch(err => {
-              console.error(`[QuizPage] 刷新进度出错:`, err);
-            });
-          }
-        }, 300);
-        
-        // 尝试通过Socket再次检查权限
-        if (socket && user) {
-          console.log(`[QuizPage] 通过Socket重新发送检查请求`);
-          socket.emit('questionSet:checkAccess', {
-            userId: user.id,
-            questionSetId: String(questionSet?.id).trim()
-          });
-          
-          // 手动触发访问权限更新事件
-          socket.emit('questionSet:accessUpdate', {
-            userId: user.id,
-            questionSetId: String(questionSet?.id).trim(),
-            hasAccess: true
-          });
         }
       }
     };
     
+    // 添加事件监听器
     window.addEventListener('redeem:success', handleRedeemSuccess);
     
     return () => {
       window.removeEventListener('redeem:success', handleRedeemSuccess);
     };
-  }, [questionSet?.id, socket, user, fetchUserProgress]);
+  }, [questionSet, checkAccess]);
   
   // 监听模态窗口状态变化，重新检查访问权限
   useEffect(() => {
@@ -753,10 +737,10 @@ function QuizPage(): JSX.Element {
       }
       
       // 检查localStorage中是否有已兑换记录
-      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
-      if (redeemedQuizIds) {
+      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedQuestionSetIds) {
         try {
-          const redeemedIds = JSON.parse(redeemedQuizIds);
+          const redeemedIds = JSON.parse(redeemedQuestionSetIds);
           const normalizedCurrentId = String(questionSet.id).trim();
           
           if (Array.isArray(redeemedIds)) {
@@ -832,9 +816,9 @@ function QuizPage(): JSX.Element {
   let isRedeemedFromStorage = false;
   if (questionSet) {
     try {
-      const redeemedQuizIds = localStorage.getItem('redeemedQuizIds');
-      if (redeemedQuizIds) {
-        const redeemedIds = JSON.parse(redeemedQuizIds);
+      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedQuestionSetIds) {
+        const redeemedIds = JSON.parse(redeemedQuestionSetIds);
         isRedeemedFromStorage = Array.isArray(redeemedIds) && 
           redeemedIds.some(id => String(id).trim() === String(questionSet.id).trim());
       }
@@ -969,8 +953,8 @@ function QuizPage(): JSX.Element {
                   </svg>
                 </button>
               </div>
-              <RedeemCodeForm onRedeemSuccess={(quizId) => {
-                console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
+              <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
+                console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
                 setShowRedeemCodeModal(false);
                 
                 // 立即更新UI状态
@@ -980,20 +964,20 @@ function QuizPage(): JSX.Element {
                 setHasRedeemed(true); // 标记为已兑换
                 
                 // 保存访问权限到localStorage
-                saveAccessToLocalStorage(quizId, true);
+                saveAccessToLocalStorage(questionSetId, true);
                 if (questionSet) {
                   saveAccessToLocalStorage(questionSet.id, true);
                 }
                 
                 // 保存已兑换状态到localStorage
-                saveRedeemedQuizId(quizId);
+                saveRedeemedQuestionSetId(questionSetId);
                 
                 // 延迟发送自定义事件确保完整处理
                 setTimeout(() => {
                   if (typeof window !== 'undefined') {
                     window.dispatchEvent(new CustomEvent('redeem:success', { 
                       detail: { 
-                        quizId, 
+                        questionSetId, 
                         forceRefresh: true,
                         source: 'QuizPageRedeemForm',
                         timestamp: Date.now()
@@ -1163,8 +1147,8 @@ function QuizPage(): JSX.Element {
                 </svg>
               </button>
             </div>
-            <RedeemCodeForm onRedeemSuccess={(quizId) => {
-              console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
+            <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
+              console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
               setShowRedeemCodeModal(false);
               
               // 立即更新UI状态
@@ -1174,20 +1158,20 @@ function QuizPage(): JSX.Element {
               setHasRedeemed(true); // 标记为已兑换
               
               // 保存访问权限到localStorage
-              saveAccessToLocalStorage(quizId, true);
+              saveAccessToLocalStorage(questionSetId, true);
               if (questionSet) {
                 saveAccessToLocalStorage(questionSet.id, true);
               }
               
               // 保存已兑换状态到localStorage
-              saveRedeemedQuizId(quizId);
+              saveRedeemedQuestionSetId(questionSetId);
               
               // 延迟发送自定义事件确保完整处理
               setTimeout(() => {
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(new CustomEvent('redeem:success', { 
                     detail: { 
-                      quizId, 
+                      questionSetId, 
                       forceRefresh: true,
                       source: 'QuizPageRedeemForm',
                       timestamp: Date.now()
