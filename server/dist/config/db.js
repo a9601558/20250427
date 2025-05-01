@@ -22,5 +22,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const database_1 = __importDefault(require("./database"));
+// ES Module 导出
 exports.default = database_1.default;
 __exportStar(require("./database"), exports);
+// CommonJS 兼容性导出
+// @ts-ignore
+module.exports = database_1.default;
+// @ts-ignore
+module.exports.default = database_1.default;
