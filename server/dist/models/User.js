@@ -99,6 +99,12 @@ User.init({
         allowNull: true,
         defaultValue: {},
     },
+    examCountdowns: {
+        type: sequelize_1.DataTypes.JSON,
+        allowNull: true,
+        defaultValue: '[]',
+        comment: '用户保存的考试倒计时数据',
+    },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
         allowNull: false,

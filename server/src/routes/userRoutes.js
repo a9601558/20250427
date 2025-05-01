@@ -2,7 +2,8 @@ const express = require('express');
 const { 
   registerUser, 
   loginUser, 
-  getUserProfile
+  getUserProfile,
+  updateUser
 } = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -14,5 +15,6 @@ router.post('/login', loginUser);
 
 // 受保护路由 (需要认证)
 router.get('/me', protect, getUserProfile);
+router.put('/:id', protect, updateUser);
 
 module.exports = router; 

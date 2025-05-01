@@ -78,6 +78,11 @@ export interface IUser {
   email: string;
   password: string;
   isAdmin: boolean;
+  socket_id?: string | null;
+  purchases?: IPurchase[];
+  redeemCodes?: IRedeemCode[];
+  progress?: { [key: string]: any };
+  examCountdowns?: string | any[];
   createdAt: Date;
   updatedAt: Date;
 }

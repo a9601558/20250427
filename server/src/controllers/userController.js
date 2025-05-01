@@ -198,4 +198,72 @@ exports.getUserProfile = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
+};
+
+/**
+ * Update user's profile
+ * @route PUT /users/:id
+ * @access Private
+ */
+exports.updateUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // Check if user exists
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '用户不存在'
+      });
+    }
+    
+    // Check if the user is authorized to update this profile
+    if (userId !== req.user.id && !req.user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: '没有权限修改其他用户的信息'
+      });
+    }
+    
+    // Extract updatable fields
+    const { username, email, examCountdowns } = req.body;
+    
+    // Prepare update object
+    const updateData = {};
+    
+    if (username) updateData.username = username;
+    if (email) updateData.email = email;
+    
+    // Handle examCountdowns data
+    if (examCountdowns !== undefined) {
+      // Make sure it's stored as a string in the database
+      updateData.examCountdowns = typeof examCountdowns === 'string' 
+        ? examCountdowns 
+        : JSON.stringify(examCountdowns);
+    }
+    
+    // Update user
+    await user.update(updateData);
+    
+    // Return updated user (excluding password)
+    const updatedUser = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] }
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: updatedUser,
+      message: '用户信息更新成功'
+    });
+    
+  } catch (error) {
+    console.error('更新用户信息错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 }; 

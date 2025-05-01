@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { useUser } from '../contexts/UserContext';
+import { userService } from '../services/api';
 
 export interface CountdownItem {
   id: string;
@@ -13,6 +15,7 @@ interface ExamCountdownWidgetProps {
 }
 
 const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'light' }) => {
+  const { user } = useUser();
   const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newExam, setNewExam] = useState<Omit<CountdownItem, 'id'>>({
@@ -22,6 +25,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
   });
   const [examTypes, setExamTypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // 加载考试类型列表（可从后端获取）
   useEffect(() => {
@@ -49,34 +53,66 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     setExamTypes(defaultExamTypes);
   }, []);
 
-  // 从 localStorage 加载倒计时数据
+  // 加载倒计时数据 - 优先从用户个人资料获取，如果未登录则使用localStorage
   useEffect(() => {
-    const loadCountdowns = () => {
+    const loadCountdowns = async () => {
+      setIsLoading(true);
       try {
-        const savedCountdowns = localStorage.getItem('examCountdowns');
-        if (savedCountdowns) {
-          let countdownList = JSON.parse(savedCountdowns) as CountdownItem[];
+        let countdownList: CountdownItem[] = [];
+        
+        // 如果用户已登录，从用户资料获取
+        if (user && user.id) {
+          console.log('从服务器加载考试倒计时数据');
+          const response = await userService.getCurrentUser();
           
-          // 过滤掉已过期的考试
-          const now = new Date();
-          countdownList = countdownList.filter(item => {
-            const examDate = new Date(item.examDate);
-            return examDate > now;
-          });
-          
-          // 按日期排序，最近的考试排在前面
-          countdownList.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
-          
-          // 最多显示3条
-          countdownList = countdownList.slice(0, 3);
-          
-          setCountdowns(countdownList);
-          
-          // 更新存储，移除过期考试
-          localStorage.setItem('examCountdowns', JSON.stringify(countdownList));
+          if (response.success && response.data) {
+            // 从用户资料中获取倒计时数据
+            if ((response.data as any).examCountdowns) {
+              try {
+                // 可能存储为JSON字符串或直接作为数组对象
+                if (typeof (response.data as any).examCountdowns === 'string') {
+                  countdownList = JSON.parse((response.data as any).examCountdowns);
+                } else if (Array.isArray((response.data as any).examCountdowns)) {
+                  countdownList = (response.data as any).examCountdowns;
+                }
+                console.log('从服务器成功加载考试倒计时数据', countdownList);
+              } catch (e) {
+                console.error('解析服务器倒计时数据失败:', e);
+              }
+            }
+          }
         }
+        
+        // 如果服务器没有数据或未登录，从localStorage获取作为备份
+        if (countdownList.length === 0) {
+          console.log('从本地存储加载考试倒计时数据');
+          const savedCountdowns = localStorage.getItem('examCountdowns');
+          if (savedCountdowns) {
+            countdownList = JSON.parse(savedCountdowns);
+          }
+        }
+        
+        // 过滤掉已过期的考试
+        const now = new Date();
+        countdownList = (countdownList || []).filter(item => {
+          const examDate = new Date(item.examDate);
+          return examDate > now;
+        });
+        
+        // 按日期排序，最近的考试排在前面
+        countdownList.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
+        
+        // 最多显示3条
+        countdownList = countdownList.slice(0, 3);
+        
+        setCountdowns(countdownList);
+        
+        // 更新存储，移除过期考试
+        saveCountdowns(countdownList);
       } catch (error) {
         console.error('加载考试倒计时数据失败:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -86,19 +122,42 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     const intervalId = setInterval(loadCountdowns, 86400000); // 24小时
     
     return () => clearInterval(intervalId);
-  }, []);
+  }, [user?.id]);
 
-  // 保存数据到 localStorage
-  const saveCountdowns = (data: CountdownItem[]) => {
+  // 保存数据到 localStorage 和服务器
+  const saveCountdowns = async (data: CountdownItem[]) => {
+    setIsSaving(true);
     try {
+      // 保存到localStorage作为本地备份
       localStorage.setItem('examCountdowns', JSON.stringify(data));
+      
+      // 如果用户已登录，同时保存到服务器
+      if (user && user.id) {
+        console.log('保存考试倒计时数据到服务器');
+        
+        // 准备要更新的用户数据
+        const userData = {
+          examCountdowns: JSON.stringify(data)
+        } as any; // Use type assertion to avoid type error
+        
+        // 调用更新用户API
+        const response = await userService.updateUser(user.id, userData);
+        
+        if (response.success) {
+          console.log('考试倒计时数据已成功保存到服务器');
+        } else {
+          console.error('保存考试倒计时到服务器失败:', response.message);
+        }
+      }
     } catch (error) {
       console.error('保存考试倒计时数据失败:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   // 添加新考试
-  const handleAddExam = () => {
+  const handleAddExam = async () => {
     if (!newExam.examType || !newExam.examCode || !newExam.examDate) {
       alert('请填写完整考试信息');
       return;
@@ -130,7 +189,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     updatedCountdowns.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
     
     setCountdowns(updatedCountdowns);
-    saveCountdowns(updatedCountdowns);
+    await saveCountdowns(updatedCountdowns);
     
     // 重置表单
     setNewExam({
@@ -142,10 +201,10 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
   };
 
   // 删除考试倒计时
-  const handleDeleteExam = (id: string) => {
+  const handleDeleteExam = async (id: string) => {
     const updatedCountdowns = countdowns.filter(item => item.id !== id);
     setCountdowns(updatedCountdowns);
-    saveCountdowns(updatedCountdowns);
+    await saveCountdowns(updatedCountdowns);
   };
 
   // 计算剩余天数
@@ -162,6 +221,18 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     
     return diffDays;
   };
+
+  // 显示加载指示器
+  if (isLoading) {
+    return (
+      <div className={`mb-8 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        <div className="text-center py-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-sm">正在加载倒计时数据...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 检查是否有倒计时数据
   if (countdowns.length === 0 && !showAddForm) {
@@ -219,6 +290,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
                 className={`p-1 rounded-full ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
                 title="删除"
                 aria-label="删除考试倒计时"
+                disabled={isSaving}
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -300,14 +372,22 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
                     ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                     : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
                 }`}
+                disabled={isSaving}
               >
                 取消
               </button>
               <button
                 type="button"
                 onClick={handleAddExam}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md"
+                className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                disabled={isSaving}
               >
+                {isSaving && (
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
                 添加
               </button>
             </div>
@@ -319,6 +399,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
             <button
               onClick={() => setShowAddForm(true)}
               className={`px-4 py-2 rounded-md ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-sm flex items-center mx-auto`}
+              disabled={isSaving}
             >
               <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -326,6 +407,20 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               添加考试倒计时
             </button>
           )}
+        </div>
+      )}
+      
+      {/* 添加同步状态提示 */}
+      {(isLoading || isSaving) && (
+        <div className={`text-center text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+          {isLoading ? '正在同步数据...' : '正在保存到云端...'}
+        </div>
+      )}
+      
+      {/* 显示设备同步提示 */}
+      {user && user.id && (
+        <div className={`text-center text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+          已同步到云端，可在其他设备查看
         </div>
       )}
     </div>

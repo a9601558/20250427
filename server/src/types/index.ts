@@ -67,6 +67,7 @@ export interface IUser {
     [questionSetId: string]: IProgressSummary;
   };
   socket_id?: string | null;
+  examCountdowns?: string | any[];
   createdAt: Date;
   updatedAt: Date;
 }

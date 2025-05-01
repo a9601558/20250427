@@ -3,7 +3,7 @@ import sequelize from '../config/database';
 import bcrypt from 'bcrypt';
 import { IUser, IPurchase, IRedeemCode, IProgressSummary } from '../types';
 
-export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id'>;
+export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns'>;
 
 export class User extends Model<IUser, UserCreationAttributes> implements IUser {
   declare id: string;
@@ -17,6 +17,7 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
   declare progress?: {
     [questionSetId: string]: IProgressSummary;
   };
+  declare examCountdowns?: string | any[];
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
@@ -114,6 +115,12 @@ User.init(
       type: DataTypes.JSON,
       allowNull: true,
       defaultValue: {},
+    },
+    examCountdowns: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: '[]',
+      comment: '用户保存的考试倒计时数据',
     },
     createdAt: {
       type: DataTypes.DATE,
