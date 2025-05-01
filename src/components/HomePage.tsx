@@ -675,6 +675,9 @@ const HomePage: React.FC = () => {
     if (!user) {
       return { hasAccess: false, remainingDays: null };
     }
+
+    // 添加调试日志，检查用户购买记录
+    console.log(`[调试] 题库 "${questionSet.title}" (ID: ${questionSet.id}) 检查访问权限`);
     
     // 直接使用题库的hasAccess属性(通过socket实时更新)
     if (questionSet.hasAccess !== undefined) {
@@ -693,23 +696,138 @@ const HomePage: React.FC = () => {
     }
     
     // 查找用户的购买记录 - 增强兼容性处理
-    const purchase = user.purchases?.find(p => 
-      p.questionSetId === questionSet.id || 
-      (p.purchaseQuestionSet && p.purchaseQuestionSet.id === questionSet.id)
-    );
+    const userAny = user as any; // 使用any类型访问不确定的属性
+    const userPurchasesFallback = userAny.userPurchases || user.purchases || [];
+    console.log(`[调试] 用户购买记录数组:`, userPurchasesFallback);
+    
+    let purchase = null;
+    
+    if (userPurchasesFallback && userPurchasesFallback.length > 0) {
+      // 处理不同可能的数据结构
+      purchase = userPurchasesFallback.find((p: any) => {
+        // 转换为Any类型以支持不同属性访问
+        const pAny = p as any;
+        const currentId = questionSet.id;
+        
+        // 直接匹配questionSetId（最常见的情况）
+        if (p.questionSetId === currentId) {
+          console.log(`[调试] 通过p.questionSetId匹配成功`);
+          return true;
+        }
+        
+        // 匹配嵌套的purchaseQuestionSet.id
+        if (p.purchaseQuestionSet && p.purchaseQuestionSet.id === currentId) {
+          console.log(`[调试] 通过p.purchaseQuestionSet.id匹配成功`);
+          return true;
+        }
+        
+        // 匹配可能的snake_case格式: question_set_id
+        if (pAny.question_set_id === currentId) {
+          console.log(`[调试] 通过p.question_set_id匹配成功`);
+          return true;
+        }
+        
+        // 匹配嵌套的questionSet.id
+        if (pAny.questionSet && pAny.questionSet.id === currentId) {
+          console.log(`[调试] 通过p.questionSet.id匹配成功`);
+          return true;
+        }
+        
+        // 匹配嵌套的item.id (如果使用item命名)
+        if (pAny.item && pAny.item.id === currentId) {
+          console.log(`[调试] 通过p.item.id匹配成功`);
+          return true;
+        }
+        
+        return false;
+      });
+    }
+
+    if (purchase) {
+      console.log(`[调试] 找到购买记录:`, purchase);
+    } else {
+      console.log(`[调试] 尝试其他查找方式...`);
+      // 遍历并打印所有购买记录的结构
+      if (userPurchasesFallback && userPurchasesFallback.length > 0) {
+        console.log(`[调试] 用户有 ${userPurchasesFallback.length} 条购买记录，检查结构:`);
+        userPurchasesFallback.forEach((p: any, index: number) => {
+          const pAny = p as any;
+          console.log(`[调试] 购买记录 #${index}:`, JSON.stringify(p));
+          
+          // 检查所有可能的属性名
+          const possibleIds = [
+            { name: "questionSetId", value: p.questionSetId },
+            { name: "question_set_id", value: pAny.question_set_id },
+            { name: "purchaseQuestionSet?.id", value: p.purchaseQuestionSet?.id },
+            { name: "questionSet?.id", value: pAny.questionSet?.id },
+            { name: "item?.id", value: pAny.item?.id }
+          ];
+          
+          console.log(`[调试] 当前题库ID: ${questionSet.id}, 可能匹配的属性:`, possibleIds);
+        });
+      }
+    }
     
     if (!purchase) {
+      // 如果在购买记录中找不到，尝试在用户数据中的其他可能位置找
+      // 比如直接在user对象上的access字段或权限字段中
+      if (userAny.access && Array.isArray(userAny.access)) {
+        const hasAccess = userAny.access.includes(questionSet.id);
+        if (hasAccess) {
+          console.log(`[调试] 在user.access字段中找到题库访问权限`);
+          return { hasAccess: true, remainingDays: 180 }; // 默认180天
+        }
+      }
+       
+      // 兼容redeems/redeemedItems等字段
+      const possibleFields = [
+        { name: 'redeems', value: userAny.redeems },
+        { name: 'redeemedItems', value: userAny.redeemedItems },
+        { name: 'redeemedCodes', value: userAny.redeemedCodes }
+      ];
+      
+      for (const field of possibleFields) {
+        if (Array.isArray(field.value)) {
+          const foundItem = field.value.find((item: any) => {
+            return item.questionSetId === questionSet.id || 
+                   item.question_set_id === questionSet.id ||
+                   (item.questionSet && item.questionSet.id === questionSet.id);
+          });
+          
+          if (foundItem) {
+            console.log(`[调试] 在user.${field.name}字段中找到题库访问权限`);
+            return { hasAccess: true, remainingDays: 180 }; // 默认180天
+          }
+        }
+      }
+      
       console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 未找到购买记录`);
       return { hasAccess: false, remainingDays: null };
     }
     
-    // 检查购买是否有效
-    const expiryDate = new Date(purchase.expiryDate);
+    // 检查购买是否有效 - 处理不同可能的expiryDate字段名称
+    const purchaseAny = purchase as any;
+    
+    // 尝试所有可能的过期日期字段
+    let expiryDateValue = purchase.expiryDate || purchaseAny.expiry_date || 
+                          purchaseAny.expires_at || purchaseAny.expiration_date || 
+                          purchaseAny.end_date;
+    
+    if (!expiryDateValue) {
+      console.log(`[警告] 购买记录没有有效期字段:`, purchase);
+      return { hasAccess: true, remainingDays: 180 }; // 默认假定有效
+    }
+    
+    const expiryDate = new Date(expiryDateValue);
     const now = new Date();
     const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
     const hasAccess = expiryDate > now;
-    console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 购买记录检查:`, { hasAccess, remainingDays });
+    console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 购买记录检查:`, { 
+      hasAccess, 
+      remainingDays,
+      expiryDate
+    });
     
     return {
       hasAccess,

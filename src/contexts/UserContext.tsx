@@ -153,6 +153,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await userApi.getCurrentUser();
       if (response.success && response.data) {
+        // 添加特别的调试日志，检查用户数据结构
+        console.log('[UserContext] 获取到用户数据:', response.data);
+        
+        // 检查购买记录
+        if (response.data.purchases) {
+          console.log('[UserContext] 用户购买记录数量:', response.data.purchases.length);
+          
+          // 详细打印第一条购买记录的结构（如果有）
+          if (response.data.purchases.length > 0) {
+            console.log('[UserContext] 购买记录结构示例:', JSON.stringify(response.data.purchases[0]));
+            
+            // 检查关键字段
+            const firstPurchase = response.data.purchases[0];
+            console.log('[UserContext] 购买记录字段检查:');
+            console.log('- questionSetId:', firstPurchase.questionSetId);
+            console.log('- question_set_id:', (firstPurchase as any).question_set_id);
+            console.log('- purchaseQuestionSet:', firstPurchase.purchaseQuestionSet);
+            console.log('- expiryDate:', firstPurchase.expiryDate);
+            console.log('- expiry_date:', (firstPurchase as any).expiry_date);
+          }
+        } else {
+          console.log('[UserContext] 用户没有购买记录或购买记录字段缺失');
+        }
+        
         setUser(response.data || null);
         return response.data;
       } else {
