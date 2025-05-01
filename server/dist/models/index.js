@@ -23,33 +23,8 @@ const HomepageSettings_1 = __importDefault(require("./HomepageSettings"));
 exports.HomepageSettings = HomepageSettings_1.default;
 const UserProgress_1 = __importDefault(require("./UserProgress"));
 exports.UserProgress = UserProgress_1.default;
-// 定义模型之间的关联关系
-// User <-> QuestionSet (通过 Purchase)
-Purchase_1.default.belongsTo(User_1.default, { foreignKey: 'userId', as: 'user' });
-User_1.default.hasMany(Purchase_1.default, { foreignKey: 'userId', as: 'userPurchaseRecords' });
-// Purchase <-> QuestionSet
-Purchase_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'purchaseQuestionSet' });
-QuestionSet_1.default.hasMany(Purchase_1.default, { foreignKey: 'questionSetId', as: 'questionSetPurchases' });
-// QuestionSet <-> Question
-QuestionSet_1.default.hasMany(Question_1.default, { foreignKey: 'questionSetId', as: 'questions' });
-Question_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'questionSet' });
-// Question <-> Option
-Question_1.default.hasMany(Option_1.default, { foreignKey: 'questionId', as: 'options' });
-Option_1.default.belongsTo(Question_1.default, { foreignKey: 'questionId', as: 'question' });
-// User <-> RedeemCode
-RedeemCode_1.default.belongsTo(User_1.default, { foreignKey: 'createdBy', as: 'creator' });
-RedeemCode_1.default.belongsTo(User_1.default, { foreignKey: 'usedBy', as: 'consumer' });
-User_1.default.hasMany(RedeemCode_1.default, { foreignKey: 'createdBy', as: 'createdCodes' });
-User_1.default.hasMany(RedeemCode_1.default, { foreignKey: 'usedBy', as: 'redeemedCodes' });
-// RedeemCode <-> QuestionSet
-RedeemCode_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'questionSet' });
-QuestionSet_1.default.hasMany(RedeemCode_1.default, { foreignKey: 'questionSetId', as: 'redeemCodes' });
-// User <-> UserProgress
-UserProgress_1.default.belongsTo(User_1.default, { foreignKey: 'userId', as: 'user' });
-User_1.default.hasMany(UserProgress_1.default, { foreignKey: 'userId', as: 'userProgressRecords' });
-// UserProgress <-> QuestionSet
-UserProgress_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'progressQuestionSet' });
-QuestionSet_1.default.hasMany(UserProgress_1.default, { foreignKey: 'questionSetId', as: 'questionSetProgress' });
-// UserProgress <-> Question
-UserProgress_1.default.belongsTo(Question_1.default, { foreignKey: 'questionId', as: 'question' });
-Question_1.default.hasMany(UserProgress_1.default, { foreignKey: 'questionId', as: 'questionProgress' });
+const associations_1 = require("./associations");
+// 初始化模型关联
+console.log('正在初始化模型关联...');
+(0, associations_1.setupAssociations)();
+console.log('模型关联初始化完成');

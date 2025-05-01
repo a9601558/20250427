@@ -10,45 +10,12 @@ import RedeemCode from './RedeemCode';
 import Option from './Option';
 import HomepageSettings from './HomepageSettings';
 import UserProgress from './UserProgress';
+import { setupAssociations } from './associations';
 
-// 定义模型之间的关联关系
-// User <-> QuestionSet (通过 Purchase)
-Purchase.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-User.hasMany(Purchase, { foreignKey: 'userId', as: 'userPurchaseRecords' });
-
-// Purchase <-> QuestionSet
-Purchase.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'purchaseQuestionSet' });
-QuestionSet.hasMany(Purchase, { foreignKey: 'questionSetId', as: 'questionSetPurchases' });
-
-// QuestionSet <-> Question
-QuestionSet.hasMany(Question, { foreignKey: 'questionSetId', as: 'questions' });
-Question.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'questionSet' });
-
-// Question <-> Option
-Question.hasMany(Option, { foreignKey: 'questionId', as: 'options' });
-Option.belongsTo(Question, { foreignKey: 'questionId', as: 'question' });
-
-// User <-> RedeemCode
-RedeemCode.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
-RedeemCode.belongsTo(User, { foreignKey: 'usedBy', as: 'consumer' });
-User.hasMany(RedeemCode, { foreignKey: 'createdBy', as: 'createdCodes' });
-User.hasMany(RedeemCode, { foreignKey: 'usedBy', as: 'redeemedCodes' });
-
-// RedeemCode <-> QuestionSet
-RedeemCode.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'questionSet' });
-QuestionSet.hasMany(RedeemCode, { foreignKey: 'questionSetId', as: 'redeemCodes' });
-
-// User <-> UserProgress
-UserProgress.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-User.hasMany(UserProgress, { foreignKey: 'userId', as: 'userProgressRecords' });
-
-// UserProgress <-> QuestionSet
-UserProgress.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'progressQuestionSet' });
-QuestionSet.hasMany(UserProgress, { foreignKey: 'questionSetId', as: 'questionSetProgress' });
-
-// UserProgress <-> Question
-UserProgress.belongsTo(Question, { foreignKey: 'questionId', as: 'question' });
-Question.hasMany(UserProgress, { foreignKey: 'questionId', as: 'questionProgress' });
+// 初始化模型关联
+console.log('正在初始化模型关联...');
+setupAssociations();
+console.log('模型关联初始化完成');
 
 // Export models
 export {
