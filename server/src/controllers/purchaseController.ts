@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { Purchase, User, QuestionSet, sequelize } from '../models';
 import { stripePaymentIntent } from '../services/stripe';
 import { v4 as uuidv4 } from 'uuid';
@@ -208,69 +208,91 @@ export const getActivePurchases = async (req: Request, res: Response) => {
     
     console.log(`[getActivePurchases] 查询用户 ${req.user.id} 的购买记录`);
     
-    const now = new Date();
+    // 首先直接从数据库查询，确保有数据
+    const rawResults = await sequelize.query(
+      `SELECT p.*, qs.id as question_set_id, qs.title, qs.description, qs.category 
+       FROM purchases p 
+       JOIN question_sets qs ON p.question_set_id = qs.id 
+       WHERE p.user_id = :userId`,
+      {
+        replacements: { userId: req.user.id },
+        logging: console.log,
+        type: QueryTypes.SELECT
+      }
+    ) as any[];
     
-    // 查找购买记录，放宽条件
+    console.log(`[getActivePurchases] 原始SQL查询返回 ${rawResults.length} 条结果`);
+    
+    if (rawResults && rawResults.length > 0) {
+      console.log(`[getActivePurchases] 找到购买记录，第一条:`, rawResults[0]);
+      
+      const formattedResults = rawResults.map((record: any) => {
+        // 确保日期是有效的
+        const now = new Date();
+        let purchaseDate, expiryDate, remainingDays;
+        
+        try {
+          purchaseDate = record.purchase_date ? new Date(record.purchase_date) : now;
+          expiryDate = record.expiry_date ? new Date(record.expiry_date) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          
+          // 验证日期
+          if (isNaN(purchaseDate.getTime()) || isNaN(expiryDate.getTime())) {
+            console.warn(`[getActivePurchases] 无效日期:`, { purchaseDate, expiryDate });
+            // 使用默认值
+            purchaseDate = now;
+            expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          }
+          
+          // 计算剩余天数
+          remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        } catch (error) {
+          console.error(`[getActivePurchases] 日期处理错误:`, error);
+          purchaseDate = now;
+          expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          remainingDays = 30;
+        }
+        
+        return {
+          id: record.id,
+          questionSetId: record.question_set_id,
+          purchaseDate: purchaseDate.toISOString(),
+          expiryDate: expiryDate.toISOString(),
+          remainingDays,
+          status: record.status || 'active',
+          hasAccess: true,
+          questionSet: {
+            id: record.question_set_id,
+            title: record.title,
+            description: record.description,
+            category: record.category
+          }
+        };
+      });
+      
+      console.log(`[getActivePurchases] 返回 ${formattedResults.length} 条格式化的购买记录`);
+      return sendResponse(res, 200, formattedResults);
+    }
+    
+    // 如果原始 SQL 查询没有结果，再尝试 Sequelize
     const purchases = await Purchase.findAll({
       where: {
-        userId: req.user.id,
-        // 放宽status条件，允许所有非cancelled的状态
-        status: {
-          [Op.ne]: 'cancelled'
-        }
-        // 放宽有效期条件，查询所有购买记录
+        userId: req.user.id
       },
       include: [
         {
           model: QuestionSet,
           as: 'purchaseQuestionSet',
-          attributes: ['id', 'title', 'description', 'category', 'price']
+          required: true
         }
       ]
     });
     
-    console.log(`[getActivePurchases] 找到 ${purchases.length} 条购买记录`);
-    
-    // 如果没有找到任何记录，尝试直接从数据库查询
-    if (purchases.length === 0) {
-      console.log(`[getActivePurchases] 没有找到购买记录，尝试直接查询数据库`);
-      
-      // 尝试直接执行SQL查询
-      const [rawPurchases] = await sequelize.query(
-        `SELECT p.*, qs.id as qs_id, qs.title as qs_title FROM purchases p 
-         LEFT JOIN question_sets qs ON p.question_set_id = qs.id 
-         WHERE p.user_id = :userId`,
-        {
-          replacements: { userId: req.user.id },
-          logging: console.log
-        }
-      );
-      
-      console.log(`[getActivePurchases] 原始查询结果:`, rawPurchases);
-      
-      // 如果有原始查询结果，转换为响应格式
-      if (rawPurchases && Array.isArray(rawPurchases) && rawPurchases.length > 0) {
-        const formattedRawPurchases = rawPurchases.map((p: any) => ({
-          id: p.id,
-          questionSetId: p.question_set_id,
-          purchaseDate: new Date(p.purchase_date || now).toISOString(),
-          expiryDate: new Date(p.expiry_date || now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          remainingDays: 30,
-          questionSet: {
-            id: p.qs_id,
-            title: p.qs_title
-          },
-          hasAccess: true
-        }));
-        
-        console.log(`[getActivePurchases] 返回 ${formattedRawPurchases.length} 条处理后的购买记录`);
-        return sendResponse(res, 200, formattedRawPurchases);
-      }
-    }
+    console.log(`[getActivePurchases] Sequelize查询返回 ${purchases.length} 条结果`);
     
     // 格式化返回数据
     const formattedPurchases = purchases.map(purchase => {
       try {
+        const now = new Date();
         // 确保日期字段是有效的
         const purchaseDate = purchase.purchaseDate ? new Date(purchase.purchaseDate) : now;
         const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -301,29 +323,32 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           purchaseDate: purchaseDate.toISOString(),
           expiryDate: expiryDate.toISOString(),
           remainingDays,
+          status: purchase.status,
           questionSet: questionSetData,
           hasAccess: true
         };
       } catch (error) {
         console.error('[getActivePurchases] Error formatting purchase:', purchase.id, error);
         // 返回一个带有默认值的对象，而不是抛出错误
+        const now = new Date();
         return {
           id: purchase.id,
           questionSetId: purchase.questionSetId,
           purchaseDate: now.toISOString(),
           expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           remainingDays: 30,
+          status: purchase.status || 'active',
           questionSet: purchase.get('purchaseQuestionSet'),
           hasAccess: true
         };
       }
     });
     
-    // 过滤掉任何无效的记录，但保留有效期即使已过期的记录
+    // 过滤掉任何无效的记录
     const validPurchases = formattedPurchases.filter(purchase => purchase && purchase.questionSetId);
     
-    console.log(`[getActivePurchases] 返回 ${validPurchases.length} 条有效的购买记录`);
-    sendResponse(res, 200, validPurchases);
+    console.log(`[getActivePurchases] Sequelize方式返回 ${validPurchases.length} 条有效的购买记录`);
+    return sendResponse(res, 200, validPurchases.length > 0 ? validPurchases : []);
   } catch (error) {
     console.error('[getActivePurchases] Error:', error);
     sendError(res, 500, '获取有效购买记录失败', error);
