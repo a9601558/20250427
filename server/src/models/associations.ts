@@ -32,10 +32,10 @@ export const setupAssociations = () => {
     as: 'question'
   });
 
-  // User 和 UserProgress 的关联
+  // User 和 UserProgress 的关联 - 修改关联名称以避免冲突
   User.hasMany(UserProgress, {
     foreignKey: 'userId',
-    as: 'progress',
+    as: 'userProgress', // 从'progress'改为'userProgress'以避免与User模型中的progress属性冲突
     onDelete: 'CASCADE'
   });
 
