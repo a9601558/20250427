@@ -190,13 +190,14 @@ const getActivePurchases = async (req, res) => {
         if (!req.user || !req.user.id) {
             return sendError(res, 401, '用户未登录');
         }
+        const now = new Date();
         // 查找所有有效的购买记录
         const purchases = await models_1.Purchase.findAll({
             where: {
                 userId: req.user.id,
                 status: 'active',
                 expiryDate: {
-                    [sequelize_1.Op.gt]: new Date()
+                    [sequelize_1.Op.gt]: now
                 }
             },
             include: [
@@ -209,28 +210,50 @@ const getActivePurchases = async (req, res) => {
         });
         // 格式化返回数据
         const formattedPurchases = purchases.map(purchase => {
-            // 确保expiryDate是有效日期
-            const expiryDate = purchase.expiryDate instanceof Date
-                ? purchase.expiryDate
-                : new Date(purchase.expiryDate);
-            // 计算剩余天数，如果无法计算则默认为30天
-            let remainingDays = 30;
-            if (expiryDate && !isNaN(expiryDate.getTime())) {
-                remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            try {
+                // 确保日期字段是有效的
+                const purchaseDate = purchase.purchaseDate ? new Date(purchase.purchaseDate) : now;
+                const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                // 验证日期是否有效
+                if (isNaN(purchaseDate.getTime()) || isNaN(expiryDate.getTime())) {
+                    console.error('Invalid date found:', { purchaseDate, expiryDate });
+                    throw new Error('Invalid date values');
+                }
+                // 计算剩余天数，确保至少为1天
+                const remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                // Get the question set from the association
+                const questionSetData = purchase.get('purchaseQuestionSet');
+                if (!questionSetData) {
+                    console.error('Question set data not found for purchase:', purchase.id);
+                    throw new Error('Question set data not found');
+                }
+                return {
+                    id: purchase.id,
+                    questionSetId: purchase.questionSetId,
+                    purchaseDate: purchaseDate.toISOString(),
+                    expiryDate: expiryDate.toISOString(),
+                    remainingDays,
+                    questionSet: questionSetData,
+                    hasAccess: true
+                };
             }
-            // Get the question set from the association
-            const questionSetData = purchase.get('purchaseQuestionSet');
-            return {
-                id: purchase.id,
-                questionSetId: purchase.questionSetId,
-                purchaseDate: purchase.purchaseDate,
-                expiryDate: expiryDate.toISOString(),
-                remainingDays,
-                questionSet: questionSetData,
-                hasAccess: true
-            };
+            catch (error) {
+                console.error('Error formatting purchase:', purchase.id, error);
+                // 返回一个带有默认值的对象，而不是抛出错误
+                return {
+                    id: purchase.id,
+                    questionSetId: purchase.questionSetId,
+                    purchaseDate: now.toISOString(),
+                    expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    remainingDays: 30,
+                    questionSet: purchase.get('purchaseQuestionSet'),
+                    hasAccess: true
+                };
+            }
         });
-        sendResponse(res, 200, formattedPurchases);
+        // 过滤掉任何无效的记录
+        const validPurchases = formattedPurchases.filter(purchase => purchase && purchase.questionSetId);
+        sendResponse(res, 200, validPurchases);
     }
     catch (error) {
         console.error('Get active purchases error:', error);
