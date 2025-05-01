@@ -728,14 +728,15 @@ const HomePage: React.FC = () => {
     
     return (
       <div className="mt-4 pt-3 border-t border-gray-100">
-        <div className="mb-4 flex items-center">
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div 
-              className="bg-green-600 h-2.5 rounded-full" 
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-          <span className="ml-2 text-xs text-gray-500">{Math.round(percentage)}%</span>
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-xs text-gray-500">有效期</span>
+          <span className="text-xs font-medium text-gray-700">剩余 {set.remainingDays} 天</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div 
+            className="bg-gradient-to-r from-green-300 to-green-500 h-2 rounded-full transition-all duration-500" 
+            style={{ width: `${percentage}%` }}
+          />
         </div>
       </div>
     );
@@ -971,11 +972,12 @@ const HomePage: React.FC = () => {
 
     return (
       <div 
-        className={`bg-white p-5 rounded-lg shadow-md overflow-hidden border relative hover:shadow-lg transition-all duration-300 ${
-          isRecentlyUpdated ? 'border-green-500 transform scale-102' : ''
-        }`}
+        className={`bg-white rounded-xl shadow-lg overflow-hidden border-0 relative 
+        hover:shadow-xl hover:translate-y-[-4px] transition-all duration-300 
+        ${isRecentlyUpdated ? 'ring-2 ring-green-400' : ''}`}
         style={{
-          animation: isRecentlyUpdated ? 'pulse 2s ease-in-out' : 'none'
+          animation: isRecentlyUpdated ? 'pulse 2s ease-in-out' : 'none',
+          transform: isRecentlyUpdated ? 'scale(1.02)' : 'scale(1)'
         }}
       >
         {isRecentlyUpdated && (
@@ -986,10 +988,10 @@ const HomePage: React.FC = () => {
           </div>
         )}
       
-        <div className="absolute top-3 left-3 flex gap-1">
+        <div className="absolute top-3 right-3 flex gap-1 z-10">
           {set.accessType === 'paid' && (
             <>
-              <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">
+              <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full shadow-sm">
                 已购买
               </span>
               {renderValidityBadge(set.remainingDays)}
@@ -997,35 +999,38 @@ const HomePage: React.FC = () => {
           )}
           {set.accessType === 'redeemed' && (
             <>
-              <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">
+              <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm">
                 已兑换
               </span>
               {renderValidityBadge(set.remainingDays)}
             </>
           )}
           {set.accessType === 'expired' && (
-            <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">
+            <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full shadow-sm">
               已过期
             </span>
           )}
           {set.accessType === 'trial' && !set.isPaid && (
-            <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">
+            <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm">
               免费
             </span>
           )}
           {set.accessType === 'trial' && set.isPaid && (
-            <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full flex items-center">
+            <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm flex items-center">
               <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              {set.price ? `付费: ¥${set.price}` : '付费题库'}
+              {set.price ? `¥${set.price}` : '付费题库'}
             </span>
           )}
         </div>
 
+        {/* 添加渐变背景 */}
+        <div className="h-3 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+
         <div className="p-6">
           <div className="mb-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-2 pr-16">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
               {set.title}
             </h3>
             <p className="text-gray-600 text-sm line-clamp-2 h-10 overflow-hidden">
@@ -1034,41 +1039,54 @@ const HomePage: React.FC = () => {
           </div>
 
           <div className="flex flex-col space-y-3">
-            <div className="flex items-center text-gray-500 text-sm">
-              <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center text-gray-500 text-sm bg-gray-50 p-2 rounded-lg">
+              <svg className="h-4 w-4 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>
-                题目数量: {calculateQuestionCount(set)} 道
+                题目数量: <b>{calculateQuestionCount(set)}</b> 道
               </span>
             </div>
 
             {stats && (
-      <div className="mt-2">
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>完成进度: {Math.round(progress)}%</span>
-          <span>正确率: {Math.round(accuracy)}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-          <div
-            className="bg-blue-600 h-2 rounded-full"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
+              <div className="mt-2">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <div className="flex items-center">
+                    <svg className="h-4 w-4 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    <span>进度: <b>{Math.round(progress)}%</b></span>
+                  </div>
+                  <div className="flex items-center">
+                    <svg className="h-4 w-4 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>正确率: <b>{Math.round(accuracy)}%</b></span>
+                  </div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-1 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
             )}
 
             {renderProgressBar(set)}
 
-          <button
+            <button
               onClick={() => onStartQuiz(set)}
-              className={`mt-2 w-full py-2.5 px-4 rounded-md text-white font-medium flex items-center justify-center ${
-                set.accessType === 'expired'
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : set.accessType === 'trial' && set.isPaid
-                  ? 'bg-yellow-500 hover:bg-yellow-600'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } transition-colors duration-200`}
+              className={`mt-4 w-full py-2.5 px-4 rounded-lg text-white font-medium 
+                flex items-center justify-center transition-all duration-300
+                transform hover:translate-y-[-2px] hover:shadow-md
+                ${
+                  set.accessType === 'expired'
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : set.accessType === 'trial' && set.isPaid
+                    ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
+                    : 'bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800'
+                }`}
               disabled={set.accessType === 'expired'}
             >
               {set.accessType === 'expired' ? (
@@ -1089,7 +1107,7 @@ const HomePage: React.FC = () => {
                   {stats ? '继续练习' : '开始练习'}
                 </>
               )}
-          </button>
+            </button>
           </div>
         </div>
       </div>

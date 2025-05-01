@@ -192,13 +192,14 @@ const QuestionCard = ({
             }
           });
           window.dispatchEvent(wrongAnswerEvent);
-        }
-        
-        // 答对自动跳到下一题
-        if (isCorrect) {
+          
+          // 错误时显示解析
+          setShowExplanation(true);
+        } else {
+          // 答对自动更快地跳到下一题 (500ms)
           timeoutId = setTimeout(() => {
             handleNext();
-          }, 1000);
+          }, 500);
         }
       } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
         setIsSubmitted(true);
@@ -233,13 +234,14 @@ const QuestionCard = ({
             }
           });
           window.dispatchEvent(wrongAnswerEvent);
-        }
-        
-        // 答对自动跳到下一题
-        if (isCorrect) {
+          
+          // 错误时显示解析
+          setShowExplanation(true);
+        } else {
+          // 答对自动更快地跳到下一题 (500ms)
           timeoutId = setTimeout(() => {
             handleNext();
-          }, 1000);
+          }, 500);
         }
       }
     } finally {
@@ -353,7 +355,7 @@ const QuestionCard = ({
 
       {/* 问题标题和进度 */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">问题 {questionNumber} / {totalQuestions}</h2>
+        <h2 className="text-xl font-semibold text-gray-800">问题 {questionNumber || 1} / {totalQuestions || 1}</h2>
         <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm">
           {question.questionType === 'single' ? '单选题' : '多选题'}
         </span>

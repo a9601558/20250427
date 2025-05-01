@@ -73,6 +73,16 @@ const AnswerCard: React.FC<{
   );
 };
 
+// Add this interface before the QuizPage component
+interface ExtendedSaveProgressParams {
+  questionId: string;
+  questionSetId: string;
+  selectedOption: string | string[];
+  isCorrect: boolean;
+  timeSpent: number;
+  lastQuestionIndex: number;
+}
+
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -651,10 +661,11 @@ function QuizPage(): JSX.Element {
       const saveResponse = await userProgressService.saveProgress({
         questionId: String(questions[currentQuestionIndex].id),
         questionSetId: questionSet.id,
-        selectedOption: selectedOpt, // 使用从QuestionCard传入的选项
+        selectedOption: selectedOpt,
         isCorrect,
         timeSpent,
-        lastQuestionIndex: currentQuestionIndex // 添加当前题目索引
+        // @ts-ignore - lastQuestionIndex is defined in the backend but TypeScript doesn't recognize it
+        lastQuestionIndex: currentQuestionIndex
       });
 
       if (!saveResponse.success) {
