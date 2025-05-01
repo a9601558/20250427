@@ -102,17 +102,30 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
 
-    const questionSets = await QuestionSet.findAll(withQuestionSetAttributes({
-      order: [['createdAt', 'DESC']],
-      limit,
-      offset
-    }));
+    const questionSets = await QuestionSet.findAll({
+      ...withQuestionSetAttributes({
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset
+      }),
+      include: [{
+        model: Question,
+        as: 'questions',
+        attributes: ['id']  // 只拿 id 就够用
+      }]
+    });
 
     const total = await QuestionSet.count();
 
+    // 添加 questionCount 字段
+    const result = questionSets.map(set => ({
+      ...set.toJSON(),
+      questionCount: set.questions?.length || 0
+    }));
+
     res.status(200).json({
       success: true,
-      data: questionSets,
+      data: result,
       pagination: {
         total,
         page,
