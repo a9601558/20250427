@@ -14,7 +14,27 @@ export const questionSetService = {
   async getAllQuestionSets(): Promise<ApiResponse<QuestionSet[]>> {
     try {
       const { questionSetService } = await import('./api');
-      return questionSetService.getAllQuestionSets();
+      const response = await questionSetService.getAllQuestionSets();
+      
+      if (response.success && response.data) {
+        // Get question counts for each question set
+        const questionSetsWithCounts = await Promise.all(
+          response.data.map(async (set) => {
+            const count = await this.getQuestionCount(set.id);
+            return {
+              ...set,
+              questionCount: count
+            };
+          })
+        );
+        
+        return {
+          success: true,
+          data: questionSetsWithCounts
+        };
+      }
+      
+      return response;
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
@@ -94,6 +114,18 @@ export const questionSetService = {
       return data;
     } catch (error) {
       return { success: false, error: (error as Error).message };
+    }
+  },
+
+  // Get question count for a question set
+  async getQuestionCount(questionSetId: string): Promise<number> {
+    try {
+      const response = await fetch(`/api/questions/count/${questionSetId}`);
+      const data = await response.json();
+      return data.count || 0;
+    } catch (error) {
+      console.error('Error getting question count:', error);
+      return 0;
     }
   }
 };
