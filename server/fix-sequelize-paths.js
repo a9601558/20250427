@@ -1,48 +1,41 @@
 'use strict';
 
 /**
- * 修复编译后的模块路径问题
- * 此脚本在部署时运行，创建兼容性文件以解决模块导入路径不一致的问题
+ * 数据库模块修复脚本
  * 
- * 使用方法: node fix-module-paths.js
+ * 此脚本直接在服务器上运行，用于修复编译后的 JavaScript 文件中的数据库模块导入问题
+ * 用法: node fix-sequelize-paths.js
  */
 
 const fs = require('fs');
 const path = require('path');
 
-console.log('开始修复模块路径问题...');
+console.log('开始修复数据库模块路径问题...');
 
-// 获取项目根路径
-const rootDir = path.resolve(__dirname, '../../..');
-const distDir = path.join(rootDir, 'dist');
-// 处理可能的编译输出路径差异
-const configDirOptions = [
-  path.join(distDir, 'server/src/config'),
-  path.join(distDir, 'src/config'),
-  path.join(rootDir, 'dist/config'),
-  path.join(rootDir, 'server/dist/config')
+// 找到编译后的 User.js 文件
+const possibleUserJsPaths = [
+  path.join(__dirname, 'dist/server/src/models/User.js'),
+  path.join(__dirname, 'dist/src/models/User.js'),
+  path.join(__dirname, 'dist/models/User.js'),
+  path.join(__dirname, 'server/dist/models/User.js')
 ];
 
-let configDir = null;
-for (const dir of configDirOptions) {
-  if (fs.existsSync(dir)) {
-    configDir = dir;
-    console.log(`找到配置目录: ${configDir}`);
+let userJsPath = null;
+for (const filePath of possibleUserJsPaths) {
+  if (fs.existsSync(filePath)) {
+    userJsPath = filePath;
+    console.log(`找到 User.js 文件: ${userJsPath}`);
     break;
   }
 }
 
-if (!configDir) {
-  console.log('未找到配置目录，创建默认路径');
-  configDir = configDirOptions[0];
-  fs.mkdirSync(configDir, { recursive: true });
+if (!userJsPath) {
+  console.error('错误: 无法找到编译后的 User.js 文件');
+  process.exit(1);
 }
 
-// 检查数据库配置文件是否存在
-const dbJsPath = path.join(configDir, 'db.js');
-
-// 创建一个直接的 CommonJS 兼容的数据库配置文件
-const content = `'use strict';
+// 创建 db.js 文件
+const dbJsContent = `'use strict';
 
 /**
  * 兼容性数据库配置文件
@@ -103,14 +96,24 @@ const sequelize = new Sequelize(
 module.exports = sequelize;
 `;
 
-try {
-  fs.writeFileSync(dbJsPath, content, 'utf8');
-  console.log(`成功: 已创建兼容性文件 ${dbJsPath}`);
-} catch (error) {
-  console.error(`错误: 创建文件失败:`, error);
+// 读取 User.js 文件，修复导入语句
+let userJsContent = fs.readFileSync(userJsPath, 'utf8');
+
+// 创建 db.js 文件
+const dbJsPath = path.join(path.dirname(userJsPath), '../config/db.js');
+const dbDir = path.dirname(dbJsPath);
+
+if (!fs.existsSync(dbDir)) {
+  console.log(`创建目录: ${dbDir}`);
+  fs.mkdirSync(dbDir, { recursive: true });
 }
 
-// 创建任何其他所需的兼容性文件
-// ...
+try {
+  fs.writeFileSync(dbJsPath, dbJsContent, 'utf8');
+  console.log(`成功: 已创建数据库配置文件 ${dbJsPath}`);
+} catch (error) {
+  console.error(`错误: 创建数据库配置文件失败:`, error);
+  process.exit(1);
+}
 
-console.log('模块路径修复完成'); 
+console.log('数据库模块路径修复完成'); 

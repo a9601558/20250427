@@ -5,5 +5,12 @@
 
 import sequelize from './database';
 
+// ES Module 导出
 export default sequelize;
-export * from './database'; 
+export * from './database';
+
+// CommonJS 兼容性导出
+// @ts-ignore
+module.exports = sequelize;
+// @ts-ignore
+module.exports.default = sequelize; 
