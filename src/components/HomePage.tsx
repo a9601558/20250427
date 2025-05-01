@@ -560,7 +560,13 @@ const HomePage: React.FC = () => {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
                         <span className="text-sm text-gray-500">
-                            {questionSet.questionCount || questionSet.trialQuestions || "多"} 道题目
+                            {(questionSet.questionCount && questionSet.questionCount > 0) 
+                              ? questionSet.questionCount 
+                              : (questionSet.questions && questionSet.questions.length > 0) 
+                                ? questionSet.questions.length 
+                                : (questionSet.trialQuestions && questionSet.trialQuestions > 0) 
+                                  ? questionSet.trialQuestions 
+                                  : "多"} 道题目
                           </span>
                           {isPaid && (
                             <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full ${

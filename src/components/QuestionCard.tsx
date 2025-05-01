@@ -77,22 +77,26 @@ const QuestionCard = ({
     }
   }, [userAnsweredQuestion, question.questionType]);
 
-  // 优化后的正确性检查逻辑
+  // 修复的正确性检查逻辑
   const isCorrect = userAnsweredQuestion
     ? userAnsweredQuestion.isCorrect
     : isSubmitted && (
         question.questionType === 'single'
-          ? selectedOption === question.correctAnswer
+          ? (() => {
+              // 找到正确选项的ID
+              const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+              return selectedOption === correctOptionId;
+            })()
           : (() => {
-              // 对于多选题，比较选择的选项集合是否与正确答案集合相同
-              const correctAnswers = Array.isArray(question.correctAnswer) 
-                ? question.correctAnswer 
-                : question.correctAnswer ? [question.correctAnswer] : [];
+              // 对于多选题，找出所有正确选项的ID
+              const correctOptionIds = question.options
+                .filter(opt => opt.isCorrect)
+                .map(opt => opt.id);
                 
               return (
-                selectedOptions.length === correctAnswers.length &&
-                selectedOptions.every(id => correctAnswers.includes(id)) &&
-                correctAnswers.every(id => selectedOptions.includes(id))
+                selectedOptions.length === correctOptionIds.length &&
+                selectedOptions.every(id => correctOptionIds.includes(id)) &&
+                correctOptionIds.every(id => selectedOptions.includes(id))
               );
             })()
       );
@@ -154,8 +158,9 @@ const QuestionCard = ({
       if (question.questionType === 'single' && selectedOption) {
         setIsSubmitted(true);
         
-        // 修改判断逻辑，直接与correctAnswer比较
-        const isCorrect = selectedOption === question.correctAnswer;
+        // 修改判断逻辑，找到正确选项的ID比较
+        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+        const isCorrect = selectedOption === correctOptionId;
         
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOption);
@@ -170,14 +175,14 @@ const QuestionCard = ({
         setIsSubmitted(true);
         
         // 修改多选题判断逻辑
-        const correctAnswers = Array.isArray(question.correctAnswer) 
-          ? question.correctAnswer 
-          : question.correctAnswer ? [question.correctAnswer] : [];
+        const correctOptionIds = question.options
+          .filter(opt => opt.isCorrect)
+          .map(opt => opt.id);
         
         const isCorrect = 
-          selectedOptions.length === correctAnswers.length &&
-          selectedOptions.every(id => correctAnswers.includes(id)) &&
-          correctAnswers.every(id => selectedOptions.includes(id));
+          selectedOptions.length === correctOptionIds.length &&
+          selectedOptions.every(id => correctOptionIds.includes(id)) &&
+          correctOptionIds.every(id => selectedOptions.includes(id));
         
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOptions);
