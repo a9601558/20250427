@@ -26,10 +26,10 @@ exports.UserProgress = UserProgress_1.default;
 // 定义模型之间的关联关系
 // User <-> QuestionSet (通过 Purchase)
 Purchase_1.default.belongsTo(User_1.default, { foreignKey: 'userId', as: 'user' });
-User_1.default.hasMany(Purchase_1.default, { foreignKey: 'userId', as: 'purchases' });
+User_1.default.hasMany(Purchase_1.default, { foreignKey: 'userId', as: 'userPurchaseRecords' });
 // Purchase <-> QuestionSet
 Purchase_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'purchaseQuestionSet' });
-QuestionSet_1.default.hasMany(Purchase_1.default, { foreignKey: 'questionSetId', as: 'purchases' });
+QuestionSet_1.default.hasMany(Purchase_1.default, { foreignKey: 'questionSetId', as: 'questionSetPurchases' });
 // QuestionSet <-> Question
 QuestionSet_1.default.hasMany(Question_1.default, { foreignKey: 'questionSetId', as: 'questions' });
 Question_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'questionSet' });
@@ -46,10 +46,10 @@ RedeemCode_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSet
 QuestionSet_1.default.hasMany(RedeemCode_1.default, { foreignKey: 'questionSetId', as: 'redeemCodes' });
 // User <-> UserProgress
 UserProgress_1.default.belongsTo(User_1.default, { foreignKey: 'userId', as: 'user' });
-User_1.default.hasMany(UserProgress_1.default, { foreignKey: 'userId', as: 'progress' });
+User_1.default.hasMany(UserProgress_1.default, { foreignKey: 'userId', as: 'userProgressRecords' });
 // UserProgress <-> QuestionSet
 UserProgress_1.default.belongsTo(QuestionSet_1.default, { foreignKey: 'questionSetId', as: 'progressQuestionSet' });
-QuestionSet_1.default.hasMany(UserProgress_1.default, { foreignKey: 'questionSetId', as: 'userProgress' });
+QuestionSet_1.default.hasMany(UserProgress_1.default, { foreignKey: 'questionSetId', as: 'questionSetProgress' });
 // UserProgress <-> Question
 UserProgress_1.default.belongsTo(Question_1.default, { foreignKey: 'questionId', as: 'question' });
-Question_1.default.hasMany(UserProgress_1.default, { foreignKey: 'questionId', as: 'progress' });
+Question_1.default.hasMany(UserProgress_1.default, { foreignKey: 'questionId', as: 'questionProgress' });
