@@ -274,9 +274,9 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
         {!isExpired && (
           <div className="mb-4 flex items-center">
             <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (remainingDays / 180) * 100)}%` }}></div>
+              <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (remainingDays / 30) * 100)}%` }}></div>
             </div>
-            <span className="ml-2 text-xs text-gray-500">{Math.round((remainingDays / 180) * 100)}%</span>
+            <span className="ml-2 text-xs text-gray-500">{Math.round((remainingDays / 30) * 100)}%</span>
           </div>
         )}
         
