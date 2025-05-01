@@ -6,11 +6,13 @@ import RedeemCodeForm from './RedeemCodeForm';
 
 interface QuestionCardProps {
   question: Question;
-  onNext: () => void;
   onAnswerSubmitted?: (isCorrect: boolean, selectedOption: string | string[]) => void;
-  questionNumber: number;
-  totalQuestions: number;
-  quizTitle: string;
+  onNext?: () => void;
+  isLast?: boolean;
+  isSubmittingAnswer?: boolean;
+  questionNumber?: number;
+  totalQuestions?: number;
+  quizTitle?: string;
   userAnsweredQuestion?: { 
     index: number; 
     isCorrect: boolean; 
@@ -20,6 +22,7 @@ interface QuestionCardProps {
   isPaid?: boolean;
   hasFullAccess?: boolean;
   trialQuestions?: number;
+  questionSetId: string;
 }
 
 // 提示语精简：提取为常量，便于后期i18n多语言
@@ -39,16 +42,19 @@ const MESSAGES = {
 
 const QuestionCard = ({ 
   question, 
-  onNext, 
+  onNext = () => {}, 
   onAnswerSubmitted, 
-  questionNumber, 
-  totalQuestions, 
-  quizTitle,
+  questionNumber = 1, 
+  totalQuestions = 1, 
+  quizTitle = '',
   userAnsweredQuestion,
   onJumpToQuestion,
   isPaid = false,
   hasFullAccess = false,
-  trialQuestions = 0
+  trialQuestions = 0,
+  questionSetId,
+  isLast = false,
+  isSubmittingAnswer = false
 }: QuestionCardProps) => {
   // 单选题选择一个选项，多选题选择多个选项
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -169,6 +175,25 @@ const QuestionCard = ({
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOption);
         }
+
+        // 如果回答错误，保存到错题集
+        if (!isCorrect) {
+          // 触发错题保存事件
+          const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+            detail: {
+              questionId: question.id,
+              questionSetId: questionSetId,
+              question: question.question,
+              questionType: question.questionType,
+              options: question.options,
+              selectedOption: selectedOption,
+              correctOption: correctOptionId,
+              explanation: question.explanation
+            }
+          });
+          window.dispatchEvent(wrongAnswerEvent);
+        }
+        
         // 答对自动跳到下一题
         if (isCorrect) {
           timeoutId = setTimeout(() => {
@@ -191,6 +216,25 @@ const QuestionCard = ({
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOptions);
         }
+
+        // 如果回答错误，保存到错题集
+        if (!isCorrect) {
+          // 触发错题保存事件
+          const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+            detail: {
+              questionId: question.id,
+              questionSetId: questionSetId,
+              question: question.question,
+              questionType: question.questionType,
+              options: question.options,
+              selectedOptions: selectedOptions,
+              correctOptions: correctOptionIds,
+              explanation: question.explanation
+            }
+          });
+          window.dispatchEvent(wrongAnswerEvent);
+        }
+        
         // 答对自动跳到下一题
         if (isCorrect) {
           timeoutId = setTimeout(() => {
@@ -240,6 +284,44 @@ const QuestionCard = ({
       }
     };
   }, []);
+
+  // 修复 Array.from 函数中对 totalQuestions 的使用，确保它是数字
+  const renderNumberButtons = () => {
+    // 确保 totalQuestions 是数字
+    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
+    
+    return Array.from({ length: count }).map((_, index) => {
+      const isAccessible = isQuestionAccessible(index);
+      return (
+        <button
+          key={index}
+          onClick={() => handleJumpToQuestion(index)}
+          disabled={!isAccessible}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${questionNumber === index + 1 
+              ? 'bg-blue-600 text-white' 
+              : isAccessible
+                ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+            }
+            ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
+          `}
+          aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
+          title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
+        >
+          {index + 1}
+          {!isAccessible && (
+            <span className="absolute -top-1 -right-1 w-3 h-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
+        </button>
+      );
+    });
+  };
 
   return (
     <div className="bg-white shadow-md rounded-lg p-6 max-w-3xl mx-auto">
@@ -315,37 +397,7 @@ const QuestionCard = ({
       {/* 题号小圆点导航，移动到这里 */}
       {onJumpToQuestion && (
         <div className="flex justify-center mb-6 flex-wrap gap-1">
-          {Array.from({ length: totalQuestions }).map((_, index) => {
-            const isAccessible = isQuestionAccessible(index);
-            return (
-              <button
-                key={index}
-                onClick={() => handleJumpToQuestion(index)}
-                disabled={!isAccessible}
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-                  transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-                  ${questionNumber === index + 1 
-                    ? 'bg-blue-600 text-white' 
-                    : isAccessible
-                      ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
-                  }
-                  ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
-                `}
-                aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
-                title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
-              >
-                {index + 1}
-                {!isAccessible && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
-                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                    </svg>
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {renderNumberButtons()}
         </div>
       )}
 

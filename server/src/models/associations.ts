@@ -5,6 +5,7 @@ import User from './User';
 import UserProgress from './UserProgress';
 import Purchase from './Purchase';
 import RedeemCode from './RedeemCode';
+import WrongAnswer from './WrongAnswer';
 
 export const setupAssociations = () => {
   // QuestionSet 和 Question 的关联
@@ -34,7 +35,7 @@ export const setupAssociations = () => {
   // User 和 UserProgress 的关联
   User.hasMany(UserProgress, {
     foreignKey: 'userId',
-    as: 'userProgresses',
+    as: 'progress',
     onDelete: 'CASCADE'
   });
 
@@ -43,87 +44,84 @@ export const setupAssociations = () => {
     as: 'user'
   });
 
-  // QuestionSet 和 UserProgress 的关联
-  QuestionSet.hasMany(UserProgress, {
-    foreignKey: 'questionSetId',
-    as: 'questionSetUserProgresses',  // ✅ 改了
-    onDelete: 'CASCADE'
-  });
-
-  UserProgress.belongsTo(QuestionSet, {
-    foreignKey: 'questionSetId',
-    as: 'progressQuestionSet'   // ✅ 已改好
-  });
-
-  // Question 和 UserProgress 的关联
-  Question.hasMany(UserProgress, {
-    foreignKey: 'questionId',
-    as: 'questionUserProgresses',   // ✅ 改了
-    onDelete: 'CASCADE'
-  });
-
+  // UserProgress 和 Question 的关联
   UserProgress.belongsTo(Question, {
     foreignKey: 'questionId',
-    as: 'progressQuestion'   // ✅ 稍微改名，防止和 Question 里的 as 冲突
+    as: 'question'
+  });
+
+  // UserProgress 和 QuestionSet 的关联
+  UserProgress.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
   });
 
   // User 和 Purchase 的关联
   User.hasMany(Purchase, {
     foreignKey: 'userId',
-    as: 'userPurchases',
+    as: 'userPurchaseRecords',
     onDelete: 'CASCADE'
   });
 
   Purchase.belongsTo(User, {
     foreignKey: 'userId',
-    as: 'purchaseUser'
+    as: 'user'
   });
 
-  // QuestionSet 和 Purchase 的关联
-  QuestionSet.hasMany(Purchase, {
-    foreignKey: 'questionSetId',
-    as: 'questionSetPurchases',
-    onDelete: 'CASCADE'
-  });
-
+  // Purchase 和 QuestionSet 的关联
   Purchase.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
-    as: 'purchaseQuestionSet'
+    as: 'questionSet'
   });
 
-  // QuestionSet-RedeemCode关联
-  QuestionSet.hasMany(RedeemCode, {
-    foreignKey: 'questionSetId',
-    as: 'questionSetRedeemCodes',
-    onDelete: 'CASCADE'
-  });
-
+  // 兑换码关联
   RedeemCode.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
-    as: 'redeemQuestionSet'
+    as: 'questionSet'
   });
 
-  // User-RedeemCode关联（已使用）
-  User.hasMany(RedeemCode, {
-    foreignKey: 'usedBy',
-    as: 'userRedeemedCodes',
-    onDelete: 'SET NULL'
-  });
-
-  RedeemCode.belongsTo(User, {
-    foreignKey: 'usedBy',
-    as: 'redeemUser'
-  });
-
-  // User-RedeemCode关联（创建者）
-  User.hasMany(RedeemCode, {
-    foreignKey: 'createdBy',
-    as: 'userCreatedCodes',
+  QuestionSet.hasMany(RedeemCode, {
+    foreignKey: 'questionSetId',
+    as: 'redeemCodes',
     onDelete: 'CASCADE'
   });
 
-  RedeemCode.belongsTo(User, {
-    foreignKey: 'createdBy',
-    as: 'redeemCreator'
+  User.hasMany(RedeemCode, {
+    foreignKey: 'redeemedBy',
+    as: 'redeemedCodes'
+  });
+
+  // WrongAnswer 关联
+  User.hasMany(WrongAnswer, {
+    foreignKey: 'userId',
+    as: 'wrongAnswers',
+    onDelete: 'CASCADE'
+  });
+
+  WrongAnswer.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'user'
+  });
+
+  Question.hasMany(WrongAnswer, {
+    foreignKey: 'questionId',
+    as: 'wrongAnswers',
+    onDelete: 'CASCADE'
+  });
+
+  WrongAnswer.belongsTo(Question, {
+    foreignKey: 'questionId',
+    as: 'questionDetails'
+  });
+
+  QuestionSet.hasMany(WrongAnswer, {
+    foreignKey: 'questionSetId',
+    as: 'wrongAnswers',
+    onDelete: 'CASCADE'
+  });
+
+  WrongAnswer.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'questionSet'
   });
 };

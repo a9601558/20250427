@@ -32,10 +32,11 @@ import './models/UserProgress';
 import userRoutes from './routes/userRoutes';
 import questionSetRoutes from './routes/questionSetRoutes';
 import questionRoutes from './routes/questionRoutes';
+import userProgressRoutes from './routes/userProgressRoutes';
 import purchaseRoutes from './routes/purchaseRoutes';
 import redeemCodeRoutes from './routes/redeemCodeRoutes';
 import homepageRoutes from './routes/homepageRoutes';
-import userProgressRoutes from './routes/userProgressRoutes';
+import wrongAnswerRoutes from './routes/wrongAnswerRoutes';
 
 // Initialize express app
 const app = express();
@@ -61,10 +62,11 @@ app.use(limiter);
 app.use('/api/users', userRoutes);
 app.use('/api/question-sets', questionSetRoutes);
 app.use('/api/questions', questionRoutes);
+app.use('/api/user-progress', userProgressRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/redeem-codes', redeemCodeRoutes);
 app.use('/api/homepage', homepageRoutes);
-app.use('/api/user-progress', userProgressRoutes);
+app.use('/api/wrong-answers', wrongAnswerRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

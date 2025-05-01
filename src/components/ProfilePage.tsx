@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
-import { userProgressService, questionSetService, purchaseService } from '../services/api';
+import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
 
@@ -79,6 +79,34 @@ interface RedeemRecord {
     title: string;
     description?: string;
   };
+}
+
+// 错题记录类型
+interface WrongAnswer {
+  id: string;
+  questionId: string;
+  questionSetId: string;
+  question: string;
+  questionType: string;
+  options: any[];
+  selectedOption?: string;
+  selectedOptions?: string[];
+  correctOption?: string;
+  correctOptions?: string[];
+  explanation?: string;
+  memo?: string;
+  createdAt: string;
+  questionSet?: {
+    id: string;
+    title: string;
+  };
+}
+
+// 错题集分组
+interface WrongAnswerGroup {
+  questionSetId: string;
+  questionSetTitle: string;
+  wrongAnswers: WrongAnswer[];
 }
 
 const formatTime = (seconds: number): string => {
@@ -338,16 +366,249 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   );
 };
 
+// 错题卡片组件
+interface WrongAnswerCardProps {
+  wrongAnswer: WrongAnswer;
+  onDelete: (id: string) => void;
+  onUpdateMemo: (id: string, memo: string) => void;
+  onPractice: (questionSetId: string) => void;
+}
+
+const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({ 
+  wrongAnswer, 
+  onDelete, 
+  onUpdateMemo,
+  onPractice
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [memo, setMemo] = useState(wrongAnswer.memo || '');
+  const [showOptions, setShowOptions] = useState(false);
+
+  // 渲染选项
+  const renderOptions = () => {
+    return wrongAnswer.options.map((option, index) => {
+      // 判断这个选项是否是正确答案
+      const isCorrect = wrongAnswer.questionType === 'single' 
+        ? option.id === wrongAnswer.correctOption
+        : wrongAnswer.correctOptions?.includes(option.id);
+      
+      // 判断这个选项是否是用户选择的
+      const isSelected = wrongAnswer.questionType === 'single'
+        ? option.id === wrongAnswer.selectedOption
+        : wrongAnswer.selectedOptions?.includes(option.id);
+      
+      // 基础样式
+      let optionClass = "p-3 my-1 rounded-md border ";
+      
+      if (isCorrect) {
+        optionClass += "bg-green-50 border-green-200 ";
+      } else if (isSelected) {
+        optionClass += "bg-red-50 border-red-200 ";
+      } else {
+        optionClass += "bg-gray-50 border-gray-200 ";
+      }
+      
+      return (
+        <div key={option.id} className={optionClass}>
+          <div className="flex items-start">
+            <span className="font-medium mr-2">{String.fromCharCode(65 + index)}.</span>
+            <span>{option.text}</span>
+          </div>
+        </div>
+      );
+    });
+  };
+  
+  const handleSaveMemo = () => {
+    onUpdateMemo(wrongAnswer.id, memo);
+    setIsEditing(false);
+  };
+  
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  return (
+    <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+      <div className="flex justify-between items-start mb-3">
+        <h3 className="font-medium text-gray-800">{wrongAnswer.question}</h3>
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={() => setShowOptions(!showOptions)}
+            className="text-blue-500 text-sm hover:text-blue-700"
+          >
+            {showOptions ? '隐藏选项' : '查看选项'}
+          </button>
+          <button 
+            onClick={() => onPractice(wrongAnswer.questionSetId)}
+            className="text-green-500 text-sm hover:text-green-700"
+          >
+            练习
+          </button>
+        </div>
+      </div>
+      
+      {showOptions && (
+        <div className="mb-4">
+          {renderOptions()}
+          
+          {wrongAnswer.explanation && (
+            <div className="mt-3 p-3 bg-blue-50 rounded-md border border-blue-100">
+              <p className="text-sm font-medium text-blue-800">解析：</p>
+              <p className="text-sm text-blue-700">{wrongAnswer.explanation}</p>
+            </div>
+          )}
+        </div>
+      )}
+      
+      <div className="text-xs text-gray-500 mb-2">
+        错误时间: {formatDate(wrongAnswer.createdAt)}
+        {wrongAnswer.questionSet && ` | 题库: ${wrongAnswer.questionSet.title}`}
+      </div>
+      
+      {isEditing ? (
+        <div className="mt-2">
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            placeholder="添加备注..."
+            rows={2}
+          />
+          <div className="flex justify-end mt-2 space-x-2">
+            <button 
+              onClick={() => setIsEditing(false)}
+              className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm"
+            >
+              取消
+            </button>
+            <button 
+              onClick={handleSaveMemo}
+              className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-between items-center mt-2">
+          {wrongAnswer.memo ? (
+            <div className="flex-1 text-sm text-gray-700 bg-gray-50 p-2 rounded-md">
+              {wrongAnswer.memo}
+            </div>
+          ) : (
+            <div className="flex-1">
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="text-blue-500 text-sm hover:underline"
+              >
+                添加备注...
+              </button>
+            </div>
+          )}
+          
+          <div className="ml-2 flex space-x-2">
+            {wrongAnswer.memo && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="text-blue-500 text-sm hover:text-blue-700"
+              >
+                编辑
+              </button>
+            )}
+            <button 
+              onClick={() => onDelete(wrongAnswer.id)}
+              className="text-red-500 text-sm hover:text-red-700"
+            >
+              删除
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 错题集分组组件
+interface WrongAnswerGroupProps {
+  group: WrongAnswerGroup;
+  onDelete: (id: string) => void;
+  onUpdateMemo: (id: string, memo: string) => void;
+  onPractice: (questionSetId: string) => void;
+}
+
+const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({ 
+  group, 
+  onDelete, 
+  onUpdateMemo,
+  onPractice
+}) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  return (
+    <div className="mb-6">
+      <div 
+        className="flex justify-between items-center bg-gray-100 p-3 rounded-lg cursor-pointer"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        <h2 className="text-lg font-medium">{group.questionSetTitle} ({group.wrongAnswers.length}题)</h2>
+        <div className="flex items-center">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onPractice(group.questionSetId);
+            }}
+            className="mx-2 px-3 py-1 bg-green-500 text-white rounded-md text-sm"
+          >
+            练习全部
+          </button>
+          <svg 
+            className={`w-5 h-5 transition-transform ${isCollapsed ? 'transform rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+      
+      {!isCollapsed && (
+        <div className="mt-3">
+          {group.wrongAnswers.map(wrongAnswer => (
+            <WrongAnswerCard 
+              key={wrongAnswer.id}
+              wrongAnswer={wrongAnswer}
+              onDelete={onDelete}
+              onUpdateMemo={onUpdateMemo}
+              onPractice={onPractice}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProfilePage: React.FC = () => {
   const { user } = useUser();
   const { socket } = useSocket();
   const [progressStats, setProgressStats] = useState<ProgressStats[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [redeemCodes, setRedeemCodes] = useState<RedeemRecord[]>([]);
+  const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [purchasesLoading, setPurchasesLoading] = useState(true);
   const [redeemCodesLoading, setRedeemCodesLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemed'>('progress');
+  const [wrongAnswersLoading, setWrongAnswersLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemed' | 'wrong-answers'>('progress');
   const navigate = useNavigate();
 
   // 在前端计算进度统计
@@ -527,6 +788,27 @@ const ProfilePage: React.FC = () => {
     }
   }, [user]);
 
+  // 获取错题集
+  const fetchWrongAnswers = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setWrongAnswersLoading(true);
+      const response = await wrongAnswerService.getWrongAnswers();
+      
+      if (response.success && response.data) {
+        setWrongAnswers(response.data);
+      } else {
+        throw new Error(response.message || '获取错题集失败');
+      }
+    } catch (error) {
+      toast.error('获取错题集失败');
+      console.error('[ProfilePage] Error fetching wrong answers:', error);
+    } finally {
+      setWrongAnswersLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!socket || !user) return;
 
@@ -534,6 +816,7 @@ const ProfilePage: React.FC = () => {
     handleProgressUpdate();
     fetchPurchases();
     fetchRedeemCodes();
+    fetchWrongAnswers();
 
     // 发送验证请求，检查所有题库的访问状态
     const checkAccessForAllSets = () => {
@@ -572,14 +855,18 @@ const ProfilePage: React.FC = () => {
     // 单独设置一个useEffect来监听数据变化并检查访问权限
     const accessCheckTimer = setTimeout(checkAccessForAllSets, 500);
 
+    // 监听错题保存事件
+    socket.on('wrongAnswer:save', fetchWrongAnswers);
+
     return () => {
       socket.off('progress:update', handleProgressUpdate);
       socket.off('purchase:success', fetchPurchases);
       socket.off('redeem:success', fetchRedeemCodes);
       socket.off('connect');
       clearTimeout(accessCheckTimer);
+      socket.off('wrongAnswer:save', fetchWrongAnswers);
     };
-  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes]);
+  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers]);
 
   // 单独监听题库数据变化，更新访问权限检查
   useEffect(() => {
@@ -748,19 +1035,19 @@ const ProfilePage: React.FC = () => {
   }, [user?.id, checkAndCleanExpiredCache]);
 
   // 切换标签页
-  const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed') => {
+  const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed' | 'wrong-answers') => {
     setActiveTab(tab);
   };
 
   // 渲染标签页
   const renderTabs = () => {
     return (
-      <div className="mb-6 border-b border-gray-200">
+      <div className="mb-6 border-b border-gray-200 overflow-x-auto">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => handleTabChange('progress')}
             className={`
-              py-4 px-1 border-b-2 font-medium text-sm
+              py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
               ${activeTab === 'progress'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
@@ -769,9 +1056,20 @@ const ProfilePage: React.FC = () => {
             学习进度
           </button>
           <button
+            onClick={() => handleTabChange('wrong-answers')}
+            className={`
+              py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
+              ${activeTab === 'wrong-answers'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            错题集
+          </button>
+          <button
             onClick={() => handleTabChange('purchases')}
             className={`
-              py-4 px-1 border-b-2 font-medium text-sm
+              py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
               ${activeTab === 'purchases'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
@@ -782,7 +1080,7 @@ const ProfilePage: React.FC = () => {
           <button
             onClick={() => handleTabChange('redeemed')}
             className={`
-              py-4 px-1 border-b-2 font-medium text-sm
+              py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
               ${activeTab === 'redeemed'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
@@ -900,6 +1198,118 @@ const ProfilePage: React.FC = () => {
     );
   };
 
+  // 渲染错题集内容
+  const renderWrongAnswersContent = () => {
+    if (wrongAnswersLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      );
+    }
+
+    if (wrongAnswers.length === 0) {
+      return (
+        <div className="bg-white p-6 rounded-lg shadow text-center">
+          <p className="text-gray-600 mb-4">📝 你还没有错题记录，继续答题积累吧！</p>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+          >
+            开始练习
+          </button>
+        </div>
+      );
+    }
+
+    const groups = groupedWrongAnswers();
+
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">错题集 ({wrongAnswers.length}题)</h2>
+          <p className="text-sm text-gray-500">答错的题目会自动添加到错题集</p>
+        </div>
+        
+        {groups.map(group => (
+          <WrongAnswerGroupComponent
+            key={group.questionSetId}
+            group={group}
+            onDelete={handleDeleteWrongAnswer}
+            onUpdateMemo={handleUpdateMemo}
+            onPractice={handlePracticeWrongAnswers}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // 分组错题集
+  const groupedWrongAnswers = useCallback(() => {
+    const groups: { [key: string]: WrongAnswerGroup } = {};
+    
+    wrongAnswers.forEach(answer => {
+      const setId = answer.questionSetId;
+      const setTitle = answer.questionSet?.title || '未知题库';
+      
+      if (!groups[setId]) {
+        groups[setId] = {
+          questionSetId: setId,
+          questionSetTitle: setTitle,
+          wrongAnswers: []
+        };
+      }
+      
+      groups[setId].wrongAnswers.push(answer);
+    });
+    
+    // 按错题数量降序排列
+    return Object.values(groups).sort((a, b) => b.wrongAnswers.length - a.wrongAnswers.length);
+  }, [wrongAnswers]);
+
+  // 删除错题
+  const handleDeleteWrongAnswer = async (id: string) => {
+    try {
+      const response = await wrongAnswerService.deleteWrongAnswer(id);
+      
+      if (response.success) {
+        setWrongAnswers(prevAnswers => prevAnswers.filter(answer => answer.id !== id));
+        toast.success('删除成功');
+      } else {
+        throw new Error(response.message || '删除失败');
+      }
+    } catch (error) {
+      toast.error('删除错题失败');
+      console.error('[ProfilePage] Error deleting wrong answer:', error);
+    }
+  };
+
+  // 更新错题备注
+  const handleUpdateMemo = async (id: string, memo: string) => {
+    try {
+      const response = await wrongAnswerService.updateMemo(id, memo);
+      
+      if (response.success) {
+        setWrongAnswers(prevAnswers => 
+          prevAnswers.map(answer => 
+            answer.id === id ? { ...answer, memo } : answer
+          )
+        );
+        toast.success('更新备注成功');
+      } else {
+        throw new Error(response.message || '更新备注失败');
+      }
+    } catch (error) {
+      toast.error('更新备注失败');
+      console.error('[ProfilePage] Error updating memo:', error);
+    }
+  };
+
+  // 练习错题
+  const handlePracticeWrongAnswers = (questionSetId: string) => {
+    navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-6">个人中心</h1>
@@ -916,6 +1326,7 @@ const ProfilePage: React.FC = () => {
       
       {activeTab === 'progress' ? renderProgressContent() : 
        activeTab === 'purchases' ? renderPurchasesContent() : 
+       activeTab === 'wrong-answers' ? renderWrongAnswersContent() :
        renderRedeemedContent()}
     </div>
   );

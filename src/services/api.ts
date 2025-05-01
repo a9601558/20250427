@@ -505,134 +505,86 @@ export const questionService = {
 
 // 用户进度API服务
 export const userProgressService = {
-  // 获取用户进度统计
-  async getUserProgress(): Promise<ApiResponse<Record<string, UserProgress>>> {
+  // 获取用户的进度数据
+  getUserProgress: async () => {
     try {
-      const response = await api.get('/user-progress/stats');
-      const data = response.data.data;
-      
-      // 转换数据格式，添加数据校验
-      const formattedData: Record<string, UserProgress> = {};
-      data.forEach((progress: any) => {
-        // 数据校验
-        if (!progress.questionSetId || !progress.questionSet) {
-          console.warn('Invalid progress data:', progress);
-          return;
-        }
-        
-        formattedData[progress.questionSetId] = {
-          id: progress.id,
-          userId: progress.userId,
-          questionSetId: progress.questionSetId,
-          questionId: progress.questionId,
-          isCorrect: progress.isCorrect,
-          timeSpent: progress.timeSpent || 0,
-          completedQuestions: progress.completedQuestions || 0,
-          totalQuestions: progress.totalQuestions || 0,
-          correctAnswers: progress.correctAnswers || 0,
-          lastAccessed: progress.lastAccessed || new Date(0).toISOString(),
-          title: progress.questionSet?.title,
-          totalTimeSpent: progress.totalTimeSpent || 0,
-          averageTimeSpent: progress.averageTimeSpent || 0,
-          accuracy: progress.accuracy || 0
-        };
-      });
-      
-      return {
-        success: true,
-        data: formattedData
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
+      const response = await api.get('/user-progress');
+      return response.data;
+    } catch (error) {
+      console.error('获取用户进度失败:', error);
+      return { success: false, message: '获取用户进度失败' };
     }
   },
   
-  // 获取用户原始进度记录
-  async getUserProgressRecords(): Promise<ApiResponse<UserProgress[]>> {
+  // 获取用户的所有进度记录
+  getUserProgressRecords: async () => {
     try {
       const response = await api.get('/user-progress/records');
-      return handleResponse<UserProgress[]>(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
+      return response.data;
+    } catch (error) {
+      console.error('获取用户进度记录失败:', error);
+      return { success: false, message: '获取用户进度记录失败' };
     }
   },
   
-  // 获取用户答题历史
-  getUserHistory: (): Promise<ApiResponse<UserProgress[]>> => {
-    return api.get('/user-progress/history');
-  },
-  
-  // 获取用户答题统计
-  getUserStats: async (): Promise<ApiResponse<{
-    overall: {
-      totalQuestions: number;
-      correctAnswers: number;
-      accuracy: number;
-      averageTimeSpent: number;
-    };
-    bySet: Record<string, {
-      title?: string;
-      total: number;
-      correct: number;
-      timeSpent: number;
-      accuracy?: number;
-      averageTime?: number;
-    }>;
-    byType: Record<string, {
-      total: number;
-      correct: number;
-      timeSpent: number;
-      accuracy?: number;
-      averageTime?: number;
-    }>;
-  }>> => {
+  // 获取用户的历史记录
+  getUserHistory: async () => {
     try {
-      const userId = (await userService.getCurrentUser()).data?.id;
-      const response = await api.get(`/user-progress/stats/${userId}`);
-      return handleResponse(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
+      const response = await api.get('/user-progress/history');
+      return response.data;
+    } catch (error) {
+      console.error('获取用户历史记录失败:', error);
+      return { success: false, message: '获取用户历史记录失败' };
     }
   },
   
-  // 获取特定题库的进度
-  async getProgressByQuestionSetId(questionSetId: string): Promise<ApiResponse<UserProgress>> {
+  // 获取用户的统计数据
+  getUserStats: async () => {
     try {
-      const userId = (await userService.getCurrentUser()).data?.id;
-      const response = await api.get(`/user-progress/${userId}/${questionSetId}`);
-      return handleResponse<UserProgress>(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
+      const response = await api.get('/user-progress/stats');
+      return response.data;
+    } catch (error) {
+      console.error('获取用户统计数据失败:', error);
+      return { success: false, message: '获取用户统计数据失败' };
     }
   },
   
-  // 更新用户进度
-  async updateProgress(progress: Partial<UserProgress>): Promise<ApiResponse<UserProgress>> {
+  // 根据题库ID获取进度
+  getProgressByQuestionSetId: async (questionSetId: string) => {
     try {
-      const response = await api.post('/user-progress', progress);
-      return handleResponse<UserProgress>(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
+      const response = await api.get(`/user-progress/${questionSetId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`获取题库${questionSetId}的进度失败:`, error);
+      return { success: false, message: '获取题库进度失败' };
+    }
+  },
+  
+  // 更新进度
+  updateProgress: async (progress: Partial<UserProgress>) => {
+    try {
+      const response = await api.post('/user-progress/update', progress);
+      return response.data;
+    } catch (error) {
+      console.error('更新进度失败:', error);
+      return { success: false, message: '更新进度失败' };
+    }
+  },
+
+  // 保存答题进度
+  saveProgress: async (data: {
+    questionId: string;
+    questionSetId: string;
+    selectedOption: string | string[];
+    isCorrect: boolean;
+    timeSpent: number;
+  }) => {
+    try {
+      const response = await api.post('/user-progress/save', data);
+      return response.data;
+    } catch (error) {
+      console.error('保存答题进度失败:', error);
+      return { success: false, message: '保存答题进度失败' };
     }
   }
 };
@@ -887,6 +839,75 @@ export const homepageService = {
   }
 };
 
+// 错题集服务
+export const wrongAnswerService = {
+  // 获取用户的所有错题
+  getWrongAnswers: async () => {
+    try {
+      const response = await api.get('/wrong-answers');
+      return response.data;
+    } catch (error) {
+      console.error('获取错题集失败:', error);
+      return { success: false, message: '获取错题集失败' };
+    }
+  },
+
+  // 保存错题
+  saveWrongAnswer: async (wrongAnswer: {
+    questionId: string;
+    questionSetId: string;
+    question: string;
+    questionType: string;
+    options: any[];
+    selectedOption?: string;
+    selectedOptions?: string[];
+    correctOption?: string;
+    correctOptions?: string[];
+    explanation?: string;
+  }) => {
+    try {
+      const response = await api.post('/wrong-answers', wrongAnswer);
+      return response.data;
+    } catch (error) {
+      console.error('保存错题失败:', error);
+      return { success: false, message: '保存错题失败' };
+    }
+  },
+
+  // 删除错题
+  deleteWrongAnswer: async (id: string) => {
+    try {
+      const response = await api.delete(`/wrong-answers/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('删除错题失败:', error);
+      return { success: false, message: '删除错题失败' };
+    }
+  },
+
+  // 更新错题备注
+  updateMemo: async (id: string, memo: string) => {
+    try {
+      const response = await api.patch(`/wrong-answers/${id}`, { memo });
+      return response.data;
+    } catch (error) {
+      console.error('更新错题备注失败:', error);
+      return { success: false, message: '更新错题备注失败' };
+    }
+  },
+
+  // 标记错题为已掌握（删除）
+  markAsMastered: async (id: string) => {
+    try {
+      const response = await api.post(`/wrong-answers/${id}/mastered`);
+      return response.data;
+    } catch (error) {
+      console.error('标记错题为已掌握失败:', error);
+      return { success: false, message: '标记错题为已掌握失败' };
+    }
+  }
+};
+
 // 导出所有服务
 export default {
   userService,
@@ -895,5 +916,6 @@ export default {
   userProgressService,
   purchaseService,
   redeemCodeService,
-  homepageService
+  homepageService,
+  wrongAnswerService
 }; 

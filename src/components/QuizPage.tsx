@@ -5,10 +5,11 @@ import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
 import { questionSetApi } from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
-import { userProgressService } from '../services/UserProgressService';
+import { userProgressService, wrongAnswerService } from '../services/api';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import RedeemCodeForm from './RedeemCodeForm';
 import QuestionCard from './QuestionCard';
+import { toast } from 'react-toastify';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -865,6 +866,30 @@ function QuizPage(): JSX.Element {
     setIsRandomMode(false);
   };
   
+  // 在函数组件中添加错题保存逻辑
+  useEffect(() => {
+    // 监听错题保存事件
+    const saveWrongAnswer = async (event: CustomEvent<any>) => {
+      if (!user) return;
+      
+      try {
+        console.log('保存错题:', event.detail);
+        await wrongAnswerService.saveWrongAnswer(event.detail);
+        console.log('错题保存成功');
+      } catch (error) {
+        console.error('保存错题失败:', error);
+      }
+    };
+
+    // 添加自定义事件监听
+    window.addEventListener('wrongAnswer:save', saveWrongAnswer as unknown as EventListener);
+    
+    // 组件卸载时移除监听
+    return () => {
+      window.removeEventListener('wrongAnswer:save', saveWrongAnswer as unknown as EventListener);
+    };
+  }, [user]);
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -1229,40 +1254,17 @@ function QuizPage(): JSX.Element {
       </div>
       
       {/* 当前题目 */}
-      <QuestionCard
-        question={questions[currentQuestionIndex]}
-        onNext={goToNextQuestion}
-        onAnswerSubmitted={(isCorrect, selectedOpt) => {
-          handleAnswerSubmit(isCorrect, selectedOpt);
-        }}
-        questionNumber={currentQuestionIndex + 1}
-        totalQuestions={questions.length}
-        quizTitle={questionSet.title}
-        userAnsweredQuestion={answeredQuestions.find(q => q.index === currentQuestionIndex)}
-        onJumpToQuestion={(index) => {
-          // 如果试用已结束且没有购买，不允许跳转
-          if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
-            console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
-            return;
-          }
-          
-          // 确保没有未提交的答案
-          const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
-          if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
-            if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
-              setCurrentQuestionIndex(index);
-              setSelectedOptions([]);
-            }
-          } else {
-            console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
-            setCurrentQuestionIndex(index);
-            setSelectedOptions([]);
-          }
-        }}
-        isPaid={questionSet.isPaid}
-        hasFullAccess={hasAccessToFullQuiz || hasRedeemed}
-        trialQuestions={questionSet.trialQuestions || 0}
-      />
+      {questions.length > 0 && currentQuestionIndex < questions.length && (
+        <QuestionCard
+          key={`question-${currentQuestionIndex}`}
+          question={questions[currentQuestionIndex]}
+          onAnswerSubmitted={handleAnswerSubmit}
+          onNext={goToNextQuestion}
+          isLast={currentQuestionIndex === questions.length - 1}
+          isSubmittingAnswer={false}
+          questionSetId={questionSet?.id || ''} // 传递问题集ID
+        />
+      )}
       
       {/* 兑换码模态框 */}
       {showRedeemCodeModal && (
