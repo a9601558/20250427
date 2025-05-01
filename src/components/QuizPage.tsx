@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IQuestionSet, Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
@@ -10,6 +10,7 @@ import { useUserProgress } from '../contexts/UserProgressContext';
 import RedeemCodeForm from './RedeemCodeForm';
 import QuestionCard from './QuestionCard';
 import { toast } from 'react-toastify';
+
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -1184,14 +1185,90 @@ function QuizPage(): JSX.Element {
     }
   }, [questionSet?.id, user?.id, questions.length, loading]);
 
-  // 修改判断显示购买提示的条件，确保有完整权限验证
-  // 使用现有的函数做权限判断
+  // 添加强化的跨设备访问权限验证函数
+  const getAccessAllSources = useCallback(() => {
+    if (!questionSet?.id) return false;
+    
+    console.log(`[QuizPage] 全面检查题库 ${questionSet.id} 的访问权限`);
+    
+    // 1. 检查基础访问标志
+    let hasAccess = hasAccessToFullQuiz;
+    console.log(`[QuizPage] 基础访问权限状态: ${hasAccess}`);
+    
+    // 2. 检查localStorage中的访问权限 - 兼容多格式
+    try {
+      // 检查访问权限缓存
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (accessRightsStr) {
+        const accessRights = JSON.parse(accessRightsStr);
+        const localAccess = !!accessRights[questionSet.id];
+        console.log(`[QuizPage] localStorage访问权限: ${localAccess}`);
+        hasAccess = hasAccess || localAccess;
+      }
+      
+      // 检查兑换记录 - 使用更灵活的ID匹配
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedStr) {
+        const redeemedIds = JSON.parse(redeemedStr);
+        if (Array.isArray(redeemedIds)) {
+          // 标准化ID比较
+          const targetId = String(questionSet.id).trim();
+          
+          // 更灵活的ID匹配逻辑 
+          const isRedeemed = redeemedIds.some(id => {
+            const redeemedId = String(id || '').trim();
+            
+            // 精确匹配
+            const exactMatch = redeemedId === targetId;
+            
+            // 部分匹配 - 当ID格式可能有差异但本质上是同一个ID时
+            const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
+              && Math.abs(redeemedId.length - targetId.length) <= 3
+              && redeemedId.length > 5 && targetId.length > 5;
+              
+            return exactMatch || partialMatch;
+          });
+          
+          console.log(`[QuizPage] localStorage兑换记录匹配: ${isRedeemed}`);
+          hasAccess = hasAccess || isRedeemed;
+        }
+      }
+    } catch (e) {
+      console.error('[QuizPage] 检查本地存储访问权限时出错:', e);
+    }
+    
+    // 3. 检查购买记录 (如果存在)
+    const hasPurchase = user?.purchases?.some(p => 
+      String(p.questionSetId).trim() === String(questionSet.id).trim()
+    );
+    
+    if (hasPurchase) {
+      console.log('[QuizPage] 用户有此题库的购买记录');
+      hasAccess = true;
+    }
+    
+    // 4. 检查是否为免费题库
+    if (!questionSet.isPaid) {
+      console.log('[QuizPage] 题库为免费题库');
+      hasAccess = true;
+    }
+    
+    // 如果用户有访问权限，立即更新状态
+    if (hasAccess && !hasAccessToFullQuiz) {
+      console.log('[QuizPage] 设置访问状态为true');
+      setHasAccessToFullQuiz(true);
+    }
+    
+    return hasAccess;
+  }, [questionSet?.id, hasAccessToFullQuiz, user?.purchases]);
+  
+  // 使用增强的访问权限检查函数
   const shouldShowPurchasePrompt = () => {
     // 如果没有加载完成或者出错，不显示提示
     if (!questionSet || error || loading) return false;
     
-    // 首先检查所有可能的访问权限来源
-    const hasFullAccess = checkFullAccessFromAllSources();
+    // 使用全面的访问权限检查
+    const hasFullAccess = getAccessAllSources();
     
     // 只有在以下情况才显示购买提示：
     // 1. 确实是付费题库
@@ -1612,9 +1689,55 @@ function QuizPage(): JSX.Element {
           />
         </div>
         
-        <div className="flex justify-between text-sm text-gray-500">
-          <span>题目 {currentQuestionIndex + 1} / {questions.length}</span>
-          <span>已回答 {answeredQuestions.length} 题</span>
+        {/* 上一题/下一题按钮导航 */}
+        <div className="flex justify-between mb-6">
+          <button
+            onClick={() => currentQuestionIndex > 0 && setCurrentQuestionIndex(currentQuestionIndex - 1)}
+            disabled={currentQuestionIndex === 0}
+            className={`py-2 px-4 rounded-lg flex items-center transition-colors duration-200 
+              ${currentQuestionIndex > 0 
+                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' 
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'}`}
+          >
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            上一题
+          </button>
+          
+          <div className="text-sm text-gray-500 flex items-center">
+            {currentQuestionIndex + 1} / {questions.length} 
+            <span className="ml-2">已回答 {answeredQuestions.length} 题</span>
+          </div>
+          
+          <button
+            onClick={() => {
+              // 检查当前是否已回答此题
+              const isAnswered = answeredQuestions.some(q => q.index === currentQuestionIndex);
+              
+              // 如果已回答并且在不是最后一题，直接到下一题
+              if (isAnswered && currentQuestionIndex < questions.length - 1) {
+                setCurrentQuestionIndex(currentQuestionIndex + 1);
+              } else {
+                // 未回答时，显示提示
+                if (!isAnswered) {
+                  toast.warning('请先回答当前题目');
+                } else if (currentQuestionIndex >= questions.length - 1) {
+                  toast.info('已经是最后一题了');
+                }
+              }
+            }}
+            disabled={currentQuestionIndex >= questions.length - 1}
+            className={`py-2 px-4 rounded-lg flex items-center transition-colors duration-200 
+              ${currentQuestionIndex < questions.length - 1
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'}`}
+          >
+            下一题
+            <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
       
