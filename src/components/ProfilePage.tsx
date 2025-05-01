@@ -154,11 +154,15 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   const now = new Date();
   const isExpired = expiryDate < now;
   
+  // 计算总有效期（从购买到过期的总天数）
+  const purchaseDate = new Date(purchase.purchaseDate);
+  const totalValidityDays = Math.ceil((expiryDate.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+  
   // 计算剩余天数
-  const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
   // 获取题库标题
-  const title = purchase.purchaseQuestionSet?.title || '未知题库';
+  const title = purchase.purchaseQuestionSet?.title || purchase.questionSet?.title || '未知题库';
   
   return (
     <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
@@ -181,6 +185,10 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
           <span className="text-sm font-medium">{formatDate(purchase.expiryDate)}</span>
         </div>
         <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">有效期:</span>
+          <span className="text-sm font-medium">{totalValidityDays} 天</span>
+        </div>
+        <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">支付金额:</span>
           <span className="text-sm font-medium">¥{purchase.amount.toFixed(2)}</span>
         </div>
@@ -197,12 +205,27 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
         )}
       </div>
       
+      {!isExpired && (
+        <div className="mt-4 pt-2">
+          <div className="mb-2 flex items-center">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-green-600 h-2 rounded-full" 
+                style={{ width: `${Math.min(100, (remainingDays / totalValidityDays) * 100)}%` }}
+              ></div>
+            </div>
+            <span className="ml-2 text-xs text-gray-500">{Math.round((remainingDays / totalValidityDays) * 100)}%</span>
+          </div>
+        </div>
+      )}
+      
       <div className="mt-4 pt-4 border-t border-gray-100">
         <button
           onClick={() => navigate(`/quiz/${purchase.questionSetId}`)}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md transition-colors"
+          className={`w-full ${isExpired ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white py-2 rounded-md transition-colors`}
+          disabled={isExpired}
         >
-          开始学习
+          {isExpired ? '题库已过期' : '开始学习'}
         </button>
       </div>
     </div>
@@ -220,11 +243,15 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   const now = new Date();
   const isExpired = expiryDate < now;
   
-  // 更精确地计算剩余天数 - 直接使用Math.max确保不显示负数
+  // 更精确地计算剩余天数
   const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
+  // 计算总有效期
+  const usedAtDate = new Date(redeem.usedAt);
+  const totalValidityDays = Math.ceil((expiryDate.getTime() - usedAtDate.getTime()) / (1000 * 60 * 60 * 24));
+  
   // 获取题库标题
-  const title = redeem.redeemQuestionSet?.title || '未知题库';
+  const title = redeem.redeemQuestionSet?.title || (redeem as any).questionSet?.title || '未知题库';
   
   return (
     <div className="bg-white p-5 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300">
@@ -248,6 +275,10 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
         <div className="flex justify-between items-center border-b border-gray-100 pb-2">
           <span className="text-gray-600">到期日期</span>
           <span className="font-medium">{formatDate(redeem.expiryDate)}</span>
+        </div>
+        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+          <span className="text-gray-600">有效期</span>
+          <span className="font-medium">{totalValidityDays} 天</span>
         </div>
         
         {!isExpired && (
@@ -274,9 +305,9 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
         {!isExpired && (
           <div className="mb-4 flex items-center">
             <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (remainingDays / 30) * 100)}%` }}></div>
+              <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (remainingDays / totalValidityDays) * 100)}%` }}></div>
             </div>
-            <span className="ml-2 text-xs text-gray-500">{Math.round((remainingDays / 30) * 100)}%</span>
+            <span className="ml-2 text-xs text-gray-500">{Math.round((remainingDays / totalValidityDays) * 100)}%</span>
           </div>
         )}
         
@@ -565,6 +596,145 @@ const ProfilePage: React.FC = () => {
     
     return () => clearTimeout(timer);
   }, [socket, user, purchases.length, redeemCodes.length]);
+
+  // 在现有的用户数据和socket监听部分添加
+  useEffect(() => {
+    // 用户ID变化时（登出或切换账号）清除localStorage缓存
+    return () => {
+      // 清除的是旧用户的缓存，所以应该在effect清理函数中执行
+      if (user?.id) {
+        try {
+          const cache = localStorage.getItem('questionSetAccessCache');
+          if (cache) {
+            const cacheData = JSON.parse(cache);
+            // 只删除当前用户的缓存，保留其他用户
+            if (cacheData[user.id]) {
+              delete cacheData[user.id];
+              localStorage.setItem('questionSetAccessCache', JSON.stringify(cacheData));
+              console.log('[ProfilePage] 用户切换，已清除缓存', user.id);
+            }
+          }
+        } catch (error) {
+          console.error('[ProfilePage] 清除缓存失败:', error);
+        }
+      }
+    };
+  }, [user?.id]);
+
+  // 在purchase:success和redeem:success事件处理函数中添加以下代码，在已购买题库的useEffect中
+  useEffect(() => {
+    // socket为空时不执行
+    if (!socket || !user) return;
+    
+    // 添加购买成功后的首页刷新通知
+    const notifyHomePageRefresh = () => {
+      // 通过自定义事件通知其他页面（尤其是首页）刷新题库状态
+      window.dispatchEvent(new CustomEvent('questionSets:refreshAccess'));
+      
+      // 如果有socket，直接触发检查
+      const allQuestionSetIds = [...purchases.map(p => p.questionSetId), ...redeemCodes.map(r => r.questionSetId)];
+      
+      if (allQuestionSetIds.length > 0) {
+        console.log('[ProfilePage] 通知首页刷新题库状态');
+        socket.emit('questionSet:checkAccessBatch', {
+          userId: user.id,
+          questionSetIds: Array.from(new Set(allQuestionSetIds))
+        });
+      }
+    };
+    
+    // 监听购买和兑换码成功事件
+    socket.on('purchase:success', notifyHomePageRefresh);
+    socket.on('redeem:success', notifyHomePageRefresh);
+    
+    return () => {
+      socket.off('purchase:success', notifyHomePageRefresh);
+      socket.off('redeem:success', notifyHomePageRefresh);
+    };
+  }, [socket, user, purchases, redeemCodes]);
+
+  // 添加定期检查题库有效期的功能
+  useEffect(() => {
+    if (!user || !socket || (!purchases.length && !redeemCodes.length)) return;
+    
+    // 定期检查题库是否已过期（每小时检查一次）
+    const checkExpiryTimer = setInterval(() => {
+      console.log('[ProfilePage] 定期检查题库有效期');
+      
+      // 获取所有题库ID
+      const allQuestionSetIds = [
+        ...purchases.map(p => p.questionSetId),
+        ...redeemCodes.map(r => r.questionSetId)
+      ];
+      
+      if (allQuestionSetIds.length > 0) {
+        socket.emit('questionSet:checkAccessBatch', {
+          userId: user.id,
+          questionSetIds: Array.from(new Set(allQuestionSetIds))
+        });
+      }
+    }, 3600000); // 1小时检查一次
+    
+    return () => clearInterval(checkExpiryTimer);
+  }, [user?.id, socket, purchases.length, redeemCodes.length]);
+
+  // 添加函数检查localStorage中的题库访问缓存是否有效，避免显示过期题库
+  const checkAndCleanExpiredCache = useCallback(() => {
+    if (!user?.id) return;
+    
+    try {
+      const cacheKey = 'questionSetAccessCache';
+      const cache = localStorage.getItem(cacheKey);
+      if (!cache) return;
+      
+      const cacheData = JSON.parse(cache);
+      if (!cacheData[user.id]) return;
+      
+      let hasUpdates = false;
+      const userCache = cacheData[user.id];
+      
+      // 检查每个题库的缓存是否过期
+      Object.keys(userCache).forEach(questionSetId => {
+        const record = userCache[questionSetId];
+        const cacheAge = Date.now() - record.timestamp;
+        
+        // 缓存失效条件：
+        // 1. 缓存超过24小时
+        // 2. 题库已过期（剩余天数 <= 0）
+        if (cacheAge > 86400000 || (record.remainingDays !== null && record.remainingDays <= 0)) {
+          console.log(`[ProfilePage] 清理过期缓存 ${questionSetId}`, 
+            cacheAge > 86400000 ? '缓存超时' : '题库已过期');
+          delete userCache[questionSetId];
+          hasUpdates = true;
+        }
+      });
+      
+      // 如果有更新，保存回localStorage
+      if (hasUpdates) {
+        cacheData[user.id] = userCache;
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log('[ProfilePage] 已清理过期缓存');
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 检查缓存有效期失败:', error);
+    }
+  }, [user?.id]);
+  
+  // 在组件挂载和用户ID变化时检查缓存有效期
+  useEffect(() => {
+    checkAndCleanExpiredCache();
+  }, [checkAndCleanExpiredCache]);
+  
+  // 定期检查缓存有效期（每小时）
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const timer = setInterval(() => {
+      checkAndCleanExpiredCache();
+    }, 3600000); // 1小时检查一次
+    
+    return () => clearInterval(timer);
+  }, [user?.id, checkAndCleanExpiredCache]);
 
   // 切换标签页
   const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed') => {
