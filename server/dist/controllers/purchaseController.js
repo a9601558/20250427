@@ -202,7 +202,7 @@ const getActivePurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     attributes: ['id', 'title', 'description', 'category']
                 }
             ]
@@ -210,13 +210,15 @@ const getActivePurchases = async (req, res) => {
         // 格式化返回数据
         const formattedPurchases = purchases.map(purchase => {
             const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            // Get the question set from the association
+            const questionSetData = purchase.get('purchaseQuestionSet');
             return {
                 id: purchase.id,
                 questionSetId: purchase.questionSetId,
                 purchaseDate: purchase.purchaseDate,
                 expiryDate: purchase.expiryDate,
                 remainingDays,
-                questionSet: purchase.questionSet,
+                questionSet: questionSetData,
                 hasAccess: true
             };
         });

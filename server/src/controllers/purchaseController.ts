@@ -218,7 +218,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'questionSet',
+          as: 'purchaseQuestionSet',
           attributes: ['id', 'title', 'description', 'category']
         }
       ]
@@ -229,7 +229,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
       const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       
       // Get the question set from the association
-      const questionSetData = purchase.get('questionSet') as any;
+      const questionSetData = purchase.get('purchaseQuestionSet') as any;
       
       return {
         id: purchase.id,

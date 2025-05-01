@@ -266,12 +266,20 @@ const HomePage: React.FC = () => {
         // 处理题库列表数据
         if (questionsetsData.status === 'fulfilled' && questionsetsData.value?.success) {
           await processQuestionSets(questionsetsData.value.data);
+        } else {
+          console.error('[HomePage] 获取题库列表失败:', 
+            questionsetsData.status === 'rejected' ? questionsetsData.reason : questionsetsData.value?.message
+          );
         }
 
         // 处理首页设置数据
         if (settingsData.status === 'fulfilled' && settingsData.value?.success) {
           const contentData = settingsData.value.data;
           setHomeContent(contentData);
+        } else {
+          console.error('[HomePage] 获取首页设置失败:', 
+            settingsData.status === 'rejected' ? settingsData.reason : settingsData.value?.message
+          );
         }
 
         // 处理分类数据
@@ -280,6 +288,10 @@ const HomePage: React.FC = () => {
             ...prev,
             featuredCategories: categoriesData.value.data
           }));
+        } else {
+          console.error('[HomePage] 获取精选分类失败:', 
+            categoriesData.status === 'rejected' ? categoriesData.reason : categoriesData.value?.message
+          );
         }
 
         // 处理购买记录数据
@@ -308,9 +320,13 @@ const HomePage: React.FC = () => {
             
             return newSets;
           });
+        } else if (purchasesData.status === 'fulfilled' && user?.id) {
+          console.error('[HomePage] 获取购买记录返回错误:', purchasesData.value?.message || '未知错误');
+        } else if (purchasesData.status === 'rejected' && user?.id) {
+          console.error('[HomePage] 获取购买记录失败:', purchasesData.reason);
         }
       } catch (error) {
-        console.error('获取数据失败:', error);
+        console.error('[HomePage] 获取数据失败:', error);
         setErrorMessage('获取数据失败，请稍后重试');
       } finally {
         setLoading(false);
@@ -319,8 +335,7 @@ const HomePage: React.FC = () => {
 
     // 请求数据
     fetchData();
-
-    // 删除定时刷新，没有必要频繁刷新主页数据
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // 异步处理题库列表数据 - 经过封装的函数
@@ -718,10 +733,7 @@ const HomePage: React.FC = () => {
       return { hasAccess: false, remainingDays: null };
     }
 
-    // 添加调试日志，检查用户购买记录
-    console.log(`[调试] 题库 "${questionSet.title}" (ID: ${questionSet.id}) 检查访问权限`);
-    
-    // 直接使用题库的hasAccess属性(通过socket实时更新)
+    // 直接使用题库的hasAccess属性(通过API或socket实时更新)
     if (questionSet.hasAccess !== undefined) {
       console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 有hasAccess字段:`, questionSet.hasAccess);
       
@@ -737,69 +749,9 @@ const HomePage: React.FC = () => {
       };
     }
     
-    // 查找用户的购买记录 - 增强兼容性处理
-    const userAny = user as any;
-    const userPurchasesFallback = userAny.userPurchases || user.purchases || [];
-    console.log(`[调试] 用户购买记录数组:`, userPurchasesFallback);
-    
-    // 尝试查找有效的购买记录
-    let purchase = userPurchasesFallback.find((p: any) => {
-      const purchaseQuestionSetId = p.questionSetId || p.question_set_id;
-      const isActive = p.status === 'active' || p.status === 'completed';
-      const isNotExpired = !p.expiryDate || new Date(p.expiryDate) > new Date();
-      
-      return purchaseQuestionSetId === questionSet.id && isActive && isNotExpired;
-    });
-    
-    if (!purchase) {
-      console.log(`[调试] 尝试其他查找方式...`);
-      
-      // 如果在购买记录中找不到，尝试在用户数据中的其他可能位置找
-      if (userAny.access && Array.isArray(userAny.access)) {
-        const hasAccess = userAny.access.includes(questionSet.id);
-        if (hasAccess) {
-          console.log(`[调试] 在user.access字段中找到题库访问权限`);
-          return { hasAccess: true, remainingDays: 180 }; // 默认180天
-        }
-      }
-      
-      // 兼容redeems/redeemedItems等字段
-      const possibleFields = [
-        { name: 'redeems', value: userAny.redeems },
-        { name: 'redeemedItems', value: userAny.redeemedItems },
-        { name: 'redeemedCodes', value: userAny.redeemedCodes }
-      ];
-      
-      for (const field of possibleFields) {
-        if (Array.isArray(field.value)) {
-          const foundItem = field.value.find((item: any) => {
-            return item.questionSetId === questionSet.id || 
-                   item.question_set_id === questionSet.id ||
-                   (item.questionSet && item.questionSet.id === questionSet.id);
-          });
-          
-          if (foundItem) {
-            console.log(`[调试] 在user.${field.name}字段中找到题库访问权限`);
-            return { hasAccess: true, remainingDays: 180 }; // 默认180天
-          }
-        }
-      }
-      
-      console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 未找到购买记录`);
-      return { hasAccess: false, remainingDays: null };
-    }
-    
-    // 计算剩余天数
-    const expiryDate = purchase.expiryDate || purchase.expiry_date;
-    const remainingDays = expiryDate ? 
-      Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 
-      null;
-    
-    console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 找到有效购买记录，剩余天数:`, remainingDays);
-    return { 
-      hasAccess: true, 
-      remainingDays 
-    };
+    // 如果仍未设置hasAccess字段，则可能是初始状态，返回无访问权限
+    // 稍后会通过API/Socket更新访问权限
+    return { hasAccess: false, remainingDays: null };
   };
 
   // 添加Socket监听，使用依赖更少的方式
@@ -1003,7 +955,7 @@ const HomePage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>
-                题目数量: {set.questionCount || '未知'} 道
+                题目数量: {calculateQuestionCount(set)} 道
               </span>
             </div>
 
