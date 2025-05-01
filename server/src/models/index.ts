@@ -14,11 +14,11 @@ import UserProgress from './UserProgress';
 // 定义模型之间的关联关系
 // User <-> QuestionSet (通过 Purchase)
 Purchase.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-User.hasMany(Purchase, { foreignKey: 'userId', as: 'purchases' });
+User.hasMany(Purchase, { foreignKey: 'userId', as: 'userPurchaseRecords' });
 
 // Purchase <-> QuestionSet
 Purchase.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'purchaseQuestionSet' });
-QuestionSet.hasMany(Purchase, { foreignKey: 'questionSetId', as: 'purchases' });
+QuestionSet.hasMany(Purchase, { foreignKey: 'questionSetId', as: 'questionSetPurchases' });
 
 // QuestionSet <-> Question
 QuestionSet.hasMany(Question, { foreignKey: 'questionSetId', as: 'questions' });
@@ -40,15 +40,15 @@ QuestionSet.hasMany(RedeemCode, { foreignKey: 'questionSetId', as: 'redeemCodes'
 
 // User <-> UserProgress
 UserProgress.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-User.hasMany(UserProgress, { foreignKey: 'userId', as: 'progress' });
+User.hasMany(UserProgress, { foreignKey: 'userId', as: 'userProgressRecords' });
 
 // UserProgress <-> QuestionSet
 UserProgress.belongsTo(QuestionSet, { foreignKey: 'questionSetId', as: 'progressQuestionSet' });
-QuestionSet.hasMany(UserProgress, { foreignKey: 'questionSetId', as: 'userProgress' });
+QuestionSet.hasMany(UserProgress, { foreignKey: 'questionSetId', as: 'questionSetProgress' });
 
 // UserProgress <-> Question
 UserProgress.belongsTo(Question, { foreignKey: 'questionId', as: 'question' });
-Question.hasMany(UserProgress, { foreignKey: 'questionId', as: 'progress' });
+Question.hasMany(UserProgress, { foreignKey: 'questionId', as: 'questionProgress' });
 
 // Export models
 export {
