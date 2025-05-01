@@ -159,8 +159,14 @@ const HomePage: React.FC = () => {
     // 避免重复状态更新导致频繁渲染
     const updatedData = data.map(set => ({
       ...set,
-      // 确保题库数量字段正确 - 使用后端提供的总数或questions数组长度，避免显示0
-      questionCount: set.questionCount || set.questions?.length || set.trialQuestions || 20, // 至少显示一个默认值
+      // 更严谨地判断题目数量来源
+      questionCount: typeof set.questionCount === 'number' && set.questionCount > 0
+        ? set.questionCount
+        : Array.isArray(set.questions) && set.questions.length > 0
+          ? set.questions.length
+          : typeof set.trialQuestions === 'number' && set.trialQuestions > 0
+            ? set.trialQuestions
+            : 20, // 默认值
       // 设置默认图片
       icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
     }));
@@ -560,12 +566,12 @@ const HomePage: React.FC = () => {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
                         <span className="text-sm text-gray-500">
-                            {(questionSet.questionCount && questionSet.questionCount > 0) 
-                              ? questionSet.questionCount 
-                              : (questionSet.questions && questionSet.questions.length > 0) 
-                                ? questionSet.questions.length 
-                                : (questionSet.trialQuestions && questionSet.trialQuestions > 0) 
-                                  ? questionSet.trialQuestions 
+                            {typeof questionSet.questionCount === 'number' && questionSet.questionCount > 0
+                              ? questionSet.questionCount
+                              : Array.isArray(questionSet.questions) && questionSet.questions.length > 0
+                                ? questionSet.questions.length
+                                : typeof questionSet.trialQuestions === 'number' && questionSet.trialQuestions > 0
+                                  ? questionSet.trialQuestions
                                   : "多"} 道题目
                           </span>
                           {isPaid && (
