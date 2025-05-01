@@ -368,7 +368,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
       attributes: ['id', 'title'],
       include: [{
         model: Question,
-        as: 'questions',
+        as: 'questionSetQuestions',
         attributes: ['id']
       }]
     });
@@ -428,7 +428,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
         return null; // 返回 null，之后会过滤掉
       }
       
-      const questions = qs.get('questions') || [];
+      const questions = qs.get('questionSetQuestions') || [];
       const totalQuestions = Array.isArray(questions) ? questions.length : 0;
       
       const progress = progressMap.get(qs.id.toString()) || { 
@@ -688,7 +688,7 @@ export const getProgressSummary = async (req: Request, res: Response) => {
         p.progressQuestion?.questionSetId === qs.id
       );
       
-      const totalQuestions = qs.questions?.length || 0;
+      const totalQuestions = qs.questionSetQuestions?.length || 0;
       const completedQuestions = progressRecords.length;
       const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
       const totalTimeSpent = progressRecords.reduce((sum, p) => sum + (p.timeSpent || 0), 0);

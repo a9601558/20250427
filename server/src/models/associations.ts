@@ -10,7 +10,7 @@ export const setupAssociations = () => {
   // QuestionSet 和 Question 的关联
   QuestionSet.hasMany(Question, {
     foreignKey: 'questionSetId',
-    as: 'questions',
+    as: 'questionSetQuestions',
     onDelete: 'CASCADE'
   });
 

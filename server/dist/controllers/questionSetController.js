@@ -43,7 +43,7 @@ const getAllQuestionSets = async (req, res) => {
             }),
             include: [{
                     model: Question_1.default,
-                    as: 'questions',
+                    as: 'questionSetQuestions',
                     attributes: ['id'] // 只拿 id 就够用
                 }]
         });
@@ -51,7 +51,7 @@ const getAllQuestionSets = async (req, res) => {
         // 添加 questionCount 字段
         const result = questionSets.map(set => ({
             ...set.toJSON(),
-            questionCount: set.questions?.length || 0
+            questionCount: set.questionSetQuestions?.length || 0
         }));
         res.status(200).json({
             success: true,
@@ -83,7 +83,7 @@ const getQuestionSetById = async (req, res) => {
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
             include: [{
                     model: Question_1.default,
-                    as: 'questions',
+                    as: 'questionSetQuestions',
                     include: [{
                             model: Option_1.default,
                             as: 'options'
@@ -94,7 +94,7 @@ const getQuestionSetById = async (req, res) => {
             console.log(`未找到题库，ID: ${req.params.id}`);
             return sendError(res, 404, '题库不存在');
         }
-        console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questions?.length || 0} 个问题`);
+        console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个问题`);
         sendResponse(res, 200, questionSet);
     }
     catch (error) {

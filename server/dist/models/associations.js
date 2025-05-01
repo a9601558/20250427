@@ -15,7 +15,7 @@ const setupAssociations = () => {
     // QuestionSet 和 Question 的关联
     QuestionSet_1.default.hasMany(Question_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questions',
+        as: 'questionSetQuestions',
         onDelete: 'CASCADE'
     });
     Question_1.default.belongsTo(QuestionSet_1.default, {

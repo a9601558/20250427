@@ -18,7 +18,7 @@ async function getUserQuestionSetProgress(userId, questionSetId) {
                 attributes: ['id', 'title'],
                 include: [{
                         model: Question_1.default,
-                        as: 'questions',
+                        as: 'questionSetQuestions',
                         attributes: ['id']
                     }]
             }
@@ -30,11 +30,11 @@ async function calculateProgressStats(userId, questionSetId) {
     const questionSet = await QuestionSet_1.default.findByPk(questionSetId, {
         include: [{
                 model: Question_1.default,
-                as: 'questions',
+                as: 'questionSetQuestions',
                 attributes: ['id']
             }]
     });
-    const totalQuestions = questionSet?.questions?.length || 0;
+    const totalQuestions = questionSet?.questionSetQuestions?.length || 0;
     // 获取用户的所有答题记录
     const progressRecords = await UserProgress_1.default.findAll({
         where: { userId, questionSetId },

@@ -42,7 +42,7 @@ interface OptionRow extends RowDataPacket {
 
 // 新增关联类型接口
 interface QuestionSetWithQuestions extends QuestionSet {
-  questions?: Question[];
+  questionSetQuestions?: Question[];
 }
 
 // 定义上传请求的数据结构
@@ -110,7 +110,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
       }),
       include: [{
         model: Question,
-        as: 'questions',
+        as: 'questionSetQuestions',
         attributes: ['id']  // 只拿 id 就够用
       }]
     });
@@ -120,7 +120,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
     // 添加 questionCount 字段
     const result = questionSets.map(set => ({
       ...set.toJSON(),
-      questionCount: set.questions?.length || 0
+      questionCount: set.questionSetQuestions?.length || 0
     }));
 
     res.status(200).json({
@@ -153,7 +153,7 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
     const questionSet = await QuestionSet.findByPk(req.params.id, {
       include: [{
         model: Question,
-        as: 'questions',
+        as: 'questionSetQuestions',
         include: [{
           model: Option,
           as: 'options'
@@ -166,7 +166,7 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
       return sendError(res, 404, '题库不存在');
     }
     
-    console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questions?.length || 0} 个问题`);
+    console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个问题`);
     sendResponse(res, 200, questionSet);
   } catch (error) {
     console.error('Get question set error:', error);

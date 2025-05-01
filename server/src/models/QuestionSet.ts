@@ -16,7 +16,7 @@ export interface QuestionSetAttributes {
   featuredCategory?: string;
   createdAt?: Date;
   updatedAt?: Date;
-  questions?: Question[];
+  questionSetQuestions?: Question[];
 }
 
 // 创建时可选的属性
@@ -40,7 +40,7 @@ class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttrib
   public readonly updatedAt!: Date;
 
   // 关联
-  public readonly questions?: Question[];
+  public readonly questionSetQuestions?: Question[];
 }
 
 // 初始化模型

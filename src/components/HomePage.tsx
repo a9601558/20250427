@@ -29,6 +29,7 @@ interface BaseQuestionSet {
   remainingDays?: number | null;
   paymentMethod?: string;
   questions?: { id: string }[];
+  questionSetQuestions?: { id: string }[];
   validityPeriod?: number; // 题库有效期，以天为单位
 }
 
@@ -66,8 +67,8 @@ const calculateQuestionCount = (set: BaseQuestionSet): number => {
   if (typeof set.questionCount === 'number' && set.questionCount > 0) {
     return set.questionCount;
   }
-  if (Array.isArray(set.questions) && set.questions.length > 0) {
-    return set.questions.length;
+  if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
+    return set.questionSetQuestions.length;
   }
   return 0; // 不再使用 trialQuestions 作为后备选项
 };

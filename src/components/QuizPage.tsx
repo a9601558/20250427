@@ -22,6 +22,20 @@ const getOptionLabel = (index: number): string => {
   return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
 };
 
+// 添加对两种字段命名的兼容处理
+const getQuestions = (data: any) => {
+  // 首先检查新的字段名
+  if (data.questionSetQuestions && data.questionSetQuestions.length > 0) {
+    return data.questionSetQuestions;
+  }
+  // 然后检查旧的字段名
+  if (data.questions && data.questions.length > 0) {
+    return data.questions;
+  }
+  // 都没有则返回空数组
+  return [];
+};
+
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -316,25 +330,26 @@ function QuizPage(): JSX.Element {
             description: response.data.description,
             category: response.data.category,
             icon: response.data.icon,
-            questions: response.data.questions || [],
+            questions: getQuestions(response.data),
             isPaid: response.data.isPaid || false,
             price: response.data.price || 0,
             isFeatured: response.data.isFeatured || false,
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
             trialQuestions: response.data.trialQuestions,
-            questionCount: response.data.questions?.length || 0,
+            questionCount: getQuestions(response.data).length,
             createdAt: new Date(),
             updatedAt: new Date()
           };
           setQuestionSet(questionSetData);
           
           // 使用题库中包含的题目数据
-          if (questionSetData.questions && questionSetData.questions.length > 0) {
-            console.log("获取到题目:", questionSetData.questions.length);
+          const questionsData = getQuestions(questionSetData);
+          if (questionsData.length > 0) {
+            console.log("获取到题目:", questionsData.length);
             
             // 处理题目选项并设置数据
-            const processedQuestions = questionSetData.questions.map(q => {
+            const processedQuestions = questionsData.map(q => {
               // 确保选项存在
               if (!q.options || !Array.isArray(q.options)) {
                 console.warn("题目缺少选项:", q.id);

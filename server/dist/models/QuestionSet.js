@@ -21,7 +21,7 @@ class QuestionSet extends sequelize_1.Model {
     createdAt;
     updatedAt;
     // 关联
-    questions;
+    questionSetQuestions;
 }
 // 初始化模型
 QuestionSet.init({
