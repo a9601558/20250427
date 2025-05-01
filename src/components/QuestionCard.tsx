@@ -115,10 +115,14 @@ const QuestionCard = ({
     if (isSubmitted) return;
 
     if (question.questionType === 'single') {
-      // 单选题
+      // 单选题，自动提交
       setSelectedOption(optionId);
+      // 短暂延迟确保状态更新后再提交
+      setTimeout(() => {
+        handleSubmitWithOption(optionId);
+      }, 100);
     } else {
-      // 多选题
+      // 多选题，切换选中状态
       setSelectedOptions(prev => {
         if (prev.includes(optionId)) {
           // 如果已选中，则移除
@@ -128,6 +132,7 @@ const QuestionCard = ({
           return [...prev, optionId];
         }
       });
+      // 多选题保持原有行为，让用户自行点击提交
     }
   };
   
@@ -159,6 +164,57 @@ const QuestionCard = ({
     }
   }, [focusedOptionIndex]);
 
+  const handleSubmitWithOption = (optionId: string) => {
+    // 防重复提交机制
+    if (isSubmittingRef.current || isSubmitted) return;
+    isSubmittingRef.current = true;
+    
+    try {
+      // 修改判断逻辑，找到正确选项的ID比较
+      const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+      const isCorrect = optionId === correctOptionId;
+      
+      setIsSubmitted(true);
+      
+      if (onAnswerSubmitted) {
+        onAnswerSubmitted(isCorrect, optionId);
+      }
+
+      // 如果回答错误，保存到错题集
+      if (!isCorrect) {
+        // 修复: 确保包含完整的 question 字段
+        const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+          detail: {
+            questionId: question.id,
+            questionSetId: questionSetId,
+            question: question.question,        // 包含问题文本
+            questionText: question.question,    // 额外提供字段以防模型需要
+            questionContent: question.question, // 额外提供字段以防模型需要
+            questionType: question.questionType,
+            options: question.options,
+            selectedOption: optionId,
+            correctOption: correctOptionId,
+            explanation: question.explanation
+          }
+        });
+        window.dispatchEvent(wrongAnswerEvent);
+        
+        // 错误时显示解析
+        setShowExplanation(true);
+      } else {
+        // 答对自动更快地跳到下一题 (400ms)
+        timeoutId = setTimeout(() => {
+          handleNext();
+        }, 400);
+      }
+    } finally {
+      // 1秒后才能再次提交，防止快速点击
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 1000);
+    }
+  };
+
   const handleSubmit = () => {
     // 防重复提交机制
     if (isSubmittingRef.current || isSubmitted) return;
@@ -178,12 +234,14 @@ const QuestionCard = ({
 
         // 如果回答错误，保存到错题集
         if (!isCorrect) {
-          // 触发错题保存事件
+          // 修复: 确保包含完整的 question 字段
           const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
             detail: {
               questionId: question.id,
               questionSetId: questionSetId,
-              question: question.question,
+              question: question.question,        // 包含问题文本
+              questionText: question.question,    // 额外提供字段以防模型需要
+              questionContent: question.question, // 额外提供字段以防模型需要
               questionType: question.questionType,
               options: question.options,
               selectedOption: selectedOption,
@@ -196,10 +254,10 @@ const QuestionCard = ({
           // 错误时显示解析
           setShowExplanation(true);
         } else {
-          // 答对自动更快地跳到下一题 (500ms)
+          // 答对自动更快地跳到下一题 (400ms)
           timeoutId = setTimeout(() => {
             handleNext();
-          }, 500);
+          }, 400);
         }
       } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
         setIsSubmitted(true);
@@ -220,12 +278,14 @@ const QuestionCard = ({
 
         // 如果回答错误，保存到错题集
         if (!isCorrect) {
-          // 触发错题保存事件
+          // 修复: 确保包含完整的 question 字段
           const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
             detail: {
               questionId: question.id,
               questionSetId: questionSetId,
-              question: question.question,
+              question: question.question,        // 包含问题文本
+              questionText: question.question,    // 额外提供字段以防模型需要
+              questionContent: question.question, // 额外提供字段以防模型需要
               questionType: question.questionType,
               options: question.options,
               selectedOptions: selectedOptions,
@@ -238,10 +298,10 @@ const QuestionCard = ({
           // 错误时显示解析
           setShowExplanation(true);
         } else {
-          // 答对自动更快地跳到下一题 (500ms)
+          // 答对自动更快地跳到下一题 (400ms)
           timeoutId = setTimeout(() => {
             handleNext();
-          }, 500);
+          }, 400);
         }
       }
     } finally {
