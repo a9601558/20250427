@@ -972,26 +972,34 @@ const HomePage: React.FC = () => {
 
     return (
       <div 
-        className={`bg-white rounded-xl shadow-lg overflow-hidden border-0 relative 
-        hover:shadow-xl hover:translate-y-[-4px] transition-all duration-300 
-        ${isRecentlyUpdated ? 'ring-2 ring-green-400' : ''}`}
+        className={`bg-white backdrop-blur-sm bg-opacity-80 rounded-xl shadow-lg overflow-hidden 
+        hover:shadow-xl hover:translate-y-[-5px] transition-all duration-300 transform 
+        border border-gray-100 hover:border-blue-200
+        ${isRecentlyUpdated ? 'ring-2 ring-blue-400 scale-[1.02]' : ''}`}
         style={{
           animation: isRecentlyUpdated ? 'pulse 2s ease-in-out' : 'none',
-          transform: isRecentlyUpdated ? 'scale(1.02)' : 'scale(1)'
         }}
       >
+        {/* 闪光效果顶部条 */}
+        <div className="h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500"></div>
+        
         {isRecentlyUpdated && (
-          <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-1 animate-ping">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+          <div className="absolute -top-1 -right-1 z-10">
+            <span className="flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-white flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </span>
+            </span>
           </div>
         )}
       
         <div className="absolute top-3 right-3 flex gap-1 z-10">
           {set.accessType === 'paid' && (
             <>
-              <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full shadow-sm">
+              <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full shadow-sm backdrop-blur-sm">
                 已购买
               </span>
               {renderValidityBadge(set.remainingDays)}
@@ -999,24 +1007,24 @@ const HomePage: React.FC = () => {
           )}
           {set.accessType === 'redeemed' && (
             <>
-              <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm">
+              <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
                 已兑换
               </span>
               {renderValidityBadge(set.remainingDays)}
             </>
           )}
           {set.accessType === 'expired' && (
-            <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full shadow-sm">
+            <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full shadow-sm backdrop-blur-sm">
               已过期
             </span>
           )}
           {set.accessType === 'trial' && !set.isPaid && (
-            <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm">
+            <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
               免费
             </span>
           )}
           {set.accessType === 'trial' && set.isPaid && (
-            <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm flex items-center">
+            <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm backdrop-blur-sm flex items-center">
               <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -1025,48 +1033,68 @@ const HomePage: React.FC = () => {
           )}
         </div>
 
-        {/* 添加渐变背景 */}
-        <div className="h-3 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-
         <div className="p-6">
-          <div className="mb-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+          <div className="mb-4 flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-blue-100 to-indigo-100 p-2 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 flex-1">
               {set.title}
             </h3>
-            <p className="text-gray-600 text-sm line-clamp-2 h-10 overflow-hidden">
-              {set.description}
-            </p>
           </div>
+          
+          <p className="text-gray-600 text-sm line-clamp-2 h-10 mb-4">
+            {set.description}
+          </p>
 
           <div className="flex flex-col space-y-3">
-            <div className="flex items-center text-gray-500 text-sm bg-gray-50 p-2 rounded-lg">
-              <svg className="h-4 w-4 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>
-                题目数量: <b>{calculateQuestionCount(set)}</b> 道
-              </span>
+            <div className="flex items-center justify-between text-sm bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+              <div className="flex items-center">
+                <svg className="h-4 w-4 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-gray-700 font-medium">
+                  题目数量: <b>{calculateQuestionCount(set)}</b>
+                </span>
+              </div>
+              
+              <div className="flex items-center">
+                <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
+                  set.accessType === 'paid' ? 'bg-green-500' : 
+                  set.accessType === 'redeemed' ? 'bg-blue-500' : 
+                  'bg-gray-400'
+                }`}></span>
+                <span className="text-gray-600">{set.category}</span>
+              </div>
             </div>
 
             {stats && (
               <div className="mt-2">
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
-                  <div className="flex items-center">
-                    <svg className="h-4 w-4 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                    </svg>
-                    <span>进度: <b>{Math.round(progress)}%</b></span>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
+                    <span className="text-xs text-gray-500 mb-1">进度</span>
+                    <div className="flex items-center">
+                      <svg className="h-3.5 w-3.5 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      <span className="text-sm font-bold">{Math.round(progress)}%</span>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <svg className="h-4 w-4 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>正确率: <b>{Math.round(accuracy)}%</b></span>
+                  <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
+                    <span className="text-xs text-gray-500 mb-1">正确率</span>
+                    <div className="flex items-center">
+                      <svg className="h-3.5 w-3.5 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-sm font-bold">{Math.round(accuracy)}%</span>
+                    </div>
                   </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1 overflow-hidden">
+                <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mt-1">
                   <div
-                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-1.5 rounded-full transition-all duration-500"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -1085,7 +1113,7 @@ const HomePage: React.FC = () => {
                     ? 'bg-gray-400 cursor-not-allowed'
                     : set.accessType === 'trial' && set.isPaid
                     ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
-                    : 'bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800'
+                    : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
                 }`}
               disabled={set.accessType === 'expired'}
             >

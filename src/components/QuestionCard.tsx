@@ -187,9 +187,8 @@ const QuestionCard = ({
           detail: {
             questionId: question.id,
             questionSetId: questionSetId,
-            question: question.question,        // 包含问题文本
-            questionText: question.question,    // 额外提供字段以防模型需要
-            questionContent: question.question, // 额外提供字段以防模型需要
+            question: question.question || question.text, // 使用 question.question 或 question.text 字段
+            questionText: question.question || question.text, // 额外提供字段以防模型需要
             questionType: question.questionType,
             options: question.options,
             selectedOption: optionId,
@@ -239,9 +238,8 @@ const QuestionCard = ({
             detail: {
               questionId: question.id,
               questionSetId: questionSetId,
-              question: question.question,        // 包含问题文本
-              questionText: question.question,    // 额外提供字段以防模型需要
-              questionContent: question.question, // 额外提供字段以防模型需要
+              question: question.question || question.text, // 使用 question.question 或 question.text 字段
+              questionText: question.question || question.text, // 额外提供字段以防模型需要
               questionType: question.questionType,
               options: question.options,
               selectedOption: selectedOption,
@@ -283,9 +281,8 @@ const QuestionCard = ({
             detail: {
               questionId: question.id,
               questionSetId: questionSetId,
-              question: question.question,        // 包含问题文本
-              questionText: question.question,    // 额外提供字段以防模型需要
-              questionContent: question.question, // 额外提供字段以防模型需要
+              question: question.question || question.text, // 使用 question.question 或 question.text 字段
+              questionText: question.question || question.text, // 额外提供字段以防模型需要
               questionType: question.questionType,
               options: question.options,
               selectedOptions: selectedOptions,

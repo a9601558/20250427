@@ -942,6 +942,106 @@ function QuizPage(): JSX.Element {
     }
   }, [questionSet?.id, user?.id, questions.length, loading]);
 
+  // 修复在移动设备上登录后访问权限问题
+  useEffect(() => {
+    // 检查题库访问权限的函数
+    const checkFullAccessToQuestionSet = () => {
+      if (!questionSet) return;
+      
+      console.log(`[QuizPage] 检查题库 ${questionSet.id} 的完整访问权限...`);
+      
+      // 1. 先检查localStorage中是否有访问权限记录
+      let hasLocalAccess = false;
+      try {
+        const accessRightsStr = localStorage.getItem('quizAccessRights');
+        if (accessRightsStr) {
+          const accessRights = JSON.parse(accessRightsStr);
+          hasLocalAccess = !!accessRights[questionSet.id];
+          console.log(`[QuizPage] localStorage中的访问记录: ${hasLocalAccess}`);
+        }
+      } catch (e) {
+        console.error('[QuizPage] 检查本地权限失败', e);
+      }
+      
+      // 2. 检查用户购买记录
+      let hasPurchaseAccess = false;
+      if (user && user.purchases && Array.isArray(user.purchases)) {
+        const purchase = user.purchases.find(p => {
+          const purchaseId = String(p.questionSetId).trim();
+          const targetId = String(questionSet.id).trim();
+          const isMatch = purchaseId === targetId;
+          console.log(`[QuizPage] 比较购买记录: ${purchaseId} vs ${targetId}, 匹配: ${isMatch}`);
+          return isMatch;
+        });
+        
+        hasPurchaseAccess = !!purchase;
+        console.log(`[QuizPage] 用户购买记录检查结果: ${hasPurchaseAccess}`);
+      }
+      
+      // 3. 检查兑换记录
+      let hasRedeemAccess = false;
+      try {
+        const redeemedIdsStr = localStorage.getItem('redeemedQuestionSetIds');
+        if (redeemedIdsStr) {
+          const redeemedIds = JSON.parse(redeemedIdsStr);
+          const targetId = String(questionSet.id).trim();
+          
+          if (Array.isArray(redeemedIds)) {
+            hasRedeemAccess = redeemedIds.some(id => String(id).trim() === targetId);
+          }
+          console.log(`[QuizPage] 本地兑换记录检查结果: ${hasRedeemAccess}`);
+        }
+      } catch (e) {
+        console.error('[QuizPage] 检查兑换记录失败', e);
+      }
+      
+      // 4. 检查题库自带的hasAccess属性
+      const hasDirectAccess = questionSet.hasAccess === true;
+      console.log(`[QuizPage] 题库自带hasAccess属性: ${hasDirectAccess}`);
+      
+      // 5. 检查hasAccessToQuestionSet函数
+      let hasFunctionAccess = false;
+      if (hasAccessToQuestionSet) {
+        hasFunctionAccess = hasAccessToQuestionSet(questionSet.id);
+        console.log(`[QuizPage] hasAccessToQuestionSet函数检查结果: ${hasFunctionAccess}`);
+      }
+      
+      // 6. 如果是免费题库，直接有权限
+      const isFreeQuestionSet = !questionSet.isPaid;
+      console.log(`[QuizPage] 是否为免费题库: ${isFreeQuestionSet}`);
+      
+      // 最终确定访问权限
+      const finalHasAccess = hasLocalAccess || hasPurchaseAccess || hasRedeemAccess || 
+                            hasDirectAccess || hasFunctionAccess || isFreeQuestionSet || hasRedeemed;
+      
+      console.log(`[QuizPage] 最终访问权限决定: ${finalHasAccess}`);
+      setHasAccessToFullQuiz(finalHasAccess);
+      
+      // 如果有访问权限，确保试用结束状态重置
+      if (finalHasAccess) {
+        setTrialEnded(false);
+        
+        // 保存到localStorage以便下次使用
+        saveAccessToLocalStorage(questionSet.id, true);
+        
+        // 通知服务器更新权限
+        if (socket && user) {
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: String(questionSet.id).trim(),
+            hasAccess: true,
+            source: 'crossDeviceSync'
+          });
+        }
+      }
+    };
+    
+    // 执行检查
+    checkFullAccessToQuestionSet();
+    
+    // 当用户状态或题库信息变化时重新检查
+  }, [questionSet, user, hasAccessToQuestionSet, socket, hasRedeemed, saveAccessToLocalStorage]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">

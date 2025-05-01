@@ -14,6 +14,11 @@ cd $WORK_DIR/server
 npm install
 npm run build
 
+# 添加examCountdowns字段
+echo "添加examCountdowns字段到数据库..."
+cd $WORK_DIR/server
+node add-countdown-column.js
+
 # 运行数据库迁移
 echo "运行数据库迁移..."
 cd $WORK_DIR/server
