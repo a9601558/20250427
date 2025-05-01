@@ -104,7 +104,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
 
     const questionSets = await QuestionSet.findAll({
       ...withQuestionSetAttributes({
-        order: [['createdAt', 'DESC']],
+        order: [['created_at', 'DESC']],
         limit,
         offset
       }),
@@ -642,18 +642,18 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
     
     try {
       // 使用原始 SQL 查询获取分类题库
-      const [questionSets] = await sequelize.query(
-        `SELECT * FROM question_sets WHERE category = ? ORDER BY createdAt DESC`,
+      const [results] = await sequelize.query(
+        `SELECT * FROM question_sets WHERE category = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
         {
-          replacements: [decodedCategory],
+          replacements: [decodedCategory, parseInt(req.query.limit as string) || 10, parseInt(req.query.page as string) || 1],
           type: QueryTypes.SELECT
         }
       ) as any[];
       
       const formattedQuestionSets = [];
       
-      if (Array.isArray(questionSets)) {
-        for (const set of questionSets) {
+      if (Array.isArray(results)) {
+        for (const set of results) {
           // 获取题目数量
           const [questions] = await sequelize.query(
             `SELECT * FROM questions WHERE questionSetId = ?`,

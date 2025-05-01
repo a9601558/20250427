@@ -124,6 +124,10 @@ const HomePage: React.FC = () => {
             });
           }
         }
+      } else {
+        // 明确处理请求成功但返回错误的情况
+        console.error('获取题库列表返回错误:', response?.message || '未知错误');
+        setErrorMessage(response?.message || '获取题库列表失败，请稍后重试');
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
