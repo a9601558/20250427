@@ -339,7 +339,7 @@ const HomePage: React.FC = () => {
               setQuestionSets(prevSets => {
                 const newSets = [...prevSets];
                 
-                user.purchases.forEach(purchase => {
+                (user?.purchases || []).forEach(purchase => {
                   if (!purchase.questionSetId) {
                     console.error(`[HomePage] 购买记录缺少questionSetId:`, purchase);
                     return;

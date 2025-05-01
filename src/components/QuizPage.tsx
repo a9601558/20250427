@@ -349,7 +349,7 @@ function QuizPage(): JSX.Element {
             console.log("获取到题目:", questionsData.length);
             
             // 处理题目选项并设置数据
-            const processedQuestions = questionsData.map(q => {
+            const processedQuestions = questionsData.map((q: any) => {
               // 确保选项存在
               if (!q.options || !Array.isArray(q.options)) {
                 console.warn("题目缺少选项:", q.id);
@@ -357,7 +357,7 @@ function QuizPage(): JSX.Element {
               }
               
               // 处理选项 - 使用固定的ID生成方式
-              const processedOptions = q.options.map((opt, index) => {
+              const processedOptions = q.options.map((opt: any, index: number) => {
                 // 使用题目ID和选项索引生成固定ID
                 const optionId = opt.id || `q${q.id}-opt${index}`;
                 return {
@@ -373,8 +373,8 @@ function QuizPage(): JSX.Element {
                 options: processedOptions,
                 // 确保correctAnswer字段与选项ID对应
                 correctAnswer: q.questionType === 'single' 
-                  ? processedOptions.find(opt => opt.isCorrect)?.id
-                  : processedOptions.filter(opt => opt.isCorrect).map(opt => opt.id)
+                  ? processedOptions.find((opt: any) => opt.isCorrect)?.id
+                  : processedOptions.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.id)
               };
             });
             
@@ -1159,9 +1159,9 @@ function QuizPage(): JSX.Element {
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                </svg>
               </button>
-              </div>
+            </div>
             <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
               setShowRedeemCodeModal(false);
@@ -1218,8 +1218,8 @@ function QuizPage(): JSX.Element {
                 }
               }, 500);
             }} />
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
