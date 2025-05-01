@@ -53,14 +53,28 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     setExamTypes(defaultExamTypes);
   }, []);
 
-  // 加载倒计时数据 - 优先从用户个人资料获取，如果未登录则使用localStorage
+  // 修改加载倒计时数据逻辑，确保本地删除操作不被服务器覆盖
   useEffect(() => {
     const loadCountdowns = async () => {
       setIsLoading(true);
       try {
-        let countdownList: CountdownItem[] = [];
+        // 先从localStorage加载数据作为基础
+        let localCountdowns: CountdownItem[] = [];
+        let serverCountdowns: CountdownItem[] = [];
+        let hasLocalData = false;
         
-        // 如果用户已登录，从用户资料获取
+        try {
+          const savedCountdowns = localStorage.getItem('examCountdowns');
+          if (savedCountdowns) {
+            localCountdowns = JSON.parse(savedCountdowns);
+            hasLocalData = localCountdowns.length > 0;
+            console.log('从本地存储加载考试倒计时数据', localCountdowns);
+          }
+        } catch (e) {
+          console.error('解析本地倒计时数据失败:', e);
+        }
+        
+        // 如果用户已登录，从用户资料获取服务器数据
         if (user && user.id) {
           console.log('从服务器加载考试倒计时数据');
           const response = await userService.getCurrentUser();
@@ -71,11 +85,11 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               try {
                 // 可能存储为JSON字符串或直接作为数组对象
                 if (typeof response.data.examCountdowns === 'string') {
-                  countdownList = JSON.parse(response.data.examCountdowns);
+                  serverCountdowns = JSON.parse(response.data.examCountdowns);
                 } else if (Array.isArray(response.data.examCountdowns)) {
-                  countdownList = response.data.examCountdowns;
+                  serverCountdowns = response.data.examCountdowns;
                 }
-                console.log('从服务器成功加载考试倒计时数据', countdownList);
+                console.log('从服务器成功加载考试倒计时数据', serverCountdowns);
               } catch (e) {
                 console.error('解析服务器倒计时数据失败:', e);
               }
@@ -83,32 +97,60 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
           }
         }
         
-        // 如果服务器没有数据或未登录，从localStorage获取作为备份
-        if (countdownList.length === 0) {
-          console.log('从本地存储加载考试倒计时数据');
-          const savedCountdowns = localStorage.getItem('examCountdowns');
-          if (savedCountdowns) {
-            countdownList = JSON.parse(savedCountdowns);
+        // 合并数据策略：
+        // 1. 如果本地有数据，优先使用本地数据(因为可能包含最近的删除操作)
+        // 2. 如果本地无数据，使用服务器数据
+        // 3. 如果两者都有数据，根据ID合并(保留本地删除状态)
+        let mergedCountdowns: CountdownItem[] = [];
+        
+        if (hasLocalData) {
+          if (serverCountdowns.length > 0) {
+            // 复杂合并逻辑 - 保留本地删除状态
+            // 提取所有本地和服务器数据的ID
+            const localIds = new Set(localCountdowns.map(item => item.id));
+            const serverIds = new Set(serverCountdowns.map(item => item.id));
+            
+            // 如果服务器有本地没有的ID，可能是从其他设备添加的，需要保留
+            for (const countdown of serverCountdowns) {
+              if (!localIds.has(countdown.id)) {
+                mergedCountdowns.push(countdown);
+              }
+            }
+            
+            // 添加所有本地数据
+            mergedCountdowns = [...mergedCountdowns, ...localCountdowns];
+          } else {
+            // 如果服务器无数据，直接使用本地数据
+            mergedCountdowns = localCountdowns;
           }
+        } else {
+          // 本地无数据，使用服务器数据
+          mergedCountdowns = serverCountdowns;
         }
         
         // 过滤掉已过期的考试
         const now = new Date();
-        countdownList = (countdownList || []).filter(item => {
+        mergedCountdowns = (mergedCountdowns || []).filter(item => {
           const examDate = new Date(item.examDate);
           return examDate > now;
         });
         
         // 按日期排序，最近的考试排在前面
-        countdownList.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
+        mergedCountdowns.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
         
         // 最多显示3条
-        countdownList = countdownList.slice(0, 3);
+        mergedCountdowns = mergedCountdowns.slice(0, 3);
         
-        setCountdowns(countdownList);
+        setCountdowns(mergedCountdowns);
         
-        // 更新存储，移除过期考试
-        saveCountdowns(countdownList);
+        // 仅当合并后的数据与本地/服务器数据不同时，才保存更新
+        const needsUpdate = JSON.stringify(mergedCountdowns) !== JSON.stringify(localCountdowns) ||
+                           JSON.stringify(mergedCountdowns) !== JSON.stringify(serverCountdowns);
+        
+        if (needsUpdate) {
+          console.log('数据已合并，保存更新的数据');
+          saveCountdowns(mergedCountdowns);
+        }
       } catch (error) {
         console.error('加载考试倒计时数据失败:', error);
       } finally {
@@ -135,10 +177,13 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
       if (user && user.id) {
         console.log('保存考试倒计时数据到服务器');
         
-        // 准备要更新的用户数据
+        // 准备要更新的用户数据 - 确保数据已转换为字符串
+        const examCountdownsJson = JSON.stringify(data);
+        console.log('保存的数据:', examCountdownsJson);
+        
         const userData = {
-          examCountdowns: JSON.stringify(data)
-        } as any; // Use type assertion to avoid type error
+          examCountdowns: examCountdownsJson
+        };
         
         // 调用更新用户API
         const response = await userService.updateUser(user.id, userData);
@@ -147,13 +192,18 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
           console.log('考试倒计时数据已成功保存到服务器');
         } else {
           console.error('保存考试倒计时到服务器失败:', response.message);
+          throw new Error(response.message || '保存到服务器失败');
         }
       }
     } catch (error) {
       console.error('保存考试倒计时数据失败:', error);
+      // 在保存失败时显示提示
+      alert('保存倒计时数据失败，可能影响跨设备同步');
+      return false;
     } finally {
       setIsSaving(false);
     }
+    return true;
   };
 
   // 添加新考试
@@ -200,11 +250,57 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     setShowAddForm(false);
   };
 
-  // 删除考试倒计时
+  // 删除考试倒计时 - 修复跨设备同步问题
   const handleDeleteExam = async (id: string) => {
-    const updatedCountdowns = countdowns.filter(item => item.id !== id);
-    setCountdowns(updatedCountdowns);
-    await saveCountdowns(updatedCountdowns);
+    // 防止同时重复点击
+    if (isSaving) return;
+    
+    try {
+      setIsSaving(true);
+      console.log(`正在删除考试倒计时，ID: ${id}`);
+      
+      // 过滤删除项目
+      const updatedCountdowns = countdowns.filter(item => item.id !== id);
+      
+      // 1. 立即更新UI状态
+      setCountdowns(updatedCountdowns);
+      
+      // 2. 强制保存到LocalStorage
+      localStorage.setItem('examCountdowns', JSON.stringify(updatedCountdowns));
+      
+      // 3. 如果用户已登录，保存到服务器
+      if (user && user.id) {
+        console.log('正在同步删除操作到服务器');
+        
+        // 准备要更新的用户数据，确保stringfy
+        const userData = {
+          examCountdowns: JSON.stringify(updatedCountdowns)
+        };
+        
+        try {
+          // 调用API保存到服务器
+          const response = await userService.updateUser(user.id, userData);
+          
+          if (response.success) {
+            console.log('考试倒计时删除操作已同步到服务器');
+          } else {
+            console.error('同步删除操作到服务器失败:', response.message);
+            throw new Error(response.message);
+          }
+        } catch (serverError) {
+          console.error('向服务器同步删除操作时出错:', serverError);
+          // 提醒用户删除操作未同步到云端
+          alert('删除操作未能同步到云端，请刷新页面重试。');
+        }
+      }
+    } catch (error) {
+      console.error('删除考试倒计时失败:', error);
+      alert('删除操作失败，请重试');
+      // 删除失败，恢复原状态
+      setCountdowns([...countdowns]);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // 计算剩余天数
