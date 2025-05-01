@@ -870,7 +870,7 @@ function QuizPage(): JSX.Element {
                 className="w-full bg-green-50 text-green-700 border border-green-300 py-2 px-4 rounded hover:bg-green-100"
               >
                 使用兑换码
-              </button>
+            </button>
             </div>
           </div>
           
@@ -1144,9 +1144,9 @@ function QuizPage(): JSX.Element {
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                    </svg>
               </button>
-            </div>
+              </div>
             <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
               setShowRedeemCodeModal(false);
@@ -1203,8 +1203,8 @@ function QuizPage(): JSX.Element {
                 }
               }, 500);
             }} />
-          </div>
         </div>
+      </div>
       )}
     </div>
   );

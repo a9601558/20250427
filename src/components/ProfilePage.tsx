@@ -4,6 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import ExamCountdownWidget from './ExamCountdownWidget';
 
 // 原始进度记录类型
 interface ProgressRecord {
@@ -154,15 +155,20 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   const now = new Date();
   const isExpired = expiryDate < now;
   
-  // 计算总有效期（从购买到过期的总天数）
-  const purchaseDate = new Date(purchase.purchaseDate);
-  const totalValidityDays = Math.ceil((expiryDate.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
-  
   // 计算剩余天数
   const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
+  // 计算总有效期 - 直接使用180天作为标准有效期，而不是根据购买日期和过期日期计算
+  const purchaseDate = new Date(purchase.purchaseDate);
+  
+  // 标准有效期180天 - 与知识付费的标准时长一致
+  const totalValidityDays = 180;
+  
   // 获取题库标题
   const title = purchase.purchaseQuestionSet?.title || purchase.questionSet?.title || '未知题库';
+  
+  // 添加调试日志
+  console.log(`[PurchaseCard] 题库: ${title}, 购买日期: ${purchaseDate.toISOString()}, 过期日期: ${expiryDate.toISOString()}, 有效期: ${totalValidityDays}天, 剩余: ${remainingDays}天`);
   
   return (
     <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
@@ -246,12 +252,17 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   // 更精确地计算剩余天数
   const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
-  // 计算总有效期
+  // 计算总有效期 - 默认为30天，而不是从usedAt到expiryDate
   const usedAtDate = new Date(redeem.usedAt);
-  const totalValidityDays = Math.ceil((expiryDate.getTime() - usedAtDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // 修复：兑换码有效期固定为30天，不是从usedAt计算
+  const totalValidityDays = 30;
   
   // 获取题库标题
   const title = redeem.redeemQuestionSet?.title || (redeem as any).questionSet?.title || '未知题库';
+  
+  // 添加调试日志
+  console.log(`[RedeemCard] 题库: ${title}, 兑换日期: ${usedAtDate.toISOString()}, 过期日期: ${expiryDate.toISOString()}, 有效期: ${totalValidityDays}天, 剩余: ${remainingDays}天`);
   
   return (
     <div className="bg-white p-5 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300">
@@ -542,7 +553,7 @@ const ProfilePage: React.FC = () => {
         }
       });
     };
-    
+
     // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
     socket.on('purchase:success', fetchPurchases);
@@ -786,16 +797,16 @@ const ProfilePage: React.FC = () => {
 
   // 渲染进度内容
   const renderProgressContent = () => {
-    if (isLoading) {
+  if (isLoading) {
       return (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       );
-    }
+  }
 
     if (progressStats.length === 0) {
-      return (
+  return (
         <div className="bg-white p-6 rounded-lg shadow text-center">
           <p className="text-gray-600 mb-4">🎯 你还没有开始答题，点击这里开始练习！</p>
           <button
@@ -809,11 +820,11 @@ const ProfilePage: React.FC = () => {
     }
 
     return (
-      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {progressStats.map((stats) => (
-          <ProgressCard key={stats.questionSetId} stats={stats} />
-        ))}
-      </div>
+        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {progressStats.map((stats) => (
+            <ProgressCard key={stats.questionSetId} stats={stats} />
+          ))}
+        </div>
     );
   };
 
@@ -892,6 +903,14 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-6">个人中心</h1>
+      
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">考试倒计时</h2>
+          <span className="text-sm text-gray-500">与首页同步</span>
+        </div>
+        <ExamCountdownWidget theme="light" />
+      </div>
       
       {renderTabs()}
       

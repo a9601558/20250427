@@ -73,6 +73,7 @@ const HomePage: React.FC = () => {
     if (paidQuestionSets.length === 0) return;
     
     console.log(`检查 ${paidQuestionSets.length} 个付费题库的访问权限`);
+    console.log('请求权限检查的题库 ID:', paidQuestionSets.map(set => set.id));
     
     // 一次性请求所有付费题库的权限，而不是逐个发送
     socket.emit('questionSet:checkAccessBatch', {
@@ -153,14 +154,30 @@ const HomePage: React.FC = () => {
   const processQuestionSets = async (data: QuestionSet[]) => {
     if (!data || data.length === 0) return;
     
+    console.log('题库原始数据:', data);
+    
     // 避免重复状态更新导致频繁渲染
-    const updatedData = data.map(set => ({
-      ...set,
-      // 使用统一的题目数量计算逻辑
-      questionCount: calculateQuestionCount(set),
-      // 设置默认图片
-      icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
-    }));
+    const updatedData = data.map(set => {
+      // 计算题目数量 - 增强版 - 更明确地处理各种情况
+      const questionCount = (
+        typeof set.questionCount === 'number' && set.questionCount > 0 ? set.questionCount :
+        Array.isArray(set.questions) && set.questions.length > 0 ? set.questions.length :
+        0
+      );
+      
+      console.log(`题库 "${set.title}" 计算题目数量: ${questionCount}，原数据:`, { 
+        providedCount: set.questionCount, 
+        questionsLength: Array.isArray(set.questions) ? set.questions.length : 'not an array' 
+      });
+      
+      return {
+        ...set,
+        // 确保设置 questionCount，覆盖原值
+        questionCount,
+        // 设置默认图片
+        icon: set.icon || `https://ui-avatars.com/api/?name=${encodeURIComponent(set.title)}&background=random&color=fff&size=64`
+      };
+    });
     
     // 一次性设置所有数据，减少重复渲染
     setQuestionSets(updatedData);
@@ -344,25 +361,51 @@ const HomePage: React.FC = () => {
   }>) => {
     if (!updates || !Array.isArray(updates) || updates.length === 0) return;
     
+    console.log('[updateQuestionSetsAccess] 收到批量更新:', updates);
+    
     setQuestionSets(prevSets => {
       const newSets = [...prevSets];
+      let updatedCount = 0;
       
       // 批量更新题库状态
       updates.forEach(update => {
-        const index = newSets.findIndex(set => set.id === update.questionSetId);
+        // 标准化ID格式，避免类型不匹配
+        const normalizedUpdateId = String(update.questionSetId).trim();
+        console.log(`[updateQuestionSetsAccess] 处理更新: questionSetId=${normalizedUpdateId}, hasAccess=${update.hasAccess}, remainingDays=${update.remainingDays}`);
+        
+        const index = newSets.findIndex(set => String(set.id).trim() === normalizedUpdateId);
         if (index !== -1) {
+          console.log(`[updateQuestionSetsAccess] 找到匹配题库 index=${index}, 旧值:`, {
+            id: newSets[index].id,
+            title: newSets[index].title,
+            hasAccess: newSets[index].hasAccess,
+            remainingDays: newSets[index].remainingDays
+          });
+          
           newSets[index] = {
             ...newSets[index],
             hasAccess: update.hasAccess,
             remainingDays: update.remainingDays
           };
           
+          console.log(`[updateQuestionSetsAccess] 更新后的题库:`, {
+            id: newSets[index].id,
+            title: newSets[index].title,
+            hasAccess: newSets[index].hasAccess, 
+            remainingDays: newSets[index].remainingDays
+          });
+          
+          updatedCount++;
+          
           // 保存到localStorage缓存
           saveAccessToLocalStorage(update.questionSetId, update.hasAccess, update.remainingDays);
+        } else {
+          console.warn(`[updateQuestionSetsAccess] 未找到匹配的题库ID: ${normalizedUpdateId}`);
         }
       });
       
-      return newSets;
+      console.log(`[updateQuestionSetsAccess] 完成更新 ${updatedCount}/${updates.length} 个题库`);
+      return updatedCount > 0 ? newSets : prevSets;
     });
   }, [saveAccessToLocalStorage]);
 
@@ -438,14 +481,23 @@ const HomePage: React.FC = () => {
       return [];
     }
     
+    // Debug logging to inspect the questionSets data
+    console.log(`[getFilteredQuestionSets] 题库数据总览:`, questionSets.map(set => ({
+      id: set.id,
+      title: set.title,
+      questionCount: set.questionCount,
+      hasAccess: set.hasAccess,
+      remainingDays: set.remainingDays
+    })));
+    
     // If "all" is selected, show featured or all question sets
     if (activeCategory === 'all') {
-      if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-        return questionSets.filter(set => 
-          homeContent.featuredCategories.includes(set.category) || set.isFeatured
-        );
-      }
-      return questionSets;
+    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+      return questionSets.filter(set => 
+        homeContent.featuredCategories.includes(set.category) || set.isFeatured
+      );
+    }
+    return questionSets;
     }
     
     // Filter by selected category
@@ -549,6 +601,14 @@ const HomePage: React.FC = () => {
     
     // 直接使用题库的hasAccess属性(通过socket实时更新)
     if (questionSet.hasAccess !== undefined) {
+      console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 有hasAccess字段:`, questionSet.hasAccess);
+      
+      // 检查是否已过期（remainingDays <= 0）
+      if (questionSet.remainingDays !== undefined && questionSet.remainingDays !== null && questionSet.remainingDays <= 0) {
+        console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 已过期:`, questionSet.remainingDays);
+        return { hasAccess: false, remainingDays: 0 };
+      }
+      
       return { 
         hasAccess: questionSet.hasAccess, 
         remainingDays: questionSet.remainingDays || null 
@@ -562,6 +622,7 @@ const HomePage: React.FC = () => {
     );
     
     if (!purchase) {
+      console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 未找到购买记录`);
       return { hasAccess: false, remainingDays: null };
     }
     
@@ -570,8 +631,11 @@ const HomePage: React.FC = () => {
     const now = new Date();
     const remainingDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
+    const hasAccess = expiryDate > now;
+    console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 购买记录检查:`, { hasAccess, remainingDays });
+    
     return {
-      hasAccess: expiryDate > now,
+      hasAccess,
       remainingDays: remainingDays > 0 ? remainingDays : 0
     };
   };
@@ -590,6 +654,7 @@ const HomePage: React.FC = () => {
     }) => {
       if (!data.updates || !Array.isArray(data.updates) || data.updates.length === 0) return;
       
+      console.log('[Socket] batchAccessUpdate 返回:', data);
       console.log('[HomePage] 收到批量题库访问状态更新:', data.updates);
       
       // 使用统一的更新函数处理
@@ -605,6 +670,7 @@ const HomePage: React.FC = () => {
       hasAccess: boolean;
       remainingDays: number | null;
     }) => {
+      console.log('[Socket] accessUpdate 返回:', data);
       console.log('[HomePage] 收到单个题库访问状态更新:', data);
       
       // 转换为批量更新格式并使用统一的更新函数
@@ -675,6 +741,29 @@ const HomePage: React.FC = () => {
     };
   }, [user?.id, socket, questionSets]);
 
+  // Add a new function to render the validity period badge
+  const renderValidityBadge = (remainingDays: number | null) => {
+    if (remainingDays === null) return null;
+    
+    const getBadgeColor = (days: number) => {
+      if (days <= 0) return 'bg-red-100 text-red-800';
+      if (days <= 7) return 'bg-orange-100 text-orange-800';
+      return 'bg-green-100 text-green-800';
+    };
+
+    const getBadgeText = (days: number) => {
+      if (days <= 0) return '已过期';
+      if (days <= 7) return `剩余${days}天`;
+      return `剩余${days}天`;
+    };
+
+    return (
+      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getBadgeColor(remainingDays)}`}>
+        {getBadgeText(remainingDays)}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -718,7 +807,7 @@ const HomePage: React.FC = () => {
             {/* 考试倒计时组件 */}
             <div className="mt-6 mx-auto max-w-2xl">
               <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
-            </div>
+                </div>
             
             {!user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
@@ -798,16 +887,16 @@ const HomePage: React.FC = () => {
               </button>
             ))}
           </div>
-
+          
           {/* 题库列表 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {getFilteredQuestionSets().map(questionSet => {
-              const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
-              const isPaid = questionSet.isPaid;
-              
-              return (
-                <div 
-                  key={questionSet.id}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {getFilteredQuestionSets().map(questionSet => {
+                const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
+                const isPaid = questionSet.isPaid;
+                
+                return (
+                  <div 
+                    key={questionSet.id}
                   className={`bg-white rounded-lg shadow-md overflow-hidden border relative ${
                     !hasAccess && isPaid 
                       ? 'border-yellow-200' 
@@ -830,12 +919,15 @@ const HomePage: React.FC = () => {
                   <div className="absolute top-3 left-3 flex gap-1">
                     {isPaid ? (
                       hasAccess ? (
-                        <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">
-                          已购买
-                        </span>
+                        <>
+                          <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">
+                            已购买
+                          </span>
+                          {renderValidityBadge(remainingDays)}
+                        </>
                       ) : (
                         <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
-                          ¥{questionSet.price}
+                            ¥{questionSet.price}
                         </span>
                       )
                     ) : (
@@ -847,10 +939,10 @@ const HomePage: React.FC = () => {
                     {questionSet.trialQuestions && questionSet.trialQuestions > 0 && !hasAccess && isPaid && (
                       <span className="px-2 py-1 text-xs font-semibold text-orange-800 bg-orange-100 rounded-full">
                         试用{questionSet.trialQuestions}题
-                      </span>
-                    )}
-                  </div>
-                  
+                          </span>
+                        )}
+                      </div>
+                      
                   <div className="p-6">
                     <div className="mb-4">
                       <h3 className="text-xl font-bold text-gray-900 mb-2 pr-16">
@@ -876,19 +968,9 @@ const HomePage: React.FC = () => {
                       {isPaid && !hasAccess && questionSet.trialQuestions && questionSet.trialQuestions > 0 && (
                         <div className="flex items-center text-orange-500 text-sm mt-1">
                           <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          <span>试用限制: 仅可查看前 {questionSet.trialQuestions} 道题目</span>
-                        </div>
-                      )}
-                      
-                      {/* 剩余有效期显示 */}
-                      {isPaid && hasAccess && remainingDays !== null && (
-                        <div className="flex items-center text-green-600 text-sm font-medium">
-                          <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <span>剩余 {remainingDays} 天</span>
+                          <span>可免费试用 {questionSet.trialQuestions} 道题目</span>
                         </div>
                       )}
                       
@@ -932,11 +1014,11 @@ const HomePage: React.FC = () => {
                         )}
                       </button>
                     </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
         </div>
       </div>
     </div>
