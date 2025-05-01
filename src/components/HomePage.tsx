@@ -625,37 +625,132 @@ const HomePage: React.FC = () => {
           </div>
 
           {/* 题库列表 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {getFilteredQuestionSets().map(questionSet => (
-              <div key={questionSet.id} className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {getFilteredQuestionSets().map(questionSet => {
+              const { hasAccess, remainingDays } = getQuestionSetAccessStatus(questionSet);
+              const isPaid = questionSet.isPaid;
+              
+              return (
+                <div 
+                  key={questionSet.id}
+                  className={`bg-white rounded-lg shadow-md overflow-hidden border relative ${
+                    !hasAccess && isPaid 
+                      ? 'border-yellow-200' 
+                      : hasAccess && isPaid 
+                        ? 'border-green-200' 
+                        : 'border-gray-200'
+                  } ${recentlyUpdatedSets[questionSet.id] && Date.now() - recentlyUpdatedSets[questionSet.id] < 5000 
+                      ? 'animate-pulse ring-4 ring-green-400 ring-opacity-50' 
+                      : ''
+                  } hover:shadow-lg transition-shadow duration-300`}
+                >
+                  {/* 新购买/兑换的标记 */}
+                  {recentlyUpdatedSets[questionSet.id] && Date.now() - recentlyUpdatedSets[questionSet.id] < 5000 && (
+                    <div className="absolute top-0 right-0 bg-green-500 text-white px-3 py-1 transform rotate-45 translate-x-4 translate-y-1 shadow-md animate-bounce">
+                      🎉 购买成功
+                    </div>
+                  )}
+                  
+                  {/* 付费/免费/已购买标记 */}
+                  <div className="absolute top-3 left-3 flex gap-1">
+                    {isPaid ? (
+                      hasAccess ? (
+                        <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">
+                          已购买
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
+                          ¥{questionSet.price}
+                        </span>
+                      )
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">
+                        免费
+                      </span>
+                    )}
+                    
+                    {questionSet.trialQuestions && questionSet.trialQuestions > 0 && !hasAccess && isPaid && (
+                      <span className="px-2 py-1 text-xs font-semibold text-orange-800 bg-orange-100 rounded-full">
+                        试用{questionSet.trialQuestions}题
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="p-6">
+                    <div className="mb-4">
+                      <h3 className="text-xl font-bold text-gray-900 mb-2 pr-16">
                         {questionSet.title}
                       </h3>
-                      <p className="mt-1 text-sm leading-5 font-medium text-gray-500">
+                      <p className="text-gray-600 text-sm line-clamp-2 h-10 overflow-hidden">
                         {questionSet.description}
                       </p>
                     </div>
-                    <div className="ml-4 flex-shrink-0 flex">
+                    
+                    <div className="flex flex-col space-y-3">
+                      {/* 题目数量显示 */}
+                      <div className="flex items-center text-gray-500 text-sm">
+                        <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>
+                          题目数量: {questionSet.questionCount !== undefined ? questionSet.questionCount : '未知'} 道
+                        </span>
+                      </div>
+                      
+                      {/* 剩余有效期显示 */}
+                      {isPaid && hasAccess && remainingDays !== null && (
+                        <div className="flex items-center text-green-600 text-sm font-medium">
+                          <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>剩余 {remainingDays} 天</span>
+                        </div>
+                      )}
+                      
+                      {/* 进度条 */}
+                      {renderProgressBar(questionSet)}
+                      
+                      {/* 操作按钮 */}
                       <button
                         onClick={() => handleStartQuiz(questionSet)}
-                        className="px-2 py-1 border border-gray-300 rounded-md text-sm leading-5 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        className={`mt-2 w-full py-2.5 px-4 rounded-md text-white font-medium flex items-center justify-center ${
+                          !hasAccess && isPaid
+                            ? 'bg-yellow-500 hover:bg-yellow-600'
+                            : 'bg-blue-600 hover:bg-blue-700'
+                        } transition-colors duration-200`}
                         aria-label={`开始练习: ${questionSet.title}`}
                       >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+                        {!hasAccess && isPaid ? (
+                          questionSet.trialQuestions && questionSet.trialQuestions > 0 ? (
+                            <>
+                              <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                              </svg>
+                              免费试用
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                              </svg>
+                              立即购买
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {user && progressStats && progressStats[questionSet.id] ? '继续练习' : '开始练习'}
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
-                  <div className="mt-2 text-sm leading-5 font-medium text-gray-500">
-                    {renderProgressBar(questionSet)}
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
