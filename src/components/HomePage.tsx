@@ -296,32 +296,85 @@ const HomePage: React.FC = () => {
 
         // 处理购买记录数据
         if (purchasesData.status === 'fulfilled' && purchasesData.value?.success && user?.id) {
-          console.log(`[HomePage] 获取到 ${purchasesData.value.data.length} 条有效的购买记录`);
+          console.log(`[HomePage] 获取到 ${purchasesData.value.data.length} 条有效的购买记录:`, 
+            JSON.stringify(purchasesData.value.data)
+          );
           
-          // 更新题库的访问权限状态
-          setQuestionSets(prevSets => {
-            const newSets = [...prevSets];
-            
-            purchasesData.value.data.forEach((purchase: PurchaseData) => {
-              const setIndex = newSets.findIndex(set => set.id === purchase.questionSetId);
-              if (setIndex !== -1) {
-                console.log(`[HomePage] 更新题库 "${newSets[setIndex].title}" 的访问权限`);
-                newSets[setIndex] = {
-                  ...newSets[setIndex],
-                  hasAccess: true,
-                  remainingDays: purchase.remainingDays,
-                  accessType: 'paid'
-                };
-                
-                // 保存到本地缓存
-                saveAccessToLocalStorage(purchase.questionSetId, true, purchase.remainingDays);
-              }
+          if (purchasesData.value.data && purchasesData.value.data.length > 0) {
+            // 更新题库的访问权限状态
+            setQuestionSets(prevSets => {
+              const newSets = [...prevSets];
+              
+              purchasesData.value.data.forEach((purchase: PurchaseData) => {
+                const setIndex = newSets.findIndex(set => set.id === purchase.questionSetId);
+                if (setIndex !== -1) {
+                  console.log(`[HomePage] 更新题库 "${newSets[setIndex].title}" 的访问权限，ID: ${purchase.questionSetId}`);
+                  newSets[setIndex] = {
+                    ...newSets[setIndex],
+                    hasAccess: true,
+                    remainingDays: purchase.remainingDays,
+                    accessType: 'paid'
+                  };
+                  
+                  // 保存到本地缓存
+                  saveAccessToLocalStorage(purchase.questionSetId, true, purchase.remainingDays);
+                } else {
+                  console.error(`[HomePage] 未找到对应题库，ID: ${purchase.questionSetId}`);
+                  
+                  // 列出所有题库ID以便调试
+                  console.log(`[HomePage] 所有题库ID:`, newSets.map(set => set.id));
+                }
+              });
+              
+              return newSets;
             });
+          } else {
+            console.warn(`[HomePage] 获取到空的购买记录数组，尝试从user对象中读取purchase数据`);
             
-            return newSets;
-          });
+            // 尝试从用户对象中获取purchase数据
+            if (user && user.purchases && Array.isArray(user.purchases) && user.purchases.length > 0) {
+              console.log(`[HomePage] 从user对象获取到 ${user.purchases.length} 条购买记录`);
+              
+              setQuestionSets(prevSets => {
+                const newSets = [...prevSets];
+                
+                user.purchases.forEach(purchase => {
+                  if (!purchase.questionSetId) {
+                    console.error(`[HomePage] 购买记录缺少questionSetId:`, purchase);
+                    return;
+                  }
+                  
+                  const setIndex = newSets.findIndex(set => set.id === purchase.questionSetId);
+                  if (setIndex !== -1) {
+                    console.log(`[HomePage] 从user对象更新题库 "${newSets[setIndex].title}" 的访问权限`);
+                    
+                    // 计算剩余天数
+                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+                    const remainingDays = expiryDate && !isNaN(expiryDate.getTime()) 
+                      ? Math.max(1, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                      : 30;
+                    
+                    newSets[setIndex] = {
+                      ...newSets[setIndex],
+                      hasAccess: true,
+                      remainingDays,
+                      accessType: 'paid'
+                    };
+                    
+                    // 保存到本地缓存
+                    saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
+                  }
+                });
+                
+                return newSets;
+              });
+            }
+          }
         } else if (purchasesData.status === 'fulfilled' && user?.id) {
-          console.error('[HomePage] 获取购买记录返回错误:', purchasesData.value?.message || '未知错误');
+          console.error('[HomePage] 获取购买记录返回错误:', 
+            purchasesData.value?.message || '未知错误', 
+            purchasesData.value?.error || ''
+          );
         } else if (purchasesData.status === 'rejected' && user?.id) {
           console.error('[HomePage] 获取购买记录失败:', purchasesData.reason);
         }

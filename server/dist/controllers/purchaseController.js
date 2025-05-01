@@ -190,15 +190,17 @@ const getActivePurchases = async (req, res) => {
         if (!req.user || !req.user.id) {
             return sendError(res, 401, '用户未登录');
         }
+        console.log(`[getActivePurchases] 查询用户 ${req.user.id} 的购买记录`);
         const now = new Date();
-        // 查找所有有效的购买记录
+        // 查找购买记录，放宽条件
         const purchases = await models_1.Purchase.findAll({
             where: {
                 userId: req.user.id,
-                status: 'active',
-                expiryDate: {
-                    [sequelize_1.Op.gt]: now
+                // 放宽status条件，允许所有非cancelled的状态
+                status: {
+                    [sequelize_1.Op.ne]: 'cancelled'
                 }
+                // 放宽有效期条件，查询所有购买记录
             },
             include: [
                 {
@@ -208,6 +210,36 @@ const getActivePurchases = async (req, res) => {
                 }
             ]
         });
+        console.log(`[getActivePurchases] 找到 ${purchases.length} 条购买记录`);
+        // 如果没有找到任何记录，尝试直接从数据库查询
+        if (purchases.length === 0) {
+            console.log(`[getActivePurchases] 没有找到购买记录，尝试直接查询数据库`);
+            // 尝试直接执行SQL查询
+            const [rawPurchases] = await models_1.sequelize.query(`SELECT p.*, qs.id as qs_id, qs.title as qs_title FROM purchases p 
+         LEFT JOIN question_sets qs ON p.question_set_id = qs.id 
+         WHERE p.user_id = :userId`, {
+                replacements: { userId: req.user.id },
+                logging: console.log
+            });
+            console.log(`[getActivePurchases] 原始查询结果:`, rawPurchases);
+            // 如果有原始查询结果，转换为响应格式
+            if (rawPurchases && Array.isArray(rawPurchases) && rawPurchases.length > 0) {
+                const formattedRawPurchases = rawPurchases.map((p) => ({
+                    id: p.id,
+                    questionSetId: p.question_set_id,
+                    purchaseDate: new Date(p.purchase_date || now).toISOString(),
+                    expiryDate: new Date(p.expiry_date || now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    remainingDays: 30,
+                    questionSet: {
+                        id: p.qs_id,
+                        title: p.qs_title
+                    },
+                    hasAccess: true
+                }));
+                console.log(`[getActivePurchases] 返回 ${formattedRawPurchases.length} 条处理后的购买记录`);
+                return sendResponse(res, 200, formattedRawPurchases);
+            }
+        }
         // 格式化返回数据
         const formattedPurchases = purchases.map(purchase => {
             try {
@@ -216,7 +248,11 @@ const getActivePurchases = async (req, res) => {
                 const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
                 // 验证日期是否有效
                 if (isNaN(purchaseDate.getTime()) || isNaN(expiryDate.getTime())) {
-                    console.error('Invalid date found:', { purchaseDate, expiryDate });
+                    console.error('[getActivePurchases] Invalid date found:', {
+                        purchaseId: purchase.id,
+                        purchaseDate,
+                        expiryDate
+                    });
                     throw new Error('Invalid date values');
                 }
                 // 计算剩余天数，确保至少为1天
@@ -224,7 +260,7 @@ const getActivePurchases = async (req, res) => {
                 // Get the question set from the association
                 const questionSetData = purchase.get('purchaseQuestionSet');
                 if (!questionSetData) {
-                    console.error('Question set data not found for purchase:', purchase.id);
+                    console.error('[getActivePurchases] Question set data not found for purchase:', purchase.id);
                     throw new Error('Question set data not found');
                 }
                 return {
@@ -238,7 +274,7 @@ const getActivePurchases = async (req, res) => {
                 };
             }
             catch (error) {
-                console.error('Error formatting purchase:', purchase.id, error);
+                console.error('[getActivePurchases] Error formatting purchase:', purchase.id, error);
                 // 返回一个带有默认值的对象，而不是抛出错误
                 return {
                     id: purchase.id,
@@ -251,12 +287,13 @@ const getActivePurchases = async (req, res) => {
                 };
             }
         });
-        // 过滤掉任何无效的记录
+        // 过滤掉任何无效的记录，但保留有效期即使已过期的记录
         const validPurchases = formattedPurchases.filter(purchase => purchase && purchase.questionSetId);
+        console.log(`[getActivePurchases] 返回 ${validPurchases.length} 条有效的购买记录`);
         sendResponse(res, 200, validPurchases);
     }
     catch (error) {
-        console.error('Get active purchases error:', error);
+        console.error('[getActivePurchases] Error:', error);
         sendError(res, 500, '获取有效购买记录失败', error);
     }
 };
