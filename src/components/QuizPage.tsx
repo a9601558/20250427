@@ -601,28 +601,8 @@ function QuizPage(): JSX.Element {
   };
   
   // 处理答案提交
-  const handleAnswerSubmit = async (): Promise<void> => {
+  const handleAnswerSubmit = async (isCorrect: boolean, selectedOpt: string | string[]): Promise<void> => {
     if (!currentQuestion || !user || !socket || !questionSet) return;
-
-    // 判断答案是否正确
-    let isCorrect = false;
-    
-    if (currentQuestion.questionType === 'single') {
-      // 单选题：检查选中的选项是否是正确选项
-      const selectedOption = selectedOptions[0];
-      const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
-      isCorrect = selectedOption === correctOption?.id;
-    } else {
-      // 多选题：检查选中的选项是否与所有正确选项完全匹配
-      const correctOptionIds = currentQuestion.options
-        .filter(opt => opt.isCorrect)
-        .map(opt => opt.id);
-      
-      isCorrect = 
-        correctOptionIds.length === selectedOptions.length && 
-        correctOptionIds.every(id => selectedOptions.includes(id)) &&
-        selectedOptions.every(id => correctOptionIds.includes(id));
-    }
 
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
 
@@ -631,9 +611,7 @@ function QuizPage(): JSX.Element {
       const saveResponse = await userProgressService.saveProgress({
         questionId: String(currentQuestion.id),
         questionSetId: questionSet.id,
-        selectedOption: currentQuestion.questionType === 'single' 
-          ? selectedOptions[0] 
-          : selectedOptions,
+        selectedOption: selectedOpt, // 使用从QuestionCard传入的选项
         isCorrect,
         timeSpent
       });
@@ -654,7 +632,7 @@ function QuizPage(): JSX.Element {
       }
 
       // 发送进度更新事件
-      socket.emit('progress:update', { 
+      const progressEvent = { 
         userId: user.id,
         questionSetId: questionSet.id,
         questionId: String(currentQuestion.id),
@@ -664,7 +642,9 @@ function QuizPage(): JSX.Element {
         totalQuestions: questions.length,
         correctAnswers: (user.progress?.[questionSet.id]?.correctAnswers || 0) + (isCorrect ? 1 : 0),
         lastAccessed: new Date().toISOString()
-      });
+      };
+      
+      socket.emit('progress:update', progressEvent);
 
       // 更新本地状态
       if (isCorrect) {
@@ -675,13 +655,13 @@ function QuizPage(): JSX.Element {
       setShowExplanation(true);
 
       // 更新已回答问题列表
-      setAnsweredQuestions(prev => [...prev, {
+      const newAnsweredQuestion = {
         index: currentQuestionIndex,
         isCorrect,
-        selectedOption: currentQuestion.questionType === 'single' 
-          ? selectedOptions[0] 
-          : selectedOptions
-      }]);
+        selectedOption: selectedOpt // 使用从QuestionCard传入的选项
+      };
+      
+      setAnsweredQuestions(prev => [...prev, newAnsweredQuestion]);
 
       // 答对自动跳到下一题
       if (isCorrect) {
@@ -1136,7 +1116,9 @@ function QuizPage(): JSX.Element {
       <QuestionCard
         question={currentQuestion}
         onNext={goToNextQuestion}
-        onAnswerSubmitted={handleAnswerSubmit}
+        onAnswerSubmitted={(isCorrect, selectedOpt) => {
+          handleAnswerSubmit(isCorrect, selectedOpt);
+        }}
         questionNumber={currentQuestionIndex + 1}
         totalQuestions={questions.length}
         quizTitle={questionSet.title}
@@ -1178,9 +1160,9 @@ function QuizPage(): JSX.Element {
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                </svg>
               </button>
-              </div>
+            </div>
             <RedeemCodeForm onRedeemSuccess={(quizId) => {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${quizId}`);
               setShowRedeemCodeModal(false);
@@ -1237,8 +1219,8 @@ function QuizPage(): JSX.Element {
                 }
               }, 500);
             }} />
+          </div>
         </div>
-      </div>
       )}
     </div>
   );

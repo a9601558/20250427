@@ -92,11 +92,15 @@ const QuestionCard = ({
               const correctOptionIds = question.options
                 .filter(opt => opt.isCorrect)
                 .map(opt => opt.id);
+              
+              const lengthMatch = selectedOptions.length === correctOptionIds.length;
+              const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
+              const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
                 
               return (
-                selectedOptions.length === correctOptionIds.length &&
-                selectedOptions.every(id => correctOptionIds.includes(id)) &&
-                correctOptionIds.every(id => selectedOptions.includes(id))
+                lengthMatch &&
+                allSelectedAreCorrect &&
+                allCorrectAreSelected
               );
             })()
       );
@@ -179,10 +183,10 @@ const QuestionCard = ({
           .filter(opt => opt.isCorrect)
           .map(opt => opt.id);
         
-        const isCorrect = 
-          selectedOptions.length === correctOptionIds.length &&
-          selectedOptions.every(id => correctOptionIds.includes(id)) &&
-          correctOptionIds.every(id => selectedOptions.includes(id));
+        const lengthMatch = selectedOptions.length === correctOptionIds.length;
+        const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
+        const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+        const isCorrect = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
         
         if (onAnswerSubmitted) {
           onAnswerSubmitted(isCorrect, selectedOptions);
