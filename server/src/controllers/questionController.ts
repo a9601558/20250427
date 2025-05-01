@@ -159,4 +159,34 @@ export const getRandomQuestion = async (req: Request, res: Response) => {
   } catch (error) {
     sendError(res, 500, '获取随机问题失败', error);
   }
+};
+
+// @desc    Get count of questions for a question set
+// @route   GET /api/questions/count/:questionSetId
+// @access  Public
+export const getQuestionCount = async (req: Request, res: Response) => {
+  try {
+    const { questionSetId } = req.params;
+    
+    // 验证参数
+    if (!questionSetId) {
+      return res.status(400).json({ success: false, message: '题库ID不能为空' });
+    }
+    
+    // 查询该题库下的问题数量
+    const count = await Question.count({ where: { questionSetId: String(questionSetId) } });
+    
+    return res.status(200).json({ 
+      success: true, 
+      count,
+      message: `题库 ${questionSetId} 包含 ${count} 个问题`
+    });
+  } catch (error) {
+    console.error('获取题目数量失败:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: '获取题目数量失败',
+      error: (error as Error).message
+    });
+  }
 }; 

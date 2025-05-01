@@ -85,6 +85,17 @@ interface HomeContentData {
 
 // 删除重复的 QuestionSet 接口，统一使用 BaseQuestionSet
 
+// Add a new interface for purchase data
+interface PurchaseData {
+  id: string;
+  questionSetId: string;
+  purchaseDate: string;
+  expiryDate: string;
+  remainingDays: number;
+  hasAccess: boolean;
+  questionSet?: any;
+}
+
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
@@ -230,7 +241,7 @@ const HomePage: React.FC = () => {
         setErrorMessage(null);
 
         // 并行请求首页数据，减少请求阻塞
-        const [questionsetsData, settingsData, categoriesData] = await Promise.allSettled([
+        const [questionsetsData, settingsData, categoriesData, purchasesData] = await Promise.allSettled([
           // 获取题库列表 - 统一使用10分钟缓存
           apiClient.get('/api/question-sets', undefined, { 
             cacheDuration: 600000, // 10分钟缓存
@@ -246,7 +257,10 @@ const HomePage: React.FC = () => {
           // 获取精选分类 - 缓存10分钟
           apiClient.get('/api/homepage/featured-categories', undefined, { 
             cacheDuration: 600000
-          })
+          }),
+          
+          // 获取用户的购买记录 - 只有用户登录后才请求
+          user?.id ? apiClient.get('/api/purchases/active') : Promise.resolve(null)
         ]);
 
         // 处理题库列表数据
@@ -267,6 +281,34 @@ const HomePage: React.FC = () => {
             featuredCategories: categoriesData.value.data
           }));
         }
+
+        // 处理购买记录数据
+        if (purchasesData.status === 'fulfilled' && purchasesData.value?.success && user?.id) {
+          console.log(`[HomePage] 获取到 ${purchasesData.value.data.length} 条有效的购买记录`);
+          
+          // 更新题库的访问权限状态
+          setQuestionSets(prevSets => {
+            const newSets = [...prevSets];
+            
+            purchasesData.value.data.forEach((purchase: PurchaseData) => {
+              const setIndex = newSets.findIndex(set => set.id === purchase.questionSetId);
+              if (setIndex !== -1) {
+                console.log(`[HomePage] 更新题库 "${newSets[setIndex].title}" 的访问权限`);
+                newSets[setIndex] = {
+                  ...newSets[setIndex],
+                  hasAccess: true,
+                  remainingDays: purchase.remainingDays,
+                  accessType: 'paid'
+                };
+                
+                // 保存到本地缓存
+                saveAccessToLocalStorage(purchase.questionSetId, true, purchase.remainingDays);
+              }
+            });
+            
+            return newSets;
+          });
+        }
       } catch (error) {
         console.error('获取数据失败:', error);
         setErrorMessage('获取数据失败，请稍后重试');
@@ -279,7 +321,7 @@ const HomePage: React.FC = () => {
     fetchData();
 
     // 删除定时刷新，没有必要频繁刷新主页数据
-  }, []);
+  }, [user?.id]);
 
   // 异步处理题库列表数据 - 经过封装的函数
   const processQuestionSets = async (data: BaseQuestionSet[]) => {

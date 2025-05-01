@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRandomQuestion = exports.deleteQuestion = exports.updateQuestion = exports.createQuestion = exports.getQuestionById = exports.getQuestions = void 0;
+exports.getQuestionCount = exports.getRandomQuestion = exports.deleteQuestion = exports.updateQuestion = exports.createQuestion = exports.getQuestionById = exports.getQuestions = void 0;
 const Question_1 = __importDefault(require("../models/Question"));
 const responseUtils_1 = require("../utils/responseUtils");
 const Option_1 = __importDefault(require("../models/Option"));
@@ -157,3 +157,31 @@ const getRandomQuestion = async (req, res) => {
     }
 };
 exports.getRandomQuestion = getRandomQuestion;
+// @desc    Get count of questions for a question set
+// @route   GET /api/questions/count/:questionSetId
+// @access  Public
+const getQuestionCount = async (req, res) => {
+    try {
+        const { questionSetId } = req.params;
+        // 验证参数
+        if (!questionSetId) {
+            return res.status(400).json({ success: false, message: '题库ID不能为空' });
+        }
+        // 查询该题库下的问题数量
+        const count = await Question_1.default.count({ where: { questionSetId: String(questionSetId) } });
+        return res.status(200).json({
+            success: true,
+            count,
+            message: `题库 ${questionSetId} 包含 ${count} 个问题`
+        });
+    }
+    catch (error) {
+        console.error('获取题目数量失败:', error);
+        return res.status(500).json({
+            success: false,
+            message: '获取题目数量失败',
+            error: error.message
+        });
+    }
+};
+exports.getQuestionCount = getQuestionCount;

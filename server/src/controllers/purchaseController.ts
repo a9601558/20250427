@@ -144,18 +144,17 @@ export const getUserPurchases = async (req: Request, res: Response) => {
 };
 
 // @desc    Check access to question set
-// @route   GET /api/v1/purchases/check/:questionSetId
+// @route   GET /api/purchases/check/:questionSetId
 // @access  Private
 export const checkAccess = async (req: Request, res: Response) => {
   try {
     const questionSetId = req.params.questionSetId;
-
     // 检查题库是否存在
     const questionSet = await QuestionSet.findByPk(questionSetId);
     if (!questionSet) {
       return sendError(res, 404, '题库不存在');
     }
-
+    
     // 如果题库是免费的，直接返回有访问权限
     if (!questionSet.isPaid) {
       return sendResponse(res, 200, {
@@ -163,25 +162,22 @@ export const checkAccess = async (req: Request, res: Response) => {
         isPaid: false
       });
     }
-
+    
     // 查找有效的购买记录
     const purchase = await Purchase.findOne({
       where: {
         userId: req.user.id,
         questionSetId,
-        status: 'completed',
+        status: 'active',
         expiryDate: {
           [Op.gt]: new Date()
         }
       }
     });
-
+    
     if (purchase) {
       // 计算剩余天数
-      const remainingDays = Math.ceil(
-        (purchase.expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-      );
-
+      const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       sendResponse(res, 200, {
         hasAccess: true,
         isPaid: true,
@@ -198,6 +194,58 @@ export const checkAccess = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Check access error:', error);
     sendError(res, 500, '检查访问权限失败', error);
+  }
+};
+
+// @desc    Get user's active purchase records for all question sets
+// @route   GET /api/purchases/active
+// @access  Private
+export const getActivePurchases = async (req: Request, res: Response) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return sendError(res, 401, '用户未登录');
+    }
+    
+    // 查找所有有效的购买记录
+    const purchases = await Purchase.findAll({
+      where: {
+        userId: req.user.id,
+        status: 'active',
+        expiryDate: {
+          [Op.gt]: new Date()
+        }
+      },
+      include: [
+        {
+          model: QuestionSet,
+          as: 'questionSet',
+          attributes: ['id', 'title', 'description', 'category']
+        }
+      ]
+    });
+    
+    // 格式化返回数据
+    const formattedPurchases = purchases.map(purchase => {
+      const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      
+      // Get the question set from the association
+      const questionSetData = purchase.get('questionSet') as any;
+      
+      return {
+        id: purchase.id,
+        questionSetId: purchase.questionSetId,
+        purchaseDate: purchase.purchaseDate,
+        expiryDate: purchase.expiryDate,
+        remainingDays,
+        questionSet: questionSetData,
+        hasAccess: true
+      };
+    });
+    
+    sendResponse(res, 200, formattedPurchases);
+  } catch (error) {
+    console.error('Get active purchases error:', error);
+    sendError(res, 500, '获取有效购买记录失败', error);
   }
 };
 

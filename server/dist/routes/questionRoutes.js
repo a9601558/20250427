@@ -9,6 +9,7 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
 // 题目相关路由
 router.get('/', questionController_1.getQuestions);
+router.get('/count/:questionSetId', questionController_1.getQuestionCount);
 router.get('/:id', questionController_1.getQuestionById);
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionController_1.createQuestion);
 router.put('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionController_1.updateQuestion);

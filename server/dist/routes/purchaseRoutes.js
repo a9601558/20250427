@@ -12,4 +12,6 @@ router.use(authMiddleware_1.protect);
 // Purchase routes
 router.post('/', purchaseController_1.createPurchase);
 router.get('/', purchaseController_1.getUserPurchases);
+router.get('/check/:questionSetId', purchaseController_1.checkAccess);
+router.get('/active', purchaseController_1.getActivePurchases);
 exports.default = router;

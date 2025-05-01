@@ -5,7 +5,8 @@ import {
   createQuestion,
   updateQuestion,
   deleteQuestion,
-  getRandomQuestion
+  getRandomQuestion,
+  getQuestionCount
 } from '../controllers/questionController';
 import { protect, admin } from '../middleware/authMiddleware';
 
@@ -13,6 +14,7 @@ const router = express.Router();
 
 // 题目相关路由
 router.get('/', getQuestions);
+router.get('/count/:questionSetId', getQuestionCount);
 router.get('/:id', getQuestionById);
 router.post('/', protect, admin, createQuestion);
 router.put('/:id', protect, admin, updateQuestion);

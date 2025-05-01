@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = exports.checkAccess = exports.getUserPurchases = exports.createPurchase = void 0;
+exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = exports.getActivePurchases = exports.checkAccess = exports.getUserPurchases = exports.createPurchase = void 0;
 const sequelize_1 = require("sequelize");
 const models_1 = require("../models");
 const uuid_1 = require("uuid");
@@ -130,7 +130,7 @@ const getUserPurchases = async (req, res) => {
 };
 exports.getUserPurchases = getUserPurchases;
 // @desc    Check access to question set
-// @route   GET /api/v1/purchases/check/:questionSetId
+// @route   GET /api/purchases/check/:questionSetId
 // @access  Private
 const checkAccess = async (req, res) => {
     try {
@@ -152,7 +152,7 @@ const checkAccess = async (req, res) => {
             where: {
                 userId: req.user.id,
                 questionSetId,
-                status: 'completed',
+                status: 'active',
                 expiryDate: {
                     [sequelize_1.Op.gt]: new Date()
                 }
@@ -160,7 +160,7 @@ const checkAccess = async (req, res) => {
         });
         if (purchase) {
             // 计算剩余天数
-            const remainingDays = Math.ceil((purchase.expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
             sendResponse(res, 200, {
                 hasAccess: true,
                 isPaid: true,
@@ -182,6 +182,52 @@ const checkAccess = async (req, res) => {
     }
 };
 exports.checkAccess = checkAccess;
+// @desc    Get user's active purchase records for all question sets
+// @route   GET /api/purchases/active
+// @access  Private
+const getActivePurchases = async (req, res) => {
+    try {
+        if (!req.user || !req.user.id) {
+            return sendError(res, 401, '用户未登录');
+        }
+        // 查找所有有效的购买记录
+        const purchases = await models_1.Purchase.findAll({
+            where: {
+                userId: req.user.id,
+                status: 'active',
+                expiryDate: {
+                    [sequelize_1.Op.gt]: new Date()
+                }
+            },
+            include: [
+                {
+                    model: models_1.QuestionSet,
+                    as: 'questionSet',
+                    attributes: ['id', 'title', 'description', 'category']
+                }
+            ]
+        });
+        // 格式化返回数据
+        const formattedPurchases = purchases.map(purchase => {
+            const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            return {
+                id: purchase.id,
+                questionSetId: purchase.questionSetId,
+                purchaseDate: purchase.purchaseDate,
+                expiryDate: purchase.expiryDate,
+                remainingDays,
+                questionSet: purchase.questionSet,
+                hasAccess: true
+            };
+        });
+        sendResponse(res, 200, formattedPurchases);
+    }
+    catch (error) {
+        console.error('Get active purchases error:', error);
+        sendError(res, 500, '获取有效购买记录失败', error);
+    }
+};
+exports.getActivePurchases = getActivePurchases;
 // @desc    Get purchase details
 // @route   GET /api/v1/purchases/:id
 // @access  Private
