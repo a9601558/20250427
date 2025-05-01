@@ -110,6 +110,8 @@ const HomePage: React.FC = () => {
   const [selectedQuestionSet, setSelectedQuestionSet] = useState<PreparedQuestionSet | null>(null);
   const navigate = useNavigate();
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
 
   // 获取题库列表的函数 - 统一缓存策略
   const fetchQuestionSets = useCallback(async () => {
@@ -222,17 +224,30 @@ const HomePage: React.FC = () => {
 
   // 获取过滤后的题库列表
   const getFilteredQuestionSets = useCallback(() => {
-    if (activeCategory === 'all') {
-      if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-        return questionSets.filter(set => 
-          homeContent.featuredCategories.includes(set.category) || set.isFeatured
-        );
-      }
-      return questionSets;
+    // 先根据搜索词过滤
+    let filteredSets = searchTerm.trim() ? 
+      questionSets.filter(set => 
+        set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        set.category.toLowerCase().includes(searchTerm.toLowerCase())
+      ) : 
+      questionSets;
+    
+    // 再根据分类过滤
+    if (activeCategory !== 'all') {
+      filteredSets = filteredSets.filter(set => set.category === activeCategory);
+    } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+      filteredSets = filteredSets.filter(set => 
+        homeContent.featuredCategories.includes(set.category) || set.isFeatured
+      );
     }
     
-    return questionSets.filter(set => set.category === activeCategory);
-  }, [questionSets, activeCategory, homeContent.featuredCategories]);
+    return filteredSets;
+  }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
+
+  // 获取推荐题库的函数
+  const getRecommendedSets = useCallback(() => {
+    return questionSets.filter(set => set.isFeatured).slice(0, 3);
+  }, [questionSets]);
 
   // 获取首页设置、分类和题库列表
   useEffect(() => {
@@ -909,6 +924,13 @@ const HomePage: React.FC = () => {
     };
   }, [user?.id, socket, questionSets]);
 
+  // 在现有的useEffect中添加对推荐题库的处理
+  useEffect(() => {
+    if (questionSets.length > 0) {
+      setRecommendedSets(getRecommendedSets());
+    }
+  }, [questionSets, getRecommendedSets]);
+
   // Add a new function to render the validity period badge
   const renderValidityBadge = (remainingDays: number | null) => {
     if (remainingDays === null) return null;
@@ -1139,9 +1161,48 @@ const HomePage: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>考试倒计时</h2>
                 <span className="text-sm text-gray-500">与个人中心同步</span>
-                </div>
+              </div>
               <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
-                      </div>
+            </div>
+
+            {/* 搜索栏 */}
+            <div className="mt-6 mx-auto max-w-2xl">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="搜索题库名称或分类..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={`w-full px-4 py-2.5 pl-10 pr-4 rounded-lg border ${
+                    homeContent.theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className={`h-5 w-5 ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* 推荐题库栏 */}
+            {recommendedSets.length > 0 && (
+              <div className="mt-8 mx-auto">
+                <div className="flex items-center mb-4">
+                  <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>推荐题库</h2>
+                  <span className={`ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full`}>精选</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {recommendedSets.map(set => (
+                    <BaseCard 
+                      key={set.id} 
+                      set={{...set, accessType: set.accessType}} 
+                      onStartQuiz={handleStartQuiz} 
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             
             {!user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>

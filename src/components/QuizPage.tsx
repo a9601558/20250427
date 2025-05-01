@@ -36,6 +36,42 @@ const getQuestions = (data: any) => {
   return [];
 };
 
+// 添加答题卡组件
+const AnswerCard: React.FC<{
+  totalQuestions: number;
+  answeredQuestions: AnsweredQuestion[];
+  currentIndex: number;
+  onJump: (index: number) => void;
+}> = ({ totalQuestions, answeredQuestions, currentIndex, onJump }) => {
+  return (
+    <div className="bg-white shadow-md rounded-lg p-4 mb-6">
+      <h3 className="text-md font-medium mb-3">答题卡</h3>
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: totalQuestions }).map((_, index) => {
+          const isAnswered = answeredQuestions.some(q => q.index === index);
+          const isCorrect = answeredQuestions.some(q => q.index === index && q.isCorrect);
+          const isCurrent = currentIndex === index;
+          
+          let bgColor = 'bg-gray-100'; // 默认未答题
+          if (isCurrent) bgColor = 'bg-blue-500 text-white'; // 当前题目
+          else if (isCorrect) bgColor = 'bg-green-100'; // 已答对
+          else if (isAnswered) bgColor = 'bg-red-100'; // 已答错
+          
+          return (
+            <button
+              key={index}
+              onClick={() => onJump(index)}
+              className={`w-8 h-8 ${bgColor} rounded-md flex items-center justify-center text-sm font-medium hover:opacity-80 transition-all`}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -1096,6 +1132,33 @@ function QuizPage(): JSX.Element {
             </p>
           </div>
         ) : null}
+        
+        {/* 答题卡组件 */}
+        <AnswerCard
+          totalQuestions={questions.length}
+          answeredQuestions={answeredQuestions}
+          currentIndex={currentQuestionIndex}
+          onJump={(index) => {
+            // 如果试用已结束且没有购买，不允许跳转
+            if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
+              console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
+              return;
+            }
+            
+            // 确保没有未提交的答案
+            const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
+            if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
+              if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
+                setCurrentQuestionIndex(index);
+                setSelectedOptions([]);
+              }
+            } else {
+              console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
+              setCurrentQuestionIndex(index);
+              setSelectedOptions([]);
+            }
+          }}
+        />
         
         {/* 进度条 */}
         <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
