@@ -67,7 +67,7 @@ const getRedeemCodes = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'redeemQuestionSet',
+                    as: 'questionSet',
                     attributes: ['title', 'category']
                 },
                 {
@@ -265,7 +265,7 @@ const getUserRedeemCodes = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'redeemQuestionSet',
+                    as: 'questionSet',
                     attributes: ['id', 'title', 'description', 'icon', 'category']
                 }
             ],

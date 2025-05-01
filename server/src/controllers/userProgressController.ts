@@ -100,7 +100,7 @@ export const getUserProgress = async (req: Request, res: Response): Promise<Resp
       include: [
         {
           model: QuestionSet,
-          as: 'progressQuestionSet',
+          as: 'questionSet',
           attributes: ['id', 'title']
         }
       ]
@@ -128,8 +128,8 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
     const progress = await UserProgress.findAll({
       where: { userId, questionSetId },
       include: [
-        { model: QuestionSet, as: 'progressQuestionSet' },
-        { model: Question, as: 'progressQuestion' }
+        { model: QuestionSet, as: 'questionSet' },
+        { model: Question, as: 'question' }
       ]
     });
     if (!progress || progress.length === 0) {
@@ -188,7 +188,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     // 发送实时更新
     const updateEvent: ProgressUpdateEvent = {
       questionSetId,
-      questionSet: progress.progressQuestionSet,
+      questionSet: progress.get('questionSet') as { id: string; title: string } | undefined,
       stats
     };
     
@@ -307,7 +307,7 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     // 发送实时更新
     const updateEvent: ProgressUpdateEvent = {
       questionSetId,
-      questionSet: newProgress.progressQuestionSet,
+      questionSet: newProgress.get('questionSet') as { id: string; title: string } | undefined,
       stats
     };
     
@@ -342,8 +342,8 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
       where,
       order: [['createdAt', 'DESC']],
       include: [
-        { model: QuestionSet, as: 'progressQuestionSet' },
-        { model: Question, as: 'progressQuestion' }
+        { model: QuestionSet, as: 'questionSet' },
+        { model: Question, as: 'question' }
       ]
     });
 
@@ -378,7 +378,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
       where: { userId },
       include: [{
         model: QuestionSet,
-        as: 'progressQuestionSet',
+        as: 'questionSet',
         attributes: ['id', 'title']
       }]
     });
@@ -521,12 +521,12 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'progressQuestionSet',
+          as: 'questionSet',
           attributes: ['id', 'title']
         },
         {
           model: Question,
-          as: 'progressQuestion',
+          as: 'question',
           attributes: ['id', 'questionType']
         }
       ]
@@ -548,7 +548,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
       }
       
       const setId = record.questionSetId.toString();
-      const questionSet = record.get('progressQuestionSet') as { id: string; title: string } | undefined;
+      const questionSet = record.get('questionSet') as { id: string; title: string } | undefined;
       
       if (!acc[setId]) {
         acc[setId] = {
@@ -579,7 +579,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
 
     // 按题目类型统计，类似的安全处理
     const typeStats = progressRecords.reduce<Record<string, ProgressStats>>((acc, record) => {
-      const question = record.get('progressQuestion') as { id: string; questionType: string } | undefined;
+      const question = record.get('question') as { id: string; questionType: string } | undefined;
       const type = question?.questionType;
       
       if (!type) return acc;
@@ -652,7 +652,7 @@ export const getUserProgressRecords = async (req: Request, res: Response) => {
       attributes: ['id', 'questionSetId', 'questionId', 'isCorrect', 'timeSpent', 'createdAt', 'updatedAt'],
       include: [{
         model: QuestionSet,
-        as: 'progressQuestionSet',
+        as: 'questionSet',
         attributes: ['id', 'title']
       }]
     });
@@ -677,16 +677,17 @@ export const getProgressSummary = async (req: Request, res: Response) => {
       where: { userId },
       include: [{
         model: Question,
-        as: 'progressQuestion',
+        as: 'question',
         attributes: ['id', 'questionSetId']
       }]
     });
     
     // 按题库分组计算统计信息
     const summary = questionSets.map(qs => {
-      const progressRecords = userProgress.filter(p => 
-        p.progressQuestion?.questionSetId === qs.id
-      );
+      const progressRecords = userProgress.filter(p => {
+        const question = p.get('question') as { questionSetId: string } | undefined;
+        return question?.questionSetId === qs.id;
+      });
       
       const totalQuestions = qs.questionSetQuestions?.length || 0;
       const completedQuestions = progressRecords.length;

@@ -90,7 +90,7 @@ export const createPurchase = async (req: Request, res: Response) => {
     const purchaseWithQuestionSet = await Purchase.findByPk(purchase.id, {
       include: [{
         model: QuestionSet,
-        as: 'purchaseQuestionSet',
+        as: 'questionSet',
         attributes: ['id', 'title', 'category', 'icon']
       }]
     });
@@ -124,7 +124,7 @@ export const getUserPurchases = async (req: Request, res: Response) => {
       include: [
         {
         model: QuestionSet,
-          as: 'purchaseQuestionSet'
+          as: 'questionSet'
         },
       ],
     }));
@@ -281,7 +281,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'purchaseQuestionSet',
+          as: 'questionSet',
           required: true
         }
       ]
@@ -311,7 +311,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
         const remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
         
         // Get the question set from the association
-        const questionSetData = purchase.get('purchaseQuestionSet');
+        const questionSetData = purchase.get('questionSet');
         if (!questionSetData) {
           console.error('[getActivePurchases] Question set data not found for purchase:', purchase.id);
           throw new Error('Question set data not found');
@@ -338,7 +338,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           remainingDays: 30,
           status: purchase.status || 'active',
-          questionSet: purchase.get('purchaseQuestionSet'),
+          questionSet: purchase.get('questionSet'),
           hasAccess: true
         };
       }
@@ -368,7 +368,7 @@ export const getPurchaseById = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'purchaseQuestionSet'
+          as: 'questionSet'
         }
       ]
     });

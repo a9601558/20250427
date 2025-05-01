@@ -14,7 +14,7 @@ async function getUserQuestionSetProgress(userId, questionSetId) {
         include: [
             {
                 model: QuestionSet_1.default,
-                as: 'progressQuestionSet',
+                as: 'questionSet',
                 attributes: ['id', 'title'],
                 include: [{
                         model: Question_1.default,

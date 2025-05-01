@@ -20,7 +20,7 @@ export async function getUserQuestionSetProgress(userId: string, questionSetId: 
     include: [
       { 
         model: QuestionSet, 
-        as: 'progressQuestionSet', 
+        as: 'questionSet', 
         attributes: ['id', 'title'],
         include: [{
           model: Question,

@@ -78,7 +78,7 @@ const createPurchase = async (req, res) => {
         const purchaseWithQuestionSet = await models_1.Purchase.findByPk(purchase.id, {
             include: [{
                     model: models_1.QuestionSet,
-                    as: 'purchaseQuestionSet',
+                    as: 'questionSet',
                     attributes: ['id', 'title', 'category', 'icon']
                 }]
         });
@@ -110,7 +110,7 @@ const getUserPurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'purchaseQuestionSet'
+                    as: 'questionSet'
                 },
             ],
         }));
@@ -253,7 +253,7 @@ const getActivePurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'purchaseQuestionSet',
+                    as: 'questionSet',
                     required: true
                 }
             ]
@@ -278,7 +278,7 @@ const getActivePurchases = async (req, res) => {
                 // 计算剩余天数，确保至少为1天
                 const remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
                 // Get the question set from the association
-                const questionSetData = purchase.get('purchaseQuestionSet');
+                const questionSetData = purchase.get('questionSet');
                 if (!questionSetData) {
                     console.error('[getActivePurchases] Question set data not found for purchase:', purchase.id);
                     throw new Error('Question set data not found');
@@ -305,7 +305,7 @@ const getActivePurchases = async (req, res) => {
                     expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     remainingDays: 30,
                     status: purchase.status || 'active',
-                    questionSet: purchase.get('purchaseQuestionSet'),
+                    questionSet: purchase.get('questionSet'),
                     hasAccess: true
                 };
             }
@@ -334,7 +334,7 @@ const getPurchaseById = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'purchaseQuestionSet'
+                    as: 'questionSet'
                 }
             ]
         });
