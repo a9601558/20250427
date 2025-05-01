@@ -11,6 +11,7 @@ import { userProgressService } from '../services/api';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
 import PaymentModal from './PaymentModal';
+import ExamCountdownWidget from './ExamCountdownWidget';
 
 // 使用本地接口替代
 interface HomeContentData {
@@ -714,6 +715,10 @@ const HomePage: React.FC = () => {
               </div>
             )}
             
+            {/* 考试倒计时组件 */}
+            <div className="mt-6 mx-auto max-w-2xl">
+              <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
+            </div>
             
             {!user && (
               <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
