@@ -160,6 +160,7 @@ const initializeSocket = (io) => {
                 const user = await User_1.default.findByPk(data.userId);
                 const questionSet = await QuestionSet_1.default.findByPk(data.questionSetId);
                 if (user && questionSet) {
+                    console.log(`检查用户(${data.userId})对题库(${data.questionSetId})的访问权限, 强制刷新: ${data.forceRefresh || false}`);
                     if (!questionSet.isPaid) {
                         // 免费题库，直接返回有访问权限
                         if (user.socket_id) {
@@ -171,27 +172,42 @@ const initializeSocket = (io) => {
                         }
                         return;
                     }
-                    // 检查用户的购买记录
-                    const purchase = await Purchase_1.default.findOne({
+                    // 查询条件增强，确保在不同ID格式情况下也能找到对应的记录
+                    const normalizedQuestionSetId = String(data.questionSetId).trim();
+                    const purchases = await Purchase_1.default.findAll({
                         where: {
                             userId: user.id,
-                            questionSetId: questionSet.id,
                             expiryDate: {
                                 [sequelize_1.Op.gt]: new Date()
                             }
                         }
                     });
+                    // 找到匹配的购买记录，使用更灵活的匹配方式
+                    const purchase = purchases.find(p => {
+                        const purchaseQsId = String(p.questionSetId).trim();
+                        // 精确匹配
+                        const exactMatch = purchaseQsId === normalizedQuestionSetId;
+                        // 部分匹配 - 处理ID可能包含前缀或后缀的情况
+                        const containsId = purchaseQsId.includes(normalizedQuestionSetId) ||
+                            normalizedQuestionSetId.includes(purchaseQsId);
+                        const similarLength = Math.abs(purchaseQsId.length - normalizedQuestionSetId.length) <= 2;
+                        const partialMatch = containsId && similarLength &&
+                            purchaseQsId.length > 10 && normalizedQuestionSetId.length > 10;
+                        return exactMatch || partialMatch;
+                    });
                     if (purchase && user.socket_id) {
                         // 有有效的购买记录
                         const remainingDays = Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                        console.log(`用户(${user.id})有题库(${questionSet.id})的有效购买记录，剩余天数: ${remainingDays}`);
                         io.to(user.socket_id).emit('questionSet:accessUpdate', {
-                            questionSetId: purchase.questionSetId,
+                            questionSetId: questionSet.id, // 统一使用请求中的题库ID
                             hasAccess: true,
                             remainingDays
                         });
                     }
                     else if (user.socket_id) {
                         // 没有有效的购买记录
+                        console.log(`用户(${user.id})没有题库(${questionSet.id})的有效购买记录`);
                         io.to(user.socket_id).emit('questionSet:accessUpdate', {
                             questionSetId: data.questionSetId,
                             hasAccess: false,
@@ -426,6 +442,61 @@ const initializeSocket = (io) => {
             catch (error) {
                 console.error('Error updating progress:', error);
                 socket.emit('progress_error', { message: '更新进度失败' });
+            }
+        });
+        // 处理用户购买记录同步请求
+        socket.on('user:syncPurchases', async (data) => {
+            try {
+                console.log(`用户(${data.userId})请求同步购买记录，设备ID: ${data.deviceId || '未知'}`);
+                // 获取用户购买记录
+                const user = await User_1.default.findByPk(data.userId);
+                if (!user) {
+                    console.error(`用户同步购买记录失败: 找不到用户(${data.userId})`);
+                    return;
+                }
+                // 获取所有有效购买记录
+                const purchases = await Purchase_1.default.findAll({
+                    where: {
+                        userId: user.id,
+                        expiryDate: {
+                            [sequelize_1.Op.gt]: new Date()
+                        }
+                    },
+                    include: [
+                        {
+                            model: QuestionSet_1.default,
+                            as: 'purchaseQuestionSet'
+                        }
+                    ]
+                });
+                console.log(`用户(${data.userId})有${purchases.length}条有效购买记录`);
+                // 将购买记录发送给客户端
+                if (user.socket_id) {
+                    io.to(user.socket_id).emit('user:purchasesSynced', {
+                        success: true,
+                        purchases: purchases.map(p => p.toJSON()),
+                        message: `已同步${purchases.length}条购买记录`,
+                        timestamp: new Date().toISOString()
+                    });
+                    // 对每个购买记录，单独发送访问权限更新
+                    for (const purchase of purchases) {
+                        io.to(user.socket_id).emit('questionSet:accessUpdate', {
+                            questionSetId: purchase.questionSetId,
+                            hasAccess: true,
+                            remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        });
+                    }
+                }
+            }
+            catch (error) {
+                console.error('同步用户购买记录失败:', error);
+                if (socket.handshake.auth?.userId) {
+                    socket.emit('user:purchasesSynced', {
+                        success: false,
+                        message: '同步购买记录失败，请稍后再试',
+                        error: process.env.NODE_ENV === 'development' ? String(error) : undefined
+                    });
+                }
             }
         });
     });

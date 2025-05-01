@@ -282,13 +282,30 @@ function QuizPage(): JSX.Element {
       user.purchases.forEach((p, index) => {
         const purchaseId = String(p.questionSetId).trim();
         const match = purchaseId === targetId;
-        console.log(`[checkAccess] 购买记录 #${index}: ID="${purchaseId}", 匹配=${match}, 状态=${p.status}, 有效期=${p.expiryDate}`);
+        const expiryDate = new Date(p.expiryDate);
+        const isExpired = expiryDate <= new Date();
+        
+        console.log(`[checkAccess] 购买记录 #${index}: ID="${purchaseId}", 匹配=${match}, 状态=${p.status}, 有效期=${p.expiryDate}, 已过期=${isExpired}`);
       });
       
+      // 改进购买记录匹配机制，使用更宽松的比较，避免ID格式差异问题
       const purchase = user.purchases.find(p => {
-        // 确保正确比较字符串
+        // 标准化两个ID进行比较
         const purchaseSetId = String(p.questionSetId).trim();
-        return purchaseSetId === targetId;
+        const targetId = String(questionSet.id).trim();
+        
+        // 检查是否匹配
+        const isExactMatch = purchaseSetId === targetId;
+        
+        // 添加二次检查 - 有时ID可能包含了前缀或后缀
+        const containsId = purchaseSetId.includes(targetId) || targetId.includes(purchaseSetId);
+        const similarLength = Math.abs(purchaseSetId.length - targetId.length) <= 2;
+        const isPartialMatch = containsId && similarLength;
+        
+        const result = isExactMatch || isPartialMatch;
+        console.log(`[checkAccess] 比较 "${purchaseSetId}" 与 "${targetId}": 精确匹配=${isExactMatch}, 部分匹配=${isPartialMatch}, 最终结果=${result}`);
+        
+        return result;
       });
       
       if (purchase) {
@@ -302,6 +319,11 @@ function QuizPage(): JSX.Element {
         console.log(`[checkAccess] 有效期检查: ${expiryDate.toISOString()} > ${now.toISOString()}, 已过期=${isExpired}`);
         console.log(`[checkAccess] 状态检查: 状态=${purchase.status}, 有效=${isActive}`);
         console.log(`[checkAccess] 购买记录综合判断: 访问权限=${hasAccess}`);
+        
+        // 如果确认有购买权限，立即保存到localStorage
+        if (hasAccess) {
+          saveAccessToLocalStorage(questionSet.id, true);
+        }
       } else {
         console.log(`[checkAccess] 未找到匹配的购买记录`);
       }
@@ -967,14 +989,37 @@ function QuizPage(): JSX.Element {
       let hasPurchaseAccess = false;
       if (user && user.purchases && Array.isArray(user.purchases)) {
         const purchase = user.purchases.find(p => {
-          const purchaseId = String(p.questionSetId).trim();
-          const targetId = String(questionSet.id).trim();
-          const isMatch = purchaseId === targetId;
+          const purchaseId = String(p.questionSetId || '').trim();
+          const targetId = String(questionSet.id || '').trim();
+          
+          // 使用更宽松的匹配逻辑，避免ID格式差异导致的问题
+          const isExactMatch = purchaseId === targetId;
+          
+          // 有时ID可能包含额外的前缀或后缀，尝试部分匹配
+          const containsId = purchaseId.includes(targetId) || targetId.includes(purchaseId);
+          const similarLength = Math.abs(purchaseId.length - targetId.length) <= 2;
+          const isPartialMatch = containsId && similarLength && purchaseId.length > 10 && targetId.length > 10;
+          
+          const isMatch = isExactMatch || isPartialMatch;
           console.log(`[QuizPage] 比较购买记录: ${purchaseId} vs ${targetId}, 匹配: ${isMatch}`);
           return isMatch;
         });
         
-        hasPurchaseAccess = !!purchase;
+        // 判断购买记录是否有效
+        if (purchase) {
+          const now = new Date();
+          const expiryDate = new Date(purchase.expiryDate);
+          const isExpired = expiryDate <= now;
+          const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
+          
+          hasPurchaseAccess = !isExpired && isActive;
+          console.log(`[QuizPage] 找到购买记录: 状态=${purchase.status}, 过期时间=${purchase.expiryDate}, 是否过期=${isExpired}, 是否有权限=${hasPurchaseAccess}`);
+          
+          // 如果有权限，立即保存到localStorage
+          if (hasPurchaseAccess) {
+            saveAccessToLocalStorage(questionSet.id, true);
+          }
+        }
         console.log(`[QuizPage] 用户购买记录检查结果: ${hasPurchaseAccess}`);
       }
       
@@ -987,7 +1032,18 @@ function QuizPage(): JSX.Element {
           const targetId = String(questionSet.id).trim();
           
           if (Array.isArray(redeemedIds)) {
-            hasRedeemAccess = redeemedIds.some(id => String(id).trim() === targetId);
+            // 使用更宽松的匹配逻辑检查兑换记录
+            hasRedeemAccess = redeemedIds.some(id => {
+              const redeemedId = String(id || '').trim();
+              // 精确匹配
+              const exactMatch = redeemedId === targetId;
+              // 部分匹配
+              const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
+                && Math.abs(redeemedId.length - targetId.length) <= 2
+                && redeemedId.length > 10 && targetId.length > 10;
+                
+              return exactMatch || partialMatch;
+            });
           }
           console.log(`[QuizPage] 本地兑换记录检查结果: ${hasRedeemAccess}`);
         }
@@ -1041,6 +1097,65 @@ function QuizPage(): JSX.Element {
     
     // 当用户状态或题库信息变化时重新检查
   }, [questionSet, user, hasAccessToQuestionSet, socket, hasRedeemed, saveAccessToLocalStorage]);
+
+  // 添加用户登录处理 - 确保在新设备登录时立即获取权限
+  useEffect(() => {
+    if (user && questionSet?.id) {
+      console.log(`[QuizPage] 用户已登录(${user.id})，检查题库(${questionSet.id})访问权限`);
+      
+      // 强制同步服务器数据 - 解决不同设备登录时的权限问题
+      const syncUserData = async () => {
+        if (socket) {
+          console.log('[QuizPage] 通过Socket请求最新用户购买信息和权限数据');
+          
+          // 检查访问权限
+          socket.emit('questionSet:checkAccess', {
+            userId: user.id,
+            questionSetId: String(questionSet.id).trim(),
+            forceRefresh: true
+          });
+          
+          // 请求同步所有购买数据
+          socket.emit('user:syncPurchases', {
+            userId: user.id,
+            deviceId: navigator.userAgent // 帮助服务器识别不同设备
+          });
+        }
+        
+        // 如果此时用户已有购买记录，但页面仍显示需要购买
+        // 可能是权限检查逻辑出了问题，做一次额外的检查
+        if (!hasAccessToFullQuiz && user.purchases && user.purchases.length > 0) {
+          console.log('[QuizPage] 用户有购买记录但无访问权限，进行额外检查');
+          setTimeout(() => {
+            checkAccess();
+          }, 500);
+        }
+      };
+      
+      syncUserData();
+    }
+  }, [user?.id, questionSet?.id]);
+
+  // 监听Socket购买同步事件
+  useEffect(() => {
+    if (!socket || !user) return;
+    
+    // 处理购买记录同步
+    const handlePurchaseSync = (data: any) => {
+      console.log('[QuizPage] 收到购买记录同步数据:', data);
+      if (data.success && questionSet) {
+        console.log('[QuizPage] 同步后重新检查访问权限');
+        checkAccess();
+      }
+    };
+    
+    // 监听购买记录同步响应
+    socket.on('user:purchasesSynced', handlePurchaseSync);
+    
+    return () => {
+      socket.off('user:purchasesSynced', handlePurchaseSync);
+    };
+  }, [socket, user, questionSet]);
 
   if (loading) {
     return (

@@ -7,6 +7,7 @@ export interface User {
   progress: Record<string, UserProgress>;
   purchases?: Purchase[];
   redeemCodes?: RedeemCode[];
+  examCountdowns?: string | any[];
 }
 
 export interface UserProgress {

@@ -158,11 +158,35 @@ exports.loginUser = loginUser;
 // @access  Private
 const getUserProfile = async (req, res) => {
     try {
+        // 使用附加包括关联数据的查询选项，确保返回完整用户数据
         const user = await User_1.default.findByPk(req.user.id, {
-            attributes: { exclude: ['password'] }
+            attributes: { exclude: ['password'] },
+            // 记录请求信息以帮助调试跨设备同步问题
+            logging: (sql) => {
+                console.log(`[用户资料] 获取用户(${req.user.id})资料, 设备: ${req.headers['user-agent']}`);
+            },
         });
         if (user) {
-            sendResponse(res, 200, user);
+            // 确保返回的数据结构完整
+            const userData = user.toJSON();
+            // 确保purchases字段是数组
+            if (!userData.purchases) {
+                userData.purchases = [];
+            }
+            // 如果examCountdowns字段是字符串，尝试解析为JSON
+            if (typeof userData.examCountdowns === 'string') {
+                try {
+                    userData.examCountdowns = JSON.parse(userData.examCountdowns);
+                }
+                catch (e) {
+                    console.error('解析examCountdowns失败:', e);
+                    // 如果解析失败，使用空数组
+                    userData.examCountdowns = [];
+                }
+            }
+            console.log(`[用户资料] 返回用户数据，购买记录: ${userData.purchases?.length || 0}条`);
+            // 返回完整的用户数据
+            sendResponse(res, 200, userData);
         }
         else {
             sendError(res, 404, '用户不存在');
@@ -184,6 +208,13 @@ const updateUserProfile = async (req, res) => {
             user.username = req.body.username || user.username;
             user.email = req.body.email || user.email;
             user.isAdmin = req.body.isAdmin !== undefined ? req.body.isAdmin : user.isAdmin;
+            // 添加对examCountdowns的处理
+            if (req.body.examCountdowns !== undefined) {
+                // 确保examCountdowns作为字符串存储
+                user.examCountdowns = typeof req.body.examCountdowns === 'string'
+                    ? req.body.examCountdowns
+                    : JSON.stringify(req.body.examCountdowns);
+            }
             const updatedUser = await user.save();
             const userResponse = {
                 id: updatedUser.id,
@@ -191,7 +222,8 @@ const updateUserProfile = async (req, res) => {
                 email: updatedUser.email,
                 createdAt: updatedUser.createdAt,
                 updatedAt: updatedUser.updatedAt,
-                isAdmin: updatedUser.isAdmin
+                isAdmin: updatedUser.isAdmin,
+                examCountdowns: updatedUser.examCountdowns // 添加examCountdowns到响应中
             };
             sendResponse(res, 200, {
                 user: userResponse,
@@ -255,6 +287,13 @@ const updateUser = async (req, res) => {
             user.username = req.body.username || user.username;
             user.email = req.body.email || user.email;
             user.isAdmin = req.body.isAdmin !== undefined ? req.body.isAdmin : user.isAdmin;
+            // 添加对examCountdowns的处理
+            if (req.body.examCountdowns !== undefined) {
+                // 确保examCountdowns作为字符串存储
+                user.examCountdowns = typeof req.body.examCountdowns === 'string'
+                    ? req.body.examCountdowns
+                    : JSON.stringify(req.body.examCountdowns);
+            }
             const updatedUser = await user.save();
             const userResponse = {
                 id: updatedUser.id,
@@ -262,7 +301,8 @@ const updateUser = async (req, res) => {
                 email: updatedUser.email,
                 createdAt: updatedUser.createdAt,
                 updatedAt: updatedUser.updatedAt,
-                isAdmin: updatedUser.isAdmin
+                isAdmin: updatedUser.isAdmin,
+                examCountdowns: updatedUser.examCountdowns // 添加examCountdowns到响应中
             };
             sendResponse(res, 200, userResponse, '用户信息更新成功');
         }

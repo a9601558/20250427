@@ -67,13 +67,13 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
           
           if (response.success && response.data) {
             // 从用户资料中获取倒计时数据
-            if ((response.data as any).examCountdowns) {
+            if (response.data.examCountdowns) {
               try {
                 // 可能存储为JSON字符串或直接作为数组对象
-                if (typeof (response.data as any).examCountdowns === 'string') {
-                  countdownList = JSON.parse((response.data as any).examCountdowns);
-                } else if (Array.isArray((response.data as any).examCountdowns)) {
-                  countdownList = (response.data as any).examCountdowns;
+                if (typeof response.data.examCountdowns === 'string') {
+                  countdownList = JSON.parse(response.data.examCountdowns);
+                } else if (Array.isArray(response.data.examCountdowns)) {
+                  countdownList = response.data.examCountdowns;
                 }
                 console.log('从服务器成功加载考试倒计时数据', countdownList);
               } catch (e) {
