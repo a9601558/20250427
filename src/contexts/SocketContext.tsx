@@ -29,6 +29,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 是否完全禁用Socket连接
   const [socketDisabled, setSocketDisabled] = useState<boolean>(false);
   
+  // 跟踪认证令牌变化
+  const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('token'));
+  
   // 使用useRef存储重连计数器和定时器引用，减少不必要的渲染
   const reconnectCount = useRef(0);
   const reconnectTimerId = useRef<NodeJS.Timeout | null>(null);
@@ -98,6 +101,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       console.log(`[Socket] 尝试连接到 ${SOCKET_URL}`);
       
+      // 获取认证令牌
+      const token = localStorage.getItem('token');
+      
       const newSocket = io(SOCKET_URL, {
         transports: ['websocket'],
         timeout: 10000,
@@ -105,7 +111,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         autoConnect: true,
-        query: user ? { userId: user.id } : undefined
+        query: {
+          userId: user?.id,
+          token: token // 在初始连接时就提供认证令牌
+        }
       });
       
       // 添加断线重连和错误处理
@@ -116,15 +125,36 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         reconnectCount.current = 0;
         reconnectDelay.current = 1000;
         
-        // 如果用户已登录，发送认证信息
-        if (user) {
-          newSocket.emit('auth', { userId: user.id, token: localStorage.getItem('token') });
+        // 不再需要在这里发送auth事件，因为我们在连接时已经提供了token
+        // 如果服务器仍然需要额外auth事件，可以取消注释下面的代码
+        /*
+        if (user && token) {
+          console.log('[Socket] 发送额外认证信息');
+          newSocket.emit('auth', { 
+            userId: user.id, 
+            token: token,
+            timestamp: new Date().getTime()
+          });
         }
+        */
       });
       
       // 优化断开连接处理
       newSocket.on('disconnect', (reason) => {
         console.log(`[Socket] 断开连接: ${reason}`);
+        
+        // 处理认证错误导致的断开连接
+        if (reason === 'io server disconnect') {
+          // 服务器主动断开连接，可能是认证问题
+          console.log('[Socket] 服务器主动断开连接，可能是认证问题');
+          
+          // 检查token
+          const currentToken = localStorage.getItem('token');
+          if (!currentToken || currentToken !== authToken) {
+            console.log('[Socket] token失效或变化，更新状态');
+            setAuthToken(currentToken);
+          }
+        }
         
         // 只在非主动断开的情况下更新状态，避免不必要的重连
         if (reason !== 'io client disconnect') {
@@ -167,6 +197,27 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.error('[Socket] 连接错误:', error);
         const errorMsg = `连接错误: ${error.message}`;
         setLastError(errorMsg);
+        
+        // 处理认证错误
+        if (error.message.includes('认证') || error.message.includes('token') || 
+            error.message.includes('auth') || error.message.includes('未提供认证令牌')) {
+          console.log('[Socket] 检测到认证错误，检查token有效性');
+          
+          // 获取当前token
+          const currentToken = localStorage.getItem('token');
+          
+          // token不存在或无效 - 清除错误的token
+          if (!currentToken || currentToken === 'undefined' || currentToken === 'null') {
+            console.log('[Socket] 无效token，清除localStorage');
+            localStorage.removeItem('token');
+            setAuthToken(null);
+          } else {
+            // 尝试刷新token（这里需要与您的认证系统集成）
+            console.log('[Socket] 尝试检查token有效性');
+            // 示例: 调用刷新token API
+            // refreshTokenAPI().then(...).catch(...);
+          }
+        }
         
         // 连续失败多次后自动禁用Socket，避免过多429错误
         if (reconnectCount.current >= maxReconnectAttempts) {
@@ -215,7 +266,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // 监听用户认证状态变化，更新Socket连接
   useEffect(() => {
-    // 用户登录或登出时重新初始化Socket
+    // 用户登录、登出或token变化时重新初始化Socket
+    console.log('[Socket] 用户状态或Token发生变化，重新初始化连接');
     const newSocket = initSocket();
     
     // 组件卸载时清理
@@ -226,7 +278,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       newSocket?.disconnect();
     };
-  }, [user?.id]); // 仅在用户ID变化时重新连接
+  }, [user?.id, authToken]); // 当用户ID或认证令牌变化时重新连接
   
   // 手动重连函数
   const reconnect = () => {
@@ -268,6 +320,54 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     return () => clearInterval(cleanupInterval);
   }, []);
+  
+  // 监听localStorage中token的变化
+  useEffect(() => {
+    // 创建一个storage事件监听器
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token') {
+        const newToken = e.newValue;
+        console.log('[Socket] 检测到token变化，需要重新认证');
+        setAuthToken(newToken);
+        
+        // 重新连接Socket，使用新的token
+        if (socket) {
+          console.log('[Socket] 断开旧连接，使用新token重连');
+          socket.disconnect();
+          // 稍微延迟重连，确保断开操作完成
+          setTimeout(() => initSocket(), 500);
+        }
+      }
+    };
+    
+    // 添加事件监听器
+    window.addEventListener('storage', handleStorageChange);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [socket]);
+  
+  // 定期检查token是否变化（不同标签页或组件内本地变化）
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const currentToken = localStorage.getItem('token');
+      if (currentToken !== authToken) {
+        console.log('[Socket] 本地检测到token变化，更新状态');
+        setAuthToken(currentToken);
+        
+        // 如果token变化了，重新连接Socket
+        if (socket) {
+          console.log('[Socket] 断开旧连接，使用新token重连');
+          socket.disconnect();
+          setTimeout(() => initSocket(), 500);
+        }
+      }
+    }, 60000); // 每分钟检查一次
+    
+    return () => clearInterval(intervalId);
+  }, [socket, authToken]);
   
   return (
     <SocketContext.Provider value={{ 
