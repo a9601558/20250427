@@ -932,9 +932,17 @@ const HomePage: React.FC = () => {
               已过期
             </span>
           )}
-          {set.accessType === 'trial' && (
+          {set.accessType === 'trial' && !set.isPaid && (
             <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full">
               免费
+            </span>
+          )}
+          {set.accessType === 'trial' && set.isPaid && (
+            <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full flex items-center">
+              <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {set.price ? `付费: ¥${set.price}` : '付费题库'}
             </span>
           )}
         </div>
@@ -1131,36 +1139,35 @@ const HomePage: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* 分类选择器 */}
-          <div className="mb-8 flex flex-wrap justify-center gap-2">
-            <button 
-              onClick={() => handleCategoryChange('all')}
-              className={`px-4 py-2 rounded-full text-sm font-medium ${
-                activeCategory === 'all' 
-                  ? `bg-blue-600 text-white` 
-                  : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-              }`}
-            >
-              全部题库
-            </button>
-            {homeContent.featuredCategories.map(category => (
+            
+            {/* 分类选择器 */}
+            <div className="mb-8 flex flex-wrap justify-center gap-2">
               <button 
-                key={category}
-                onClick={() => handleCategoryChange(category)}
+                onClick={() => handleCategoryChange('all')}
                 className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  activeCategory === category 
+                  activeCategory === 'all' 
                     ? `bg-blue-600 text-white` 
                     : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
                 }`}
               >
-                {category}
+                全部题库
               </button>
-            ))}
-          </div>
-          
-          {/* 题库列表 */}
+              {homeContent.featuredCategories.map(category => (
+                <button 
+                  key={category}
+                  onClick={() => handleCategoryChange(category)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium ${
+                    activeCategory === category 
+                      ? `bg-blue-600 text-white` 
+                      : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            {/* 题库列表 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {getFilteredQuestionSets().map(set => (
                 <BaseCard
@@ -1169,8 +1176,9 @@ const HomePage: React.FC = () => {
                   onStartQuiz={handleStartQuiz}
                 />
               ))}
-                      </div>
-                      </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
