@@ -69,6 +69,7 @@ const QuestionCard = ({
   // 添加ref以防止重复点击和提交
   const isSubmittingRef = useRef<boolean>(false);
   const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSubmitTimeRef = useRef<number>(0);
   
   // 为键盘导航跟踪当前选项
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
@@ -141,10 +142,17 @@ const QuestionCard = ({
         clearTimeout(answerTimeoutRef.current);
       }
       
-      answerTimeoutRef.current = setTimeout(() => {
-        handleSubmitAnswer([optionId], [optionText]);
+      try {
+        answerTimeoutRef.current = setTimeout(() => {
+          handleSubmitAnswer([optionId], [optionText]);
+          // 确保超时后重置状态
+          isSubmittingRef.current = false;
+        }, 300);
+      } catch (error) {
+        // 确保出错时也会重置提交状态
+        console.error('[QuestionCard] 提交选项出错:', error);
         isSubmittingRef.current = false;
-      }, 300);
+      }
     } 
     // 多选题模式
     else {
@@ -157,7 +165,7 @@ const QuestionCard = ({
   };
 
   const handleSubmitAnswer = (selectedIds: string[], selectedTexts: string[]) => {
-    if (isSubmittingRef.current) {
+    if (isSubmittingRef.current && Date.now() - lastSubmitTimeRef.current < 800) {
       console.log('[QuestionCard] 正在提交答案中，忽略重复提交');
       return;
     }
@@ -174,6 +182,7 @@ const QuestionCard = ({
     
     // 防止重复提交
     isSubmittingRef.current = true;
+    lastSubmitTimeRef.current = Date.now();
     
     // 判断答案是否正确
     let isCorrect = false;

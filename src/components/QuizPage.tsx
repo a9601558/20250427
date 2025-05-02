@@ -897,7 +897,7 @@ function QuizPage(): JSX.Element {
     // 添加节流机制，避免短时间内重复提交
     const now = Date.now();
     const lastSubmitTime = lastSubmitTimeRef.current || 0;
-    if (now - lastSubmitTime < 1200) { // 增加到1.2秒内不重复处理
+    if (now - lastSubmitTime < 800) { // 从1200ms降低到800ms，提高响应速度
       console.log('[QuizPage] 提交过于频繁，忽略此次提交:', now - lastSubmitTime, 'ms');
       return;
     }
@@ -906,6 +906,14 @@ function QuizPage(): JSX.Element {
       // 设置提交锁和更新提交时间
       isSubmittingRef.current = true;
       lastSubmitTimeRef.current = now;
+
+      // 添加安全机制，防止提交锁永久锁住
+      const safetyTimeoutId = setTimeout(() => {
+        if (isSubmittingRef.current) {
+          console.log('[QuizPage] 安全机制触发，解除提交锁');
+          isSubmittingRef.current = false;
+        }
+      }, 5000); // 5秒后无论如何都解除锁定
 
       // 当前答题状态
       const currentAnsweredState = {
@@ -992,14 +1000,19 @@ function QuizPage(): JSX.Element {
           setQuizComplete(true);
         }, 1500);
       }
+
+      // 清除安全超时
+      clearTimeout(safetyTimeoutId);
     } catch (error) {
       console.error('保存进度失败:', error);
       setError('保存进度失败，请重试');
+      // 确保错误情况下也会重置提交状态
+      isSubmittingRef.current = false;
     } finally {
       // 延迟释放提交锁，防止过快重复提交
       setTimeout(() => {
         isSubmittingRef.current = false;
-      }, 1000);
+      }, 800); // 从1000ms降低到800ms，提高响应速度
     }
   };
   
