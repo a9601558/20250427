@@ -211,6 +211,9 @@ const QuestionCard = ({
         console.log(`[QuestionCard] 多选题提交: 选择=${selectedIds.join(',')}, 正确答案=${correctOptionIds.join(',')}, 正确=${isCorrect}`);
       }
       
+      // 强制显示解析
+      setShowExplanation(true);
+      
       // 调用父组件提供的答案提交处理函数
       if (onAnswerSubmitted) {
         onAnswerSubmitted(isCorrect, selectedIds);
@@ -246,19 +249,56 @@ const QuestionCard = ({
             window.dispatchEvent(wrongAnswerEvent);
           }, 400);
         }
-      } else {
+      }
+      
+      // 无论答对答错，都有反馈和跳转逻辑
+      if (isCorrect) {
         // 答对自动更快地跳到下一题 (400ms)
         timeoutId = setTimeout(() => {
           handleNext();
         }, 400);
+      } else {
+        // 答错时也允许手动点击下一题按钮
+        setCanProceed(true);
+        // 显示下一题按钮的提示
+        setTimeout(() => {
+          const nextButton = document.querySelector('.next-question-button');
+          if (nextButton) {
+            nextButton.classList.add('pulse-animation');
+          }
+        }, 800);
       }
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
+      // 确保错误情况下也会重置提交状态并允许继续
+      setCanProceed(true);
     } finally {
       // 延迟释放提交锁
       setTimeout(() => {
         isSubmittingRef.current = false;
       }, 800);
+    }
+  };
+
+  // 添加状态来控制是否可以继续到下一题
+  const [canProceed, setCanProceed] = useState(false);
+
+  // 确保渲染时正确地显示选项样式
+  const getOptionClass = (option: any) => {
+    if (!showExplanation) {
+      // 没有提交答案时的样式
+      return selectedOptions.includes(option.id)
+        ? 'border-blue-300 bg-blue-50'
+        : 'border-gray-300 bg-white hover:bg-gray-50';
+    }
+    
+    // 已经提交答案，显示正确与错误状态
+    if (option.isCorrect) {
+      return 'border-green-500 bg-green-50 text-green-700'; // 正确答案
+    } else if (selectedOptions.includes(option.id)) {
+      return 'border-red-500 bg-red-50 text-red-700'; // 选择了错误答案
+    } else {
+      return 'border-gray-300 bg-gray-50 opacity-60'; // 其他未选答案
     }
   };
 
@@ -664,12 +704,6 @@ const QuestionCard = ({
           </button>
         </div>
         <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowRedeemCodeModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors duration-200"
-          >
-            使用兑换码
-          </button>
           <div className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-sm">
             {quizTitle}
           </div>
@@ -691,32 +725,25 @@ const QuestionCard = ({
 
       {/* 添加到选项下方的题号导航 */}
       {/* 选项 */}
-      <div className="mb-6">
+      <div className="mt-6 space-y-2">
         {question.options.map((option, index) => (
-          <div 
+          <div
             key={option.id}
-            id={`option-${index}`}
-            tabIndex={0}
-            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
-            className={`focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-md`}
+            className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all duration-150 ${getOptionClass(option)}`}
+            onClick={() => handleOptionClick(option.text, option.id)}
           >
-            <QuestionOption
-              option={option}
-              index={index}
-              isSelected={
-                question.questionType === 'single' 
-                  ? selectedOption === option.id 
+            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mr-3 ${
+              showExplanation && option.isCorrect 
+                ? 'bg-green-100 text-green-700' 
+                : (showExplanation && selectedOptions.includes(option.id)) 
+                  ? 'bg-red-100 text-red-700' 
                   : selectedOptions.includes(option.id)
-              }
-              isCorrect={
-                isSubmitted
-                  ? option.isCorrect ? option.id : null
-                  : null
-              }
-              isSubmitted={isSubmitted}
-              isMultiple={question.questionType === 'multiple'}
-              onClick={() => handleOptionClick(option.text, option.id)}
-            />
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-700'
+            }`}>
+              {String.fromCharCode(65 + index)}
+            </div>
+            <div className="mt-0.5 text-sm">{option.text}</div>
           </div>
         ))}
       </div>
@@ -735,110 +762,77 @@ const QuestionCard = ({
 
       {/* 解析 */}
       {isSubmitted && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center">
-              <span className={`inline-block w-5 h-5 rounded-full mr-2 ${isCorrect ? 'bg-green-500' : 'bg-red-500'} transition-colors duration-300`}></span>
-              <span className={`font-medium ${isCorrect ? 'text-green-600' : 'text-red-600'} transition-colors duration-300`}>
-                {isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER}
-                {!isCorrect && question.questionType === 'single' && (
-                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${
-                    question.options.find(opt => opt.isCorrect)?.text || ''
-                  }`
-                )}
-                {!isCorrect && question.questionType === 'multiple' && (
-                  ` ${MESSAGES.CORRECT_ANSWER_IS} ${
-                    question.options
-                      .filter(opt => opt.isCorrect)
-                      .map(opt => opt.text)
-                      .join(', ')
-                  }`
-                )}
-              </span>
-            </div>
+        <div className="mt-6 flex justify-between items-center">
+          {/* 多选题提交按钮 */}
+          {question.questionType === 'multiple' && !showExplanation && (
             <button
-              onClick={() => setShowExplanation(!showExplanation)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors duration-200"
+              onClick={handleSubmit}
+              disabled={selectedOptions.length === 0 || isSubmittingRef.current}
+              className={`px-4 py-2 rounded-md text-white font-medium flex items-center ${
+                selectedOptions.length === 0 || isSubmittingRef.current
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              {showExplanation ? MESSAGES.HIDE_EXPLANATION : MESSAGES.SHOW_EXPLANATION}
+              <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              提交答案
             </button>
-          </div>
-
+          )}
+          
+          {/* 解析显示区域 */}
           {showExplanation && (
-            <div className="bg-gray-50 p-4 rounded-md mt-2 animate-fadeIn">
-              <h3 className="font-semibold text-gray-700 mb-2">{MESSAGES.ANALYSIS}</h3>
-              <p className="text-gray-600">{question.explanation}</p>
+            <div className="w-full">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 mb-4">
+                <div className="flex items-start">
+                  <div className="bg-blue-100 p-1 rounded-md text-blue-700 mr-3">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-blue-800 mb-1">解析</h3>
+                    <p className="text-sm text-blue-700">{question.explanation || "本题暂无解析"}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* 按钮 */}
-      <div className="flex justify-between">
-        {!isSubmitted ? (
+          
+          {/* 下一题按钮 */}
           <button
-            onClick={handleSubmit}
-            disabled={question.questionType === 'single' 
-              ? !selectedOption 
-              : selectedOptions.length === 0 || isSubmittingRef.current}
-            className={`py-2 px-6 rounded-lg font-medium transition-colors duration-200 ${
-              (question.questionType === 'single' ? selectedOption : selectedOptions.length > 0) && !isSubmittingRef.current
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            onClick={handleNext}
+            className={`next-question-button px-4 py-2 rounded-md text-white font-medium ml-auto flex items-center ${
+              (showExplanation || canProceed) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'
             }`}
+            disabled={!showExplanation && !canProceed}
           >
-            {question.questionType === 'single' 
-              ? selectedOption 
-                ? MESSAGES.SUBMIT_ANSWER 
-                : MESSAGES.SELECT_ONE_OPTION
-              : selectedOptions.length > 0
-                ? MESSAGES.SUBMIT_ALL_OPTIONS
-                : MESSAGES.SELECT_AT_LEAST_ONE}
+            下一题
+            <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
-        ) : (
-          !isCorrect && (
-            <button
-              onClick={handleNext}
-              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-medium transition-colors duration-200"
-            >
-              {MESSAGES.NEXT_QUESTION}
-            </button>
-          )
-        )}
-      </div>
-
-      {/* Redeem Code Modal */}
-      {showRedeemCodeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 animate-scaleIn">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">题库兑换码</h2>
-              <button
-                onClick={() => setShowRedeemCodeModal(false)}
-                className="text-gray-500 hover:text-gray-700 transition-colors duration-200"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
-              console.log(`[QuestionCard] 发送兑换成功事件，题库ID: ${questionSetId}`);
-              
-              // 创建和分发自定义事件
-              const event = new CustomEvent('redeem:success', {
-                detail: {
-                  questionSetId,
-                  remainingDays: 180, // 默认180天有效期
-                  forceRefresh: true
-                }
-              });
-              
-              window.dispatchEvent(event);
-            }} />
-          </div>
         </div>
       )}
+
+      {/* 移除 Redeem Code Modal 相关内容 */}
+
+      {/* 添加用于下一题按钮的动画样式 */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+          }
+          .pulse-animation {
+            animation: pulse 1s infinite;
+            box-shadow: 0 0 0 rgba(72, 187, 120, 0.4);
+            animation: pulse 2s infinite;
+          }
+        `}
+      </style>
     </div>
   );
 };

@@ -128,6 +128,11 @@ function QuizPage(): JSX.Element {
   // 增加一个标记当前是否正在处理提交的ref
   const isSubmittingRef = useRef<boolean>(false);
   
+  // 在state变量区域添加计时器相关状态
+  const [quizStartTime, setQuizStartTime] = useState<number>(0); // 整个测试开始时间
+  const [quizTotalTime, setQuizTotalTime] = useState<number>(0); // 整个测试用时（秒）
+  const [isTimerActive, setIsTimerActive] = useState<boolean>(false); // 计时器是否激活
+  
   // 保存访问权限到localStorage - 以题库ID为key
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
     if (!questionSetId) return;
@@ -965,13 +970,13 @@ function QuizPage(): JSX.Element {
         setCorrectAnswers(prev => prev + 1);
       }
       
-      // 显示解析
+      // 显示解析 - 强制设置为true确保解析显示
       setShowExplanation(true);
 
       // 更新已回答问题列表
       setAnsweredQuestions(updatedAnsweredQuestions);
 
-      // 如果答对，执行延迟跳转逻辑
+      // 无论答对答错都有后续动作
       if (isCorrect && currentQuestionIndex < questions.length - 1) {
         // 清除可能存在的旧定时器
         if (timeoutId.current) {
@@ -986,6 +991,18 @@ function QuizPage(): JSX.Element {
           console.log('[QuizPage] 自动跳转到下一题');
           goToNextQuestion();
         }, 1500); // 增加延迟时间，确保用户看到结果
+      } else if (!isCorrect) {
+        // 错误答案情况下，显示解析并提示用户可以继续
+        console.log('[QuizPage] 答案错误，显示解析并允许手动继续');
+        // 给"下一题"按钮添加视觉提示 (闪烁效果)
+        setTimeout(() => {
+          const nextButtons = document.querySelectorAll('.next-question-button');
+          nextButtons.forEach(btn => {
+            if (btn instanceof HTMLElement) {
+              btn.classList.add('attention-animation');
+            }
+          });
+        }, 800);
       }
       
       // 判断是否所有题目已完成
@@ -1690,6 +1707,144 @@ function QuizPage(): JSX.Element {
     };
   }, [socket, user?.id, questionSet]);
   
+  // 在useEffect中初始化计时器
+  useEffect(() => {
+    if (questions.length > 0 && !quizComplete) {
+      // 开始计时
+      const startTime = Date.now();
+      setQuizStartTime(startTime);
+      setIsTimerActive(true);
+      
+      // 定时更新总时间
+      const timerInterval = setInterval(() => {
+        if (isTimerActive) {
+          const currentTime = Math.floor((Date.now() - startTime) / 1000);
+          setQuizTotalTime(currentTime);
+        }
+      }, 1000);
+      
+      return () => clearInterval(timerInterval);
+    }
+  }, [questions, quizComplete]);
+
+  // 当完成所有题目时停止计时
+  useEffect(() => {
+    if (quizComplete && isTimerActive) {
+      setIsTimerActive(false);
+      // 记录最终时间
+      const finalTime = Math.floor((Date.now() - quizStartTime) / 1000);
+      setQuizTotalTime(finalTime);
+      
+      // 可以在这里保存用时记录到后端
+      if (socket && user && questionSet) {
+        socket.emit('quiz:complete', {
+          userId: user.id,
+          questionSetId: questionSet.id,
+          totalTime: finalTime,
+          correctAnswers,
+          totalQuestions: questions.length
+        });
+      }
+    }
+  }, [quizComplete, isTimerActive, quizStartTime]);
+
+  // 格式化时间显示函数
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // 修改handleResetQuiz函数，重置计时器
+  const handleResetQuiz = async () => {
+    try {
+      setLoading(true);
+      
+      // 重置计时器
+      setQuizTotalTime(0);
+      setQuizStartTime(Date.now());
+      setIsTimerActive(true);
+      
+      // 现有的重置逻辑...
+      setCurrentQuestionIndex(0);
+      setAnsweredQuestions([]);
+      setCorrectAnswers(0);
+      setQuizComplete(false);
+      
+      // 使用原始问题数组重新设置问题
+      if (originalQuestions && originalQuestions.length > 0) {
+        // 洗牌问题数组
+        const shuffled = [...originalQuestions].sort(() => Math.random() - 0.5);
+        setQuestions(shuffled);
+      }
+      
+      // 保存重置状态到后端
+      if (socket && user && questionSet) {
+        socket.emit('progress:reset', {
+          userId: user.id,
+          questionSetId: questionSet.id
+        });
+        
+        // 提示用户
+        toast.success('进度已重置，开始新的测试！');
+      }
+      
+      // 清除本地存储
+      try {
+        if (questionSet) {
+          const localProgressKey = `quiz_progress_${questionSet.id}`;
+          localStorage.removeItem(localProgressKey);
+          sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
+        }
+      } catch (e) {
+        console.error('清除本地进度失败:', e);
+      }
+      
+      // 更新URL，移除lastQuestion参数
+      if (questionSet) {
+        navigate(`/quiz/${questionSet.id}`, { replace: true });
+      }
+    } catch (error) {
+      console.error('重置测试失败:', error);
+      toast.error('重置测试失败，请刷新页面重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 添加格式化有效期的函数
+  const formatExpiryDate = (expiryDateStr: string): string => {
+    try {
+      const expiryDate = new Date(expiryDateStr);
+      const now = new Date();
+      
+      // 计算剩余天数
+      const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+      
+      if (remainingDays <= 0) {
+        return '已过期';
+      } else if (remainingDays === 1) {
+        return '最后1天';
+      } else if (remainingDays < 30) {
+        return `剩余${remainingDays}天`;
+      } else {
+        // 显示具体日期
+        return expiryDate.toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    } catch (e) {
+      return '未知';
+    }
+  };
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -1915,230 +2070,335 @@ function QuizPage(): JSX.Element {
     }
     
     return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-center mb-8">测试完成！</h1>
-        
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">{questionSet.title}</h2>
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="container mx-auto px-4">
+          {/* 添加按钮动画效果 */}
+          <style>
+            {`
+              @keyframes attention {
+                0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7); }
+                50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(72, 187, 120, 0); }
+                100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(72, 187, 120, 0); }
+              }
+              
+              .attention-animation {
+                animation: attention 1.5s ease-in-out infinite;
+              }
+            `}
+          </style>
+         
+          {/* 题库完成页 */}
+          {quizComplete ? (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center">
+              <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6">
+                <svg className="w-12 h-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">恭喜你完成了所有题目！</h2>
+              <p className="text-gray-600 mb-2">你答对了 {correctAnswers} 题，共 {questions.length} 题</p>
+              <p className="text-gray-600 mb-6">总用时: <span className="font-semibold text-indigo-600">{formatTime(quizTotalTime)}</span></p>
           
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-            <div className="mb-4 md:mb-0">
-              <p className="text-gray-600">总题数: <span className="font-medium">{questions.length}</span></p>
-              <p className="text-gray-600">正确答案: <span className="font-medium">{correctAnswers}</span></p>
+              <div className="flex justify-center space-x-4">
+                <button 
+                  onClick={handleResetQuiz}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-300 flex items-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  重新开始
+                </button>
+                <button 
+                  onClick={() => navigate('/')}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  回到首页
+                </button>
+              </div>
             </div>
-            
-            <div className="text-center bg-blue-50 p-4 rounded-lg">
-              <p className="text-lg text-gray-700">得分</p>
-              <p className="text-3xl font-bold text-blue-600">{score}%</p>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-3 mt-6">
-            <button
-              onClick={() => {
-                // 设置标记，确保重置
-                sessionStorage.setItem('quiz_reset_required', 'true');
-                handleReset();
+          ) : (
+            <div className="bg-white rounded-lg shadow p-6 mb-8">
+              <h2 className="text-xl font-semibold mb-4">{questionSet.title}</h2>
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+                <div className="mb-4 md:mb-0">
+                  <p className="text-gray-600">总题数: <span className="font-medium">{questions.length}</span></p>
+                  <p className="text-gray-600">正确答案: <span className="font-medium">{correctAnswers}</span></p>
+                </div>
                 
-                // 强制添加参数并刷新页面
-                if (questionSet) {
-                  window.location.href = `/quiz/${questionSet.id}?start=first&t=${Date.now()}`;
-                }
-              }}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              重新开始
-            </button>
-            
-            <button
-              onClick={() => navigate('/')}
-              className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
-            >
-              返回首页
-            </button>
-          </div>
+                <div className="text-center bg-blue-50 p-4 rounded-lg">
+                  <p className="text-lg text-gray-700">得分</p>
+                  <p className="text-3xl font-bold text-blue-600">{score}%</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    // 设置标记，确保重置
+                    sessionStorage.setItem('quiz_reset_required', 'true');
+                    handleReset();
+                    
+                    // 强制添加参数并刷新页面
+                    if (questionSet) {
+                      window.location.href = `/quiz/${questionSet.id}?start=first&t=${Date.now()}`;
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                  重新开始
+                </button>
+                
+                <button
+                  onClick={() => navigate('/')}
+                  className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
+                >
+                  返回首页
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   }
   
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">{questionSet.title}</h1>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded text-sm hover:bg-gray-200"
-          >
-            返回首页
-          </button>
-        </div>
-        
-        {!questionSet.isPaid ? (
-          <p className="text-sm text-gray-600 mb-2">此题库为免费访问，包含 {questions.length} 道题目</p>
-        ) : !hasAccessToFullQuiz && questionSet.trialQuestions && questionSet.trialQuestions > 0 ? (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-            <p className="text-sm text-yellow-700">
-              您正在试用此题库，可免费回答 {questionSet.trialQuestions} 道题目
-              （当前已回答 {answeredQuestions.length} / {questionSet.trialQuestions}）
-            </p>
-          </div>
-        ) : null}
-        
-        {/* 只有免费题库或已购买题库才显示答题卡和随机模式切换 */}
-        {(!questionSet.isPaid || hasAccessToFullQuiz || hasRedeemed) && (
-          <div className="flex flex-col space-y-4">
-            {/* 随机模式切换 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="mr-2 text-sm font-medium text-gray-700">随机答题模式:</span>
-                <button
-                  onClick={isRandomMode ? restoreOriginalOrder : shuffleQuestions}
-                  className={`px-3 py-1 text-sm rounded-md ${
-                    isRandomMode 
-                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  } transition-colors`}
-                >
-                  {isRandomMode ? '恢复顺序' : '打乱题目'}
-                </button>
-              </div>
-              {isRandomMode && (
-                <span className="text-xs text-orange-600">随机模式下，题目顺序已被打乱</span>
-              )}
-            </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4">
+        {/* 添加按钮动画效果 */}
+        <style>
+          {`
+            @keyframes attention {
+              0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7); }
+              50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(72, 187, 120, 0); }
+              100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(72, 187, 120, 0); }
+            }
             
-            {/* 答题卡组件 */}
-            <AnswerCard
-              totalQuestions={questions.length}
-              answeredQuestions={answeredQuestions}
-              currentIndex={currentQuestionIndex}
-              onJump={(index) => {
-                // 如果试用已结束且没有购买，不允许跳转
-                if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
-                  console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
-                  return;
-                }
-                
-                // 确保没有未提交的答案
-                const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
-                if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
-                  if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
-                    setCurrentQuestionIndex(index);
-                    setSelectedOptions([]);
-                  }
-                } else {
-                  console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
-                  setCurrentQuestionIndex(index);
-                  setSelectedOptions([]);
-                }
-              }}
-            />
-          </div>
-        )}
+            .attention-animation {
+              animation: attention 1.5s ease-in-out infinite;
+            }
+          `}
+        </style>
         
-        {/* 进度条 */}
-        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-          <div 
-            className="bg-blue-600 h-2.5 rounded-full" 
-            style={{ width: `${(currentQuestionIndex / questions.length) * 100}%` }}
-          />
-        </div>
+        {/* 题库完成页 */}
+        {quizComplete ? (
+          <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-12 h-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">恭喜你完成了所有题目！</h2>
+            <p className="text-gray-600 mb-2">你答对了 {correctAnswers} 题，共 {questions.length} 题</p>
+            <p className="text-gray-600 mb-6">总用时: <span className="font-semibold text-indigo-600">{formatTime(quizTotalTime)}</span></p>
         
-        <div className="flex justify-between text-sm text-gray-500">
-          <span>题目 {currentQuestionIndex + 1} / {questions.length}</span>
-          <span>已回答 {answeredQuestions.length} 题</span>
-        </div>
-      </div>
-      
-      {/* 当前题目 */}
-      {questions.length > 0 && currentQuestionIndex < questions.length && (
-        <QuestionCard
-          key={`question-${currentQuestionIndex}`}
-          question={questions[currentQuestionIndex]}
-          onAnswerSubmitted={handleAnswerSubmit}
-          onNext={goToNextQuestion}
-          isLast={currentQuestionIndex === questions.length - 1}
-          isSubmittingAnswer={false}
-          questionSetId={questionSet?.id || ''} // 传递问题集ID
-        />
-      )}
-      
-      {/* 兑换码模态框 */}
-      {showRedeemCodeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">题库兑换码</h2>
-              <button
-                onClick={() => setShowRedeemCodeModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+            <div className="flex justify-center space-x-4">
+              <button 
+                onClick={handleResetQuiz}
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-300 flex items-center"
               >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
+                重新开始
+              </button>
+              <button 
+                onClick={() => navigate('/')}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                回到首页
               </button>
             </div>
-            <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
-              console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
-              setShowRedeemCodeModal(false);
-              
-              // 立即更新UI状态
-              console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
-              setHasAccessToFullQuiz(true);
-              setTrialEnded(false);
-              setHasRedeemed(true); // 标记为已兑换
-              
-              // 保存访问权限到localStorage
-              saveAccessToLocalStorage(questionSetId, true);
-              if (questionSet) {
-                saveAccessToLocalStorage(questionSet.id, true);
-              }
-              
-              // 保存已兑换状态到localStorage
-              saveRedeemedQuestionSetId(questionSetId);
-              
-              // 延迟发送自定义事件确保完整处理
-              setTimeout(() => {
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('redeem:success', { 
-                    detail: { 
-                      questionSetId, 
-                      forceRefresh: true,
-                      source: 'QuizPageRedeemForm',
-                      timestamp: Date.now()
-                    } 
-                  }));
-                }
-              }, 200);
-              
-              // 后台异步执行权限检查以确保数据完整性
-              setTimeout(() => {
-                console.log(`[QuizPage] 后台检查访问权限`);
-                checkAccess();
-                
-                // 通过Socket请求确认权限
-                if (socket && user && questionSet) {
-                  console.log(`[QuizPage] 通过Socket请求确认权限`);
-                  socket.emit('questionSet:checkAccess', {
-                    userId: user.id,
-                    questionSetId: String(questionSet.id).trim()
-                  });
-                  
-                  // 明确设置访问权限
-                  socket.emit('questionSet:accessUpdate', {
-                    userId: user.id,
-                    questionSetId: String(questionSet.id).trim(),
-                    hasAccess: true,
-                    source: 'redemption'
-                  });
-                }
-              }, 500);
-            }} />
           </div>
-        </div>
-      )}
+        ) : (
+          // 展示当前问题
+          <>
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold">{questionSet.title}</h1>
+                <button
+                  onClick={() => navigate('/')}
+                  className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded text-sm hover:bg-gray-200"
+                >
+                  返回首页
+                </button>
+              </div>
+              
+              {!questionSet.isPaid ? (
+                <p className="text-sm text-gray-600 mb-2">此题库为免费访问，包含 {questions.length} 道题目</p>
+              ) : !hasAccessToFullQuiz && questionSet.trialQuestions && questionSet.trialQuestions > 0 ? (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                  <p className="text-sm text-yellow-700">
+                    您正在试用此题库，可免费回答 {questionSet.trialQuestions} 道题目
+                    （当前已回答 {answeredQuestions.length} / {questionSet.trialQuestions}）
+                  </p>
+                </div>
+              ) : null}
+              
+              {/* 只有免费题库或已购买题库才显示答题卡和随机模式切换 */}
+              {(!questionSet.isPaid || hasAccessToFullQuiz || hasRedeemed) && (
+                <div className="flex flex-col space-y-4">
+                  {/* 随机模式切换 */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-sm font-medium text-gray-700">随机答题模式:</span>
+                      <button
+                        onClick={isRandomMode ? restoreOriginalOrder : shuffleQuestions}
+                        className={`px-3 py-1 text-sm rounded-md ${
+                          isRandomMode 
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        } transition-colors`}
+                      >
+                        {isRandomMode ? '恢复顺序' : '打乱题目'}
+                      </button>
+                    </div>
+                    {isRandomMode && (
+                      <span className="text-xs text-orange-600">随机模式下，题目顺序已被打乱</span>
+                    )}
+                  </div>
+                  
+                  {/* 答题卡组件 */}
+                  <AnswerCard
+                    totalQuestions={questions.length}
+                    answeredQuestions={answeredQuestions}
+                    currentIndex={currentQuestionIndex}
+                    onJump={(index) => {
+                      // 如果试用已结束且没有购买，不允许跳转
+                      if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
+                        console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
+                        return;
+                      }
+                      
+                      // 确保没有未提交的答案
+                      const isCurrentQuestionSubmitted = answeredQuestions.some(q => q.index === currentQuestionIndex);
+                      if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
+                        if (confirm("当前题目尚未提交答案，确定要离开吗？")) {
+                          setCurrentQuestionIndex(index);
+                          setSelectedOptions([]);
+                        }
+                      } else {
+                        console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
+                        setCurrentQuestionIndex(index);
+                        setSelectedOptions([]);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              
+              {/* 进度条 */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full" 
+                  style={{ width: `${(currentQuestionIndex / questions.length) * 100}%` }}
+                />
+              </div>
+              
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>题目 {currentQuestionIndex + 1} / {questions.length}</span>
+                <span>已回答 {answeredQuestions.length} 题</span>
+              </div>
+            </div>
+            
+            {/* 当前题目 */}
+            {questions.length > 0 && currentQuestionIndex < questions.length && (
+              <QuestionCard
+                key={`question-${currentQuestionIndex}`}
+                question={questions[currentQuestionIndex]}
+                onAnswerSubmitted={handleAnswerSubmit}
+                onNext={goToNextQuestion}
+                isLast={currentQuestionIndex === questions.length - 1}
+                isSubmittingAnswer={false}
+                questionSetId={questionSet?.id || ''} // 传递问题集ID
+              />
+            )}
+          </>
+        )}
+        
+        {/* 兑换码模态框 */}
+        {showRedeemCodeModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">题库兑换码</h2>
+                <button
+                  onClick={() => setShowRedeemCodeModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
+                console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
+                setShowRedeemCodeModal(false);
+                
+                // 立即更新UI状态
+                console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
+                setHasAccessToFullQuiz(true);
+                setTrialEnded(false);
+                setHasRedeemed(true); // 标记为已兑换
+                
+                // 保存访问权限到localStorage
+                saveAccessToLocalStorage(questionSetId, true);
+                if (questionSet) {
+                  saveAccessToLocalStorage(questionSet.id, true);
+                }
+                
+                // 保存已兑换状态到localStorage
+                saveRedeemedQuestionSetId(questionSetId);
+                
+                // 延迟发送自定义事件确保完整处理
+                setTimeout(() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('redeem:success', { 
+                      detail: { 
+                        questionSetId, 
+                        forceRefresh: true,
+                        source: 'QuizPageRedeemForm',
+                        timestamp: Date.now()
+                      } 
+                    }));
+                  }
+                }, 200);
+                
+                // 后台异步执行权限检查以确保数据完整性
+                setTimeout(() => {
+                  console.log(`[QuizPage] 后台检查访问权限`);
+                  checkAccess();
+                  
+                  // 通过Socket请求确认权限
+                  if (socket && user && questionSet) {
+                    console.log(`[QuizPage] 通过Socket请求确认权限`);
+                    socket.emit('questionSet:checkAccess', {
+                      userId: user.id,
+                      questionSetId: String(questionSet.id).trim()
+                    });
+                    
+                    // 明确设置访问权限
+                    socket.emit('questionSet:accessUpdate', {
+                      userId: user.id,
+                      questionSetId: String(questionSet.id).trim(),
+                      hasAccess: true,
+                      source: 'redemption'
+                    });
+                  }
+                }, 500);
+              }} />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
