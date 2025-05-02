@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 处理命令行参数
-const targetDir = process.argv[2] || '/www/wwwroot/root/git/dist/dist/server';
+const targetDir = process.argv[2] || process.cwd();
 console.log(`[更新工具] 目标目录: ${targetDir}`);
 
 // 检查目录是否存在
@@ -79,15 +79,15 @@ TARGET_DIR=\${1:-"$(pwd)"}
 echo "目标目录: $TARGET_DIR"
 
 # 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
+RED='\x1b[0;31m'
+GREEN='\x1b[0;32m'
+YELLOW='\x1b[0;33m'
+NC='\x1b[0m' # No Color
 
-echo -e "${GREEN}===== 开始安装Sequelize修复工具 =====${NC}"
+echo -e "\${GREEN}===== 开始安装Sequelize修复工具 =====\${NC}"
 
 # 下载修复脚本
-echo -e "${YELLOW}下载修复脚本...${NC}"
+echo -e "\${YELLOW}下载修复脚本...\${NC}"
 
 # 创建目录
 mkdir -p "$TARGET_DIR/scripts"
@@ -106,13 +106,13 @@ chmod +x "$TARGET_DIR/sequelize-constructor-fix.js"
 chmod +x "$TARGET_DIR/db-init.js"
 chmod +x "$TARGET_DIR/fix-all.sh"
 
-echo -e "${GREEN}修复脚本已下载并安装${NC}"
+echo -e "\${GREEN}修复脚本已下载并安装\${NC}"
 
 # 更新package.json
 node "$TARGET_DIR/direct-sequelize-patch.js" "$TARGET_DIR"
 
-echo -e "${GREEN}===== 安装完成 =====${NC}"
-echo -e "${YELLOW}现在您可以使用以下命令:${NC}"
+echo -e "\${GREEN}===== 安装完成 =====\${NC}"
+echo -e "\${YELLOW}现在您可以使用以下命令:\${NC}"
 echo "  npm start     # 启动应用(自动应用修复)"
 echo "  npm run fix   # 手动运行Sequelize修复"
 echo "  npm run fixdb # 修复数据库表"

@@ -16,24 +16,23 @@ import { updateQuestionSetFeaturedStatus } from '../controllers/homepageControll
 
 const router = express.Router();
 
-// 调试中间件 - 记录所有请求
+// 调试中间件
 router.use((req, res, next) => {
   console.log('题库路由收到请求:', req.method, req.originalUrl);
-  console.log('请求头:', JSON.stringify(req.headers));
-  if (req.method === 'POST' || req.method === 'PUT') {
-    console.log('请求体:', JSON.stringify(req.body));
-  }
   next();
 });
 
-// Public routes
-router.get('/', getAllQuestionSets);
-router.get('/categories', getQuestionSetCategories);
+// 测试路由
+router.post('/test', (req, res) => {
+  res.status(200).json({ success: true, message: '测试POST请求成功' });
+});
 
-// Admin routes
+// 特定路由需要放在通用路由之前，以避免路径冲突
+router.get('/categories', getQuestionSetCategories);
+router.get('/by-category/:category', getQuestionSetsByCategory);
 router.post('/upload', protect, admin, uploadQuestionSets);
 
-// File upload route
+// 文件上传路由
 router.post('/upload/file', protect, admin, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) {
@@ -43,32 +42,21 @@ router.post('/upload/file', protect, admin, (req, res, next) => {
   });
 }, uploadQuestionSetFile);
 
-// Admin routes with ID parameters
-router.put('/:id', protect, admin, updateQuestionSet);
-router.delete('/:id', protect, admin, deleteQuestionSet);
+// ID参数路由
+router.route('/:id')
+  .get(getQuestionSetById)
+  .put(protect, admin, updateQuestionSet)
+  .delete(protect, admin, deleteQuestionSet);
 
 // 题目相关路由
 router.post('/:id/questions', protect, admin, addQuestionToQuestionSet);
 
-// Featured status update route
+// 精选状态更新
 router.put('/:id/featured', protect, admin, updateQuestionSetFeaturedStatus);
 
-// Base routes
-router.post('/', protect, admin, createQuestionSet);
-router.get('/:id', getQuestionSetById);
-
-// 按分类获取题库
-router.get('/by-category/:category', getQuestionSetsByCategory);
-
-// 添加测试路由，确认POST请求能够正常工作
-router.post('/test', (req, res) => {
-  console.log('测试POST请求成功接收');
-  console.log('请求体:', req.body);
-  res.status(200).json({
-    success: true,
-    message: '测试POST请求成功',
-    receivedData: req.body,
-  });
-});
+// 基本路由
+router.route('/')
+  .get(getAllQuestionSets)
+  .post(protect, admin, createQuestionSet);
 
 export default router; 
