@@ -864,8 +864,17 @@ const ProfilePage: React.FC = () => {
     return stats;
   }, []);
 
-  // 修改 handleProgressUpdate 函数，增加本地存储同步
+  // 修改 handleProgressUpdate 函数，增加本地存储同步并添加节流
   const handleProgressUpdate = useCallback(async () => {
+    // 添加节流逻辑，防止短时间内多次调用
+    const now = Date.now();
+    const lastUpdateTime = parseInt(sessionStorage.getItem('profile_last_progress_update') || '0', 10);
+    if (now - lastUpdateTime < 5000) { // 5秒内不重复更新
+      console.log('[ProfilePage] 进度更新请求过于频繁，忽略此次更新');
+      return;
+    }
+    sessionStorage.setItem('profile_last_progress_update', now.toString());
+
     try {
       setIsLoading(true);
       
@@ -1061,11 +1070,15 @@ const ProfilePage: React.FC = () => {
   useEffect(() => {
     if (!socket || !user) return;
 
-    // 初始加载数据
-    handleProgressUpdate();
-    fetchPurchases();
-    fetchRedeemCodes();
-    fetchWrongAnswers();
+    // 初始加载数据 - 只在组件挂载时触发一次
+    const initialDataLoadRef = React.useRef(false);
+    if (!initialDataLoadRef.current) {
+      handleProgressUpdate();
+      fetchPurchases();
+      fetchRedeemCodes();
+      fetchWrongAnswers();
+      initialDataLoadRef.current = true;
+    }
 
     // 发送验证请求，检查所有题库的访问状态
     const checkAccessForAllSets = () => {
@@ -1086,11 +1099,32 @@ const ProfilePage: React.FC = () => {
       });
     };
 
+    // 确保事件处理函数被稳定引用，避免多次添加移除
+    const handleProgressUpdateStable = () => {
+      console.log('[ProfilePage] Socket progress:update 事件触发');
+      handleProgressUpdate();
+    };
+
+    const handlePurchaseSuccess = () => {
+      console.log('[ProfilePage] Socket purchase:success 事件触发');
+      fetchPurchases();
+    };
+
+    const handleRedeemSuccess = () => {
+      console.log('[ProfilePage] Socket redeem:success 事件触发');
+      fetchRedeemCodes();
+    };
+
+    const handleWrongAnswerSave = () => {
+      console.log('[ProfilePage] Socket wrongAnswer:save 事件触发');
+      fetchWrongAnswers();
+    };
+
     // 监听实时更新
-    socket.on('progress:update', handleProgressUpdate);
-    socket.on('progress:reset', handleProgressUpdate); // 添加对reset事件的处理
-    socket.on('purchase:success', fetchPurchases);
-    socket.on('redeem:success', fetchRedeemCodes);
+    socket.on('progress:update', handleProgressUpdateStable);
+    socket.on('progress:reset', handleProgressUpdateStable);
+    socket.on('purchase:success', handlePurchaseSuccess);
+    socket.on('redeem:success', handleRedeemSuccess);
     
     // 监听连接状态变化，重连时重新检查权限
     socket.on('connect', () => {
@@ -1106,7 +1140,7 @@ const ProfilePage: React.FC = () => {
     const accessCheckTimer = setTimeout(checkAccessForAllSets, 500);
 
     // 监听错题保存事件
-    socket.on('wrongAnswer:save', fetchWrongAnswers);
+    socket.on('wrongAnswer:save', handleWrongAnswerSave);
 
     // 监听本地存储变化，可能来自其他标签页
     const handleStorageChange = (e: StorageEvent) => {
@@ -1118,13 +1152,13 @@ const ProfilePage: React.FC = () => {
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      socket.off('progress:update', handleProgressUpdate);
-      socket.off('progress:reset', handleProgressUpdate);
-      socket.off('purchase:success', fetchPurchases);
-      socket.off('redeem:success', fetchRedeemCodes);
+      socket.off('progress:update', handleProgressUpdateStable);
+      socket.off('progress:reset', handleProgressUpdateStable);
+      socket.off('purchase:success', handlePurchaseSuccess);
+      socket.off('redeem:success', handleRedeemSuccess);
       socket.off('connect');
       clearTimeout(accessCheckTimer);
-      socket.off('wrongAnswer:save', fetchWrongAnswers);
+      socket.off('wrongAnswer:save', handleWrongAnswerSave);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers, purchases, redeemCodes]);
