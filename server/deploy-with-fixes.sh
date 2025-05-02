@@ -60,9 +60,7 @@ const fs = require('fs');
 const packageJson = require('${PACKAGE_JSON}');
 const fixScripts = {
   "postinstall": "node direct-sequelize-patch.js",
-  "originalStart": packageJson.scripts.start || "ts-node src/index.ts",
   "start": "NODE_OPTIONS=\\"--require ./sequelize-preload.js\\" " + (packageJson.scripts.start || "ts-node src/index.ts"),
-  "start:safe": "./start-with-fix.sh",
   "fix": "node direct-sequelize-patch.js && node sequelize-instance-fix.js && node sequelize-constructor-fix.js",
   "fixdb": "node db-init.js",
   "fixall": "./fix-all.sh"
@@ -92,9 +90,8 @@ echo -e "${YELLOW}步骤3: 运行修复脚本${NC}"
 cd "${TARGET_DIR}" && ./fix-all.sh "${TARGET_DIR}"
 
 echo -e "${GREEN}===== 部署完成 =====${NC}"
-echo -e "${YELLOW}您现在可以使用以下命令启动应用:${NC}"
-echo -e "cd ${TARGET_DIR} && npm run start:safe"
+echo -e "${YELLOW}启动应用:${NC}"
+echo -e "cd ${TARGET_DIR} && npm start"
 echo
-echo -e "${GREEN}或使用PM2:${NC}"
-echo -e "cd ${TARGET_DIR}"
-echo -e "NODE_OPTIONS=\"--require ./sequelize-preload.js\" pm2 start npm -- start" 
+echo -e "${GREEN}使用PM2启动:${NC}"
+echo -e "cd ${TARGET_DIR} && pm2 start npm -- start" 

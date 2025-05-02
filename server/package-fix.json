@@ -1,9 +1,7 @@
 {
   "scripts": {
     "postinstall": "node direct-sequelize-patch.js",
-    "original-start": "ts-node src/index.ts",
     "start": "NODE_OPTIONS=\"--require ./sequelize-preload.js\" ts-node src/index.ts",
-    "start:safe": "./start-with-fix.sh",
     "fix": "node direct-sequelize-patch.js && node sequelize-instance-fix.js && node sequelize-constructor-fix.js",
     "fixdb": "node db-init.js",
     "fixall": "./fix-all.sh"
@@ -18,7 +16,6 @@
       "db-init.js",
       "fix-all.sh",
       "sequelize-preload.js",
-      "start-with-fix.sh",
       "standalone-sequelize.js"
     ],
     "instructions": "将此scripts部分合并到您的package.json中，然后在部署后运行 'npm run fixall'"

@@ -48,15 +48,21 @@ try {
     ? `${originalPostinstall} && node direct-sequelize-patch.js` 
     : 'node direct-sequelize-patch.js';
   
-  // 2. 保存原始start脚本，添加使用预加载的start脚本
+  // 2. 修改start脚本，添加预加载
   const originalStart = packageJson.scripts.start || 'node index.js';
-  packageJson.scripts.originalStart = originalStart;
   packageJson.scripts.start = 'NODE_OPTIONS="--require ./sequelize-preload.js" ' + originalStart;
   
   // 3. 添加修复脚本
   packageJson.scripts.fix = 'node direct-sequelize-patch.js && node sequelize-instance-fix.js && node sequelize-constructor-fix.js';
   packageJson.scripts.fixdb = 'node db-init.js';
   packageJson.scripts.fixall = './fix-all.sh';
+  
+  // 添加sequelizeFixes元数据
+  packageJson.sequelizeFixes = {
+    "version": "1.0.0",
+    "description": "Sequelize修复工具集",
+    "applied": new Date().toISOString()
+  };
   
   // 写入更新后的package.json
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2), 'utf8');
@@ -106,13 +112,11 @@ echo -e "${GREEN}修复脚本已下载并安装${NC}"
 node "$TARGET_DIR/direct-sequelize-patch.js" "$TARGET_DIR"
 
 echo -e "${GREEN}===== 安装完成 =====${NC}"
-echo -e "${YELLOW}现在您可以使用以下命令运行修复:${NC}"
-echo "  npm run fix     # 运行Sequelize修复"
-echo "  npm run fixdb   # 修复数据库表"
-echo "  npm run fixall  # 运行所有修复"
-echo ""
-echo -e "${GREEN}或在启动时自动应用修复:${NC}"
-echo "  npm start       # 自动使用预加载脚本启动"
+echo -e "${YELLOW}现在您可以使用以下命令:${NC}"
+echo "  npm start     # 启动应用(自动应用修复)"
+echo "  npm run fix   # 手动运行Sequelize修复"
+echo "  npm run fixdb # 修复数据库表"
+echo "  npm run fixall # 运行所有修复"
   `;
 
   const installScriptPath = path.join(targetDir, 'install-fixes.sh');
@@ -126,8 +130,8 @@ echo "  npm start       # 自动使用预加载脚本启动"
   console.log(`  npm run fixdb   # 修复数据库表`);
   console.log(`  npm run fixall  # 运行所有修复`);
   console.log('');
-  console.log(`[更新工具] 在启动时自动应用修复:`);
-  console.log(`  npm start       # 自动使用预加载脚本启动`);
+  console.log(`[更新工具] 或使用修复后的启动命令:`);
+  console.log(`  npm start       # 启动应用(自动应用修复)`);
   
 } catch (error) {
   console.error(`[更新工具] 更新package.json失败:`, error);
