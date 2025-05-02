@@ -1,4 +1,5 @@
 #!/bin/sh
-# Remove deprecated husky configuration lines
+# Updated Husky pre-commit hook
 
-npx lint-staged 
+# Run lint-staged with specific config file
+npx lint-staged -c lint-staged.config.js 
