@@ -1,380 +1,248 @@
 #!/usr/bin/env node
 
 /**
- * Baota面板环境Sequelize修复工具
+ * Baota面板Sequelize修复工具
  * 
- * 此脚本直接修复pnpm环境下的sequelize.js文件
- * 解决"Identifier 'safeExport' has already been declared"错误
+ * 用于修复Sequelize在Baota面板环境下的错误:
+ * SyntaxError: Identifier 'safeExport' has already been declared
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
-console.log('[宝塔修复] 开始执行Sequelize修复...');
-
-// 目标路径 - 针对宝塔面板标准路径
-const defaultTarget = '/www/wwwroot/root/git/dist/dist/server';
-
-// 命令行参数或默认路径
-const targetDir = process.argv[2] || defaultTarget;
-console.log(`[宝塔修复] 目标目录: ${targetDir}`);
-
-// 检查目录是否存在
-if (!fs.existsSync(targetDir)) {
-  console.error(`[宝塔修复] 错误: 目标目录不存在: ${targetDir}`);
-  console.error(`[宝塔修复] 请指定正确的服务器目录: node baota-fix.js 你的目录路径`);
-  process.exit(1);
+// 查找sequelize.js文件
+function findSequelizeFile() {
+  const baseDir = process.cwd();
+  console.log(`[Baota修复] 正在查找sequelize.js，基础目录: ${baseDir}`);
+  
+  // 在pnpm目录结构中查找
+  const pnpmPattern = path.join(baseDir, 'node_modules', '.pnpm', 'sequelize@*', 'node_modules', 'sequelize', 'lib', 'sequelize.js');
+  
+  // 使用glob模式查找
+  const { globSync } = require('glob');
+  const files = globSync(pnpmPattern);
+  
+  if (files.length > 0) {
+    console.log(`[Baota修复] 找到sequelize.js: ${files[0]}`);
+    return files[0];
+  }
+  
+  // 常规node_modules路径
+  const regularPath = path.join(baseDir, 'node_modules', 'sequelize', 'lib', 'sequelize.js');
+  if (fs.existsSync(regularPath)) {
+    console.log(`[Baota修复] 找到sequelize.js: ${regularPath}`);
+    return regularPath;
+  }
+  
+  console.error('[Baota修复] 未找到sequelize.js文件');
+  return null;
 }
 
-// 查找pnpm目录中的sequelize.js文件
-async function findSequelizeInPnpm() {
-  try {
-    // 尝试在pnpm目录结构中查找
-    const nodeModulesPath = path.join(targetDir, 'node_modules');
-    const pnpmPath = path.join(nodeModulesPath, '.pnpm');
-    
-    if (!fs.existsSync(pnpmPath)) {
-      console.log(`[宝塔修复] pnpm目录不存在: ${pnpmPath}`);
-      return null;
-    }
-    
-    console.log(`[宝塔修复] 在pnpm目录中查找sequelize.js...`);
-    
-    // 使用find命令查找sequelize.js文件
-    try {
-      // 如果grep命令不可用，则不使用过滤
-      let useGrep = true;
-      try {
-        execSync('grep --version', { stdio: 'ignore' });
-      } catch (e) {
-        useGrep = false;
-      }
-      
-      let cmd = `find ${pnpmPath} -name "sequelize.js"`;
-      if (useGrep) {
-        cmd += ` | grep -v "node_modules/sequelize/node_modules"`;
-      }
-      cmd += ` | head -1`;
-      
-      const result = execSync(cmd, { encoding: 'utf8' }).trim();
-      
-      if (result) {
-        console.log(`[宝塔修复] 找到sequelize.js文件: ${result}`);
-        return result;
-      }
-    } catch (err) {
-      console.log(`[宝塔修复] 搜索过程中出错: ${err.message}`);
-    }
-    
-    // 手动遍历目录查找
-    console.log(`[宝塔修复] 尝试手动查找sequelize.js...`);
-    const sequelizeDirs = [];
-    
-    // 读取pnpm目录下的所有文件夹
-    const pnpmDirs = fs.readdirSync(pnpmPath);
-    for (const dir of pnpmDirs) {
-      if (dir.startsWith('sequelize@')) {
-        sequelizeDirs.push(path.join(pnpmPath, dir, 'node_modules/sequelize'));
-      }
-    }
-    
-    // 查找所有包含"sequelize"的目录
-    if (sequelizeDirs.length === 0) {
-      for (const dir of pnpmDirs) {
-        const fullPath = path.join(pnpmPath, dir, 'node_modules');
-        if (fs.existsSync(fullPath) && fs.existsSync(path.join(fullPath, 'sequelize'))) {
-          sequelizeDirs.push(path.join(fullPath, 'sequelize'));
-        }
-      }
-    }
-    
-    // 在找到的目录中寻找sequelize.js
-    for (const dir of sequelizeDirs) {
-      const libPath = path.join(dir, 'lib/sequelize.js');
-      const distPath = path.join(dir, 'dist/sequelize.js');
-      
-      if (fs.existsSync(libPath)) {
-        console.log(`[宝塔修复] 找到sequelize.js文件: ${libPath}`);
-        return libPath;
-      }
-      
-      if (fs.existsSync(distPath)) {
-        console.log(`[宝塔修复] 找到sequelize.js文件: ${distPath}`);
-        return distPath;
-      }
-    }
-    
-    // 最后尝试直接路径
-    const directPath = path.join(nodeModulesPath, '.pnpm/sequelize@6.37.7_mysql2@3.14.1_pg@8.15.6/node_modules/sequelize/lib/sequelize.js');
-    if (fs.existsSync(directPath)) {
-      console.log(`[宝塔修复] 找到sequelize.js文件: ${directPath}`);
-      return directPath;
-    }
-    
-    console.log(`[宝塔修复] 未找到sequelize.js文件`);
-    return null;
-  } catch (err) {
-    console.error(`[宝塔修复] 查找过程中出错:`, err);
-    return null;
-  }
-}
-
-// 直接修复safeExport问题
-function fixSafeExport(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) {
-    console.error(`[宝塔修复] 文件不存在: ${filePath}`);
-    return false;
-  }
+// 修复sequelize.js文件
+function fixSequelizeFile(filePath) {
+  if (!filePath) return false;
   
   try {
     // 读取文件内容
-    const content = fs.readFileSync(filePath, 'utf8');
+    let content = fs.readFileSync(filePath, 'utf8');
     
-    // 检查文件内容
-    console.log(`[宝塔修复] 检查文件内容...`);
+    // 检查是否已经修复
+    if (content.includes('// const safeExport = module.exports; // 已被Baota修复工具注释')) {
+      console.log('[Baota修复] sequelize.js已经被修复，跳过');
+      return true;
+    }
     
-    // 匹配 "const safeExport = module.exports;"
-    if (!content.includes('const safeExport = module.exports;')) {
-      console.log(`[宝塔修复] 文件不包含目标代码, 尝试其他匹配...`);
-      
-      // 查找其他可能的模式
-      if (!content.match(/const\s+safeExport\s*=/)) {
-        console.log(`[宝塔修复] 文件不需要修复`);
-        return true;
-      }
+    // 修复safeExport声明
+    const fixedContent = content.replace(
+      'const safeExport = module.exports;',
+      '// const safeExport = module.exports; // 已被Baota修复工具注释'
+    );
+    
+    // 检查是否实际进行了替换
+    if (content === fixedContent) {
+      console.log('[Baota修复] 未找到需要修复的代码行，可能已被修改或版本不匹配');
+      return false;
     }
     
     // 创建备份
     const backupPath = `${filePath}.bak`;
-    if (!fs.existsSync(backupPath)) {
-      fs.writeFileSync(backupPath, content, 'utf8');
-      console.log(`[宝塔修复] 已创建备份: ${backupPath}`);
-    }
+    fs.writeFileSync(backupPath, content, 'utf8');
+    console.log(`[Baota修复] 创建备份: ${backupPath}`);
     
-    // 修复文件: 将 "const safeExport = module.exports;" 替换为注释
-    let fixedContent = content.replace(
-      /const\s+safeExport\s*=\s*module\.exports\s*;/g,
-      '/* FIXED BY BAOTA SCRIPT */ // const safeExport = module.exports;'
-    );
-    
-    // 保存修改后的文件
+    // 写入修复后的文件
     fs.writeFileSync(filePath, fixedContent, 'utf8');
-    console.log(`[宝塔修复] 已修复文件: ${filePath}`);
+    console.log('[Baota修复] sequelize.js修复成功');
     
     return true;
-  } catch (err) {
-    console.error(`[宝塔修复] 修复过程中出错:`, err);
+  } catch (error) {
+    console.error('[Baota修复] 修复sequelize.js时出错:', error);
     return false;
   }
 }
 
-// 创建安全的preload文件
+// 创建安全的预加载文件
 function createSafePreload() {
-  const preloadPath = path.join(targetDir, 'sequelize-preload-safe.js');
-  const content = `'use strict';
-
-/**
- * 安全版本Sequelize预加载脚本
- * 为宝塔环境特别优化
- * 生成于: ${new Date().toISOString()}
+  const preloadPath = path.join(process.cwd(), 'sequelize-preload-safe.js');
+  
+  const preloadContent = `/**
+ * Sequelize安全预加载脚本 (Baota面板兼容版)
+ * 
+ * 此脚本在不修改module.exports的情况下注入全局Sequelize实例
  */
 
-console.log('[安全预加载] 初始化...');
+console.log('[预加载-安全版] Sequelize安全预加载修复已启用');
 
-// 全局变量初始化
-if (typeof global.sequelize === 'undefined') {
-  global.sequelize = null;
-}
-
-// 自定义require函数 - 不直接修改原始require
 const originalRequire = module.constructor.prototype.require;
-const customRequireMap = new Map();
 
-// 自定义替代require
-function safeRequire(path) {
-  // 保存原始结果
-  const result = originalRequire.apply(this, arguments);
-  
-  // 只处理sequelize模块
-  if (path === 'sequelize' && result) {
-    // 确保只处理一次
-    if (customRequireMap.has(path)) {
-      return customRequireMap.get(path);
+// 创建全局Sequelize实例
+if (!global.sequelize) {
+  try {
+    // 加载配置
+    const path = require('path');
+    const fs = require('fs');
+    const dotenv = require('dotenv');
+    
+    // 加载环境变量
+    const envPath = path.join(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
     }
     
-    try {
-      // 如果结果已经是函数，直接使用
-      if (typeof result === 'function') {
-        if (!global.sequelize) {
-          try {
-            // 尝试创建实例
-            const dotenv = require('dotenv');
-            const fs = require('fs');
-            const envPath = require('path').join(process.cwd(), '.env');
-            
-            if (fs.existsSync(envPath)) {
-              dotenv.config({ path: envPath });
-            }
-            
-            global.sequelize = new result(
-              process.env.DB_NAME || 'quiz_app',
-              process.env.DB_USER || 'root',
-              process.env.DB_PASSWORD || '',
-              {
-                host: process.env.DB_HOST || 'localhost',
-                port: parseInt(process.env.DB_PORT || '3306'),
-                dialect: 'mysql',
-                logging: false
-              }
-            );
-            console.log('[安全预加载] 全局Sequelize实例已创建');
-          } catch (err) {
-            console.error('[安全预加载] 创建实例时出错:', err.message);
-          }
-        }
-        
-        customRequireMap.set(path, result);
-        return result;
+    // 获取数据库连接信息
+    const dbConfig = {
+      database: process.env.DB_NAME || 'quizdb',
+      username: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      dialect: 'mysql'
+    };
+    
+    // 直接使用原始require加载Sequelize
+    const { Sequelize } = originalRequire('sequelize');
+    
+    // 创建Sequelize实例
+    global.sequelize = new Sequelize(
+      dbConfig.database,
+      dbConfig.username,
+      dbConfig.password,
+      {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        dialect: dbConfig.dialect,
+        logging: false
       }
-      
-      // 如果结果有Sequelize属性且是函数，使用它
-      if (result && typeof result.Sequelize === 'function') {
-        console.log('[安全预加载] 使用result.Sequelize');
-        customRequireMap.set(path, result.Sequelize);
-        return result.Sequelize;
-      }
-    } catch (err) {
-      console.error('[安全预加载] 处理模块时出错:', err.message);
-    }
+    );
+    
+    console.log('[预加载-安全版] 成功创建全局Sequelize实例');
+  } catch (error) {
+    console.error('[预加载-安全版] 创建全局Sequelize实例失败:', error);
   }
-  
-  return result;
-}
+}`;
 
-// 替换require函数
-module.constructor.prototype.require = function(path) {
-  return safeRequire.call(this, path);
-};
-
-console.log('[安全预加载] 初始化完成');`;
-
-  fs.writeFileSync(preloadPath, content, 'utf8');
-  console.log(`[宝塔修复] 已创建安全版预加载脚本: ${preloadPath}`);
-  
-  return preloadPath;
-}
-
-// 更新package.json中的启动脚本
-function updatePackageJson() {
-  const packageJsonPath = path.join(targetDir, 'package.json');
-  
-  if (!fs.existsSync(packageJsonPath)) {
-    console.log(`[宝塔修复] package.json不存在: ${packageJsonPath}`);
+  try {
+    fs.writeFileSync(preloadPath, preloadContent, 'utf8');
+    console.log(`[Baota修复] 创建安全预加载文件: ${preloadPath}`);
+    return true;
+  } catch (error) {
+    console.error('[Baota修复] 创建安全预加载文件失败:', error);
     return false;
   }
+}
+
+// 更新package.json
+function updatePackageJson() {
+  const packageJsonPath = path.join(process.cwd(), 'package.json');
   
   try {
     // 读取package.json
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8');
+    let packageJson = JSON.parse(packageJsonContent);
     
-    // 备份
-    const backupPath = path.join(targetDir, 'package.json.bak');
-    if (!fs.existsSync(backupPath)) {
-      fs.writeFileSync(backupPath, JSON.stringify(packageJson, null, 2), 'utf8');
-      console.log(`[宝塔修复] 已备份package.json: ${backupPath}`);
-    }
+    // 备份原始package.json
+    const backupPath = `${packageJsonPath}.bak`;
+    fs.writeFileSync(backupPath, packageJsonContent, 'utf8');
+    console.log(`[Baota修复] 已创建package.json备份: ${backupPath}`);
     
-    // 修改scripts部分
+    // 更新启动脚本
     packageJson.scripts = packageJson.scripts || {};
     
-    // 添加安全启动脚本
-    packageJson.scripts['start:safe'] = 'NODE_OPTIONS="--require ./sequelize-preload-safe.js" node dist/index.js';
-    packageJson.scripts['start:original'] = packageJson.scripts.start || 'node dist/index.js';
-    packageJson.scripts['start'] = packageJson.scripts['start:safe'];
+    // 添加安全的启动脚本
+    const originalStart = packageJson.scripts.start || '';
+    packageJson.scripts.start = 'NODE_OPTIONS="--require ./sequelize-preload-safe.js" ' + 
+      (originalStart.replace('NODE_OPTIONS="--require ./sequelize-preload.js" ', ''));
     
-    // 添加修复信息
-    packageJson.baotatFix = {
-      applied: new Date().toISOString(),
-      version: '1.0.0'
-    };
+    // 添加其他脚本
+    packageJson.scripts.startsafe = 'bash ./start-safe.sh';
+    packageJson.scripts.fixbaota = 'node baota-fix.js';
     
-    // 保存修改后的package.json
+    // 写入更新后的package.json
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2), 'utf8');
-    console.log(`[宝塔修复] 已更新package.json`);
+    console.log(`[Baota修复] 已更新package.json`);
     
     return true;
-  } catch (err) {
-    console.error(`[宝塔修复] 更新package.json出错:`, err);
+  } catch (error) {
+    console.error('[Baota修复] 更新package.json失败:', error);
     return false;
   }
 }
 
-// 创建直接启动脚本
+// 创建安全启动脚本
 function createStartScript() {
-  const startScriptPath = path.join(targetDir, 'start-safe.sh');
-  const content = `#!/bin/bash
+  const scriptPath = path.join(process.cwd(), 'start-safe.sh');
+  
+  const scriptContent = `#!/bin/bash
 
-# 安全启动脚本 (宝塔面板专用)
-# 生成时间: $(date)
+# 安全启动脚本 (Baota面板兼容版)
+echo "===== 安全启动脚本 ====="
 
-cd $(dirname "$0")
+# 运行修复脚本
+echo "运行Sequelize修复..."
+node baota-fix.js
 
-# 设置环境变量
-export NODE_OPTIONS="--require ./sequelize-preload-safe.js"
-
-# 启动应用
-echo "使用安全模式启动应用..."
-node dist/index.js
+# 设置环境变量并启动
+echo "启动应用..."
+NODE_OPTIONS="--require ./sequelize-preload-safe.js" ts-node src/index.ts
 `;
 
-  fs.writeFileSync(startScriptPath, content, 'utf8');
-  fs.chmodSync(startScriptPath, '755');
-  console.log(`[宝塔修复] 已创建启动脚本: ${startScriptPath}`);
-  
-  return startScriptPath;
+  try {
+    fs.writeFileSync(scriptPath, scriptContent, 'utf8');
+    fs.chmodSync(scriptPath, '755'); // 添加执行权限
+    console.log(`[Baota修复] 创建安全启动脚本: ${scriptPath}`);
+    return true;
+  } catch (error) {
+    console.error('[Baota修复] 创建安全启动脚本失败:', error);
+    return false;
+  }
 }
 
 // 主函数
 async function main() {
-  try {
-    // 1. 查找sequelize.js文件
-    const sequelizeJsPath = await findSequelizeInPnpm();
-    
-    if (sequelizeJsPath) {
-      // 2. 修复sequelize.js文件
-      const fixed = fixSafeExport(sequelizeJsPath);
-      if (fixed) {
-        console.log(`[宝塔修复] 成功修复sequelize.js文件`);
-      } else {
-        console.log(`[宝塔修复] 无法修复sequelize.js文件，尝试其他方法...`);
-      }
-    } else {
-      console.log(`[宝塔修复] 未找到sequelize.js文件，使用预加载方式修复`);
-    }
-    
-    // 3. 创建安全的预加载文件
-    const preloadPath = createSafePreload();
-    
-    // 4. 更新package.json
-    updatePackageJson();
-    
-    // 5. 创建启动脚本
-    createStartScript();
-    
-    // 6. 完成
-    console.log(`\n[宝塔修复] 所有修复已完成！`);
-    console.log(`[宝塔修复] 您现在可以使用以下命令启动应用:`);
-    console.log(`  npm start         # 使用安全模式启动`);
-    console.log(`  ./start-safe.sh   # 使用安全脚本启动`);
-    console.log(`\n[宝塔修复] 如果仍然遇到问题，请运行:`);
-    console.log(`  node dist/index.js # 直接启动，不使用预加载`);
-  } catch (err) {
-    console.error(`[宝塔修复] 执行过程中出错:`, err);
+  console.log('===== Baota面板Sequelize修复工具 =====');
+  
+  // 查找并修复sequelize.js
+  const sequelizeFilePath = findSequelizeFile();
+  const fixResult = fixSequelizeFile(sequelizeFilePath);
+  
+  // 创建安全的预加载文件
+  const preloadResult = createSafePreload();
+  
+  // 更新package.json
+  const packageResult = updatePackageJson();
+  
+  // 创建安全启动脚本
+  const scriptResult = createStartScript();
+  
+  if (fixResult && preloadResult && packageResult && scriptResult) {
+    console.log('\n===== 修复完成 =====');
+    console.log('您现在可以使用以下命令启动应用:');
+    console.log('  npm run startsafe   # 使用安全脚本启动');
+    console.log('  npm start           # 使用修改后的package.json启动');
+  } else {
+    console.log('\n===== 修复部分完成 =====');
+    console.log('某些修复步骤失败，请查看上方日志');
   }
 }
 
 // 执行主函数
-main().catch(err => {
-  console.error(`[宝塔修复] 执行出错:`, err);
-}); 
+main(); 

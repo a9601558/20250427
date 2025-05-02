@@ -33,7 +33,9 @@
     "postinstall": "node direct-sequelize-patch.js && node direct-sequelize-patch.js",
     "fix": "node direct-sequelize-patch.js && node sequelize-instance-fix.js && node sequelize-constructor-fix.js",
     "fixdb": "node db-init.js",
-    "fixall": "./fix-all.sh"
+    "fixall": "./fix-all.sh",
+    "fixbaota": "node baota-fix.js",
+    "migrate:direct": "node direct-db-migration.js"
   },
   "keywords": [],
   "author": "",
