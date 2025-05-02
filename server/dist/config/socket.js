@@ -26,16 +26,37 @@ const initializeSocket = (server) => {
             console.log('Socket连接没有提供token');
             return next(new Error('未提供认证令牌'));
         }
+        // 输出JWT密钥信息（不输出完整密钥，仅用于调试）
+        const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+        console.log(`JWT密钥存在: ${!!jwtSecret}, 长度: ${jwtSecret.length}字符`);
         try {
-            const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+            console.log(`尝试验证token: ${token.substring(0, 10)}...`);
             const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
+            console.log('JWT解码成功, 内容:', {
+                id: decoded.id,
+                exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'none',
+                iat: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : 'none'
+            });
             socket.userId = decoded.id; // 将用户ID绑定到socket实例
             console.log(`Socket认证成功: 用户ID ${socket.userId}`);
             next();
         }
         catch (error) {
-            console.error('Socket认证失败:', error);
-            next(new Error('认证失败'));
+            console.error('Socket认证失败详情:', {
+                message: error.message,
+                name: error.name,
+                expiredAt: error.expiredAt ? new Date(error.expiredAt).toISOString() : undefined
+            });
+            // 检查错误类型并发送更具体的错误信息
+            if (error.name === 'TokenExpiredError') {
+                return next(new Error('认证令牌已过期'));
+            }
+            else if (error.name === 'JsonWebTokenError') {
+                return next(new Error('无效的认证令牌'));
+            }
+            else {
+                return next(new Error('认证失败: ' + error.message));
+            }
         }
     });
     // 监听数据包
