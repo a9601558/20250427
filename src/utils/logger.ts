@@ -1,114 +1,74 @@
 /**
- * 日志工具 - 集中式日志记录
+ * 统一的日志工具
  * 
- * 使用方法:
+ * 使用示例:
  * import { logger } from '../utils/logger';
- * 
  * logger.info('用户登录成功', { userId: '123' });
  * logger.error('请求失败', error);
  */
 
-// 日志级别
+// 定义日志级别
 export enum LogLevel {
-  DEBUG = 'debug',
-  INFO = 'info',
-  WARN = 'warn',
-  ERROR = 'error'
+  Debug,
+  Info,
+  Warn,
+  Error,
 }
 
-// 当前应用环境
-const isProduction = import.meta.env.PROD === true;
+// 定义当前环境
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
-/**
- * 集中式日志记录工具
- * 在开发环境中输出到控制台
- * 在生产环境中可以配置为发送到远程日志服务
- */
-class Logger {
-  private shouldLog(level: LogLevel): boolean {
-    // 在生产环境中不输出DEBUG级别的日志
-    if (isProduction && level === LogLevel.DEBUG) {
-      return false;
+// 设置默认日志级别
+const currentLogLevel = isDevelopment ? LogLevel.Debug : LogLevel.Info;
+
+// 添加时间戳和格式化输出
+const formatMessage = (level: string, message: string, ...args: any[]): string => {
+  const timestamp = new Date().toISOString();
+  return `[${timestamp}] [${level}] ${message}`;
+};
+
+// 创建日志对象
+export const logger = {
+  /**
+   * 调试日志，仅在开发环境可见
+   */
+  debug: (message: string, ...args: any[]): void => {
+    if (currentLogLevel <= LogLevel.Debug) {
+      console.debug(formatMessage('DEBUG', message), ...args);
     }
-    return true;
-  }
+  },
 
   /**
-   * 发送日志到远程服务
-   * 在生产环境中可以实现此方法，连接到Sentry、LogRocket等服务
+   * 信息日志
    */
-  private sendToRemoteService(_level: LogLevel, _message: string, _data?: any): void {
-    // 生产环境中实现对接远程日志服务
-    // 目前未实现，参数前加下划线表示暂时未使用
-    // 实际实现时可能类似：Sentry.captureMessage(_message, { level: _level, extra: _data });
-  }
-
-  /**
-   * 记录日志
-   */
-  private log(level: LogLevel, message: string, data?: any): void {
-    if (!this.shouldLog(level)) return;
-
-    const timestamp = new Date().toISOString();
-    
-    // 构建日志条目 - 实际实现时可用于持久化存储或监控系统
-    // const logEntry = {
-    //   timestamp,
-    //   level,
-    //   message,
-    //   data
-    // };
-
-    // 开发环境: 输出到控制台
-    if (!isProduction) {
-      switch (level) {
-        case LogLevel.DEBUG:
-          console.debug(`[${timestamp}] [${level}]`, message, data);
-          break;
-        case LogLevel.INFO:
-          console.info(`[${timestamp}] [${level}]`, message, data);
-          break;
-        case LogLevel.WARN:
-          console.warn(`[${timestamp}] [${level}]`, message, data);
-          break;
-        case LogLevel.ERROR:
-          console.error(`[${timestamp}] [${level}]`, message, data);
-          break;
-      }
-    } else {
-      // 生产环境: 发送到远程服务
-      this.sendToRemoteService(level, message, data);
+  info: (message: string, ...args: any[]): void => {
+    if (currentLogLevel <= LogLevel.Info) {
+      console.info(formatMessage('INFO', message), ...args);
     }
-  }
+  },
 
   /**
-   * 调试级别日志 - 仅开发环境
+   * 警告日志
    */
-  debug(message: string, data?: any): void {
-    this.log(LogLevel.DEBUG, message, data);
-  }
+  warn: (message: string, ...args: any[]): void => {
+    if (currentLogLevel <= LogLevel.Warn) {
+      console.warn(formatMessage('WARN', message), ...args);
+    }
+  },
 
   /**
-   * 信息级别日志
+   * 错误日志
    */
-  info(message: string, data?: any): void {
-    this.log(LogLevel.INFO, message, data);
-  }
+  error: (message: string, ...args: any[]): void => {
+    if (currentLogLevel <= LogLevel.Error) {
+      console.error(formatMessage('ERROR', message), ...args);
+    }
+  },
 
   /**
-   * 警告级别日志
+   * 向后兼容 - 同 info
    */
-  warn(message: string, data?: any): void {
-    this.log(LogLevel.WARN, message, data);
+  log: (message: string, ...args: any[]): void => {
+    logger.info(message, ...args);
   }
-
-  /**
-   * 错误级别日志
-   */
-  error(message: string, error?: any): void {
-    this.log(LogLevel.ERROR, message, error);
-  }
-}
-
-// 导出单例
-export const logger = new Logger(); 
+}; 

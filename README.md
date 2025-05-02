@@ -1,150 +1,102 @@
-# 考试练习应用
+# 在线学习平台
 
-一个帮助用户准备考试的应用程序，允许用户浏览题库、练习题目、购买题集，并跟踪学习进度。
+## 项目概述
+
+此项目是一个在线学习平台，允许用户查看、购买和完成各种题库练习。使用React前端和Express后端构建，支持实时互动功能。
+
+## 技术栈
+
+- **前端**: React, TypeScript, Vite, Tailwind CSS
+- **后端**: Node.js, Express, TypeScript
+- **数据库**: MySQL (Sequelize ORM)
+- **实时通信**: Socket.IO
+- **部署**: Nginx, PM2
 
 ## 项目结构
 
-```
-.
-├── .git/                 # Git 仓库元数据
-├── .github/              # (可能存在) GitHub 相关配置 (Actions, templates)
-├── dist/                 # 构建后的前端静态资源
-├── node_modules/         # Node.js 依赖
-├── public/               # 静态资源目录 (会被直接复制到 dist)
-├── server/               # 后端 Node.js 服务代码
-│   ├── controllers/      # 控制器 (处理请求逻辑)
-│   ├── models/           # 数据模型 (数据库交互)
-│   ├── routes/           # API 路由定义
-│   ├── middleware/       # 中间件
-│   ├── config/           # 配置文件
-│   ├── migrations/       # 数据库迁移文件
-│   ├── seeders/          # 数据种子文件
-│   ├── utils/            # 工具函数
-│   └── ...               # 其他后端相关文件
-├── src/                  # 前端源代码 (React + TypeScript)
-│   ├── assets/           # 静态资源 (图片, 字体等)
-│   ├── components/       # 可复用 UI 组件
-│   ├── contexts/         # React Context (状态管理)
-│   ├── utils/            # 工具函数
-│   ├── services/         # API 请求服务
-│   ├── App.tsx           # 应用根组件
-│   └── main.tsx          # 应用入口文件
-├── .gitattributes        # 定义 Git 如何处理特定文件
-├── .gitignore            # 指定 Git 忽略的文件/目录
-├── api-path-mapping.conf # (推测) Nginx/代理的 API 路径映射配置
-├── api-path-test.sh      # API 路径测试脚本
-├── api-proxy-settings.conf # (推测) API 代理配置
-├── backend-route-diagnosis.js # 后端路由诊断脚本
-├── cleanup-files.txt     # (推测) 需要清理的文件列表
-├── code-cleanup-report.md # 代码清理报告
-├── eslint.config.js      # ESLint 配置文件 (代码风格检查)
-├── index.html            # SPA 的 HTML 入口文件
-├── nginx-headers-only.conf # (推测) Nginx 仅含头信息的配置
-├── nginx-setup.md        # Nginx 设置指南
-├── nginx.conf            # Nginx 配置文件
-├── package-lock.json     # 锁定依赖版本
-├── package.json          # 项目元数据和依赖管理
-├── postcss.config.js     # PostCSS 配置文件 (CSS 预处理)
-├── README.md             # 项目说明文件 (就是你正在看的这个)
-├── restart-server.cjs    # 重启服务器脚本 (CommonJS)
-├── restart-server.js     # 重启服务器脚本 (ES Module)
-├── route-fix-guide.md    # 路由修复指南
-├── tailwind.config.js    # Tailwind CSS 配置文件
-├── test-api-routes.sh    # API 路由测试脚本
-├── test-register.js      # (推测) 测试注册相关脚本
-├── tsconfig.json         # TypeScript 配置
-└── vite.config.ts        # Vite 配置文件 (前端构建工具)
-```
+- `src/`: 前端源代码
+  - `components/`: React组件
+  - `contexts/`: React上下文(Context)
+  - `services/`: API服务
+  - `utils/`: 工具函数
+- `server/`: 后端源代码
+  - `src/controllers/`: 控制器
+  - `src/models/`: 数据库模型
+  - `src/routes/`: API路由
+  - `src/middleware/`: 中间件
+  - `src/migrations/`: 数据库迁移脚本
 
-**结构分析:**
+## 开发指南
 
-*   这是一个典型的全栈 Web 应用项目结构，前端使用 Vite + TypeScript (可能配合 React/Vue)，后端使用 Node.js + TypeScript。
-*   前端代码位于 `src/`，后端代码位于 `server/`。
-*   构建产物输出到 `dist/`。
-*   包含丰富的配置文件，涵盖了构建、类型检查、代码风格、CSS 处理、Nginx 代理等。
-*   存在多个脚本文件，用于测试、诊断、服务重启等辅助开发和运维任务。
-*   文档比较齐全，包括 README、Nginx 设置指南和路由修复指南。
-*   需要注意区分 `.js` 和 `.cjs` 文件，以及不同的 `tsconfig.*.json` 文件，它们可能用于不同的环境 (前端/后端/脚本)。
-*   `public/` 目录下的文件会直接复制到构建目录，适合存放无需构建处理的静态资源。
-*   建议进一步查看 `src/` 和 `server/` 目录下的具体结构，以了解更详细的模块划分。
+### 安装依赖
 
-## 快速开始
-
-### 后端服务
-
-1. 进入server目录
 ```bash
-cd server
-```
-
-2. 安装依赖
-```bash
+# 安装前端依赖
 npm install
+
+# 安装后端依赖
+cd server && npm install
 ```
 
-3. 配置环境变量
-```bash
-cp .env.example .env
-# 编辑.env文件，填写必要的配置项
-```
+### 开发环境运行
 
-4. 启动服务
 ```bash
+# 运行前端开发服务器
 npm run dev
+
+# 运行后端开发服务器
+npm run start
 ```
 
-### 前端应用
+### 数据库操作
 
-1. 安装依赖
 ```bash
-npm install
+# 运行迁移
+npm run db:migrate
+
+# 回滚迁移
+npm run db:migrate:undo
+
+# 重置数据库 (慎用)
+npm run db:reset
 ```
 
-2. 启动开发服务器
+### 代码规范
+
+项目使用ESLint和Prettier强制执行代码规范，详见[CODING_STYLE.md](./CODING_STYLE.md)。
+
 ```bash
-npm run dev
+# 检查代码
+npm run lint
+
+# 自动修复代码规范问题
+npm run lint:fix
+
+# 格式化代码
+npm run format
 ```
 
-## 部署到宝塔面板
+### 部署
 
-本项目支持一键部署到宝塔面板，并会自动同步数据库结构。
+生产环境使用PM2管理Node.js进程：
 
-### 部署步骤
-
-1. 将代码上传到服务器
-2. 进入server目录
 ```bash
-cd server
+# 构建前后端代码
+npm run build:all
+
+# 使用PM2启动服务
+pm2 start ecosystem.config.js
 ```
 
-3. 确保环境变量配置正确
-```bash
-cp .env.example .env
-# 编辑.env文件，填写必要的数据库配置
-```
+## 最近的优化
 
-4. 运行部署脚本
-```bash
-npm run baota-deploy
-```
+项目最近进行了全面优化，详见[PROJECT_OPTIMIZATION.md](./PROJECT_OPTIMIZATION.md)：
 
-5. 启动服务器
-```bash
-npm start
-```
-
-6. 配置Nginx反向代理
-使用项目根目录中的`nginx.conf`作为参考配置Nginx反向代理。
-
-## 优化说明
-
-本项目已经进行了全面优化：
-
-1. **API路由一致性**：所有API路由路径已标准化，遵循RESTful设计原则
-2. **数据库同步机制**：服务启动时自动检查并同步数据库结构
-3. **宝塔面板部署**：提供专门的宝塔面板部署脚本，确保无缝部署
-4. **代码结构优化**：清晰分离前后端代码，使用TypeScript提供类型安全
-5. **自动化迁移**：使用Sequelize迁移系统确保数据库结构版本控制
+1. 统一了代码规范和命名约定
+2. 清理了数据库冗余索引
+3. 统一了API服务调用方式
+4. 重构了配置文件
+5. 添加了代码质量工具
 
 ## 主要功能
 
@@ -153,13 +105,6 @@ npm start
 - 学习进度追踪
 - 会员权限管理
 - 兑换码系统
-
-## 技术栈
-
-- **前端**: React, TypeScript, Tailwind CSS
-- **后端**: Node.js, Express, TypeScript
-- **数据库**: MySQL, Sequelize ORM
-- **认证**: JWT
 
 ## 数据库同步机制
 

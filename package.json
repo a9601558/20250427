@@ -18,7 +18,14 @@
     "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
     "db:seed": "sequelize-cli db:seed:all",
     "db:seed:undo": "sequelize-cli db:seed:undo:all",
-    "db:reset": "npm run db:migrate:undo:all && npm run db:migrate && npm run db:seed"
+    "db:reset": "npm run db:migrate:undo:all && npm run db:migrate && npm run db:seed",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,scss}\"",
+    "check:unused": "depcheck",
+    "check:types": "tsc --noEmit",
+    "optimize": "npm run lint && npm run format && npm run check:types",
+    "prepare": "husky install"
   },
   "dependencies": {
     "antd": "^5.24.8",
@@ -33,11 +40,30 @@
   "devDependencies": {
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.14",
+    "depcheck": "^1.4.7",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^9.0.7",
+    "lint-staged": "^15.2.0",
     "postcss": "^8.4.24",
+    "prettier": "^3.2.4",
     "tailwindcss": "^3.3.2",
     "typescript": "^5.2.2",
     "vite": "^5.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,scss,md}": [
+      "prettier --write"
+    ]
   }
 }

@@ -1084,16 +1084,4 @@ export const wrongAnswerService = {
       return { success: false, message: '标记错题为已掌握失败' };
     }
   }
-};
-
-// 导出所有服务
-export default {
-  userService,
-  questionSetService,
-  questionService,
-  userProgressService,
-  purchaseService,
-  redeemCodeService,
-  homepageService,
-  wrongAnswerService
 }; 
