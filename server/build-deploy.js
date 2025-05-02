@@ -60,6 +60,35 @@ const ensureTsConfig = () => {
   }
 };
 
+// 检查并安装必要的依赖
+const ensureDependencies = async () => {
+  try {
+    console.log('[部署工具] 检查必要的依赖...');
+    
+    const requiredDeps = [
+      'dotenv',
+      'sequelize',
+      'mysql2',
+      'bcrypt'
+    ];
+    
+    for (const dep of requiredDeps) {
+      try {
+        require.resolve(dep);
+        console.log(`[部署工具] 依赖已安装: ${dep}`);
+      } catch (e) {
+        console.log(`[部署工具] 安装依赖: ${dep}`);
+        execSync(`npm install ${dep}`, { cwd: targetDir, stdio: 'inherit' });
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('[部署工具] 安装依赖失败:', error);
+    return false;
+  }
+};
+
 // 编译TypeScript
 const compileTypeScript = async () => {
   try {
@@ -1067,29 +1096,32 @@ async function main() {
     // 2. 确保.env文件存在
     ensureEnvFile();
     
-    // 3. 编译TypeScript
+    // 3. 安装必要的依赖
+    await ensureDependencies();
+    
+    // 4. 编译TypeScript
     const compileSuccess = await compileTypeScript();
     if (!compileSuccess) {
       console.error('[部署工具] TypeScript编译失败，终止构建');
       process.exit(1);
     }
     
-    // 4. 创建数据库迁移模块
+    // 5. 创建数据库迁移模块
     const migrationSuccess = createDatabaseMigrationModule();
     if (!migrationSuccess) {
       console.error('[部署工具] 创建数据库迁移模块失败');
     }
     
-    // 5. 更新index.js
+    // 6. 更新index.js
     updateIndexFile();
     
-    // 6. 创建启动脚本
+    // 7. 创建启动脚本
     createStartScript();
     
-    // 7. 创建PM2配置
+    // 8. 创建PM2配置
     createPm2Config();
     
-    // 8. 更新package.json
+    // 9. 更新package.json
     updatePackageJson();
     
     console.log('[部署工具] 构建完成！');
