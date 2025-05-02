@@ -202,8 +202,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLastError(errorMsg);
         
         // 处理认证错误
-        if (error.message.includes('认证') || error.message.includes('token') || 
-            error.message.includes('auth') || error.message.includes('未提供认证令牌')) {
+        if (error.message.includes('认证') || 
+            error.message.includes('token') || 
+            error.message.includes('auth') || 
+            error.message.includes('令牌') ||
+            error.message.includes('已过期')) {
           console.log('[Socket] 检测到认证错误，检查token有效性');
           
           // 获取当前token
@@ -214,16 +217,33 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             console.log('[Socket] 无效token，清除localStorage');
             localStorage.removeItem('token');
             setAuthToken(null);
+          } else if (error.message.includes('已过期')) {
+            // 令牌已过期，尝试刷新令牌
+            console.log('[Socket] 令牌已过期，尝试刷新令牌');
+            
+            // 这里可以调用您的刷新令牌API
+            // 例如: refreshToken().then(newToken => {...})
+            
+            // 暂时断开连接，等待用户重新登录或刷新令牌
+            setAuthToken(null);
           } else {
             // 尝试验证token并刷新连接
             console.log('[Socket] 尝试使用新token重新连接');
             
             // 更新Socket的auth和query参数
             newSocket.auth = { token: currentToken };
+            if (newSocket.io && newSocket.io.opts) {
+              newSocket.io.opts.query = {
+                ...newSocket.io.opts.query,
+                token: currentToken
+              };
+            }
+            
             // 保存新token到状态
             setAuthToken(currentToken);
             // 稍后尝试重连
             setTimeout(() => {
+              console.log('[Socket] 使用更新后的认证参数重新连接');
               newSocket.connect();
             }, 1000);
           }
