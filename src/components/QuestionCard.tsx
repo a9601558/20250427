@@ -183,24 +183,32 @@ const QuestionCard = ({
 
       // 如果回答错误，保存到错题集
       if (!isCorrect) {
-        // 修复: 确保包含完整的 question 字段
-        const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-          detail: {
-            questionId: question.id,
-            questionSetId: questionSetId,
-            question: question.question || question.text, // 使用 question.question 或 question.text 字段
-            questionText: question.question || question.text, // 额外提供字段以防模型需要
-            questionType: question.questionType,
-            options: question.options,
-            selectedOption: optionId,
-            correctOption: correctOptionId,
-            explanation: question.explanation
-          }
-        });
-        window.dispatchEvent(wrongAnswerEvent);
+        // 检查此题是否最近已保存过，避免重复保存
+        const wrongAnswerKey = `wrong_answer_${question.id}`;
+        const lastSaved = localStorage.getItem(wrongAnswerKey);
+        const now = Date.now();
         
-        // 错误时显示解析
-        setShowExplanation(true);
+        if (!lastSaved || now - parseInt(lastSaved) > 5000) { // 5秒内不重复保存
+          localStorage.setItem(wrongAnswerKey, now.toString());
+          // 修复: 确保包含完整的 question 字段
+          const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+            detail: {
+              questionId: question.id,
+              questionSetId: questionSetId,
+              question: question.question || question.text, // 使用 question.question 或 question.text 字段
+              questionText: question.question || question.text, // 额外提供字段以防模型需要
+              questionType: question.questionType,
+              options: question.options,
+              selectedOption: optionId,
+              correctOption: correctOptionId,
+              explanation: question.explanation
+            }
+          });
+          window.dispatchEvent(wrongAnswerEvent);
+          
+          // 错误时显示解析
+          setShowExplanation(true);
+        }
       } else {
         // 答对自动更快地跳到下一题 (400ms)
         timeoutId = setTimeout(() => {
@@ -234,24 +242,32 @@ const QuestionCard = ({
 
         // 如果回答错误，保存到错题集
         if (!isCorrect) {
-          // 修复: 确保包含完整的 question 字段
-          const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-            detail: {
-              questionId: question.id,
-              questionSetId: questionSetId,
-              question: question.question || question.text, // 使用 question.question 或 question.text 字段
-              questionText: question.question || question.text, // 额外提供字段以防模型需要
-              questionType: question.questionType,
-              options: question.options,
-              selectedOption: selectedOption,
-              correctOption: correctOptionId,
-              explanation: question.explanation
-            }
-          });
-          window.dispatchEvent(wrongAnswerEvent);
+          // 检查此题是否最近已保存过，避免重复保存
+          const wrongAnswerKey = `wrong_answer_${question.id}`;
+          const lastSaved = localStorage.getItem(wrongAnswerKey);
+          const now = Date.now();
           
-          // 错误时显示解析
-          setShowExplanation(true);
+          if (!lastSaved || now - parseInt(lastSaved) > 5000) { // 5秒内不重复保存
+            localStorage.setItem(wrongAnswerKey, now.toString());
+            // 修复: 确保包含完整的 question 字段
+            const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+              detail: {
+                questionId: question.id,
+                questionSetId: questionSetId,
+                question: question.question || question.text, // 使用 question.question 或 question.text 字段
+                questionText: question.question || question.text, // 额外提供字段以防模型需要
+                questionType: question.questionType,
+                options: question.options,
+                selectedOption: selectedOption,
+                correctOption: correctOptionId,
+                explanation: question.explanation
+              }
+            });
+            window.dispatchEvent(wrongAnswerEvent);
+            
+            // 错误时显示解析
+            setShowExplanation(true);
+          }
         } else {
           // 答对自动更快地跳到下一题 (400ms)
           timeoutId = setTimeout(() => {
@@ -277,24 +293,32 @@ const QuestionCard = ({
 
         // 如果回答错误，保存到错题集
         if (!isCorrect) {
-          // 修复: 确保包含完整的 question 字段
-          const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-            detail: {
-              questionId: question.id,
-              questionSetId: questionSetId,
-              question: question.question || question.text, // 使用 question.question 或 question.text 字段
-              questionText: question.question || question.text, // 额外提供字段以防模型需要
-              questionType: question.questionType,
-              options: question.options,
-              selectedOptions: selectedOptions,
-              correctOptions: correctOptionIds,
-              explanation: question.explanation
-            }
-          });
-          window.dispatchEvent(wrongAnswerEvent);
+          // 检查此题是否最近已保存过，避免重复保存
+          const wrongAnswerKey = `wrong_answer_${question.id}`;
+          const lastSaved = localStorage.getItem(wrongAnswerKey);
+          const now = Date.now();
           
-          // 错误时显示解析
-          setShowExplanation(true);
+          if (!lastSaved || now - parseInt(lastSaved) > 5000) { // 5秒内不重复保存
+            localStorage.setItem(wrongAnswerKey, now.toString());
+            // 修复: 确保包含完整的 question 字段
+            const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+              detail: {
+                questionId: question.id,
+                questionSetId: questionSetId,
+                question: question.question || question.text, // 使用 question.question 或 question.text 字段
+                questionText: question.question || question.text, // 额外提供字段以防模型需要
+                questionType: question.questionType,
+                options: question.options,
+                selectedOptions: selectedOptions,
+                correctOptions: correctOptionIds,
+                explanation: question.explanation
+              }
+            });
+            window.dispatchEvent(wrongAnswerEvent);
+            
+            // 错误时显示解析
+            setShowExplanation(true);
+          }
         } else {
           // 答对自动更快地跳到下一题 (400ms)
           timeoutId = setTimeout(() => {

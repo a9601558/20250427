@@ -79,16 +79,8 @@ const setupAssociations = () => {
         onDelete: 'CASCADE'
     });
     User_1.default.hasMany(RedeemCode_1.default, {
-        foreignKey: 'usedBy',
+        foreignKey: 'redeemedBy',
         as: 'redeemedCodes'
-    });
-    RedeemCode_1.default.belongsTo(User_1.default, {
-        foreignKey: 'usedBy',
-        as: 'redeemUser'
-    });
-    RedeemCode_1.default.belongsTo(User_1.default, {
-        foreignKey: 'createdBy',
-        as: 'redeemCreator'
     });
     // WrongAnswer 关联
     User_1.default.hasMany(WrongAnswer_1.default, {

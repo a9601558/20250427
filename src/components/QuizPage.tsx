@@ -871,47 +871,31 @@ function QuizPage(): JSX.Element {
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
 
     try {
-      // 保存进度到后端
-      const saveResponse = await userProgressService.saveProgress({
-        questionId: String(questions[currentQuestionIndex].id),
-        questionSetId: questionSet.id,
-        selectedOption: selectedOpt,
-        isCorrect,
-        timeSpent,
-        // @ts-ignore - lastQuestionIndex is defined in the backend but TypeScript doesn't recognize it
-        lastQuestionIndex: currentQuestionIndex
-      });
-
-      if (!saveResponse.success) {
-        throw new Error(saveResponse.message || '保存进度失败');
-      }
-
-      // 立即更新本地进度，并等待更新完成
-      try {
-        const updatedProgress = await fetchUserProgress(true);
-        if (!updatedProgress) {
-          console.warn('未能获取更新后的进度数据');
-        }
-      } catch (updateError) {
-        console.error('更新本地进度失败:', updateError);
-        // 继续执行，不中断用户答题流程
-      }
-
-      // 发送进度更新事件，包含最后题目索引
+      // 使用Socket.IO保存进度，替代HTTP请求
       const progressEvent = { 
         userId: user.id,
         questionSetId: questionSet.id,
         questionId: String(questions[currentQuestionIndex].id),
         isCorrect,
         timeSpent,
-        completedQuestions: (user.progress?.[questionSet.id]?.completedQuestions || 0) + (isCorrect ? 1 : 0),
+        completedQuestions: (user.progress?.[questionSet.id]?.completedQuestions || 0) + 1,
         totalQuestions: questions.length,
         correctAnswers: (user.progress?.[questionSet.id]?.correctAnswers || 0) + (isCorrect ? 1 : 0),
         lastAccessed: new Date().toISOString(),
         lastQuestionIndex: currentQuestionIndex // 添加当前题目索引
       };
       
+      // 发送进度更新事件
       socket.emit('progress:update', progressEvent);
+      
+      // 监听保存成功事件
+      socket.once('progress_saved', (response) => {
+        if (response.success) {
+          console.log('[Socket] 进度保存成功');
+        } else {
+          console.error('[Socket] 进度保存失败:', response.message);
+        }
+      });
 
       // 更新本地状态
       if (isCorrect) {
