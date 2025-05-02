@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import { useUser } from './UserContext';
 
 interface SocketContextType {
@@ -66,7 +67,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     console.log('[Socket] 初始化新连接');
     
     // 创建新的Socket实例
-    const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+    const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || ''; // 使用空字符串自动跟随当前域名
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket'],
       timeout: 10000,
