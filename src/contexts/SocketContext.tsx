@@ -75,7 +75,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       autoConnect: true,
-      query: user ? { userId: user.id } : undefined
+      auth: { token: localStorage.getItem('token') }
     });
     
     // 添加断线重连和错误处理
