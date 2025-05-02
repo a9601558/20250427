@@ -1052,6 +1052,28 @@ function QuizPage(): JSX.Element {
     // 重置进度统计 - 确保先清除再重新加载
     if (user && questionSet) {
       try {
+        // 清除服务器端进度
+        if (socket) {
+          socket.emit('progress:reset', {
+            userId: user.id,
+            questionSetId: questionSet.id
+          });
+          
+          console.log('[QuizPage] 已发送进度重置请求到服务器');
+          
+          // 等待200ms让服务器处理
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // 强制清除localStorage中的缓存进度
+        try {
+          const progressKey = `quiz_progress_${questionSet.id}`;
+          localStorage.removeItem(progressKey);
+          console.log(`[QuizPage] 已清除本地进度缓存: ${progressKey}`);
+        } catch (e) {
+          console.error('[QuizPage] 清除本地进度缓存失败:', e);
+        }
+        
         // 确保强制刷新进度数据
         await fetchUserProgress(true);
         console.log('重置后成功刷新进度数据');
@@ -1076,6 +1098,20 @@ function QuizPage(): JSX.Element {
   // 在组件挂载时检查localStorage中的访问权限
   useEffect(() => {
     console.log('[QuizPage] 组件挂载，检查localStorage中的访问权限');
+    
+    // 检查URL参数，如果有reset参数，则重置进度
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetParam = urlParams.get('reset');
+    
+    if (resetParam === 'true') {
+      console.log('[QuizPage] 检测到reset=true参数，自动重置进度');
+      // 移除reset参数，避免刷新页面时再次重置
+      const newUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, newUrl);
+      
+      // 设置标记，稍后会重置进度
+      sessionStorage.setItem('quiz_reset_required', 'true');
+    }
     
     if (questionSet?.id) {
       // 检查localStorage中是否有访问权限
@@ -1108,6 +1144,19 @@ function QuizPage(): JSX.Element {
         } catch (e) {
           console.error('[QuizPage] 检查localStorage兑换状态失败', e);
         }
+      }
+      
+      // 检查是否需要重置进度
+      const resetRequired = sessionStorage.getItem('quiz_reset_required');
+      if (resetRequired === 'true') {
+        console.log('[QuizPage] 需要重置进度');
+        sessionStorage.removeItem('quiz_reset_required');
+        
+        // 延迟执行重置，确保其他初始化已完成
+        setTimeout(() => {
+          console.log('[QuizPage] 执行自动重置');
+          handleReset();
+        }, 300);
       }
     }
   }, [questionSet?.id, getAccessFromLocalStorage]);
@@ -1190,82 +1239,100 @@ function QuizPage(): JSX.Element {
     if (questionSet?.id && user?.id && questions.length > 0 && !loading && socket) {
       console.log('[QuizPage] 尝试加载上次进度...');
       
-      // 检查用户是否有进度记录
-      const fetchLastProgress = () => {
-        // 使用Socket查询进度，避免HTTP请求
-        socket.emit('progress:get', {
-          userId: user.id,
-          questionSetId: questionSet.id
-        });
+      // 检查是否有重置标记或完成标记
+      const resetRequired = sessionStorage.getItem('quiz_reset_required') === 'true';
+      const quizCompleted = sessionStorage.getItem(`quiz_completed_${questionSet.id}`) === 'true';
+      
+      // 如果需要重置或已完成，则不加载之前的进度
+      if (resetRequired || quizCompleted) {
+        console.log('[QuizPage] 检测到重置标记或已完成标记，不加载之前的进度');
+        sessionStorage.removeItem('quiz_reset_required');
+        sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
+        return;
+      }
+      
+      // 检查URL参数
+      const urlParams = new URLSearchParams(window.location.search);
+      const startFromFirst = urlParams.get('start') === 'first';
+      
+      if (startFromFirst) {
+        console.log('[QuizPage] 检测到start=first参数，从第一题开始');
+        // 移除参数，避免刷新页面时再次重置
+        const newUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, newUrl);
+        return;
+      }
+      
+      // 使用Socket查询进度，避免HTTP请求
+      socket.emit('progress:get', {
+        userId: user.id,
+        questionSetId: questionSet.id
+      });
+      
+      // 创建一次性监听器，避免循环触发
+      const onProgressData = (progressData: ProgressData) => {
+        if (!progressData) return;
         
-        // 创建一次性监听器，避免循环触发
-        const onProgressData = (progressData: ProgressData) => {
-          if (!progressData) return;
+        console.log('[QuizPage] 通过Socket获取到进度数据:', progressData);
+        
+        // 如果有保存的最后题目索引，直接使用
+        if (progressData.lastQuestionIndex !== undefined && 
+            progressData.lastQuestionIndex >= 0 && 
+            progressData.lastQuestionIndex < questions.length) {
+          console.log(`[QuizPage] 从上次进度开始: 第${progressData.lastQuestionIndex + 1}题`);
+          setCurrentQuestionIndex(progressData.lastQuestionIndex);
           
-          console.log('[QuizPage] 通过Socket获取到进度数据:', progressData);
+          // 重置选项状态，确保从干净状态开始
+          setSelectedOptions([]);
+          setShowExplanation(false);
           
-          // 如果有保存的最后题目索引，直接使用
-          if (progressData.lastQuestionIndex !== undefined && 
-              progressData.lastQuestionIndex >= 0 && 
-              progressData.lastQuestionIndex < questions.length) {
-            console.log(`[QuizPage] 从上次进度开始: 第${progressData.lastQuestionIndex + 1}题`);
-            setCurrentQuestionIndex(progressData.lastQuestionIndex);
-            
-            // 重置选项状态，确保从干净状态开始
-            setSelectedOptions([]);
-            setShowExplanation(false);
-            
-            // 更新已回答问题列表，确保答题卡显示正确
-            if (progressData.answeredQuestions && Array.isArray(progressData.answeredQuestions)) {
-              const answeredQs = progressData.answeredQuestions.map((q) => ({
-                index: q.questionIndex || q.index || 0,
-                isCorrect: q.isCorrect || false,
-                selectedOption: q.selectedOption || q.selectedOptionId || ''
-              }));
-              console.log('[QuizPage] 重建已答题列表:', answeredQs);
-              setAnsweredQuestions(answeredQs);
-            }
-          } 
-          // 否则尝试根据已回答题目数决定从哪里开始
-          else if (progressData.answeredQuestions && progressData.answeredQuestions.length > 0) {
-            // 找出最大的已答题索引
-            const lastAnsweredIndex = Math.max(
-              ...progressData.answeredQuestions.map((q) => q.questionIndex || q.index || 0)
-            );
-            // 从下一题开始
-            const nextIndex = Math.min(lastAnsweredIndex + 1, questions.length - 1);
-            console.log(`[QuizPage] 根据已答题记录设置位置: 第${nextIndex + 1}题`);
-            setCurrentQuestionIndex(nextIndex);
-            
-            // 更新已回答问题列表
+          // 更新已回答问题列表，确保答题卡显示正确
+          if (progressData.answeredQuestions && Array.isArray(progressData.answeredQuestions)) {
             const answeredQs = progressData.answeredQuestions.map((q) => ({
               index: q.questionIndex || q.index || 0,
               isCorrect: q.isCorrect || false,
-              selectedOption: q.selectedOptionId || q.selectedOption || ''
+              selectedOption: q.selectedOption || q.selectedOptionId || ''
             }));
             console.log('[QuizPage] 重建已答题列表:', answeredQs);
             setAnsweredQuestions(answeredQs);
           }
-        };
-        
-        // 注册一次性监听器
-        socket.once('progress:data', onProgressData);
-        
-        // 设置超时，确保不会永远等待
-        const timeout = setTimeout(() => {
-          socket.off('progress:data', onProgressData); // 移除监听器
-          console.log('[QuizPage] 获取进度超时，继续从第一题开始');
-        }, 3000);
-        
-        // 注册一个函数来清理
-        return () => {
-          clearTimeout(timeout);
-          socket.off('progress:data', onProgressData);
-        };
+        } 
+        // 否则尝试根据已回答题目数决定从哪里开始
+        else if (progressData.answeredQuestions && progressData.answeredQuestions.length > 0) {
+          // 找出最大的已答题索引
+          const lastAnsweredIndex = Math.max(
+            ...progressData.answeredQuestions.map((q) => q.questionIndex || q.index || 0)
+          );
+          // 从下一题开始
+          const nextIndex = Math.min(lastAnsweredIndex + 1, questions.length - 1);
+          console.log(`[QuizPage] 根据已答题记录设置位置: 第${nextIndex + 1}题`);
+          setCurrentQuestionIndex(nextIndex);
+          
+          // 更新已回答问题列表
+          const answeredQs = progressData.answeredQuestions.map((q) => ({
+            index: q.questionIndex || q.index || 0,
+            isCorrect: q.isCorrect || false,
+            selectedOption: q.selectedOptionId || q.selectedOption || ''
+          }));
+          console.log('[QuizPage] 重建已答题列表:', answeredQs);
+          setAnsweredQuestions(answeredQs);
+        }
       };
       
-      // 执行获取进度
-      fetchLastProgress();
+      // 注册一次性监听器
+      socket.once('progress:data', onProgressData);
+      
+      // 设置超时，确保不会永远等待
+      const timeout = setTimeout(() => {
+        socket.off('progress:data', onProgressData); // 移除监听器
+        console.log('[QuizPage] 获取进度超时，继续从第一题开始');
+      }, 3000);
+      
+      // 注册一个函数来清理
+      return () => {
+        clearTimeout(timeout);
+        socket.off('progress:data', onProgressData);
+      };
     }
   }, [questionSet?.id, user?.id, questions.length, loading, socket]);
 
@@ -1574,6 +1641,11 @@ function QuizPage(): JSX.Element {
   if (quizComplete) {
     const score = Math.round((correctAnswers / questions.length) * 100);
     
+    // 设置完成标记，避免下次自动恢复进度
+    if (questionSet) {
+      sessionStorage.setItem(`quiz_completed_${questionSet.id}`, 'true');
+    }
+    
     return (
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-center mb-8">测试完成！</h1>
@@ -1595,7 +1667,11 @@ function QuizPage(): JSX.Element {
           
           <div className="flex flex-wrap gap-3 mt-6">
             <button
-              onClick={handleReset}
+              onClick={() => {
+                // 设置标记，确保重置
+                sessionStorage.setItem('quiz_reset_required', 'true');
+                handleReset();
+              }}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >
               重新开始

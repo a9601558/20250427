@@ -258,13 +258,45 @@ const HomePage: React.FC = () => {
   const getCategorizedQuestionSets = useCallback(() => {
     const filtered = getFilteredQuestionSets();
     
-    // 按访问类型分组
+    // 检查localStorage中的兑换记录
+    const getRedeemedQuestionSetIds = () => {
+      try {
+        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+        if (redeemedStr) {
+          return JSON.parse(redeemedStr) || [];
+        }
+      } catch (e) {
+        console.error('解析localStorage兑换记录失败', e);
+      }
+      return [];
+    };
+    
+    const redeemedIds = getRedeemedQuestionSetIds();
+    
+    // 按访问类型分组，添加对兑换记录的检查
     const freeQuestionSets = filtered.filter(set => !set.isPaid);
-    const paidQuestionSets = filtered.filter(set => set.isPaid && set.accessType === 'trial');
-    const purchasedQuestionSets = filtered.filter(set => 
-      (set.accessType === 'paid' || set.accessType === 'redeemed') && set.remainingDays && set.remainingDays > 0
+    const purchasedQuestionSets = filtered.filter(set => {
+      // 已购买的情况
+      const isPurchasedAndValid = (set.accessType === 'paid' || set.accessType === 'redeemed') && 
+                                  set.remainingDays && set.remainingDays > 0;
+      
+      // 检查是否在兑换记录中
+      const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
+        String(id).trim() === String(set.id).trim()
+      );
+      
+      return isPurchasedAndValid || isRedeemed;
+    });
+    
+    // 排除已归类为purchased的题库，避免重复显示
+    const purchasedIds = purchasedQuestionSets.map(set => set.id);
+    const paidQuestionSets = filtered.filter(set => 
+      set.isPaid && set.accessType === 'trial' && !purchasedIds.includes(set.id)
     );
-    const expiredQuestionSets = filtered.filter(set => set.accessType === 'expired' || (set.remainingDays !== null && set.remainingDays <= 0));
+    
+    const expiredQuestionSets = filtered.filter(set => 
+      set.accessType === 'expired' || (set.remainingDays !== null && set.remainingDays <= 0)
+    );
     
     return {
       free: freeQuestionSets,

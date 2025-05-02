@@ -187,6 +187,37 @@ const initializeSocket = (server) => {
                 socket.emit('progress_error', { message: '查询进度失败' });
             }
         });
+        // 新增: 处理进度重置
+        socket.on('progress:reset', async (data) => {
+            try {
+                // 安全检查：确保只能重置自己的进度
+                if (data.userId !== socket.userId) {
+                    console.error(`进度重置权限错误: 请求用户=${data.userId}, socket用户=${socket.userId}`);
+                    socket.emit('progress_error', { message: '权限验证失败' });
+                    return;
+                }
+                const { userId, questionSetId } = data;
+                console.log(`[Socket] 重置用户进度: userId=${userId}, questionSetId=${questionSetId}`);
+                // 从数据库删除进度记录
+                const deleted = await UserProgress_1.default.destroy({
+                    where: {
+                        userId,
+                        questionSetId
+                    }
+                });
+                console.log(`[Socket] 已删除 ${deleted} 条进度记录`);
+                // 发送重置成功通知
+                socket.emit('progress:reset:result', {
+                    success: true,
+                    message: `成功重置进度，删除了 ${deleted} 条记录`,
+                    deletedCount: deleted
+                });
+            }
+            catch (error) {
+                console.error('[Socket] 重置进度错误:', error);
+                socket.emit('progress_error', { message: '重置进度失败' });
+            }
+        });
         // 处理断开连接
         socket.on('disconnect', (reason) => {
             console.log(`用户 ${socket.userId} 断开连接, 原因: ${reason}`);
