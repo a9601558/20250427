@@ -223,7 +223,7 @@ const HomePage: React.FC = () => {
     }
   }, [user?.id, fetchQuestionSets]);
 
-  // 获取过滤后的题库列表
+  // 获取过滤后的题库列表，按分类组织
   const getFilteredQuestionSets = useCallback(() => {
     // 先根据搜索词过滤
     let filteredSets = searchTerm.trim() ? 
@@ -253,6 +253,26 @@ const HomePage: React.FC = () => {
     
     return filteredSets;
   }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
+
+  // 将题库按类型分组
+  const getCategorizedQuestionSets = useCallback(() => {
+    const filtered = getFilteredQuestionSets();
+    
+    // 按访问类型分组
+    const freeQuestionSets = filtered.filter(set => !set.isPaid);
+    const paidQuestionSets = filtered.filter(set => set.isPaid && set.accessType === 'trial');
+    const purchasedQuestionSets = filtered.filter(set => 
+      (set.accessType === 'paid' || set.accessType === 'redeemed') && set.remainingDays && set.remainingDays > 0
+    );
+    const expiredQuestionSets = filtered.filter(set => set.accessType === 'expired' || (set.remainingDays !== null && set.remainingDays <= 0));
+    
+    return {
+      free: freeQuestionSets,
+      paid: paidQuestionSets,
+      purchased: purchasedQuestionSets,
+      expired: expiredQuestionSets
+    };
+  }, [getFilteredQuestionSets]);
 
   // 获取推荐题库的函数
   const getRecommendedSets = useCallback(() => {
@@ -1314,15 +1334,154 @@ const HomePage: React.FC = () => {
           ))}
         </div>
 
-        {/* 题库列表 */}
-        <div id="question-sets-section" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {getFilteredQuestionSets().map(set => (
-            <BaseCard
-              key={set.id}
-              set={set}
-              onStartQuiz={handleStartQuiz}
-            />
-          ))}
+        {/* 题库分类展示 */}
+        <div id="question-sets-section">
+          {/* 分类展示题库 */}
+          {(() => {
+            const categorized = getCategorizedQuestionSets();
+            const sections = [];
+            
+            // 我的题库（已购买/兑换的题库）
+            if (categorized.purchased.length > 0) {
+              sections.push(
+                <div key="purchased" className="mb-12">
+                  <div className="flex items-center mb-4">
+                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      我的题库
+                    </h2>
+                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      {categorized.purchased.length}个已购买/兑换
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {categorized.purchased.map(set => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 免费题库
+            if (categorized.free.length > 0) {
+              sections.push(
+                <div key="free" className="mb-12">
+                  <div className="flex items-center mb-4">
+                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      免费题库
+                    </h2>
+                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                      {categorized.free.length}个免费题库
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {categorized.free.map(set => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 付费题库
+            if (categorized.paid.length > 0) {
+              sections.push(
+                <div key="paid" className="mb-12">
+                  <div className="flex items-center mb-4">
+                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      付费题库
+                    </h2>
+                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                      {categorized.paid.length}个待购买
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {categorized.paid.map(set => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 已过期题库
+            if (categorized.expired.length > 0) {
+              sections.push(
+                <div key="expired" className="mb-12">
+                  <div className="flex items-center mb-4">
+                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      已过期题库
+                    </h2>
+                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                      {categorized.expired.length}个已过期
+                    </span>
+                    <button 
+                      onClick={() => {
+                        const refreshEvent = new CustomEvent('questionSets:refreshAccess');
+                        window.dispatchEvent(refreshEvent);
+                      }}
+                      className="ml-auto px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded flex items-center"
+                    >
+                      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      更新状态
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {categorized.expired.map(set => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 如果没有题库，显示提示
+            if (sections.length === 0) {
+              sections.push(
+                <div key="empty" className="flex flex-col items-center justify-center py-12 text-center">
+                  <svg className="h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
+                  </svg>
+                  <h3 className={`text-xl font-medium ${homeContent.theme === 'dark' ? 'text-gray-200' : 'text-gray-700'} mb-2`}>未找到题库</h3>
+                  <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} max-w-md`}>
+                    没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActiveCategory('all');
+                      setSearchTerm('');
+                    }}
+                    className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    重置筛选条件
+                  </button>
+                </div>
+              );
+            }
+            
+            return sections;
+          })()}
         </div>
       </div>
     </div>

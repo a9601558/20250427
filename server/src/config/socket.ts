@@ -185,7 +185,7 @@ export const initializeSocket = (server: HttpServer): void => {
           where: {
             userId,
             questionSetId,
-            lastQuestionIndex: { [Op.not]: null } // 确保有lastQuestionIndex
+            lastQuestionIndex: { [Op.gte]: 0 } // 查询大于等于0的索引值，避免与null直接比较
           },
           order: [['updatedAt', 'DESC']], // 获取最新记录
           raw: true
