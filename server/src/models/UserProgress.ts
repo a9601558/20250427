@@ -17,6 +17,7 @@ export interface UserProgressAttributes {
   totalQuestions?: number;
   correctAnswers?: number;
   lastQuestionIndex?: number;
+  metadata?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -37,6 +38,7 @@ class UserProgress extends Model<UserProgressAttributes, UserProgressCreationAtt
   public totalQuestions?: number;
   public correctAnswers?: number;
   public lastQuestionIndex?: number;
+  public metadata?: string;
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -106,6 +108,11 @@ UserProgress.init(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
+    },
+    metadata: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: '存储任意额外数据，例如已回答问题列表等JSON格式'
     },
     createdAt: {
       type: DataTypes.DATE,

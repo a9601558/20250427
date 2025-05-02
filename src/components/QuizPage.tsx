@@ -83,6 +83,19 @@ interface ExtendedSaveProgressParams {
   lastQuestionIndex: number;
 }
 
+// 添加progressData接口定义
+interface ProgressData {
+  lastQuestionIndex?: number;
+  answeredQuestions?: Array<{
+    index: number;
+    questionIndex?: number;
+    isCorrect: boolean;
+    selectedOption: string | string[];
+    selectedOptionId?: string | string[];
+  }>;
+  [key: string]: any;
+}
+
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -109,6 +122,9 @@ function QuizPage(): JSX.Element {
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const [isRandomMode, setIsRandomMode] = useState(false);
   const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
+  
+  // 存储上次提交时间的外部变量
+  const lastSubmitTimeRef = useRef<number>(0);
   
   // 保存访问权限到localStorage - 以题库ID为key
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
@@ -864,14 +880,25 @@ function QuizPage(): JSX.Element {
     }
   };
   
-  // 处理答案提交
+  // 处理答案提交 - 使用节流机制避免频繁请求
   const handleAnswerSubmit = async (isCorrect: boolean, selectedOpt: string | string[]): Promise<void> => {
     if (!questions[currentQuestionIndex] || !user || !socket || !questionSet) return;
 
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+    
+    // 添加静态的防抖标识，避免短时间内重复提交
+    const now = Date.now();
+    const lastSubmitTime = lastSubmitTimeRef.current || 0;
+    if (now - lastSubmitTime < 1000) { // 1秒内不重复处理
+      console.log('[QuizPage] 提交过于频繁，忽略此次提交');
+      return;
+    }
+    
+    // 更新提交时间
+    lastSubmitTimeRef.current = now;
 
     try {
-      // 使用Socket.IO保存进度，替代HTTP请求
+      // 使用Socket.IO保存进度
       const progressEvent = { 
         userId: user.id,
         questionSetId: questionSet.id,
@@ -882,21 +909,23 @@ function QuizPage(): JSX.Element {
         totalQuestions: questions.length,
         correctAnswers: (user.progress?.[questionSet.id]?.correctAnswers || 0) + (isCorrect ? 1 : 0),
         lastAccessed: new Date().toISOString(),
-        lastQuestionIndex: currentQuestionIndex // 添加当前题目索引
+        lastQuestionIndex: currentQuestionIndex, // 当前题目索引
+        answeredQuestions: [
+          ...answeredQuestions,
+          {
+            index: currentQuestionIndex,
+            isCorrect,
+            selectedOption: selectedOpt
+          }
+        ]
       };
       
-      // 发送进度更新事件
-      socket.emit('progress:update', progressEvent);
-      
-      // 监听保存成功事件
-      socket.once('progress_saved', (response) => {
-        if (response.success) {
-          console.log('[Socket] 进度保存成功');
-        } else {
-          console.error('[Socket] 进度保存失败:', response.message);
-        }
+      // 使用自定义事件保存进度
+      const saveEvent = new CustomEvent('progress:save', { 
+        detail: progressEvent
       });
-
+      window.dispatchEvent(saveEvent);
+      
       // 更新本地状态
       if (isCorrect) {
         setCorrectAnswers(prev => prev + 1);
@@ -909,7 +938,7 @@ function QuizPage(): JSX.Element {
       const newAnsweredQuestion = {
         index: currentQuestionIndex,
         isCorrect,
-        selectedOption: selectedOpt // 使用从QuestionCard传入的选项
+        selectedOption: selectedOpt
       };
       
       setAnsweredQuestions(prev => [...prev, newAnsweredQuestion]);
@@ -928,6 +957,61 @@ function QuizPage(): JSX.Element {
       setError('保存进度失败，请重试');
     }
   };
+  
+  // 添加进度保存事件监听器
+  useEffect(() => {
+    if (!socket || !user) return;
+    
+    // 进度保存事件处理函数
+    const handleProgressSave = (event: Event) => {
+      try {
+        const customEvent = event as CustomEvent;
+        const progressData = customEvent.detail;
+        
+        // 确保不会在短时间内发送多次相似请求
+        const cacheKey = `progress_${progressData.questionId}_${progressData.lastQuestionIndex}`;
+        const now = Date.now();
+        const lastSent = parseInt(sessionStorage.getItem(cacheKey) || '0', 10);
+        
+        if (now - lastSent < 2000) { // 2秒内相同题目和索引不重复发送
+          console.log('[QuizPage] 短时间内进度保存请求重复，已忽略');
+          return;
+        }
+        
+        // 记录本次发送时间
+        sessionStorage.setItem(cacheKey, now.toString());
+        
+        // 通过Socket发送
+        socket.emit('progress:update', progressData);
+        
+        // 确认事件监听
+        const handleProgressSaved = (response: any) => {
+          if (response.success) {
+            console.log('[Socket] 进度保存成功:', response);
+          } else {
+            console.error('[Socket] 进度保存失败:', response.message);
+          }
+        };
+        
+        socket.once('progress_saved', handleProgressSaved);
+        
+        // 设置超时清理
+        setTimeout(() => {
+          socket.off('progress_saved', handleProgressSaved);
+        }, 3000);
+      } catch (error) {
+        console.error('[QuizPage] 处理进度保存事件失败:', error);
+      }
+    };
+    
+    // 添加事件监听
+    window.addEventListener('progress:save', handleProgressSave);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('progress:save', handleProgressSave);
+    };
+  }, [socket, user]);
   
   // 进入下一题
   const goToNextQuestion = () => {
@@ -1101,72 +1185,89 @@ function QuizPage(): JSX.Element {
     };
   }, [user]);
   
-  // 在现有的useEffect中增强获取用户进度的逻辑
+  // 在现有的useEffect中优化获取用户进度的逻辑，改用Socket.IO而非HTTP请求
   useEffect(() => {
-    if (questionSet?.id && user?.id && questions.length > 0 && !loading) {
+    if (questionSet?.id && user?.id && questions.length > 0 && !loading && socket) {
       console.log('[QuizPage] 尝试加载上次进度...');
       
       // 检查用户是否有进度记录
-      const fetchLastProgress = async () => {
-        try {
-          // 获取题库的进度数据
-          const response = await userProgressService.getProgressByQuestionSetId(questionSet.id);
+      const fetchLastProgress = () => {
+        // 使用Socket查询进度，避免HTTP请求
+        socket.emit('progress:get', {
+          userId: user.id,
+          questionSetId: questionSet.id
+        });
+        
+        // 创建一次性监听器，避免循环触发
+        const onProgressData = (progressData: ProgressData) => {
+          if (!progressData) return;
           
-          if (response.success && response.data) {
-            const progressData = response.data;
-            console.log('[QuizPage] 获取到进度数据:', progressData);
+          console.log('[QuizPage] 通过Socket获取到进度数据:', progressData);
+          
+          // 如果有保存的最后题目索引，直接使用
+          if (progressData.lastQuestionIndex !== undefined && 
+              progressData.lastQuestionIndex >= 0 && 
+              progressData.lastQuestionIndex < questions.length) {
+            console.log(`[QuizPage] 从上次进度开始: 第${progressData.lastQuestionIndex + 1}题`);
+            setCurrentQuestionIndex(progressData.lastQuestionIndex);
             
-            // 如果有保存的最后题目索引，直接使用
-            if (progressData.lastQuestionIndex !== undefined && 
-                progressData.lastQuestionIndex >= 0 && 
-                progressData.lastQuestionIndex < questions.length) {
-              console.log(`[QuizPage] 从上次进度开始: 第${progressData.lastQuestionIndex + 1}题`);
-              setCurrentQuestionIndex(progressData.lastQuestionIndex);
-              
-              // 重置选项状态，确保从干净状态开始
-              setSelectedOptions([]);
-              setShowExplanation(false);
-              
-              // 更新已回答问题列表，确保答题卡显示正确
-              if (progressData.answeredQuestions && Array.isArray(progressData.answeredQuestions)) {
-                const answeredQs = progressData.answeredQuestions.map((q: any) => ({
-                  index: q.questionIndex || q.index || 0,
-                  isCorrect: q.isCorrect || false,
-                  selectedOption: q.selectedOption || q.selectedOptionId || ''
-                }));
-                console.log('[QuizPage] 重建已答题列表:', answeredQs);
-                setAnsweredQuestions(answeredQs);
-              }
-            } 
-            // 否则尝试根据已回答题目数决定从哪里开始
-            else if (progressData.answeredQuestions && progressData.answeredQuestions.length > 0) {
-              // 找出最大的已答题索引
-              const lastAnsweredIndex = Math.max(
-                ...progressData.answeredQuestions.map((q: any) => q.questionIndex || q.index || 0)
-              );
-              // 从下一题开始
-              const nextIndex = Math.min(lastAnsweredIndex + 1, questions.length - 1);
-              console.log(`[QuizPage] 根据已答题记录设置位置: 第${nextIndex + 1}题`);
-              setCurrentQuestionIndex(nextIndex);
-              
-              // 更新已回答问题列表
-              const answeredQs = progressData.answeredQuestions.map((q: any) => ({
+            // 重置选项状态，确保从干净状态开始
+            setSelectedOptions([]);
+            setShowExplanation(false);
+            
+            // 更新已回答问题列表，确保答题卡显示正确
+            if (progressData.answeredQuestions && Array.isArray(progressData.answeredQuestions)) {
+              const answeredQs = progressData.answeredQuestions.map((q) => ({
                 index: q.questionIndex || q.index || 0,
                 isCorrect: q.isCorrect || false,
-                selectedOption: q.selectedOptionId || q.selectedOption || ''
+                selectedOption: q.selectedOption || q.selectedOptionId || ''
               }));
               console.log('[QuizPage] 重建已答题列表:', answeredQs);
               setAnsweredQuestions(answeredQs);
             }
+          } 
+          // 否则尝试根据已回答题目数决定从哪里开始
+          else if (progressData.answeredQuestions && progressData.answeredQuestions.length > 0) {
+            // 找出最大的已答题索引
+            const lastAnsweredIndex = Math.max(
+              ...progressData.answeredQuestions.map((q) => q.questionIndex || q.index || 0)
+            );
+            // 从下一题开始
+            const nextIndex = Math.min(lastAnsweredIndex + 1, questions.length - 1);
+            console.log(`[QuizPage] 根据已答题记录设置位置: 第${nextIndex + 1}题`);
+            setCurrentQuestionIndex(nextIndex);
+            
+            // 更新已回答问题列表
+            const answeredQs = progressData.answeredQuestions.map((q) => ({
+              index: q.questionIndex || q.index || 0,
+              isCorrect: q.isCorrect || false,
+              selectedOption: q.selectedOptionId || q.selectedOption || ''
+            }));
+            console.log('[QuizPage] 重建已答题列表:', answeredQs);
+            setAnsweredQuestions(answeredQs);
           }
-        } catch (error) {
-          console.error('[QuizPage] 加载上次进度失败:', error);
-        }
+        };
+        
+        // 注册一次性监听器
+        socket.once('progress:data', onProgressData);
+        
+        // 设置超时，确保不会永远等待
+        const timeout = setTimeout(() => {
+          socket.off('progress:data', onProgressData); // 移除监听器
+          console.log('[QuizPage] 获取进度超时，继续从第一题开始');
+        }, 3000);
+        
+        // 注册一个函数来清理
+        return () => {
+          clearTimeout(timeout);
+          socket.off('progress:data', onProgressData);
+        };
       };
       
+      // 执行获取进度
       fetchLastProgress();
     }
-  }, [questionSet?.id, user?.id, questions.length, loading]);
+  }, [questionSet?.id, user?.id, questions.length, loading, socket]);
 
   // 修改判断显示购买提示的条件，确保有完整权限验证
   // 使用现有的函数做权限判断
