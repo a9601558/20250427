@@ -93,11 +93,40 @@ const sequelize = new Sequelize(
   }
 );
 `;
-    
+
+    // 确保sequelize变量被正确定义并传递给User.init
+    const modifiedInitCode = `
+// 确保有一个有效的 Sequelize 实例
+let sequelizeInstance = sequelize;
+
+// 如果没有有效的 sequelize 实例，创建一个
+if (!sequelizeInstance) {
+  console.log('警告: sequelize 实例无效，创建备用实例');
+  
+  const { Sequelize } = require('sequelize');
+  sequelizeInstance = new Sequelize(
+    process.env.DB_NAME || 'quiz_app',
+    process.env.DB_USER || 'root',
+    process.env.DB_PASSWORD || '',
+    {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      dialect: 'mysql',
+      logging: console.log
+    }
+  );
+}
+
+// 确保 User.init 总是使用有效的 sequelize 实例
+User.init(`;
+
     // 替换或添加Sequelize配置
     if (userJsContent.includes("require('../config/db')") || userJsContent.includes('require("../config/db")')) {
       userJsContent = userJsContent.replace(/const sequelize = require\(['"]\.\.\/config\/db['"]\);/, inlineSequelizeCode);
       console.log('已替换Sequelize导入语句');
+    } else if (userJsContent.includes("require('../config/database')") || userJsContent.includes('require("../config/database")')) {
+      userJsContent = userJsContent.replace(/const sequelize = require\(['"]\.\.\/config\/database['"]\);/, inlineSequelizeCode);
+      console.log('已替换Sequelize导入语句 (database.js)');
     } else {
       console.log('未找到匹配的导入语句，在文件开头插入Sequelize配置');
       const requireIndex = userJsContent.indexOf('require');
@@ -110,6 +139,62 @@ const sequelize = new Sequelize(
         }
       } else {
         userJsContent = inlineSequelizeCode + userJsContent;
+      }
+    }
+    
+    // 替换User.init部分
+    const userInitPattern = /User\.init\(/;
+    if (userInitPattern.test(userJsContent)) {
+      userJsContent = userJsContent.replace(userInitPattern, modifiedInitCode);
+      console.log('已修改User.init代码，确保使用有效的sequelize实例');
+    } else {
+      console.log('警告: 未找到User.init调用，尝试使用简单的正则表达式');
+      
+      // 尝试找到 User.init 语句的其他变体
+      const initPatterns = [
+        /\.init\(/,
+        /\s+init\(/,
+        /['"]init['"]\(/
+      ];
+      
+      let matched = false;
+      for (const pattern of initPatterns) {
+        if (pattern.test(userJsContent)) {
+          userJsContent = userJsContent.replace(pattern, (match) => {
+            console.log(`找到替代初始化模式: ${match}`);
+            return modifiedInitCode.replace('User.init(', match);
+          });
+          matched = true;
+          console.log('使用替代模式修改初始化代码');
+          break;
+        }
+      }
+      
+      if (!matched) {
+        console.log('警告: 无法找到任何init方法调用');
+        
+        // 最后尝试: 添加在文件末尾
+        userJsContent += `\n\n// 自动添加备用Sequelize实例
+try {
+  // 提供全局备用Sequelize实例
+  if (typeof sequelizeInstance === 'undefined') {
+    const { Sequelize } = require('sequelize');
+    global.sequelizeInstance = new Sequelize(
+      process.env.DB_NAME || 'quiz_app',
+      process.env.DB_USER || 'root',
+      process.env.DB_PASSWORD || '',
+      {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        dialect: 'mysql',
+        logging: console.log
+      }
+    );
+    console.log('已创建全局备用Sequelize实例');
+  }
+} catch (error) {
+  console.error('创建备用Sequelize实例失败:', error);
+}`;
       }
     }
     

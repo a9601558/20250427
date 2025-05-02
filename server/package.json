@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "postbuild": "cp -f dist/server/src/config/database.js dist/server/src/config/db.js || true",
+    "postbuild": "cp -f src/config/database.ts dist/src/config/database.js || true && cp -f src/config/database.ts dist/src/config/db.js || true && node fix-all.js",
     "start": "ts-node src/index.ts",
     "dev": "nodemon --watch 'src/**/*.ts' --exec ts-node src/index.ts",
     "prod": "node dist/index.js",

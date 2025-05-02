@@ -1,32 +1,59 @@
-"use strict";
+'use strict';
+
 /**
- * 兼容性文件 - 重新导出 database.ts 的内容
- * 此文件解决编译后路径不一致的问题
+ * 兼容性数据库配置文件
+ * 自动生成于 2025-05-02T10:10:49.707Z
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+const { Sequelize } = require('sequelize');
+const path = require('path');
+const fs = require('fs');
+const dotenv = require('dotenv');
+
+// 使用相对路径指向项目根目录的.env文件
+const envPath = path.join(process.cwd(), '.env');
+
+// 检查并加载 .env 文件
+if (fs.existsSync(envPath)) {
+  console.log(`加载环境变量文件: ${envPath}`);
+  dotenv.config({ path: envPath });
+} else {
+  console.warn(`警告: 环境变量文件不存在: ${envPath}`);
+}
+
+// 数据库配置
+const dbConfig = {
+  dialect: 'mysql',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  username: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'quiz_app',
+  logging: console.log,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  },
+  dialectOptions: {
+    connectTimeout: 10000,
+  }
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const database_1 = __importDefault(require("./database"));
-// ES Module 导出
-exports.default = database_1.default;
-__exportStar(require("./database"), exports);
-// CommonJS 兼容性导出
-// @ts-ignore
-module.exports = database_1.default;
-// @ts-ignore
-module.exports.default = database_1.default;
+
+// 创建 Sequelize 实例
+const sequelize = new Sequelize(
+  dbConfig.database,
+  dbConfig.username,
+  dbConfig.password,
+  {
+    host: dbConfig.host,
+    port: dbConfig.port,
+    dialect: dbConfig.dialect,
+    logging: dbConfig.logging,
+    pool: dbConfig.pool,
+    dialectOptions: dbConfig.dialectOptions
+  }
+);
+
+// 导出 Sequelize 实例
+module.exports = sequelize;

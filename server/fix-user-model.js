@@ -47,7 +47,7 @@ try {
   fs.writeFileSync(backupPath, userJsContent, 'utf8');
   console.log(`已备份原始文件到 ${backupPath}`);
   
-  // 创建内联的Sequelize配置
+  // 创建内联的Sequelize配置，确保在User.init前已有有效的sequelize实例
   const inlineSequelizeCode = `
 // 内联的 Sequelize 配置，解决模块导入问题
 const { Sequelize } = require('sequelize');
@@ -85,6 +85,32 @@ const sequelize = new Sequelize(
 );
 `;
 
+  // 确保sequelize变量被正确定义并传递给User.init
+  const modifiedInitCode = `
+// 确保有一个有效的 Sequelize 实例
+let sequelizeInstance = sequelize;
+
+// 如果没有有效的 sequelize 实例，创建一个
+if (!sequelizeInstance) {
+  console.log('警告: sequelize 实例无效，创建备用实例');
+  
+  const { Sequelize } = require('sequelize');
+  sequelizeInstance = new Sequelize(
+    process.env.DB_NAME || 'quiz_app',
+    process.env.DB_USER || 'root',
+    process.env.DB_PASSWORD || '',
+    {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      dialect: 'mysql',
+      logging: console.log
+    }
+  );
+}
+
+// 确保 User.init 总是使用有效的 sequelize 实例
+User.init(`;
+
   // 替换原始的导入语句
   const originalImportPattern = /const sequelize = require\(['"]\.\.\/config\/db['"]\);/;
   
@@ -108,6 +134,15 @@ const sequelize = new Sequelize(
     } else {
       userJsContent = inlineSequelizeCode + userJsContent;
     }
+  }
+  
+  // 替换User.init部分
+  const userInitPattern = /User\.init\(/;
+  if (userInitPattern.test(userJsContent)) {
+    userJsContent = userJsContent.replace(userInitPattern, modifiedInitCode);
+    console.log('已修改User.init代码，确保使用有效的sequelize实例');
+  } else {
+    console.log('警告: 未找到User.init调用');
   }
   
   // 保存修改后的文件

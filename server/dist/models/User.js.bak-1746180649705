@@ -66,29 +66,6 @@ class User extends sequelize_1.Model {
     }
 }
 exports.User = User;
-
-// 确保有一个有效的 Sequelize 实例
-let sequelizeInstance = sequelize;
-
-// 如果没有有效的 sequelize 实例，创建一个
-if (!sequelizeInstance) {
-  console.log('警告: sequelize 实例无效，创建备用实例');
-  
-  const { Sequelize } = require('sequelize');
-  sequelizeInstance = new Sequelize(
-    process.env.DB_NAME || 'quiz_app',
-    process.env.DB_USER || 'root',
-    process.env.DB_PASSWORD || '',
-    {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      dialect: 'mysql',
-      logging: console.log
-    }
-  );
-}
-
-// 确保 User.init 总是使用有效的 sequelize 实例
 User.init({
     id: {
         type: sequelize_1.DataTypes.UUID,
