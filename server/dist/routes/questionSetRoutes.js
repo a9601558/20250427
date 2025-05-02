@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const questionSetController_1 = require("../controllers/questionSetController");
 const questionsUploadController_1 = require("../controllers/questionsUploadController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
-const homepageController_1 = require("../controllers/homepageController");
 const router = express_1.default.Router();
 // 调试中间件
 router.use((req, res, next) => {
@@ -39,7 +38,7 @@ router.route('/:id')
 // 题目相关路由
 router.post('/:id/questions', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.addQuestionToQuestionSet);
 // 精选状态更新
-router.put('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, homepageController_1.updateQuestionSetFeaturedStatus);
+router.put('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.setFeaturedQuestionSet);
 // 基本路由
 router.route('/')
     .get(questionSetController_1.getAllQuestionSets)

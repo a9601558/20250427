@@ -9,10 +9,10 @@ import {
   getQuestionSetCategories,
   getQuestionSetsByCategory,
   addQuestionToQuestionSet,
+  setFeaturedQuestionSet
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
-import { updateQuestionSetFeaturedStatus } from '../controllers/homepageController';
 
 const router = express.Router();
 
@@ -52,7 +52,7 @@ router.route('/:id')
 router.post('/:id/questions', protect, admin, addQuestionToQuestionSet);
 
 // 精选状态更新
-router.put('/:id/featured', protect, admin, updateQuestionSetFeaturedStatus);
+router.put('/:id/featured', protect, admin, setFeaturedQuestionSet);
 
 // 基本路由
 router.route('/')
