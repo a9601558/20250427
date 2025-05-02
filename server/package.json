@@ -22,6 +22,7 @@
     "test-db": "node test-db.js",
     "debug-token": "node src/utils/debug-token.js",
     "check-jwt": "node check-jwt-config.js",
+    "generate-token": "node generate-test-token.js",
     "deploy": "npm run build && npm run test-db && npm run fix-all && npm run start",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrations": "node run-migrations.js",

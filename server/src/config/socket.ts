@@ -8,6 +8,9 @@ import dotenv from 'dotenv';
 // 加载环境变量
 dotenv.config();
 
+// 临时调试选项：设置为true可以跳过JWT验证，方便排查问题
+const BYPASS_AUTH_FOR_DEBUG = true;
+
 // 添加Socket接口扩展，包含userId属性
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -29,6 +32,18 @@ export const initializeSocket = (server: HttpServer): void => {
   io.use((socket: AuthenticatedSocket, next: (err?: Error) => void) => {
     // 在auth对象或query对象中查找token
     const token = socket.handshake.auth?.token || socket.handshake.query?.token as string;
+    
+    // 如果启用了调试模式，允许跳过验证
+    if (BYPASS_AUTH_FOR_DEBUG) {
+      console.log('⚠️ 警告: JWT验证已被暂时禁用（调试模式）');
+      // 从query或auth中获取userId，如果没有则使用默认值
+      const userId = (socket.handshake.auth?.userId || 
+                      socket.handshake.query?.userId || 
+                      'debug-user-id') as string;
+      socket.userId = userId;
+      console.log(`调试模式: 使用userId = ${userId}`);
+      return next();
+    }
     
     if (!token) {
       console.log('Socket连接没有提供token');

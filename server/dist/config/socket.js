@@ -10,6 +10,8 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const dotenv_1 = __importDefault(require("dotenv"));
 // 加载环境变量
 dotenv_1.default.config();
+// 临时调试选项：设置为true可以跳过JWT验证，方便排查问题
+const BYPASS_AUTH_FOR_DEBUG = true;
 // 初始化 Socket.IO
 const initializeSocket = (server) => {
     exports.io = new socket_io_1.Server(server, {
@@ -22,6 +24,17 @@ const initializeSocket = (server) => {
     exports.io.use((socket, next) => {
         // 在auth对象或query对象中查找token
         const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+        // 如果启用了调试模式，允许跳过验证
+        if (BYPASS_AUTH_FOR_DEBUG) {
+            console.log('⚠️ 警告: JWT验证已被暂时禁用（调试模式）');
+            // 从query或auth中获取userId，如果没有则使用默认值
+            const userId = (socket.handshake.auth?.userId ||
+                socket.handshake.query?.userId ||
+                'debug-user-id');
+            socket.userId = userId;
+            console.log(`调试模式: 使用userId = ${userId}`);
+            return next();
+        }
         if (!token) {
             console.log('Socket连接没有提供token');
             return next(new Error('未提供认证令牌'));
