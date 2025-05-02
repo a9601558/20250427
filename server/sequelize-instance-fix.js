@@ -1,144 +1,66 @@
-'use strict';
+#!/usr/bin/env node
 
 /**
- * Sequelize实例修复脚本 - 构建后自动运行
+ * Sequelize实例自动修复工具
  * 
- * 这个脚本会在构建后运行，确保所有编译后的文件能够正确处理Sequelize实例
+ * 此脚本会扫描所有编译后的JS文件，自动修复"No Sequelize instance passed"错误
+ * 适用于宝塔服务器环境
+ * 
+ * 用法: node sequelize-instance-fix.js [目标目录]
  */
 
 const fs = require('fs');
 const path = require('path');
 
-console.log('======== 开始执行Sequelize实例修复脚本 ========');
+// 检查命令行参数
+const targetDir = process.argv[2] || '/www/wwwroot/root/git/dist/dist/server';
+console.log(`[修复工具] 目标目录: ${targetDir}`);
 
-// 扫描目录，找到所有JS文件
-const scanDir = (dir, fileList = []) => {
-  const files = fs.readdirSync(dir);
-  
-  files.forEach(file => {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
-    
-    if (stat.isDirectory()) {
-      scanDir(filePath, fileList);
-    } else if (file.endsWith('.js')) {
-      fileList.push(filePath);
-    }
-  });
-  
-  return fileList;
-};
+// 创建Sequelize修复代码
+const sequelizeFixCode = `
+// === 自动注入的Sequelize实例修复代码 ===
+const seq_path = require('path');
+const seq_fs = require('fs');
+const seq_dotenv = require('dotenv');
 
-// 检查JS文件是否包含Sequelize相关代码
-const hasSequelizeCode = (content) => {
-  return content.includes('sequelize') || 
-         content.includes('Sequelize') || 
-         content.includes('Model.init') || 
-         content.includes('.init(');
-};
+// 确保环境变量已加载
+const seq_envPath = seq_path.join(process.cwd(), '.env');
+if (seq_fs.existsSync(seq_envPath)) {
+  console.log('[数据库] 加载环境变量文件: ' + seq_envPath);
+  seq_dotenv.config({ path: seq_envPath });
+}
 
-// 添加全局错误处理和恢复机制
-const addErrorHandling = (content) => {
-  // 检查是否已经有了我们的处理代码
-  if (content.includes('// Sequelize Instance Recovery')) {
-    return content;
-  }
-  
-  // 添加全局恢复代码
-  const recoveryCode = `
-// Sequelize Instance Recovery - 自动添加于 ${new Date().toISOString()}
-// 这段代码确保Sequelize模型总是有有效的实例，即使在模块导入失败的情况下
-(function() {
+// 确保全局Sequelize实例存在
+if (!global.sequelize) {
   try {
-    // 修复空的sequelize实例
-    if (typeof global.sequelize === 'undefined' && 
-        (typeof sequelize === 'undefined' || !sequelize)) {
-      const { Sequelize } = require('sequelize');
-      const path = require('path');
-      const fs = require('fs');
-      const dotenv = require('dotenv');
-      
-      // 加载环境变量
-      const envPath = path.join(process.cwd(), '.env');
-      if (fs.existsSync(envPath)) {
-        console.log('Recovery: 加载环境变量文件', envPath);
-        dotenv.config({ path: envPath });
+    const { Sequelize } = require('sequelize');
+    global.sequelize = new Sequelize(
+      process.env.DB_NAME || 'quiz_app',
+      process.env.DB_USER || 'root',
+      process.env.DB_PASSWORD || '',
+      {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        dialect: 'mysql',
+        logging: false,
+        pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
       }
-      
-      console.log('Recovery: 创建应急Sequelize实例');
-      global.sequelize = new Sequelize(
-        process.env.DB_NAME || 'quiz_app',
-        process.env.DB_USER || 'root',
-        process.env.DB_PASSWORD || '',
-        {
-          host: process.env.DB_HOST || 'localhost',
-          port: parseInt(process.env.DB_PORT || '3306'),
-          dialect: 'mysql',
-          logging: false,
-          pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
-        }
-      );
-      
-      // 设置全局变量，避免"未定义"错误
-      if (typeof sequelize === 'undefined') {
-        global.sequelize = global.sequelize;
-      }
-    }
+    );
+    console.log('[数据库] 全局Sequelize实例创建成功');
   } catch (error) {
-    console.error('Recovery: Sequelize恢复机制出错', error);
+    console.error('[数据库] 全局Sequelize实例创建失败:', error);
   }
-})();
+}
+
+// 确保导出实例可用
+const sequelize = global.sequelize;
 `;
 
-  // 添加到文件开头
-  return recoveryCode + content;
-};
-
-// 检查并修复目标目录中的所有文件
-const targetDir = path.join(__dirname, 'dist');
-if (!fs.existsSync(targetDir)) {
-  console.error(`目标目录不存在: ${targetDir}`);
-  process.exit(1);
-}
-
-// 扫描并处理所有JS文件
-const jsFiles = scanDir(targetDir);
-console.log(`找到 ${jsFiles.length} 个JS文件`);
-
-let fixedCount = 0;
-
-jsFiles.forEach(file => {
-  try {
-    const content = fs.readFileSync(file, 'utf8');
-    
-    // 只处理包含Sequelize相关代码的文件
-    if (hasSequelizeCode(content)) {
-      const modifiedContent = addErrorHandling(content);
-      
-      // 如果内容有变化，写回文件
-      if (modifiedContent !== content) {
-        fs.writeFileSync(file, modifiedContent, 'utf8');
-        fixedCount++;
-        console.log(`已修复: ${file}`);
-      }
-    }
-  } catch (error) {
-    console.error(`处理文件出错 ${file}:`, error);
-  }
-});
-
-// 复制特殊的数据库处理文件
-const dbConfigDir = path.join(targetDir, 'src', 'config');
-if (!fs.existsSync(dbConfigDir)) {
-  fs.mkdirSync(dbConfigDir, { recursive: true });
-}
-
-// 创建db.js作为备份
-const dbJsPath = path.join(dbConfigDir, 'db.js');
-const dbJsContent = `'use strict';
+// 创建数据库配置文件的内容
+const dbConfigContent = `'use strict';
 
 /**
- * 自动创建的数据库配置备份
+ * 自动生成的数据库配置文件
  * 生成时间: ${new Date().toISOString()}
  */
 
@@ -150,39 +72,217 @@ const dotenv = require('dotenv');
 // 加载环境变量
 const envPath = path.join(process.cwd(), '.env');
 if (fs.existsSync(envPath)) {
-  console.log(\`加载环境变量文件: \${envPath}\`);
+  console.log(\`[数据库] 加载环境变量文件: \${envPath}\`);
   dotenv.config({ path: envPath });
 }
 
-// 创建Sequelize实例
-const sequelize = new Sequelize(
-  process.env.DB_NAME || 'quiz_app',
-  process.env.DB_USER || 'root',
-  process.env.DB_PASSWORD || '',
+// 数据库配置
+const dbConfig = {
+  dialect: 'mysql',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  username: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'quiz_app',
+  logging: false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  },
+  dialectOptions: {
+    connectTimeout: 10000
+  }
+};
+
+// 确保全局变量可用
+if (typeof global.sequelize === 'undefined') {
+  try {
+    global.sequelize = new Sequelize(
+      dbConfig.database,
+      dbConfig.username,
+      dbConfig.password,
+      {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        dialect: dbConfig.dialect,
+        logging: dbConfig.logging,
+        pool: dbConfig.pool,
+        dialectOptions: dbConfig.dialectOptions
+      }
+    );
+  } catch (error) {
+    console.error('[数据库] 创建全局Sequelize实例失败:', error);
+  }
+}
+
+// 创建或获取 Sequelize 实例
+const sequelize = global.sequelize || new Sequelize(
+  dbConfig.database,
+  dbConfig.username,
+  dbConfig.password,
   {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '3306'),
-    dialect: 'mysql',
-    logging: console.log,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    },
-    dialectOptions: {
-      connectTimeout: 10000
-    }
+    host: dbConfig.host,
+    port: dbConfig.port,
+    dialect: dbConfig.dialect,
+    logging: dbConfig.logging,
+    pool: dbConfig.pool,
+    dialectOptions: dbConfig.dialectOptions
   }
 );
 
-// 提供模块导出
+// 导出 Sequelize 实例
 module.exports = sequelize;
 module.exports.default = sequelize;
 `;
 
-fs.writeFileSync(dbJsPath, dbJsContent, 'utf8');
-console.log(`已创建数据库配置备份: ${dbJsPath}`);
+// 创建User.init修复片段
+const userInitFixCode = `
+// User.init 安全检查
+if (!sequelize || typeof sequelize.define !== 'function') {
+  console.error('[紧急修复] User.init失败: 无效的Sequelize实例，使用全局实例');
+  sequelize = global.sequelize;
+  
+  if (!sequelize) {
+    const { Sequelize } = require('sequelize');
+    sequelize = new Sequelize(
+      process.env.DB_NAME || 'quiz_app',
+      process.env.DB_USER || 'root',
+      process.env.DB_PASSWORD || '',
+      {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        dialect: 'mysql',
+        logging: false
+      }
+    );
+    global.sequelize = sequelize;
+  }
+}
 
-console.log(`总计修复了 ${fixedCount} 个文件`);
-console.log('======== Sequelize实例修复脚本执行完成 ========'); 
+// 继续使用有效的sequelize实例
+User.init(
+`;
+
+// 递归地扫描目录
+const scanDir = (dir) => {
+  if (!fs.existsSync(dir)) {
+    console.error(`[修复工具] 错误: 目录不存在: ${dir}`);
+    return;
+  }
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    
+    if (entry.isDirectory()) {
+      scanDir(fullPath); // 递归扫描子目录
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      fixFile(fullPath);
+    }
+  }
+};
+
+// 修复单个文件
+const fixFile = (filePath) => {
+  try {
+    // 读取文件内容
+    let content = fs.readFileSync(filePath, 'utf8');
+    let modified = false;
+    
+    // 检查是否是模型文件
+    const isModelFile = content.includes('Model.init(') || 
+                        content.includes('User.init(') || 
+                        content.includes('extends Model');
+    
+    // 检查是否是数据库配置文件
+    const isDbConfigFile = filePath.includes('database.js') || 
+                          filePath.includes('db.js') || 
+                          content.includes('new Sequelize(');
+    
+    // 1. 修复数据库配置文件
+    if (isDbConfigFile) {
+      console.log(`[修复工具] 检测到数据库配置文件: ${filePath}`);
+      fs.writeFileSync(filePath, dbConfigContent, 'utf8');
+      console.log(`[修复工具] 已更新数据库配置文件: ${filePath}`);
+      return;
+    }
+    
+    // 2. 修复模型文件
+    if (isModelFile) {
+      console.log(`[修复工具] 检测到模型文件: ${filePath}`);
+      
+      // 检查是否包含sequelize变量
+      const hasSequelize = content.includes('const sequelize =') || 
+                          content.includes('let sequelize =') ||
+                          content.includes('var sequelize =');
+      
+      // 检查是否包含User.init()调用
+      const hasUserInit = content.includes('User.init(');
+      
+      // 只在文件开头添加修复代码（如果还没有）
+      if (!content.includes('=== 自动注入的Sequelize实例修复代码 ===')) {
+        content = sequelizeFixCode + content;
+        modified = true;
+      }
+      
+      // 修复User.init调用
+      if (hasUserInit && !content.includes('User.init 安全检查')) {
+        content = content.replace(/User\.init\s*\(\s*/g, userInitFixCode);
+        modified = true;
+      }
+      
+      if (modified) {
+        // 创建备份
+        const backupPath = `${filePath}.bak`;
+        fs.writeFileSync(backupPath, fs.readFileSync(filePath), 'utf8');
+        
+        // 写入修改后的内容
+        fs.writeFileSync(filePath, content, 'utf8');
+        console.log(`[修复工具] 已修复模型文件: ${filePath}`);
+      }
+    }
+    
+    // 3. 确保数据库配置文件存在
+    if (filePath.includes('/models/')) {
+      const configDir = path.join(path.dirname(filePath), '../../config');
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+        console.log(`[修复工具] 创建配置目录: ${configDir}`);
+      }
+      
+      const dbJsPath = path.join(configDir, 'database.js');
+      if (!fs.existsSync(dbJsPath)) {
+        fs.writeFileSync(dbJsPath, dbConfigContent, 'utf8');
+        console.log(`[修复工具] 创建数据库配置文件: ${dbJsPath}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`[修复工具] 处理文件时出错: ${filePath}`, error);
+  }
+};
+
+// 开始扫描
+console.log(`[修复工具] 开始扫描并修复文件...`);
+scanDir(targetDir);
+console.log(`[修复工具] 扫描完成！`);
+
+// 创建配置目录和文件
+try {
+  const configDir = path.join(targetDir, 'src/config');
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+    console.log(`[修复工具] 创建配置目录: ${configDir}`);
+  }
+  
+  const dbJsPath = path.join(configDir, 'database.js');
+  fs.writeFileSync(dbJsPath, dbConfigContent, 'utf8');
+  console.log(`[修复工具] 已创建数据库配置文件: ${dbJsPath}`);
+} catch (error) {
+  console.error('[修复工具] 创建配置文件时出错:', error);
+}
+
+console.log('[修复工具] 所有修复工作已完成！请重新启动服务器。'); 
