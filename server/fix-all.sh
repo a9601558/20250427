@@ -29,8 +29,15 @@ node sequelize-instance-fix.js "$TARGET_DIR" || {
     exit 1
 }
 
-# 步骤2: 初始化数据库表
-echo -e "${YELLOW}步骤2: 初始化数据库表${NC}"
+# 步骤2: 修复Sequelize构造函数问题
+echo -e "${YELLOW}步骤2: 修复Sequelize构造函数问题${NC}"
+node sequelize-constructor-fix.js "$TARGET_DIR" || {
+    echo -e "${RED}Sequelize构造函数修复失败${NC}"
+    exit 1
+}
+
+# 步骤3: 初始化数据库表
+echo -e "${YELLOW}步骤3: 初始化数据库表${NC}"
 node db-init.js "$TARGET_DIR" || {
     echo -e "${RED}数据库初始化失败${NC}"
     exit 1
