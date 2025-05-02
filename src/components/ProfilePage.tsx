@@ -803,6 +803,9 @@ const ProfilePage: React.FC = () => {
   const [wrongAnswersLoading, setWrongAnswersLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemed' | 'wrong-answers'>('progress');
   const navigate = useNavigate();
+  
+  // 将 initialDataLoadRef 移到组件顶层
+  const initialDataLoadRef = React.useRef(false);
 
   // 在前端计算进度统计
   const calculateProgressStats = useCallback((records: ProgressRecord[], questionSets: Map<string, QuestionSet>) => {
@@ -1071,7 +1074,6 @@ const ProfilePage: React.FC = () => {
     if (!socket || !user) return;
 
     // 初始加载数据 - 只在组件挂载时触发一次
-    const initialDataLoadRef = React.useRef(false);
     if (!initialDataLoadRef.current) {
       handleProgressUpdate();
       fetchPurchases();
