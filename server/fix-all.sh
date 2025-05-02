@@ -22,6 +22,12 @@ if [ ! -d "$TARGET_DIR" ]; then
     exit 1
 fi
 
+# 步骤0: 直接修补Sequelize模块
+echo -e "${YELLOW}步骤0: 直接修补Sequelize模块${NC}"
+node direct-sequelize-patch.js "$TARGET_DIR" || {
+    echo -e "${RED}直接修补失败，但将继续尝试其他修复方法${NC}"
+}
+
 # 步骤1: 修复Sequelize实例问题
 echo -e "${YELLOW}步骤1: 修复Sequelize实例问题${NC}"
 node sequelize-instance-fix.js "$TARGET_DIR" || {
@@ -44,9 +50,17 @@ node db-init.js "$TARGET_DIR" || {
 }
 
 echo -e "${GREEN}===== 全面修复完成 =====${NC}"
-echo -e "${YELLOW}现在可以重启应用了:${NC}"
-echo "  cd $TARGET_DIR"
-echo "  npm start"
+echo -e "${YELLOW}现在可以使用以下方式重启应用:${NC}"
 echo ""
-echo -e "${GREEN}如果使用PM2, 运行:${NC}"
-echo "  pm2 restart your-app-name" 
+echo -e "${GREEN}方法1: 使用预加载脚本启动 (推荐)${NC}"
+echo "  cd $TARGET_DIR"
+echo "  ./start-with-fix.sh"
+echo ""
+echo -e "${GREEN}方法2: 使用NODE_OPTIONS启动${NC}"
+echo "  cd $TARGET_DIR"
+echo "  NODE_OPTIONS=\"--require ./sequelize-preload.js\" npm start"
+echo ""
+echo -e "${GREEN}方法3: 如果使用PM2${NC}"
+echo "  cd $TARGET_DIR"
+echo "  pm2 stop your-app-name"
+echo "  NODE_OPTIONS=\"--require ./sequelize-preload.js\" pm2 start your-app-name" 
