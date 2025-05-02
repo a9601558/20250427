@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
@@ -81,7 +81,7 @@ interface RedeemRecord {
   };
 }
 
-// 错题记录类型
+// Define WrongAnswer interface locally
 interface WrongAnswer {
   id: string;
   questionId: string;
@@ -107,6 +107,31 @@ interface WrongAnswerGroup {
   questionSetId: string;
   questionSetTitle: string;
   wrongAnswers: WrongAnswer[];
+}
+
+// 进度数据类型
+interface ProgressData {
+  questionSetId: string;
+  lastQuestionIndex?: number;
+  answeredQuestions?: Array<{
+    index: number;
+    questionIndex?: number;
+    isCorrect: boolean;
+    selectedOption: string | string[];
+    selectedOptionId?: string | string[];
+  }>;
+  [key: string]: any;
+}
+
+// RedeemCode接口定义
+interface RedeemCode {
+  id: string;
+  questionSetId: string;
+  code: string;
+  isUsed: boolean;
+  userId?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const formatTime = (seconds: number): string => {
@@ -804,164 +829,43 @@ const ProfilePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemed' | 'wrong-answers'>('progress');
   const navigate = useNavigate();
   
-  // 将 initialDataLoadRef 移到组件顶层
-  const initialDataLoadRef = React.useRef(false);
+  // 添加一个ref来标记初始数据是否已加载
+  const initialDataLoadRef = useRef<boolean>(false);
+  // 添加一个ref来存储throttle的时间戳
+  const lastProgressUpdateTimeRef = useRef<number>(0);
 
-  // 在前端计算进度统计
-  const calculateProgressStats = useCallback((records: ProgressRecord[], questionSets: Map<string, QuestionSet>) => {
-    // 按题库ID分组
-    const progressMap = new Map<string, Map<string, ProgressRecord>>();
-    
-    // 处理每条记录，按题库和题目分组，保留最后一次作答
-    records.forEach(record => {
-      const qsId = record.questionSetId;
-      const qId = record.questionId;
-      
-      if (!progressMap.has(qsId)) {
-        progressMap.set(qsId, new Map<string, ProgressRecord>());
-      }
-      
-      const questionMap = progressMap.get(qsId)!;
-      
-      // 如果题目不存在或当前记录更新，则更新记录
-      if (!questionMap.has(qId) || 
-          (record.createdAt && questionMap.get(qId)!.createdAt && 
-           new Date(record.createdAt) > new Date(questionMap.get(qId)!.createdAt!))) {
-        questionMap.set(qId, record);
-      }
-    });
-    
-    // 生成最终统计结果
-    const stats: ProgressStats[] = [];
-    
-    progressMap.forEach((questionMap, questionSetId) => {
-      // 只处理有作答记录的题库
-      if (questionMap.size > 0) {
-        // 获取该题库的所有最终记录
-        const finalRecords = Array.from(questionMap.values());
-        
-        // 统计数据
-        const completedQuestions = finalRecords.length;
-        const correctAnswers = finalRecords.filter(r => r.isCorrect).length;
-        const totalTimeSpent = finalRecords.reduce((sum, r) => sum + r.timeSpent, 0);
-        const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
-        const accuracy = Math.min(100, (correctAnswers / completedQuestions) * 100);
-        
-        // 获取题库标题
-        const title = questionSets.get(questionSetId)?.title || 
-                     finalRecords[0]?.progressQuestionSet?.title || 
-                     'Unknown Set';
-        
-        stats.push({
-          questionSetId,
-          title,
-          completedQuestions,
-          correctAnswers,
-          totalTimeSpent,
-          averageTimeSpent,
-          accuracy
-        });
-      }
-    });
-    
-    return stats;
-  }, []);
+  // 设置progress数据的状态
+  const [progress, setProgress] = useState<Record<string, ProgressData>>({});
 
-  // 修改 handleProgressUpdate 函数，增加本地存储同步并添加节流
-  const handleProgressUpdate = useCallback(async () => {
-    // 添加节流逻辑，防止短时间内多次调用
-    const now = Date.now();
-    const lastUpdateTime = parseInt(sessionStorage.getItem('profile_last_progress_update') || '0', 10);
-    if (now - lastUpdateTime < 5000) { // 5秒内不重复更新
-      console.log('[ProfilePage] 进度更新请求过于频繁，忽略此次更新');
-      return;
-    }
-    sessionStorage.setItem('profile_last_progress_update', now.toString());
+  // 错误状态
+  const [error, setError] = useState<string | null>(null);
 
+  // 前向声明这些函数
+  const fetchProgressData = async () => {
+    if (!user) return;
     try {
       setIsLoading(true);
-      
-      const questionSetsResponse = await questionSetService.getAllQuestionSets();
-      const questionSetsMap = new Map<string, QuestionSet>();
-      
-      if (questionSetsResponse.success && questionSetsResponse.data) {
-        questionSetsResponse.data.forEach(qs => {
-          questionSetsMap.set(qs.id, { id: qs.id, title: qs.title });
-        });
-      }
-      
-      const progressResponse = await userProgressService.getUserProgressRecords();
-      
-      if (progressResponse.success && progressResponse.data) {
-        // 收集所有相关题库的本地进度数据
-        const localProgressData = new Map<string, any>();
+      const response = await userProgressService.getUserProgressRecords();
+      if (response.success && response.data) {
+        const questionSetsResponse = await questionSetService.getAllQuestionSets();
+        const questionSetsMap = new Map<string, QuestionSet>();
         
-        // 尝试从本地存储获取额外的进度数据
-        try {
-          progressResponse.data.forEach((record: ProgressRecord) => {
-            // 只处理有 questionSetId 的记录
-            if (record.questionSetId) {
-              const localProgressKey = `quiz_progress_${record.questionSetId}`;
-              const localProgressStr = localStorage.getItem(localProgressKey);
-              
-              if (localProgressStr) {
-                try {
-                  const localProgress = JSON.parse(localProgressStr);
-                  const lastUpdated = new Date(localProgress.lastUpdated || 0);
-                  const isRecent = Date.now() - lastUpdated.getTime() < 24 * 60 * 60 * 1000;
-                  
-                  if (isRecent && localProgress.answeredQuestions && localProgress.answeredQuestions.length > 0) {
-                    localProgressData.set(record.questionSetId, localProgress);
-                  }
-                } catch (e) {
-                  console.error(`[ProfilePage] 解析本地进度数据失败 ${record.questionSetId}:`, e);
-                }
-              }
-            }
+        if (questionSetsResponse.success && questionSetsResponse.data) {
+          questionSetsResponse.data.forEach(qs => {
+            questionSetsMap.set(qs.id, { id: qs.id, title: qs.title });
           });
-          
-          console.log('[ProfilePage] 本地进度数据:', localProgressData);
-        } catch (e) {
-          console.error('[ProfilePage] 获取本地进度数据失败:', e);
         }
         
-        // 合并服务器和本地数据
-        const augmentedRecords = [...progressResponse.data];
-        
-        // 从本地进度复制额外回答记录到服务器数据中
-        localProgressData.forEach((localProgress, questionSetId) => {
-          if (localProgress.answeredQuestions && localProgress.answeredQuestions.length > 0) {
-            localProgress.answeredQuestions.forEach((localAnswer: any) => {
-              // 构建一个兼容的记录
-              const syntheticRecord: ProgressRecord = {
-                id: `local_${Math.random().toString(36).substring(2, 11)}`,
-                questionSetId: questionSetId,
-                questionId: localAnswer.questionId || `q_${localAnswer.index}`,
-                isCorrect: localAnswer.isCorrect,
-                timeSpent: localAnswer.timeSpent || 30, // 默认30秒
-                createdAt: new Date(),
-                progressQuestionSet: questionSetsMap.get(questionSetId)
-              };
-              
-              // 把这条记录添加到服务器数据中
-              augmentedRecords.push(syntheticRecord);
-            });
-          }
-        });
-        
-        const stats = calculateProgressStats(augmentedRecords, questionSetsMap);
+        const stats = calculateProgressStats(response.data, questionSetsMap);
         setProgressStats(stats);
-      } else {
-        throw new Error(progressResponse.message || 'Failed to fetch progress');
       }
     } catch (error) {
-      toast.error('获取学习进度失败');
-      console.error('[ProfilePage] Error fetching progress:', error);
+      console.error('[ProfilePage] 加载进度数据失败:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [calculateProgressStats]);
-
+  };
+  
   // 获取购买数据
   const fetchPurchases = useCallback(async () => {
     if (!user) return;
@@ -1069,184 +973,188 @@ const ProfilePage: React.FC = () => {
       setWrongAnswersLoading(false);
     }
   }, [user]);
-
-  useEffect(() => {
-    if (!socket || !user) return;
-
-    // 初始加载数据 - 只在组件挂载时触发一次
-    if (!initialDataLoadRef.current) {
-      handleProgressUpdate();
-      fetchPurchases();
-      fetchRedeemCodes();
-      fetchWrongAnswers();
-      initialDataLoadRef.current = true;
-    }
-
-    // 发送验证请求，检查所有题库的访问状态
-    const checkAccessForAllSets = () => {
-      // 组合购买和兑换的所有题库ID
-      const allQuestionSetIds = new Set([
-        ...purchases.map(p => p.questionSetId), 
-        ...redeemCodes.map(r => r.questionSetId)
-      ]);
-      
-      // 为每个题库发送访问权限验证请求
-      allQuestionSetIds.forEach(questionSetId => {
-        if (questionSetId) {
-          socket.emit('questionSet:checkAccess', {
-            userId: user.id,
-            questionSetId
-          });
-        }
-      });
-    };
-
-    // 确保事件处理函数被稳定引用，避免多次添加移除
-    const handleProgressUpdateStable = () => {
-      console.log('[ProfilePage] Socket progress:update 事件触发');
-      handleProgressUpdate();
-    };
-
-    const handlePurchaseSuccess = () => {
-      console.log('[ProfilePage] Socket purchase:success 事件触发');
-      fetchPurchases();
-    };
-
-    const handleRedeemSuccess = () => {
-      console.log('[ProfilePage] Socket redeem:success 事件触发');
-      fetchRedeemCodes();
-    };
-
-    const handleWrongAnswerSave = () => {
-      console.log('[ProfilePage] Socket wrongAnswer:save 事件触发');
-      fetchWrongAnswers();
-    };
-
-    // 监听实时更新
-    socket.on('progress:update', handleProgressUpdateStable);
-    socket.on('progress:reset', handleProgressUpdateStable);
-    socket.on('purchase:success', handlePurchaseSuccess);
-    socket.on('redeem:success', handleRedeemSuccess);
+   
+  // 在前端计算进度统计
+  const calculateProgressStats = (records: ProgressRecord[], questionSets: Map<string, QuestionSet>): ProgressStats[] => {
+    // 按题库ID分组
+    const progressMap = new Map<string, Map<string, ProgressRecord>>();
     
-    // 监听连接状态变化，重连时重新检查权限
-    socket.on('connect', () => {
-      fetchPurchases();
-      fetchRedeemCodes();
-      // 延迟执行检查，确保数据已加载
-      setTimeout(() => {
-        checkAccessForAllSets();
-      }, 1000);
+    // 处理每条记录，按题库和题目分组，保留最后一次作答
+    records.forEach(record => {
+      const qsId = record.questionSetId;
+      const qId = record.questionId;
+      
+      if (!progressMap.has(qsId)) {
+        progressMap.set(qsId, new Map<string, ProgressRecord>());
+      }
+      
+      const questionMap = progressMap.get(qsId)!;
+      
+      // 如果题目不存在或当前记录更新，则更新记录
+      if (!questionMap.has(qId) || 
+          (record.createdAt && questionMap.get(qId)!.createdAt && 
+           new Date(record.createdAt) > new Date(questionMap.get(qId)!.createdAt!))) {
+        questionMap.set(qId, record);
+      }
     });
-
-    // 单独设置一个useEffect来监听数据变化并检查访问权限
-    const accessCheckTimer = setTimeout(checkAccessForAllSets, 500);
-
-    // 监听错题保存事件
-    socket.on('wrongAnswer:save', handleWrongAnswerSave);
-
-    // 监听本地存储变化，可能来自其他标签页
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith('quiz_progress_')) {
-        console.log('[ProfilePage] 检测到本地存储变化，刷新进度数据');
-        handleProgressUpdate();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      socket.off('progress:update', handleProgressUpdateStable);
-      socket.off('progress:reset', handleProgressUpdateStable);
-      socket.off('purchase:success', handlePurchaseSuccess);
-      socket.off('redeem:success', handleRedeemSuccess);
-      socket.off('connect');
-      clearTimeout(accessCheckTimer);
-      socket.off('wrongAnswer:save', handleWrongAnswerSave);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers, purchases, redeemCodes]);
-
-  // 单独监听题库数据变化，更新访问权限检查
-  useEffect(() => {
-    if (!socket || !user || (!purchases.length && !redeemCodes.length)) return;
     
-    // 只有当数据加载完成后才检查访问权限
-    const checkAccess = () => {
-      const allQuestionSetIds = new Set([
-        ...purchases.map(p => p.questionSetId), 
-        ...redeemCodes.map(r => r.questionSetId)
-      ]);
-      
-      allQuestionSetIds.forEach(questionSetId => {
-        if (questionSetId) {
-          socket.emit('questionSet:checkAccess', {
-            userId: user.id,
-            questionSetId
-          });
-        }
-      });
-    };
+    // 生成最终统计结果
+    const stats: ProgressStats[] = [];
     
-    // 使用延迟执行，避免频繁触发
-    const timer = setTimeout(checkAccess, 800);
-    
-    return () => clearTimeout(timer);
-  }, [socket, user, purchases.length, redeemCodes.length]);
-
-  // 在现有的用户数据和socket监听部分添加
-  useEffect(() => {
-    // 用户ID变化时（登出或切换账号）清除localStorage缓存
-    return () => {
-      // 清除的是旧用户的缓存，所以应该在effect清理函数中执行
-      if (user?.id) {
-        try {
-          const cache = localStorage.getItem('questionSetAccessCache');
-          if (cache) {
-            const cacheData = JSON.parse(cache);
-            // 只删除当前用户的缓存，保留其他用户
-            if (cacheData[user.id]) {
-              delete cacheData[user.id];
-              localStorage.setItem('questionSetAccessCache', JSON.stringify(cacheData));
-              console.log('[ProfilePage] 用户切换，已清除缓存', user.id);
-            }
-          }
-        } catch (error) {
-          console.error('[ProfilePage] 清除缓存失败:', error);
-        }
-      }
-    };
-  }, [user?.id]);
-
-  // 在purchase:success和redeem:success事件处理函数中添加以下代码，在已购买题库的useEffect中
-  useEffect(() => {
-    // socket为空时不执行
-    if (!socket || !user) return;
-    
-    // 添加购买成功后的首页刷新通知
-    const notifyHomePageRefresh = () => {
-      // 通过自定义事件通知其他页面（尤其是首页）刷新题库状态
-      window.dispatchEvent(new CustomEvent('questionSets:refreshAccess'));
-      
-      // 如果有socket，直接触发检查
-      const allQuestionSetIds = [...purchases.map(p => p.questionSetId), ...redeemCodes.map(r => r.questionSetId)];
-      
-      if (allQuestionSetIds.length > 0) {
-        console.log('[ProfilePage] 通知首页刷新题库状态');
-        socket.emit('questionSet:checkAccessBatch', {
-          userId: user.id,
-          questionSetIds: Array.from(new Set(allQuestionSetIds))
+    progressMap.forEach((questionMap, questionSetId) => {
+      // 只处理有作答记录的题库
+      if (questionMap.size > 0) {
+        // 获取该题库的所有最终记录
+        const finalRecords = Array.from(questionMap.values());
+        
+        // 统计数据
+        const completedQuestions = finalRecords.length;
+        const correctAnswers = finalRecords.filter(r => r.isCorrect).length;
+        const totalTimeSpent = finalRecords.reduce((sum, r) => sum + r.timeSpent, 0);
+        const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
+        const accuracy = Math.min(100, (correctAnswers / completedQuestions) * 100);
+        
+        // 获取题库标题
+        const title = questionSets.get(questionSetId)?.title || 
+                     finalRecords[0]?.progressQuestionSet?.title || 
+                     'Unknown Set';
+        
+        stats.push({
+          questionSetId,
+          title,
+          completedQuestions,
+          correctAnswers,
+          totalTimeSpent,
+          averageTimeSpent,
+          accuracy
         });
       }
-    };
+    });
     
-    // 监听购买和兑换码成功事件
-    socket.on('purchase:success', notifyHomePageRefresh);
-    socket.on('redeem:success', notifyHomePageRefresh);
+    return stats;
+  };
+
+  // 优化进度数据更新处理函数 - 添加节流机制
+  const handleProgressUpdate = useCallback((data: ProgressData) => {
+    console.log('[ProfilePage] 收到进度更新:', data);
+    
+    // 使用节流控制更新频率 - 10秒内不重复触发完整刷新
+    const now = Date.now();
+    const lastUpdate = lastProgressUpdateTimeRef.current;
+    
+    if (now - lastUpdate < 10000) { // 10秒内不重复刷新
+      console.log('[ProfilePage] 进度更新过于频繁，仅更新本地数据');
+      // 仅更新当前进度数据，不触发完整数据重新加载
+      setProgress(prevProgress => {
+        if (!prevProgress) return { [data.questionSetId]: data };
+        
+        return {
+          ...prevProgress,
+          [data.questionSetId]: data
+        };
+      });
+      return;
+    }
+    
+    // 更新最后刷新时间
+    lastProgressUpdateTimeRef.current = now;
+    
+    // 记录到会话存储以在页面刷新后保持节流
+    sessionStorage.setItem('last_progress_update', now.toString());
+    
+    console.log('[ProfilePage] 触发完整进度数据重新加载');
+    
+    // 获取完整的进度数据
+    fetchProgressData();
+  }, [fetchProgressData]);
+
+  // 优化 purchase 事件处理函数
+  const handlePurchase = useCallback((purchaseData: Purchase) => {
+    console.log('[ProfilePage] 收到购买更新:', purchaseData);
+    fetchPurchases();
+  }, [fetchPurchases]);
+
+  // 优化 redeemCode 事件处理函数
+  const handleRedeemCode = useCallback((redeemData: RedeemCode) => {
+    console.log('[ProfilePage] 收到兑换码更新:', redeemData);
+    fetchRedeemCodes();
+  }, [fetchRedeemCodes]);
+
+  // 优化Socket.IO事件处理
+  useEffect(() => {
+    if (!socket || !user) return;
+    
+    console.log('[ProfilePage] 设置Socket.IO事件监听器');
+    
+    // 从会话存储中恢复上次更新时间
+    const storedLastUpdate = sessionStorage.getItem('last_progress_update');
+    if (storedLastUpdate) {
+      lastProgressUpdateTimeRef.current = parseInt(storedLastUpdate, 10);
+    }
+    
+    // 绑定事件处理器
+    socket.on('progress:update', handleProgressUpdate);
+    socket.on('purchase:new', handlePurchase);
+    socket.on('redeemCode:new', handleRedeemCode);
     
     return () => {
-      socket.off('purchase:success', notifyHomePageRefresh);
-      socket.off('redeem:success', notifyHomePageRefresh);
+      console.log('[ProfilePage] 清理Socket.IO事件监听器');
+      socket.off('progress:update', handleProgressUpdate);
+      socket.off('purchase:new', handlePurchase);
+      socket.off('redeemCode:new', handleRedeemCode);
     };
-  }, [socket, user, purchases, redeemCodes]);
+  }, [socket, user, handleProgressUpdate, handlePurchase, handleRedeemCode]);
+
+  // 优化初始数据加载逻辑
+  useEffect(() => {
+    if (!user || !socket) return;
+    
+    // 使用ref避免重复加载
+    if (initialDataLoadRef.current) {
+      console.log('[ProfilePage] 初始数据已加载，跳过');
+      return;
+    }
+    
+    console.log('[ProfilePage] 初始化数据加载');
+    
+    // 标记初始数据已开始加载
+    initialDataLoadRef.current = true;
+    
+    // 并行获取所有需要的数据
+    const loadAllData = async () => {
+      setIsLoading(true);
+      
+      try {
+        await Promise.all([
+          fetchQuestionSets(),
+          fetchProgressData(),
+          fetchPurchases(),
+          fetchRedeemCodes(),
+          fetchWrongAnswers()
+        ]);
+        console.log('[ProfilePage] 所有初始数据加载完成');
+      } catch (error) {
+        console.error('[ProfilePage] 数据加载失败:', error);
+        setError('数据加载失败，请刷新页面重试');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadAllData();
+    
+    // 设置轮询定时器 - 每5分钟刷新一次数据
+    const pollInterval = setInterval(() => {
+      console.log('[ProfilePage] 定时刷新数据');
+      fetchProgressData();
+      fetchPurchases();
+      fetchRedeemCodes();
+    }, 5 * 60 * 1000); // 5分钟
+    
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [user, socket, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers]);
 
   // 添加定期检查题库有效期的功能
   useEffect(() => {
@@ -1717,6 +1625,19 @@ const ProfilePage: React.FC = () => {
     } else {
       // 如果没有找到错题，使用原有的方式
       navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
+    }
+  };
+
+  // 定义其他缺失的函数
+  const fetchQuestionSets = async () => {
+    try {
+      const response = await questionSetService.getAllQuestionSets();
+      if (response.success && response.data) {
+        // 处理题库数据
+        console.log('[ProfilePage] 题库数据加载成功:', response.data.length);
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 加载题库数据失败:', error);
     }
   };
 

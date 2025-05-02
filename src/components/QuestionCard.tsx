@@ -66,8 +66,9 @@ const QuestionCard = ({
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
   
-  // 防重复提交
-  const isSubmittingRef = useRef(false);
+  // 添加ref以防止重复点击和提交
+  const isSubmittingRef = useRef<boolean>(false);
+  const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // 为键盘导航跟踪当前选项
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
@@ -112,102 +113,129 @@ const QuestionCard = ({
             })()
       );
 
-  const handleOptionClick = (optionId: string) => {
-    if (isSubmitted) return;
-
+  const handleOptionClick = (optionText: string, optionId: string) => {
+    if (isSubmittingRef.current) {
+      console.log('[QuestionCard] 正在提交答案中，忽略点击');
+      return;
+    }
+    
+    if (showExplanation) {
+      console.log('[QuestionCard] 已显示解析，忽略点击');
+      return;
+    }
+    
+    // 单选题模式
     if (question.questionType === 'single') {
-      // 单选题，自动提交
-      setSelectedOption(optionId);
-      // 短暂延迟确保状态更新后再提交
-      setTimeout(() => {
-        handleSubmitWithOption(optionId);
-      }, 100);
-    } else {
-      // 多选题，切换选中状态
-      setSelectedOptions(prev => {
-        if (prev.includes(optionId)) {
-          // 如果已选中，则移除
-          return prev.filter(id => id !== optionId);
-        } else {
-          // 如果未选中，则添加
-          return [...prev, optionId];
-        }
-      });
-      // 多选题保持原有行为，让用户自行点击提交
-    }
-  };
-  
-  // 处理选项键盘操作
-  const handleOptionKeyDown = (e: KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
-    // 空格键或回车键选择选项
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      handleOptionClick(optionId);
-    }
-    // 上下键导航选项
-    else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setFocusedOptionIndex(Math.min(index + 1, question.options.length - 1));
-    }
-    else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setFocusedOptionIndex(Math.max(index - 1, 0));
-    }
-  };
-  
-  // 当焦点选项索引改变时，自动聚焦对应元素
-  useEffect(() => {
-    if (focusedOptionIndex >= 0) {
-      const optionElement = document.getElementById(`option-${focusedOptionIndex}`);
-      if (optionElement) {
-        optionElement.focus();
+      if (selectedOptions.includes(optionId)) {
+        return; // 已选中，不做处理
       }
+      setSelectedOptions([optionId]);
+      
+      // 单选题可自动提交
+      console.log('[QuestionCard] 单选题自动提交答案');
+      
+      // 延迟提交，给用户时间看清自己的选择
+      isSubmittingRef.current = true;
+      
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+      }
+      
+      answerTimeoutRef.current = setTimeout(() => {
+        handleSubmitAnswer([optionId], [optionText]);
+        isSubmittingRef.current = false;
+      }, 300);
+    } 
+    // 多选题模式
+    else {
+      const updatedSelection = selectedOptions.includes(optionId)
+        ? selectedOptions.filter(id => id !== optionId)
+        : [...selectedOptions, optionId];
+      
+      setSelectedOptions(updatedSelection);
     }
-  }, [focusedOptionIndex]);
+  };
 
-  const handleSubmitWithOption = (optionId: string) => {
-    // 防重复提交机制
-    if (isSubmittingRef.current || isSubmitted) return;
+  const handleSubmitAnswer = (selectedIds: string[], selectedTexts: string[]) => {
+    if (isSubmittingRef.current) {
+      console.log('[QuestionCard] 正在提交答案中，忽略重复提交');
+      return;
+    }
+
+    if (showExplanation) {
+      console.log('[QuestionCard] 已显示解析，忽略提交');
+      return;
+    }
+    
+    if (selectedIds.length === 0) {
+      console.log('[QuestionCard] 未选择任何选项，忽略提交');
+      return;
+    }
+    
+    // 防止重复提交
     isSubmittingRef.current = true;
     
+    // 判断答案是否正确
+    let isCorrect = false;
+    
     try {
-      // 修改判断逻辑，找到正确选项的ID比较
-      const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
-      const isCorrect = optionId === correctOptionId;
-      
-      setIsSubmitted(true);
-      
-      if (onAnswerSubmitted) {
-        onAnswerSubmitted(isCorrect, optionId);
+      // 单选题模式
+      if (question.questionType === 'single') {
+        // 正确答案ID就是question.answer
+        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+        isCorrect = selectedIds[0] === correctOptionId;
+        
+        console.log(`[QuestionCard] 单选题提交: 选择=${selectedIds[0]}, 正确答案=${correctOptionId}, 正确=${isCorrect}`);
+      } 
+      // 多选题模式
+      else {
+        const correctOptionIds = question.options
+          .filter(opt => opt.isCorrect)
+          .map(opt => opt.id);
+        
+        // 检查是否选择了所有正确答案，且没有选择错误答案
+        const allCorrectSelected = correctOptionIds.every(id => selectedIds.includes(id));
+        const noIncorrectSelected = selectedIds.every(id => correctOptionIds.includes(id));
+        
+        isCorrect = allCorrectSelected && noIncorrectSelected;
+        
+        console.log(`[QuestionCard] 多选题提交: 选择=${selectedIds.join(',')}, 正确答案=${correctOptionIds.join(',')}, 正确=${isCorrect}`);
       }
-
-      // 如果回答错误，保存到错题集
-      if (!isCorrect) {
+      
+      // 调用父组件提供的答案提交处理函数
+      if (onAnswerSubmitted) {
+        onAnswerSubmitted(isCorrect, selectedIds);
+      }
+      
+      // 如果回答错误，记录错题
+      if (!isCorrect && onAnswerSubmitted) {
         // 检查此题是否最近已保存过，避免重复保存
         const wrongAnswerKey = `wrong_answer_${question.id}`;
-        const lastSaved = localStorage.getItem(wrongAnswerKey);
-        const now = Date.now();
+        const lastSaved = sessionStorage.getItem(wrongAnswerKey);
+        const now = new Date().getTime();
         
-        if (!lastSaved || now - parseInt(lastSaved) > 5000) { // 5秒内不重复保存
-          localStorage.setItem(wrongAnswerKey, now.toString());
-          // 修复: 确保包含完整的 question 字段
-          const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-            detail: {
-              questionId: question.id,
-              questionSetId: questionSetId,
-              question: question.question || question.text, // 使用 question.question 或 question.text 字段
-              questionText: question.question || question.text, // 额外提供字段以防模型需要
-              questionType: question.questionType,
-              options: question.options,
-              selectedOption: optionId,
-              correctOption: correctOptionId,
-              explanation: question.explanation
-            }
-          });
-          window.dispatchEvent(wrongAnswerEvent);
+        // 一小时内不重复保存同一题目
+        if (!lastSaved || now - parseInt(lastSaved, 10) > 60 * 60 * 1000) {
+          sessionStorage.setItem(wrongAnswerKey, now.toString());
           
-          // 错误时显示解析
-          setShowExplanation(true);
+          // 保存错题
+          setTimeout(() => {
+            // 使用事件方式提交错题，避免直接依赖socket
+            const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+              detail: {
+                questionId: question.id,
+                questionContent: question.question || question.text, // 使用已知存在的属性
+                questionType: question.questionType,
+                options: question.options,
+                selectedOptions: selectedIds,
+                correctOptions: question.options
+                  .filter(opt => opt.isCorrect)
+                  .map(opt => opt.id),
+                explanation: question.explanation
+              }
+            });
+            window.dispatchEvent(wrongAnswerEvent);
+          }, 400);
         }
       } else {
         // 答对自动更快地跳到下一题 (400ms)
@@ -215,11 +243,13 @@ const QuestionCard = ({
           handleNext();
         }, 400);
       }
+    } catch (error) {
+      console.error('[QuestionCard] 提交答案出错:', error);
     } finally {
-      // 1秒后才能再次提交，防止快速点击
+      // 延迟释放提交锁
       setTimeout(() => {
         isSubmittingRef.current = false;
-      }, 1000);
+      }, 800);
     }
   };
 
@@ -591,6 +621,24 @@ const QuestionCard = ({
     }
   };
 
+  // 清除组件卸载时可能存在的定时器
+  useEffect(() => {
+    return () => {
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // 处理选项键盘操作
+  const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
+    // 空格键或回车键选择选项
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      handleOptionClick(question.options[index].text, optionId);
+    }
+  };
+
   return (
     <div className="bg-white shadow-md rounded-lg p-6 max-w-3xl mx-auto">
       {/* 顶部导航和标题 */}
@@ -658,7 +706,7 @@ const QuestionCard = ({
               }
               isSubmitted={isSubmitted}
               isMultiple={question.questionType === 'multiple'}
-              onClick={() => handleOptionClick(option.id)}
+              onClick={() => handleOptionClick(option.text, option.id)}
             />
           </div>
         ))}
