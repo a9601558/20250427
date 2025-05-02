@@ -131,10 +131,47 @@ interface ProgressCardProps {
 const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
   const navigate = useNavigate();
 
+  // 检查是否有保存在localStorage的更新数据
+  const checkLocalProgressData = () => {
+    try {
+      const localProgressKey = `quiz_progress_${stats.questionSetId}`;
+      const localProgressStr = localStorage.getItem(localProgressKey);
+      
+      if (localProgressStr) {
+        const localProgress = JSON.parse(localProgressStr);
+        const lastUpdated = new Date(localProgress.lastUpdated || 0);
+        const isRecent = Date.now() - lastUpdated.getTime() < 24 * 60 * 60 * 1000;
+        
+        if (isRecent && localProgress.answeredQuestions && localProgress.answeredQuestions.length > 0) {
+          console.log(`[ProfilePage] 找到本地题库进度数据: ${stats.questionSetId}`);
+          return localProgress;
+        }
+      }
+    } catch (e) {
+      console.error('[ProfilePage] 检查本地进度数据失败:', e);
+    }
+    return null;
+  };
+  
+  // 处理继续学习按钮点击
+  const handleContinueLearning = () => {
+    // 检查本地数据是否存在更新的进度
+    const localProgress = checkLocalProgressData();
+    
+    if (localProgress) {
+      // 如果有本地进度数据，附加lastQuestionIndex参数
+      const continueIndex = localProgress.lastQuestionIndex >= 0 ? localProgress.lastQuestionIndex : 0;
+      navigate(`/quiz/${stats.questionSetId}?lastQuestion=${continueIndex}`);
+    } else {
+      // 否则正常导航
+      navigate(`/quiz/${stats.questionSetId}`);
+    }
+  };
+
   return (
     <div 
       className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1 border border-gray-100"
-      onClick={() => navigate(`/quiz/${stats.questionSetId}`)}
+      onClick={handleContinueLearning}
     >
       {/* 卡片顶部带颜色条 */}
       <div className="h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
@@ -192,6 +229,10 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
         </div>
         
         <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            handleContinueLearning();
+          }}
           className="w-full mt-5 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-sm font-medium transition-all duration-300 hover:shadow-md flex items-center justify-center"
         >
           <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -823,7 +864,7 @@ const ProfilePage: React.FC = () => {
     return stats;
   }, []);
 
-  // 处理实时进度更新
+  // 修改 handleProgressUpdate 函数，增加本地存储同步
   const handleProgressUpdate = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -840,7 +881,63 @@ const ProfilePage: React.FC = () => {
       const progressResponse = await userProgressService.getUserProgressRecords();
       
       if (progressResponse.success && progressResponse.data) {
-        const stats = calculateProgressStats(progressResponse.data, questionSetsMap);
+        // 收集所有相关题库的本地进度数据
+        const localProgressData = new Map<string, any>();
+        
+        // 尝试从本地存储获取额外的进度数据
+        try {
+          progressResponse.data.forEach((record: ProgressRecord) => {
+            // 只处理有 questionSetId 的记录
+            if (record.questionSetId) {
+              const localProgressKey = `quiz_progress_${record.questionSetId}`;
+              const localProgressStr = localStorage.getItem(localProgressKey);
+              
+              if (localProgressStr) {
+                try {
+                  const localProgress = JSON.parse(localProgressStr);
+                  const lastUpdated = new Date(localProgress.lastUpdated || 0);
+                  const isRecent = Date.now() - lastUpdated.getTime() < 24 * 60 * 60 * 1000;
+                  
+                  if (isRecent && localProgress.answeredQuestions && localProgress.answeredQuestions.length > 0) {
+                    localProgressData.set(record.questionSetId, localProgress);
+                  }
+                } catch (e) {
+                  console.error(`[ProfilePage] 解析本地进度数据失败 ${record.questionSetId}:`, e);
+                }
+              }
+            }
+          });
+          
+          console.log('[ProfilePage] 本地进度数据:', localProgressData);
+        } catch (e) {
+          console.error('[ProfilePage] 获取本地进度数据失败:', e);
+        }
+        
+        // 合并服务器和本地数据
+        const augmentedRecords = [...progressResponse.data];
+        
+        // 从本地进度复制额外回答记录到服务器数据中
+        localProgressData.forEach((localProgress, questionSetId) => {
+          if (localProgress.answeredQuestions && localProgress.answeredQuestions.length > 0) {
+            localProgress.answeredQuestions.forEach((localAnswer: any) => {
+              // 构建一个兼容的记录
+              const syntheticRecord: ProgressRecord = {
+                id: `local_${Math.random().toString(36).substring(2, 11)}`,
+                questionSetId: questionSetId,
+                questionId: localAnswer.questionId || `q_${localAnswer.index}`,
+                isCorrect: localAnswer.isCorrect,
+                timeSpent: localAnswer.timeSpent || 30, // 默认30秒
+                createdAt: new Date(),
+                progressQuestionSet: questionSetsMap.get(questionSetId)
+              };
+              
+              // 把这条记录添加到服务器数据中
+              augmentedRecords.push(syntheticRecord);
+            });
+          }
+        });
+        
+        const stats = calculateProgressStats(augmentedRecords, questionSetsMap);
         setProgressStats(stats);
       } else {
         throw new Error(progressResponse.message || 'Failed to fetch progress');
@@ -991,6 +1088,7 @@ const ProfilePage: React.FC = () => {
 
     // 监听实时更新
     socket.on('progress:update', handleProgressUpdate);
+    socket.on('progress:reset', handleProgressUpdate); // 添加对reset事件的处理
     socket.on('purchase:success', fetchPurchases);
     socket.on('redeem:success', fetchRedeemCodes);
     
@@ -1010,15 +1108,26 @@ const ProfilePage: React.FC = () => {
     // 监听错题保存事件
     socket.on('wrongAnswer:save', fetchWrongAnswers);
 
+    // 监听本地存储变化，可能来自其他标签页
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith('quiz_progress_')) {
+        console.log('[ProfilePage] 检测到本地存储变化，刷新进度数据');
+        handleProgressUpdate();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     return () => {
       socket.off('progress:update', handleProgressUpdate);
+      socket.off('progress:reset', handleProgressUpdate);
       socket.off('purchase:success', fetchPurchases);
       socket.off('redeem:success', fetchRedeemCodes);
       socket.off('connect');
       clearTimeout(accessCheckTimer);
       socket.off('wrongAnswer:save', fetchWrongAnswers);
+      window.removeEventListener('storage', handleStorageChange);
     };
-  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers]);
+  }, [socket, user, handleProgressUpdate, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers, purchases, redeemCodes]);
 
   // 单独监听题库数据变化，更新访问权限检查
   useEffect(() => {

@@ -99,7 +99,7 @@ const setupAssociations = () => {
     });
     WrongAnswer_1.default.belongsTo(Question_1.default, {
         foreignKey: 'questionId',
-        as: 'questionDetails'
+        as: 'wrongAnswerQuestion'
     });
     QuestionSet_1.default.hasMany(WrongAnswer_1.default, {
         foreignKey: 'questionSetId',

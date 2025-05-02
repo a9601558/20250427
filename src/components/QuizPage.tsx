@@ -886,7 +886,7 @@ function QuizPage(): JSX.Element {
 
     const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
     
-    // 添加静态的防抖标识，避免短时间内重复提交
+    // 添加节流机制，避免短时间内重复提交
     const now = Date.now();
     const lastSubmitTime = lastSubmitTimeRef.current || 0;
     if (now - lastSubmitTime < 1000) { // 1秒内不重复处理
@@ -898,6 +898,16 @@ function QuizPage(): JSX.Element {
     lastSubmitTimeRef.current = now;
 
     try {
+      // 当前答题状态
+      const currentAnsweredState = {
+        index: currentQuestionIndex,
+        isCorrect,
+        selectedOption: selectedOpt
+      };
+      
+      // 更新已回答题目列表
+      const updatedAnsweredQuestions = [...answeredQuestions, currentAnsweredState];
+      
       // 使用Socket.IO保存进度
       const progressEvent = { 
         userId: user.id,
@@ -905,19 +915,12 @@ function QuizPage(): JSX.Element {
         questionId: String(questions[currentQuestionIndex].id),
         isCorrect,
         timeSpent,
-        completedQuestions: (user.progress?.[questionSet.id]?.completedQuestions || 0) + 1,
+        completedQuestions: updatedAnsweredQuestions.length,
         totalQuestions: questions.length,
         correctAnswers: (user.progress?.[questionSet.id]?.correctAnswers || 0) + (isCorrect ? 1 : 0),
         lastAccessed: new Date().toISOString(),
         lastQuestionIndex: currentQuestionIndex, // 当前题目索引
-        answeredQuestions: [
-          ...answeredQuestions,
-          {
-            index: currentQuestionIndex,
-            isCorrect,
-            selectedOption: selectedOpt
-          }
-        ]
+        answeredQuestions: updatedAnsweredQuestions
       };
       
       // 使用自定义事件保存进度
@@ -925,6 +928,18 @@ function QuizPage(): JSX.Element {
         detail: progressEvent
       });
       window.dispatchEvent(saveEvent);
+      
+      // 同时保存到本地存储，以支持离线场景
+      try {
+        const localProgressKey = `quiz_progress_${questionSet.id}`;
+        localStorage.setItem(localProgressKey, JSON.stringify({
+          lastQuestionIndex: currentQuestionIndex,
+          answeredQuestions: updatedAnsweredQuestions,
+          lastUpdated: new Date().toISOString()
+        }));
+      } catch (e) {
+        console.error('[QuizPage] 本地存储进度失败:', e);
+      }
       
       // 更新本地状态
       if (isCorrect) {
@@ -935,22 +950,28 @@ function QuizPage(): JSX.Element {
       setShowExplanation(true);
 
       // 更新已回答问题列表
-      const newAnsweredQuestion = {
-        index: currentQuestionIndex,
-        isCorrect,
-        selectedOption: selectedOpt
-      };
-      
-      setAnsweredQuestions(prev => [...prev, newAnsweredQuestion]);
+      setAnsweredQuestions(updatedAnsweredQuestions);
 
-      // 答对自动跳到下一题
-      if (isCorrect) {
+      // 如果答对且不是最后一题，自动跳到下一题
+      if (isCorrect && currentQuestionIndex < questions.length - 1) {
         if (timeoutId.current) {
           clearTimeout(timeoutId.current);
         }
         timeoutId.current = setTimeout(() => {
           goToNextQuestion();
         }, 1000);
+      }
+      
+      // 判断是否所有题目已完成
+      const allQuestionsAnswered = updatedAnsweredQuestions.length === questions.length;
+      if (allQuestionsAnswered) {
+        // 设置完成标记
+        sessionStorage.setItem(`quiz_completed_${questionSet.id}`, 'true');
+        
+        // 如果所有题都已答完，稍后切换到完成状态
+        setTimeout(() => {
+          setQuizComplete(true);
+        }, 1500);
       }
     } catch (error) {
       console.error('保存进度失败:', error);
@@ -984,7 +1005,7 @@ function QuizPage(): JSX.Element {
         // 通过Socket发送
         socket.emit('progress:update', progressData);
         
-        // 确认事件监听
+        // 确认事件监听 - 使用一次性监听器
         const handleProgressSaved = (response: any) => {
           if (response.success) {
             console.log('[Socket] 进度保存成功:', response);
@@ -1061,6 +1082,13 @@ function QuizPage(): JSX.Element {
         possibleKeys.forEach(key => {
           localStorage.removeItem(key);
         });
+        
+        // 清除每个问题的单独状态
+        for (let i = 0; i < questions.length; i++) {
+          if (questions[i] && questions[i].id) {
+            localStorage.removeItem(`quiz_state_${questionSet.id}_${questions[i].id}`);
+          }
+        }
       }
     } catch (e) {
       console.error('[QuizPage] 清除缓存失败:', e);
@@ -1093,27 +1121,39 @@ function QuizPage(): JSX.Element {
           console.log('[QuizPage] 服务器进度重置结果:', result);
           if (result.success) {
             toast.success('进度已重置');
+            
+            // 添加URL参数确保从第一题开始
+            const url = new URL(window.location.href);
+            url.searchParams.set('start', 'first');
+            url.searchParams.set('t', Date.now().toString());
+            window.location.href = url.toString();
           }
         });
         
-        // 延迟一段时间，确保服务器处理完成
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 设置超时，确保不会因为服务器响应问题而挂起
+        setTimeout(() => {
+          // 如果还没有收到响应，直接刷新页面
+          if (questionSet) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('start', 'first');
+            url.searchParams.set('t', Date.now().toString());
+            window.location.href = url.toString();
+          }
+        }, 2000);
+      } catch (error) {
+        console.error('重置进度失败:', error);
+        // 显示友好的错误提示
+        setError('重置进度失败，请尝试重新加载页面');
         
-        // 确保强制刷新进度数据
-        await fetchUserProgress(true);
-        console.log('[QuizPage] 重置后成功刷新进度数据');
-        
-        // 刷新页面以确保完全重置
+        // 出错时也强制刷新页面
         setTimeout(() => {
           if (questionSet) {
-            console.log('[QuizPage] 添加start=first参数并重新加载页面');
-            window.location.href = `/quiz/${questionSet.id}?start=first&t=${Date.now()}`;
+            const url = new URL(window.location.href);
+            url.searchParams.set('start', 'first');
+            url.searchParams.set('t', Date.now().toString());
+            window.location.href = url.toString();
           }
-        }, 300);
-      } catch (error) {
-        console.error('重置后刷新进度数据失败:', error);
-        // 显示友好的错误提示
-        setError('刷新进度数据失败，请尝试重新加载页面');
+        }, 1000);
       }
     }
   };
@@ -1280,7 +1320,6 @@ function QuizPage(): JSX.Element {
       if (resetRequired || quizCompleted) {
         console.log('[QuizPage] 检测到重置标记或已完成标记，不加载之前的进度');
         sessionStorage.removeItem('quiz_reset_required');
-        sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
         return;
       }
       
@@ -1295,6 +1334,56 @@ function QuizPage(): JSX.Element {
         window.history.replaceState({}, document.title, newUrl);
         return;
       }
+      
+      // 尝试先从本地存储加载
+      try {
+        const localProgressKey = `quiz_progress_${questionSet.id}`;
+        const localProgressStr = localStorage.getItem(localProgressKey);
+        
+        if (localProgressStr) {
+          const localProgress = JSON.parse(localProgressStr);
+          console.log('[QuizPage] 从本地存储加载进度:', localProgress);
+          
+          // 检查数据是否有效且不太旧
+          const lastUpdated = new Date(localProgress.lastUpdated || 0);
+          const isRecent = Date.now() - lastUpdated.getTime() < 24 * 60 * 60 * 1000; // 24小时内
+          
+          if (isRecent && localProgress.answeredQuestions && localProgress.answeredQuestions.length > 0) {
+            // 从本地数据恢复进度
+            console.log('[QuizPage] 使用本地存储的进度数据');
+            
+            // 恢复已答题状态
+            setAnsweredQuestions(localProgress.answeredQuestions);
+            
+            // 计算正确答题数
+            const correctCount = localProgress.answeredQuestions.filter((q: any) => q.isCorrect).length;
+            setCorrectAnswers(correctCount);
+            
+            // 设置当前题目索引 - 如果已全部完成则从头开始，否则继续上次位置
+            const allAnswered = localProgress.answeredQuestions.length >= questions.length;
+            if (allAnswered) {
+              setCurrentQuestionIndex(0);
+            } else if (localProgress.lastQuestionIndex !== undefined && 
+                       localProgress.lastQuestionIndex >= 0 && 
+                       localProgress.lastQuestionIndex < questions.length) {
+              setCurrentQuestionIndex(localProgress.lastQuestionIndex);
+            } else {
+              // 或者设置为最后回答的题目的下一题
+              const maxAnsweredIndex = Math.max(...localProgress.answeredQuestions.map((q: any) => q.index || 0));
+              const nextIndex = Math.min(maxAnsweredIndex + 1, questions.length - 1);
+              setCurrentQuestionIndex(nextIndex);
+            }
+            
+            // 如果本地数据有效，则不必等待服务器响应
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('[QuizPage] 加载本地进度失败:', e);
+      }
+      
+      // 如果本地数据无效或不存在，则从服务器获取
+      console.log('[QuizPage] 尝试从服务器获取进度数据');
       
       // 使用Socket查询进度，避免HTTP请求
       socket.emit('progress:get', {
@@ -1328,6 +1417,22 @@ function QuizPage(): JSX.Element {
             }));
             console.log('[QuizPage] 重建已答题列表:', answeredQs);
             setAnsweredQuestions(answeredQs);
+            
+            // 计算正确答题数
+            const correctCount = answeredQs.filter(q => q.isCorrect).length;
+            setCorrectAnswers(correctCount);
+            
+            // 保存到本地存储以支持离线场景
+            try {
+              const localProgressKey = `quiz_progress_${questionSet.id}`;
+              localStorage.setItem(localProgressKey, JSON.stringify({
+                lastQuestionIndex: progressData.lastQuestionIndex,
+                answeredQuestions: answeredQs,
+                lastUpdated: new Date().toISOString()
+              }));
+            } catch (e) {
+              console.error('[QuizPage] 本地存储进度失败:', e);
+            }
           }
         } 
         // 否则尝试根据已回答题目数决定从哪里开始
@@ -1349,6 +1454,22 @@ function QuizPage(): JSX.Element {
           }));
           console.log('[QuizPage] 重建已答题列表:', answeredQs);
           setAnsweredQuestions(answeredQs);
+          
+          // 计算正确答题数
+          const correctCount = answeredQs.filter(q => q.isCorrect).length;
+          setCorrectAnswers(correctCount);
+          
+          // 保存到本地存储以支持离线场景
+          try {
+            const localProgressKey = `quiz_progress_${questionSet.id}`;
+            localStorage.setItem(localProgressKey, JSON.stringify({
+              lastQuestionIndex: nextIndex,
+              answeredQuestions: answeredQs,
+              lastUpdated: new Date().toISOString()
+            }));
+          } catch (e) {
+            console.error('[QuizPage] 本地存储进度失败:', e);
+          }
         }
       };
       

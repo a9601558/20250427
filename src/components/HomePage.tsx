@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserProgress } from '../types';
+import { UserProgress, QuestionSet } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
@@ -1550,6 +1550,25 @@ const HomePage: React.FC = () => {
           })()}
         </div>
       </div>
+      
+      {/* Add Payment Modal */}
+      {showPaymentModal && selectedQuestionSet && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          questionSet={selectedQuestionSet as unknown as QuestionSet}
+          onSuccess={() => {
+            setShowPaymentModal(false);
+            // 更新题库访问权限
+            if (socket && user) {
+              socket.emit('questionSet:checkAccess', {
+                userId: user.id,
+                questionSetId: selectedQuestionSet.id
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

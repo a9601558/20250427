@@ -111,7 +111,7 @@ export const setupAssociations = () => {
 
   WrongAnswer.belongsTo(Question, {
     foreignKey: 'questionId',
-    as: 'questionDetails'
+    as: 'wrongAnswerQuestion'
   });
 
   QuestionSet.hasMany(WrongAnswer, {
