@@ -1,9 +1,11 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
 import { IUser, IPurchase, IRedeemCode, IProgressSummary } from '../types';
 
-export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns'>;
+export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns' | 'role' | 'verified' | 'failedLoginAttempts' | 'accountLocked' | 'lockUntil' | 'preferredLanguage' | 'profilePicture' | 'lastLoginAt' | 'resetPasswordToken' | 'resetPasswordExpires'>;
 
 export class User extends Model<IUser, UserCreationAttributes> implements IUser {
   declare id: string;
@@ -18,6 +20,16 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
     [questionSetId: string]: IProgressSummary;
   };
   declare examCountdowns?: string | any[];
+  declare role: string;
+  declare verified: boolean;
+  declare failedLoginAttempts?: number;
+  declare accountLocked?: boolean;
+  declare lockUntil?: Date;
+  declare preferredLanguage?: string;
+  declare profilePicture?: string;
+  declare lastLoginAt?: Date;
+  declare resetPasswordToken?: string;
+  declare resetPasswordExpires?: Date;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
@@ -48,6 +60,38 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
   toSafeObject(): Omit<IUser, 'password'> {
     const { password, ...safeUser } = this.toJSON();
     return safeUser;
+  }
+
+  // Generate JWT token
+  generateAuthToken(): string {
+    // 简化实现，暂时返回固定令牌
+    return `token_${this.id}_${Date.now()}`;
+  }
+
+  // Generate verification token
+  generateVerificationToken(): string {
+    const token = randomBytes(32).toString('hex');
+    this.resetPasswordToken = token;
+    
+    // Set expiration to 24 hours from now
+    const expiration = new Date();
+    expiration.setHours(expiration.getHours() + 24);
+    this.resetPasswordExpires = expiration;
+    
+    return token;
+  }
+
+  // Generate password reset token
+  generatePasswordResetToken(): string {
+    const token = randomBytes(32).toString('hex');
+    this.resetPasswordToken = token;
+    
+    // Set expiration to 1 hour from now
+    const expiration = new Date();
+    expiration.setHours(expiration.getHours() + 1);
+    this.resetPasswordExpires = expiration;
+    
+    return token;
   }
 }
 
@@ -122,6 +166,47 @@ User.init(
       defaultValue: '[]',
       comment: '用户保存的考试倒计时数据',
     },
+    role: {
+      type: DataTypes.ENUM('user', 'admin'),
+      defaultValue: 'user'
+    },
+    verified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+    failedLoginAttempts: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    accountLocked: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+    lockUntil: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    preferredLanguage: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'zh-CN'
+    },
+    profilePicture: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    lastLoginAt: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    resetPasswordToken: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    resetPasswordExpires: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -149,47 +234,18 @@ User.init(
       withPassword: {
         attributes: { include: ['password'] }
       }
+    },
+    hooks: {
+      beforeSave: async (user: User) => {
+        // Only hash password if it has been modified
+        if (user.changed('password')) {
+          const salt = await bcrypt.genSalt(10);
+          user.password = await bcrypt.hash(user.password, salt);
+        }
+      }
     }
   }
 );
-
-// 密码加密钩子
-User.beforeSave(async (user: User) => {
-  try {
-    // 记录当前状态以便调试
-    console.log('beforeSave hook called, password changed:', user.changed('password'));
-    
-    if (user.changed('password')) {
-      // 确保密码不为空或undefined
-      if (!user.password) {
-        console.log('Password is empty in beforeSave hook');
-        throw new Error('密码不能为空');
-      }
-      
-      console.log('Password exists and will be hashed');
-      
-      // 确保密码是字符串类型
-      if (typeof user.password !== 'string') {
-        console.log('Password is not a string, converting from type:', typeof user.password);
-        user.password = String(user.password);
-      }
-      
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(user.password, salt);
-      console.log('Password successfully hashed');
-    }
-  } catch (error: any) {
-    console.error('Password hashing error:', error.message, error.stack);
-    // 提供更具体的错误信息
-    if (error.message?.includes('illegal arguments')) {
-      throw new Error('密码格式不正确，无法加密');
-    } else if (error.message?.includes('密码不能为空')) {
-      throw new Error('密码不能为空');
-    } else {
-      throw new Error(`密码加密失败: ${error.message}`);
-    }
-  }
-});
 
 // 数据验证钩子
 User.beforeValidate((user: User) => {

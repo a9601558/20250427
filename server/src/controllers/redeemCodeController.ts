@@ -339,7 +339,7 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'questionSet',
+          as: 'redeemQuestionSet',
           attributes: ['id', 'title', 'description', 'icon', 'category']
         }
       ],

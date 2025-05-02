@@ -6,7 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const crypto_1 = require("crypto");
 class User extends sequelize_1.Model {
     async comparePassword(candidatePassword) {
         try {
@@ -19,7 +20,7 @@ class User extends sequelize_1.Model {
                 return false;
             }
             console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
-            const isMatch = await bcrypt_1.default.compare(candidatePassword, this.password);
+            const isMatch = await bcryptjs_1.default.compare(candidatePassword, this.password);
             console.log('Password comparison result:', isMatch);
             return isMatch;
         }
@@ -32,6 +33,31 @@ class User extends sequelize_1.Model {
     toSafeObject() {
         const { password, ...safeUser } = this.toJSON();
         return safeUser;
+    }
+    // Generate JWT token
+    generateAuthToken() {
+        // 简化实现，暂时返回固定令牌
+        return `token_${this.id}_${Date.now()}`;
+    }
+    // Generate verification token
+    generateVerificationToken() {
+        const token = (0, crypto_1.randomBytes)(32).toString('hex');
+        this.resetPasswordToken = token;
+        // Set expiration to 24 hours from now
+        const expiration = new Date();
+        expiration.setHours(expiration.getHours() + 24);
+        this.resetPasswordExpires = expiration;
+        return token;
+    }
+    // Generate password reset token
+    generatePasswordResetToken() {
+        const token = (0, crypto_1.randomBytes)(32).toString('hex');
+        this.resetPasswordToken = token;
+        // Set expiration to 1 hour from now
+        const expiration = new Date();
+        expiration.setHours(expiration.getHours() + 1);
+        this.resetPasswordExpires = expiration;
+        return token;
     }
 }
 exports.User = User;
@@ -105,6 +131,47 @@ User.init({
         defaultValue: '[]',
         comment: '用户保存的考试倒计时数据',
     },
+    role: {
+        type: sequelize_1.DataTypes.ENUM('user', 'admin'),
+        defaultValue: 'user'
+    },
+    verified: {
+        type: sequelize_1.DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    failedLoginAttempts: {
+        type: sequelize_1.DataTypes.INTEGER,
+        defaultValue: 0
+    },
+    accountLocked: {
+        type: sequelize_1.DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    lockUntil: {
+        type: sequelize_1.DataTypes.DATE,
+        allowNull: true
+    },
+    preferredLanguage: {
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: true,
+        defaultValue: 'zh-CN'
+    },
+    profilePicture: {
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: true
+    },
+    lastLoginAt: {
+        type: sequelize_1.DataTypes.DATE,
+        allowNull: true
+    },
+    resetPasswordToken: {
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: true
+    },
+    resetPasswordExpires: {
+        type: sequelize_1.DataTypes.DATE,
+        allowNull: true
+    },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
         allowNull: false,
@@ -131,41 +198,14 @@ User.init({
         withPassword: {
             attributes: { include: ['password'] }
         }
-    }
-});
-// 密码加密钩子
-User.beforeSave(async (user) => {
-    try {
-        // 记录当前状态以便调试
-        console.log('beforeSave hook called, password changed:', user.changed('password'));
-        if (user.changed('password')) {
-            // 确保密码不为空或undefined
-            if (!user.password) {
-                console.log('Password is empty in beforeSave hook');
-                throw new Error('密码不能为空');
+    },
+    hooks: {
+        beforeSave: async (user) => {
+            // Only hash password if it has been modified
+            if (user.changed('password')) {
+                const salt = await bcryptjs_1.default.genSalt(10);
+                user.password = await bcryptjs_1.default.hash(user.password, salt);
             }
-            console.log('Password exists and will be hashed');
-            // 确保密码是字符串类型
-            if (typeof user.password !== 'string') {
-                console.log('Password is not a string, converting from type:', typeof user.password);
-                user.password = String(user.password);
-            }
-            const salt = await bcrypt_1.default.genSalt(10);
-            user.password = await bcrypt_1.default.hash(user.password, salt);
-            console.log('Password successfully hashed');
-        }
-    }
-    catch (error) {
-        console.error('Password hashing error:', error.message, error.stack);
-        // 提供更具体的错误信息
-        if (error.message?.includes('illegal arguments')) {
-            throw new Error('密码格式不正确，无法加密');
-        }
-        else if (error.message?.includes('密码不能为空')) {
-            throw new Error('密码不能为空');
-        }
-        else {
-            throw new Error(`密码加密失败: ${error.message}`);
         }
     }
 });

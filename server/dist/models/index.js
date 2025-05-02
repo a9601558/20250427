@@ -81,7 +81,7 @@ UserProgress_1.default.belongsTo(User_1.default, { as: 'user', foreignKey: 'user
 QuestionSet_1.default.hasMany(UserProgress_1.default, { as: 'progressRecords', foreignKey: 'questionSetId' });
 UserProgress_1.default.belongsTo(QuestionSet_1.default, { as: 'questionSet', foreignKey: 'questionSetId' });
 // User与Purchase的关联
-User_1.default.hasMany(Purchase_1.default, { as: 'purchases', foreignKey: 'userId' });
+User_1.default.hasMany(Purchase_1.default, { as: 'userPurchases', foreignKey: 'userId' });
 Purchase_1.default.belongsTo(User_1.default, { as: 'user', foreignKey: 'userId' });
 // QuestionSet与Purchase的关联
 QuestionSet_1.default.hasMany(Purchase_1.default, { as: 'purchases', foreignKey: 'questionSetId' });

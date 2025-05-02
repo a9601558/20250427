@@ -42,7 +42,7 @@ QuestionSet.hasMany(UserProgress, { as: 'progressRecords', foreignKey: 'question
 UserProgress.belongsTo(QuestionSet, { as: 'questionSet', foreignKey: 'questionSetId' });
 
 // User与Purchase的关联
-User.hasMany(Purchase, { as: 'purchases', foreignKey: 'userId' });
+User.hasMany(Purchase, { as: 'userPurchases', foreignKey: 'userId' });
 Purchase.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 
 // QuestionSet与Purchase的关联

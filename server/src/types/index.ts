@@ -68,6 +68,16 @@ export interface IUser {
   };
   socket_id?: string | null;
   examCountdowns?: string | any[];
+  role?: string;
+  verified?: boolean;
+  failedLoginAttempts?: number;
+  accountLocked?: boolean;
+  lockUntil?: Date;
+  preferredLanguage?: string;
+  profilePicture?: string;
+  lastLoginAt?: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
