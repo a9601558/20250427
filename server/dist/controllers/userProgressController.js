@@ -28,7 +28,7 @@ const getUserProgress = async (req, res) => {
             include: [
                 {
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
+                    as: 'progressQuestionSet',
                     attributes: ['id', 'title']
                 }
             ]
@@ -56,7 +56,7 @@ const getProgressByQuestionSetId = async (req, res) => {
         const progress = await UserProgress_1.default.findAll({
             where: { userId, questionSetId },
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' },
+                { model: QuestionSet_1.default, as: 'progressQuestionSet' },
                 { model: Question_1.default, as: 'question' }
             ]
         });
@@ -112,7 +112,7 @@ const updateProgress = async (req, res) => {
         // 发送实时更新
         const updateEvent = {
             questionSetId,
-            questionSet: progress.get('questionSet'),
+            questionSet: progress.get('progressQuestionSet'),
             stats
         };
         socket_1.io.to(userId).emit('progress:update', updateEvent);
@@ -223,7 +223,7 @@ const createDetailedProgress = async (req, res) => {
         // 发送实时更新
         const updateEvent = {
             questionSetId,
-            questionSet: newProgress.get('questionSet'),
+            questionSet: newProgress.get('progressQuestionSet'),
             stats
         };
         socket_1.io.to(userId).emit('progress:update', updateEvent);
@@ -305,7 +305,7 @@ const getProgressStats = async (req, res) => {
             where: { userId },
             include: [{
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
+                    as: 'progressQuestionSet',
                     attributes: ['id', 'title']
                 }]
         });
@@ -430,7 +430,7 @@ const getUserProgressStats = async (req, res) => {
             include: [
                 {
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
+                    as: 'progressQuestionSet',
                     attributes: ['id', 'title']
                 },
                 {
@@ -454,7 +454,7 @@ const getUserProgressStats = async (req, res) => {
                 return acc;
             }
             const setId = record.questionSetId.toString();
-            const questionSet = record.get('questionSet');
+            const questionSet = record.get('progressQuestionSet');
             if (!acc[setId]) {
                 acc[setId] = {
                     title: questionSet?.title || 'Unknown',
@@ -546,7 +546,7 @@ const getUserProgressRecords = async (req, res) => {
             attributes: ['id', 'questionSetId', 'questionId', 'isCorrect', 'timeSpent', 'createdAt', 'updatedAt'],
             include: [{
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
+                    as: 'progressQuestionSet',
                     attributes: ['id', 'title']
                 }]
         });

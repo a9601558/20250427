@@ -23,7 +23,7 @@ export const getWrongAnswers = async (req: Request, res: Response) => {
         },
         {
           model: QuestionSet,
-          as: 'questionSet',
+          as: 'wrongAnswerQuestionSet',
           attributes: ['id', 'title']
         }
       ],
@@ -340,7 +340,7 @@ export const getWrongAnswerById = async (req: Request, res: Response) => {
         },
         {
           model: QuestionSet,
-          as: 'questionSet',
+          as: 'wrongAnswerQuestionSet',
           attributes: ['id', 'title', 'description', 'category']
         }
       ]
@@ -391,7 +391,7 @@ export const getUserWrongAnswers = async (req: Request, res: Response) => {
         },
         {
           model: QuestionSet,
-          as: 'questionSet',
+          as: 'wrongAnswerQuestionSet',
           attributes: ['id', 'title', 'description', 'category']
         }
       ],
