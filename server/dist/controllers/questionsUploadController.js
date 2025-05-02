@@ -1,5 +1,5 @@
 
-// Sequelize Instance Recovery - 自动添加于 2025-05-02T10:30:00.520Z
+// Sequelize Instance Recovery - 自动添加于 2025-05-02T10:36:55.619Z
 // 这段代码确保Sequelize模型总是有有效的实例，即使在模块导入失败的情况下
 (function() {
   try {
