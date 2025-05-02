@@ -7,6 +7,37 @@ exports.User = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const dotenv_1 = __importDefault(require("dotenv"));
+// 确保有一个有效的 Sequelize 实例
+let sequelizeInstance = database_1.default;
+// 如果导入的 sequelize 为 null 或 undefined，则创建一个本地实例
+if (!sequelizeInstance) {
+    console.log('警告: 从 config/database 导入的 Sequelize 实例为空，创建本地实例');
+    // 加载环境变量
+    const envPath = path_1.default.join(process.cwd(), '.env');
+    if (fs_1.default.existsSync(envPath)) {
+        console.log(`加载环境变量文件: ${envPath}`);
+        dotenv_1.default.config({ path: envPath });
+    }
+    // 创建新的 Sequelize 实例
+    sequelizeInstance = new sequelize_1.Sequelize(process.env.DB_NAME || 'quiz_app', process.env.DB_USER || 'root', process.env.DB_PASSWORD || '', {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        dialect: 'mysql',
+        logging: console.log,
+        pool: {
+            max: 5,
+            min: 0,
+            acquire: 30000,
+            idle: 10000
+        },
+        dialectOptions: {
+            connectTimeout: 10000
+        }
+    });
+}
 class User extends sequelize_1.Model {
     async comparePassword(candidatePassword) {
         try {
@@ -116,7 +147,7 @@ User.init({
         defaultValue: sequelize_1.DataTypes.NOW,
     },
 }, {
-    sequelize: database_1.default,
+    sequelize: sequelizeInstance,
     modelName: 'User',
     tableName: 'users',
     timestamps: true,

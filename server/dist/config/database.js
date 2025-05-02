@@ -36,8 +36,15 @@ const dbConfig = {
         connectTimeout: 10000, // 10 秒连接超时
     }
 };
-// 创建 Sequelize 实例
-const sequelize = new sequelize_1.Sequelize(dbConfig);
+// 创建 Sequelize 实例 - 修复初始化参数
+const sequelize = new sequelize_1.Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
+    host: dbConfig.host,
+    port: dbConfig.port,
+    dialect: dbConfig.dialect,
+    logging: dbConfig.logging,
+    pool: dbConfig.pool,
+    dialectOptions: dbConfig.dialectOptions
+});
 // 测试数据库连接
 const testConnection = async () => {
     try {
@@ -46,9 +53,18 @@ const testConnection = async () => {
     }
     catch (error) {
         console.error('无法连接到数据库:', error);
-        process.exit(1); // 如果无法连接，退出进程
+        // 不要立即退出进程，以防止应用程序无法启动
+        console.error('将尝试继续运行，但可能出现数据库相关的错误');
     }
 };
 // 立即测试连接
 testConnection();
+// 为了兼容性，同时支持 CommonJS 和 ES Module
+// @ts-ignore
+if (typeof module !== 'undefined') {
+    // @ts-ignore
+    module.exports = sequelize;
+    // @ts-ignore
+    module.exports.default = sequelize;
+}
 exports.default = sequelize;
