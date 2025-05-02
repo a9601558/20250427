@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserProgress } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
-import PaymentModal from './PaymentModal';
 import ExamCountdownWidget from './ExamCountdownWidget';
 
 // 题库访问类型
@@ -85,23 +83,11 @@ interface HomeContentData {
   theme?: 'light' | 'dark' | 'auto';
 }
 
-// 删除重复的 QuestionSet 接口，统一使用 BaseQuestionSet
-
-// Add a new interface for purchase data
-interface PurchaseData {
-  id: string;
-  questionSetId: string;
-  purchaseDate: string;
-  expiryDate: string;
-  remainingDays: number;
-  hasAccess: boolean;
-  questionSet?: any;
-}
 
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
-  const { progressStats, fetchUserProgress } = useUserProgress();
+  const { progressStats } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -328,12 +314,6 @@ const HomePage: React.FC = () => {
   }, [activeCategory]);
 
   // 异步处理题库列表数据 - 经过封装的函数
-  const processQuestionSets = async (data: BaseQuestionSet[]) => {
-    if (!data || data.length === 0) return;
-    
-    const updatedData = prepareQuestionSets(data);
-    setQuestionSets(updatedData);
-  };
 
   // Add helper functions for localStorage access status cache at the top of the component
   const getLocalAccessCache = () => {

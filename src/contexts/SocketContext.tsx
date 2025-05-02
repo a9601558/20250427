@@ -111,9 +111,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         autoConnect: true,
+        auth: {
+          token: token // 在auth对象中提供令牌
+        },
         query: {
           userId: user?.id,
-          token: token // 在初始连接时就提供认证令牌
+          token: token // 同时在query中也提供令牌，确保兼容性
         }
       });
       
@@ -212,10 +215,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             localStorage.removeItem('token');
             setAuthToken(null);
           } else {
-            // 尝试刷新token（这里需要与您的认证系统集成）
-            console.log('[Socket] 尝试检查token有效性');
-            // 示例: 调用刷新token API
-            // refreshTokenAPI().then(...).catch(...);
+            // 尝试验证token并刷新连接
+            console.log('[Socket] 尝试使用新token重新连接');
+            
+            // 更新Socket的auth和query参数
+            newSocket.auth = { token: currentToken };
+            // 保存新token到状态
+            setAuthToken(currentToken);
+            // 稍后尝试重连
+            setTimeout(() => {
+              newSocket.connect();
+            }, 1000);
           }
         }
         

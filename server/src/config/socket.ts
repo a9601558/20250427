@@ -27,7 +27,9 @@ export const initializeSocket = (server: HttpServer): void => {
 
   // 添加认证中间件
   io.use((socket: AuthenticatedSocket, next: (err?: Error) => void) => {
-    const token = socket.handshake.auth.token;
+    // 在auth对象或query对象中查找token
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token as string;
+    
     if (!token) {
       console.log('Socket连接没有提供token');
       return next(new Error('未提供认证令牌'));
