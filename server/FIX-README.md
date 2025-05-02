@@ -40,6 +40,34 @@
 - 改为使用`questionSetController`中已经存在的`setFeaturedQuestionSet`函数
 - 修复了导入语句，确保正确引用控制器函数
 
+## 5. 中间件路径错误问题
+
+### 问题描述
+服务器启动时出现"Error: Cannot find module '../middleware/auth'"错误。
+
+### 解决方案
+- 在`homepageRoutes.js`文件中，修复了中间件的引用路径
+- 将`require('../middleware/auth')`改为`require('../middleware/authMiddleware')`
+- 同时更新了中间件函数名：`isAuth`改为`protect`，`isAdmin`改为`admin`
+
+## 6. 旧JS文件兼容问题
+
+### 问题描述
+项目同时存在JavaScript和TypeScript版本的文件，导致路径引用、方法名不一致等问题。
+
+### 解决方案
+- 创建`legacy-js-fix.js`脚本自动修复旧JS文件的问题
+- 统一修复了包括路径引用、方法名、模型导入、错误处理等问题
+- 为混合JS/TS环境提供了更好的兼容性
+
+主要修复了以下JS文件：
+- src/routes/homepageRoutes.js
+- src/routes/userRoutes.js
+- src/controllers/homepageController.js 
+- src/controllers/userController.js
+- src/models/User.js
+- src/app.js
+
 ## 启动指南
 
 ### 标准启动
@@ -55,4 +83,9 @@ npm start
 ### 初始化数据库
 ```bash
 node db-init-simple.js
+```
+
+### 修复旧JS文件
+```bash
+node legacy-js-fix.js
 ``` 

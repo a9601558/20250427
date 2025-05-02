@@ -209,11 +209,4 @@ const homepageController = {
   },
 };
 
-module.exports = homepageController;
-
-// 兼容性导出 - 与TypeScript版本保持一致
-module.exports.getHomepageContent = homepageController.getHomeContent;
-module.exports.updateHomepageContent = homepageController.updateHomeContent;
-module.exports.getFeaturedCategories = homepageController.getFeaturedCategories;
-module.exports.updateFeaturedCategories = homepageController.updateFeaturedCategories;
- 
+module.exports = homepageController; 
