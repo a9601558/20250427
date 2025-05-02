@@ -327,30 +327,46 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
  */
 export const getDetailedProgress = async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
-    const { questionSetId, startDate, endDate } = req.query;
-
-    const where: any = { userId };
-    if (questionSetId) where.questionSetId = questionSetId;
-    if (startDate && endDate) {
-      where.createdAt = {
-        [Op.between]: [new Date(startDate as string), new Date(endDate as string)]
-      };
-    }
-
-    const progress = await UserProgress.findAll({
-      where,
-      order: [['createdAt', 'DESC']],
+    const userId = req.user?.id;
+    const { questionSetId } = req.params;
+    
+    // 查询进度记录
+    const progressRecords = await UserProgress.findAll({
+      where: {
+        userId,
+        questionSetId
+      },
       include: [
-        { model: QuestionSet, as: 'questionSet' },
-        { model: Question, as: 'question' }
+        {
+          model: Question,
+          as: 'question',
+          attributes: ['id', 'text', 'questionType', 'explanation']
+        },
+        {
+          model: QuestionSet,
+          as: 'progressQuestionSet',
+          attributes: ['id', 'title', 'description']
+        }
       ]
     });
 
-    return sendResponse(res, 200, '获取学习进度成功', progress.map(p => p.toJSON()));
+    if (!progressRecords.length) {
+      return res.status(404).json({
+        success: false,
+        message: '未找到进度记录'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: progressRecords
+    });
   } catch (error) {
-    console.error('获取学习进度失败:', error);
-    return sendError(res, 500, '获取学习进度失败', error);
+    console.error('获取进度详情失败:', error);
+    return res.status(500).json({
+      success: false,
+      message: '服务器错误，获取进度详情失败'
+    });
   }
 };
 

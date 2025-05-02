@@ -8,7 +8,6 @@ const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const Question_1 = __importDefault(require("../models/Question"));
 const responseUtils_1 = require("../utils/responseUtils");
-const sequelize_1 = require("sequelize");
 const socket_1 = require("../config/socket");
 const progressService_1 = require("../services/progressService");
 /**
@@ -243,29 +242,44 @@ exports.createDetailedProgress = createDetailedProgress;
  */
 const getDetailedProgress = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const { questionSetId, startDate, endDate } = req.query;
-        const where = { userId };
-        if (questionSetId)
-            where.questionSetId = questionSetId;
-        if (startDate && endDate) {
-            where.createdAt = {
-                [sequelize_1.Op.between]: [new Date(startDate), new Date(endDate)]
-            };
-        }
-        const progress = await UserProgress_1.default.findAll({
-            where,
-            order: [['createdAt', 'DESC']],
+        const userId = req.user?.id;
+        const { questionSetId } = req.params;
+        // 查询进度记录
+        const progressRecords = await UserProgress_1.default.findAll({
+            where: {
+                userId,
+                questionSetId
+            },
             include: [
-                { model: QuestionSet_1.default, as: 'questionSet' },
-                { model: Question_1.default, as: 'question' }
+                {
+                    model: Question_1.default,
+                    as: 'question',
+                    attributes: ['id', 'text', 'questionType', 'explanation']
+                },
+                {
+                    model: QuestionSet_1.default,
+                    as: 'progressQuestionSet',
+                    attributes: ['id', 'title', 'description']
+                }
             ]
         });
-        return (0, responseUtils_1.sendResponse)(res, 200, '获取学习进度成功', progress.map(p => p.toJSON()));
+        if (!progressRecords.length) {
+            return res.status(404).json({
+                success: false,
+                message: '未找到进度记录'
+            });
+        }
+        return res.json({
+            success: true,
+            data: progressRecords
+        });
     }
     catch (error) {
-        console.error('获取学习进度失败:', error);
-        return (0, responseUtils_1.sendError)(res, 500, '获取学习进度失败', error);
+        console.error('获取进度详情失败:', error);
+        return res.status(500).json({
+            success: false,
+            message: '服务器错误，获取进度详情失败'
+        });
     }
 };
 exports.getDetailedProgress = getDetailedProgress;

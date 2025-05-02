@@ -21,7 +21,7 @@ const setupAssociations = () => {
     });
     Question_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'questionSetInfo'
     });
     // Question 和 Option 的关联
     Question_1.default.hasMany(Option_1.default, {
@@ -36,7 +36,7 @@ const setupAssociations = () => {
     // User 和 UserProgress 的关联 - 修改关联名称以避免冲突
     User_1.default.hasMany(UserProgress_1.default, {
         foreignKey: 'userId',
-        as: 'userProgress', // 从'progress'改为'userProgress'以避免与User模型中的progress属性冲突
+        as: 'userProgress',
         onDelete: 'CASCADE'
     });
     UserProgress_1.default.belongsTo(User_1.default, {
@@ -51,7 +51,7 @@ const setupAssociations = () => {
     // UserProgress 和 QuestionSet 的关联
     UserProgress_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'progressQuestionSet'
     });
     // User 和 Purchase 的关联
     User_1.default.hasMany(Purchase_1.default, {
@@ -66,12 +66,12 @@ const setupAssociations = () => {
     // Purchase 和 QuestionSet 的关联
     Purchase_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'purchaseQuestionSet'
     });
     // 兑换码关联
     RedeemCode_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'redeemQuestionSet'
     });
     QuestionSet_1.default.hasMany(RedeemCode_1.default, {
         foreignKey: 'questionSetId',
@@ -108,7 +108,7 @@ const setupAssociations = () => {
     });
     WrongAnswer_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',
-        as: 'questionSet'
+        as: 'wrongAnswerQuestionSet'
     });
 };
 exports.setupAssociations = setupAssociations;

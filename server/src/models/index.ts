@@ -13,10 +13,12 @@ import UserProgress from './UserProgress';
 import WrongAnswer from './WrongAnswer';
 
 // 不要在这里初始化模型关联，避免重复
-// 关联初始化已经在 index.ts 中进行
+// 关联初始化已经在 associations.ts 中进行
 console.log('模型已导入，关联将在应用启动时初始化');
 
+// 注释掉所有的关联设置，改为使用associations.ts中的设置
 // 设置模型关联
+/*
 // User与Question的关联（用户创建的题目）
 User.hasMany(Question, { as: 'createdQuestions', foreignKey: 'createdBy' });
 Question.belongsTo(User, { as: 'creator', foreignKey: 'createdBy' });
@@ -63,6 +65,7 @@ WrongAnswer.belongsTo(Question, { as: 'wrongAnswerQuestion', foreignKey: 'questi
 
 // 设置RedeemCode的关联
 setupRedeemCodeAssociations();
+*/
 
 // Export models
 export {

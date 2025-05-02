@@ -78,7 +78,7 @@ const createPurchase = async (req, res) => {
         const purchaseWithQuestionSet = await models_1.Purchase.findByPk(purchase.id, {
             include: [{
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     attributes: ['id', 'title', 'category', 'icon']
                 }]
         });
@@ -110,7 +110,7 @@ const getUserPurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet'
+                    as: 'purchaseQuestionSet'
                 },
             ],
         }));
