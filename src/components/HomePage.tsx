@@ -941,6 +941,27 @@ const HomePage: React.FC = () => {
     // 检查题库是否是最近更新的（用于添加动画效果）
     const isRecentlyUpdated = recentlyUpdatedSets[set.id] && 
       (Date.now() - recentlyUpdatedSets[set.id] < 5000); // 5秒内算最近更新
+    
+    // 检查是否已兑换
+    const isRedeemed = React.useMemo(() => {
+      try {
+        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+        if (!redeemedStr) return false;
+        
+        const redeemedIds = JSON.parse(redeemedStr);
+        if (!Array.isArray(redeemedIds)) return false;
+        
+        return redeemedIds.some(id => 
+          String(id).trim() === String(set.id).trim()
+        );
+      } catch (e) {
+        console.error('检查兑换状态失败:', e);
+        return false;
+      }
+    }, [set.id]);
+    
+    // 根据兑换状态直接修改渲染逻辑，避免类型错误
+    const displayAsRedeemed = isRedeemed && set.isPaid;
 
     return (
       <div 
@@ -977,7 +998,7 @@ const HomePage: React.FC = () => {
               {renderValidityBadge(set.remainingDays)}
             </>
           )}
-          {set.accessType === 'redeemed' && (
+          {(set.accessType === 'redeemed' || displayAsRedeemed) && (
             <>
               <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
                 已兑换
@@ -995,7 +1016,7 @@ const HomePage: React.FC = () => {
               免费
             </span>
           )}
-          {set.accessType === 'trial' && set.isPaid && (
+          {set.accessType === 'trial' && set.isPaid && !displayAsRedeemed && (
             <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm backdrop-blur-sm flex items-center">
               <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1034,6 +1055,7 @@ const HomePage: React.FC = () => {
               
               <div className="flex items-center">
                 <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
+                  displayAsRedeemed ? 'bg-blue-500' :
                   set.accessType === 'paid' ? 'bg-green-500' : 
                   set.accessType === 'redeemed' ? 'bg-blue-500' : 
                   'bg-gray-400'
@@ -1076,22 +1098,34 @@ const HomePage: React.FC = () => {
             {renderProgressBar(set)}
 
             <button
-              onClick={() => onStartQuiz(set)}
+              onClick={() => {
+                // 如果已经兑换过，就更新set的属性再传给onStartQuiz
+                if (displayAsRedeemed) {
+                  const updatedSet: PreparedQuestionSet = {
+                    ...set,
+                    accessType: 'redeemed',
+                    hasAccess: true
+                  };
+                  onStartQuiz(updatedSet);
+                } else {
+                  onStartQuiz(set);
+                }
+              }}
               className={`mt-4 w-full py-2.5 px-4 rounded-lg text-white font-medium 
                 flex items-center justify-center transition-all duration-300
                 transform hover:translate-y-[-2px] hover:shadow-md
                 ${
-                  set.accessType === 'expired'
+                  set.accessType === 'expired' && !displayAsRedeemed
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : set.accessType === 'trial' && set.isPaid
+                    : (set.accessType === 'trial' && set.isPaid && !displayAsRedeemed)
                     ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
                     : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
                 }`}
-              disabled={set.accessType === 'expired'}
+              disabled={set.accessType === 'expired' && !displayAsRedeemed}
             >
-              {set.accessType === 'expired' ? (
+              {set.accessType === 'expired' && !displayAsRedeemed ? (
                 '题库已过期'
-              ) : set.accessType === 'trial' && set.isPaid ? (
+              ) : (set.accessType === 'trial' && set.isPaid && !displayAsRedeemed) ? (
                 <>
                   <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />

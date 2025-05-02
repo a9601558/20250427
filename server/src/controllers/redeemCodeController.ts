@@ -70,36 +70,63 @@ export const generateRedeemCodes = async (req: Request, res: Response) => {
 // @access  Private/Admin
 export const getRedeemCodes = async (req: Request, res: Response) => {
   try {
-    const redeemCodes = await RedeemCode.findAll({
+    const userId = req.user?.id;
+    // 获取分页参数
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 10;
+    const offset = (page - 1) * pageSize;
+    const limit = pageSize;
+    
+    const { isUsed, questionSetId } = req.query;
+    
+    // 构建查询条件
+    const whereClause: any = {};
+    if (isUsed !== undefined) {
+      whereClause.isUsed = isUsed === 'true';
+    }
+    if (questionSetId) {
+      whereClause.questionSetId = questionSetId;
+    }
+    
+    // 查询兑换码
+    const { count, rows } = await RedeemCode.findAndCountAll({
+      where: whereClause,
       include: [
         {
           model: QuestionSet,
-          as: 'questionSet',
-          attributes: ['title', 'category']
+          as: 'redeemQuestionSet',
+          attributes: ['id', 'title', 'description']
         },
         {
           model: User,
           as: 'redeemUser',
-          attributes: ['username', 'email']
+          attributes: ['id', 'username', 'email']
         },
         {
           model: User,
           as: 'redeemCreator',
-          attributes: ['username']
+          attributes: ['id', 'username', 'email']
         }
       ],
+      offset,
+      limit,
       order: [['createdAt', 'DESC']]
     });
-
-    res.json({
+    
+    return res.json({
       success: true,
-      data: redeemCodes
+      data: {
+        total: count,
+        page,
+        pageSize,
+        list: rows
+      }
     });
-  } catch (error: any) {
-    console.error('Get redeem codes error:', error);
-    res.status(500).json({
+  } catch (error) {
+    console.error('获取兑换码列表出错:', error);
+    return res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: '服务器错误，获取兑换码列表失败'
     });
   }
 };
@@ -547,6 +574,157 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error.message || '服务器错误'
+    });
+  }
+};
+
+// 创建兑换码
+export const createRedeemCode = async (req: Request, res: Response) => {
+  const { questionSetId, validityDays = 30, quantity = 1 } = req.body;
+  const userId = req.user?.id;
+  
+  try {
+    // 验证题库ID是否存在
+    const questionSet = await QuestionSet.findByPk(questionSetId);
+    if (!questionSet) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '题库不存在' 
+      });
+    }
+    
+    // 创建兑换码记录
+    const createdCodes = [];
+    for (let i = 0; i < quantity; i++) {
+      const code = await RedeemCode.create({
+        questionSetId,
+        validityDays,
+        createdBy: userId,
+      });
+      createdCodes.push(code);
+    }
+    
+    return res.status(201).json({
+      success: true,
+      message: `成功创建${quantity}个兑换码`,
+      data: createdCodes
+    });
+  } catch (error) {
+    console.error('创建兑换码出错:', error);
+    return res.status(500).json({
+      success: false, 
+      message: '服务器错误，创建兑换码失败'
+    });
+  }
+};
+
+// 使用兑换码
+export const useRedeemCode = async (req: Request, res: Response) => {
+  const { code } = req.body;
+  const userId = req.user?.id;
+  
+  try {
+    // 开启事务
+    const result = await sequelize.transaction(async (t) => {
+      // 查找兑换码
+      const redeemCode = await RedeemCode.findOne({
+        where: { code },
+        include: [{
+          model: QuestionSet,
+          as: 'redeemQuestionSet'
+        }],
+        transaction: t
+      });
+      
+      // 验证兑换码是否存在
+      if (!redeemCode) {
+        return { success: false, message: '兑换码不存在' };
+      }
+      
+      // 验证兑换码是否已使用
+      if (redeemCode.isUsed) {
+        return { success: false, message: '兑换码已被使用' };
+      }
+      
+      // 验证兑换码是否过期
+      if (new Date() > redeemCode.expiryDate) {
+        return { success: false, message: '兑换码已过期' };
+      }
+      
+      // 获取题库信息
+      const questionSet = redeemCode.redeemQuestionSet;
+      if (!questionSet) {
+        return { success: false, message: '题库不存在或已被删除' };
+      }
+      
+      // 标记兑换码为已使用
+      await redeemCode.update({
+        isUsed: true,
+        usedBy: userId,
+        usedAt: new Date()
+      }, { transaction: t });
+      
+      return {
+        success: true,
+        message: '兑换成功',
+        data: {
+          questionSet,
+          validityDays: redeemCode.validityDays
+        }
+      };
+    });
+    
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error) {
+    console.error('使用兑换码出错:', error);
+    return res.status(500).json({
+      success: false,
+      message: '服务器错误，兑换失败'
+    });
+  }
+};
+
+// 获取单个兑换码
+export const getRedeemCode = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  
+  try {
+    const redeemCode = await RedeemCode.findByPk(id, {
+      include: [
+        {
+          model: QuestionSet,
+          as: 'redeemQuestionSet',
+          attributes: ['id', 'title', 'description']
+        },
+        {
+          model: User,
+          as: 'redeemUser',
+          attributes: ['id', 'username', 'email']
+        },
+        {
+          model: User,
+          as: 'redeemCreator',
+          attributes: ['id', 'username', 'email']
+        }
+      ]
+    });
+    
+    if (!redeemCode) {
+      return res.status(404).json({
+        success: false,
+        message: '兑换码不存在'
+      });
+    }
+    
+    return res.json({
+      success: true,
+      data: redeemCode
+    });
+  } catch (error) {
+    console.error('获取兑换码详情出错:', error);
+    return res.status(500).json({
+      success: false,
+      message: '服务器错误，获取兑换码详情失败'
     });
   }
 }; 

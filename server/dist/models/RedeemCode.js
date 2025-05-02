@@ -3,8 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.setupAssociations = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
+const QuestionSet_1 = __importDefault(require("./QuestionSet"));
+const User_1 = __importDefault(require("./User"));
 // 兑换码模型类
 class RedeemCode extends sequelize_1.Model {
     id;
@@ -121,4 +124,26 @@ RedeemCode.init({
         }
     }
 });
+// 添加模型关联
+const setupAssociations = () => {
+    // RedeemCode与QuestionSet的关联
+    RedeemCode.belongsTo(QuestionSet_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'redeemQuestionSet',
+        onDelete: 'CASCADE'
+    });
+    // RedeemCode与使用者User的关联
+    RedeemCode.belongsTo(User_1.default, {
+        foreignKey: 'usedBy',
+        as: 'redeemUser',
+        onDelete: 'CASCADE'
+    });
+    // RedeemCode与创建者User的关联
+    RedeemCode.belongsTo(User_1.default, {
+        foreignKey: 'createdBy',
+        as: 'redeemCreator',
+        onDelete: 'SET NULL'
+    });
+};
+exports.setupAssociations = setupAssociations;
 exports.default = RedeemCode;

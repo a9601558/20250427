@@ -1038,6 +1038,34 @@ function QuizPage(): JSX.Element {
       timeoutId.current = undefined;
     }
 
+    // 清除所有可能存储进度的缓存
+    try {
+      // 1. 清除sessionStorage中的标记
+      if (questionSet) {
+        console.log(`[QuizPage] 清除sessionStorage中的完成标记`);
+        sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
+        // 设置重置标记
+        sessionStorage.setItem('quiz_reset_required', 'true');
+      }
+      
+      // 2. 清除localStorage中可能的进度缓存
+      if (questionSet) {
+        console.log(`[QuizPage] 清除localStorage中的进度缓存`);
+        const possibleKeys = [
+          `quiz_progress_${questionSet.id}`,
+          `quiz_state_${questionSet.id}`,
+          `last_question_${questionSet.id}`,
+          `answered_questions_${questionSet.id}`
+        ];
+        
+        possibleKeys.forEach(key => {
+          localStorage.removeItem(key);
+        });
+      }
+    } catch (e) {
+      console.error('[QuizPage] 清除缓存失败:', e);
+    }
+
     // 重置所有状态
     setCurrentQuestionIndex(0);
     setSelectedOptions([]);
@@ -1047,36 +1075,41 @@ function QuizPage(): JSX.Element {
     setQuizComplete(false);
     setQuestionStartTime(Date.now());
     
-    console.log('重置答题状态，准备刷新进度数据');
+    console.log('[QuizPage] 重置答题状态，准备刷新进度数据');
     
     // 重置进度统计 - 确保先清除再重新加载
-    if (user && questionSet) {
+    if (user && questionSet && socket) {
       try {
         // 清除服务器端进度
-        if (socket) {
-          socket.emit('progress:reset', {
-            userId: user.id,
-            questionSetId: questionSet.id
-          });
-          
-          console.log('[QuizPage] 已发送进度重置请求到服务器');
-          
-          // 等待200ms让服务器处理
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+        socket.emit('progress:reset', {
+          userId: user.id,
+          questionSetId: questionSet.id
+        });
         
-        // 强制清除localStorage中的缓存进度
-        try {
-          const progressKey = `quiz_progress_${questionSet.id}`;
-          localStorage.removeItem(progressKey);
-          console.log(`[QuizPage] 已清除本地进度缓存: ${progressKey}`);
-        } catch (e) {
-          console.error('[QuizPage] 清除本地进度缓存失败:', e);
-        }
+        console.log('[QuizPage] 已发送进度重置请求到服务器');
+        
+        // 等待响应
+        socket.once('progress:reset:result', (result) => {
+          console.log('[QuizPage] 服务器进度重置结果:', result);
+          if (result.success) {
+            toast.success('进度已重置');
+          }
+        });
+        
+        // 延迟一段时间，确保服务器处理完成
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // 确保强制刷新进度数据
         await fetchUserProgress(true);
-        console.log('重置后成功刷新进度数据');
+        console.log('[QuizPage] 重置后成功刷新进度数据');
+        
+        // 刷新页面以确保完全重置
+        setTimeout(() => {
+          if (questionSet) {
+            console.log('[QuizPage] 添加start=first参数并重新加载页面');
+            window.location.href = `/quiz/${questionSet.id}?start=first&t=${Date.now()}`;
+          }
+        }, 300);
       } catch (error) {
         console.error('重置后刷新进度数据失败:', error);
         // 显示友好的错误提示
@@ -1671,6 +1704,11 @@ function QuizPage(): JSX.Element {
                 // 设置标记，确保重置
                 sessionStorage.setItem('quiz_reset_required', 'true');
                 handleReset();
+                
+                // 强制添加参数并刷新页面
+                if (questionSet) {
+                  window.location.href = `/quiz/${questionSet.id}?start=first&t=${Date.now()}`;
+                }
               }}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >

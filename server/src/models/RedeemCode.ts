@@ -153,4 +153,28 @@ RedeemCode.init(
   }
 );
 
+// 添加模型关联
+export const setupAssociations = () => {
+  // RedeemCode与QuestionSet的关联
+  RedeemCode.belongsTo(QuestionSet, {
+    foreignKey: 'questionSetId',
+    as: 'redeemQuestionSet',
+    onDelete: 'CASCADE'
+  });
+  
+  // RedeemCode与使用者User的关联
+  RedeemCode.belongsTo(User, {
+    foreignKey: 'usedBy',
+    as: 'redeemUser',
+    onDelete: 'CASCADE'
+  });
+  
+  // RedeemCode与创建者User的关联
+  RedeemCode.belongsTo(User, {
+    foreignKey: 'createdBy',
+    as: 'redeemCreator',
+    onDelete: 'SET NULL'
+  });
+};
+
 export default RedeemCode; 
