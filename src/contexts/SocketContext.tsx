@@ -175,7 +175,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         // 只在非主动断开的情况下更新状态，避免不必要的重连
         if (reason !== 'io client disconnect') {
-          setIsConnected(false);
+      setIsConnected(false);
           
           // 实现指数退避重连
           if (reconnectCount.current < maxReconnectAttempts) {
@@ -316,7 +316,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const newSocket = initSocket();
     
     // 组件卸载时清理
-    return () => {
+      return () => {
       logger.info('[Socket] 组件卸载，断开连接');
       if (reconnectTimerId.current) {
         clearTimeout(reconnectTimerId.current);
@@ -344,7 +344,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const disableSocket = () => {
     logger.info('[Socket] 用户手动禁用Socket连接');
     setSocketDisabled(true);
-    if (socket) {
+      if (socket) {
       socket.disconnect();
     }
     if (reconnectTimerId.current) {
@@ -413,7 +413,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     return () => clearInterval(intervalId);
   }, [socket, authToken]);
-  
+
   return (
     <SocketContext.Provider value={{ 
       socket, 
@@ -457,4 +457,4 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       )}
     </SocketContext.Provider>
   );
-}; 
+};

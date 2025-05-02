@@ -639,9 +639,9 @@ function QuizPage(): JSX.Element {
               } else {
                 // 如果筛选后没有题目，使用全部题目
                 console.log('[QuizPage] 未找到指定题目，使用全部题目');
-                setQuestions(processedQuestions);
+            setQuestions(processedQuestions);
               }
-            } else {
+          } else {
               setQuestions(processedQuestions);
             }
           } else {
@@ -1353,7 +1353,7 @@ function QuizPage(): JSX.Element {
       </div>
     );
   }
-   
+  
   if (error || !questionSet || questions.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -1645,37 +1645,37 @@ function QuizPage(): JSX.Element {
                 >
                   {isRandomMode ? '恢复顺序' : '打乱题目'}
                 </button>
-              </div>
+        </div>
               {isRandomMode && (
                 <span className="text-xs text-orange-600">随机模式下，题目顺序已被打乱</span>
               )}
-            </div>
-            
+      </div>
+      
             {/* 答题卡组件 */}
             <AnswerCard
-              totalQuestions={questions.length}
+        totalQuestions={questions.length}
               answeredQuestions={answeredQuestions}
               currentIndex={currentQuestionIndex}
               onJump={(index) => {
-                // 如果试用已结束且没有购买，不允许跳转
-                if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
-                  console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
-                  return;
-                }
-                
-                // 确保没有未提交的答案
+          // 如果试用已结束且没有购买，不允许跳转
+          if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
+            console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
+            return;
+          }
+          
+          // 确保没有未提交的答案
                 const isCurrentQuestionSubmitted = answeredQuestions.some((q) => q.index === currentQuestionIndex);
-                if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
+          if (!isCurrentQuestionSubmitted && currentQuestionIndex !== index) {
                   if (confirm('当前题目尚未提交答案，确定要离开吗？')) {
-                    setCurrentQuestionIndex(index);
-                    setSelectedOptions([]);
-                  }
-                } else {
-                  console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
-                  setCurrentQuestionIndex(index);
-                  setSelectedOptions([]);
-                }
-              }}
+              setCurrentQuestionIndex(index);
+              setSelectedOptions([]);
+            }
+          } else {
+            console.log(`[QuizPage] 跳转到第 ${index + 1} 题`);
+            setCurrentQuestionIndex(index);
+            setSelectedOptions([]);
+          }
+        }}
             />
           </div>
         )}
@@ -1765,9 +1765,9 @@ function QuizPage(): JSX.Element {
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                    </svg>
               </button>
-            </div>
+              </div>
             <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
               console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
               setShowRedeemCodeModal(false);
@@ -1824,8 +1824,8 @@ function QuizPage(): JSX.Element {
                 }
               }, 500);
             }} />
-          </div>
         </div>
+      </div>
       )}
     </div>
   );

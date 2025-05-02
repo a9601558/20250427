@@ -314,7 +314,7 @@ const HomePage: React.FC = () => {
 
     // 请求数据
     fetchData();
-    
+
     // 设置定期刷新 - 每10分钟刷新一次首页设置和分类
     const interval = setInterval(fetchData, 600000);
     return () => clearInterval(interval);
@@ -580,13 +580,13 @@ const HomePage: React.FC = () => {
               
               return {
                 ...set,
-                hasAccess: true,
+          hasAccess: true,
                 remainingDays,
                 accessType: 'redeemed',
-              };
+        };
             }
             return set;
-          });
+      });
         });
       }
     };
@@ -642,8 +642,8 @@ const HomePage: React.FC = () => {
         <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
           <div 
             className="bg-gradient-to-r from-green-300 to-green-500 h-2 rounded-full transition-all duration-500" 
-            style={{ width: `${percentage}%` }}
-          />
+              style={{ width: `${percentage}%` }}
+            />
         </div>
       </div>
     );
@@ -709,7 +709,7 @@ const HomePage: React.FC = () => {
     if (!user) {
       return { hasAccess: false, remainingDays: null };
     }
-
+    
     // 直接使用题库的hasAccess属性(通过API或socket实时更新)
     if (questionSet.hasAccess !== undefined) {
       logger.info(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 有hasAccess字段:`, questionSet.hasAccess);
@@ -728,7 +728,7 @@ const HomePage: React.FC = () => {
     
     // 如果仍未设置hasAccess字段，则可能是初始状态，返回无访问权限
     // 稍后会通过API/Socket更新访问权限
-    return { hasAccess: false, remainingDays: null };
+      return { hasAccess: false, remainingDays: null };
   };
 
   // 添加Socket监听，使用依赖更少的方式
@@ -953,18 +953,18 @@ const HomePage: React.FC = () => {
           </div>
           
           <p className="text-gray-600 text-sm line-clamp-2 h-10 mb-4">
-            {set.description}
-          </p>
+              {set.description}
+            </p>
 
           <div className="flex flex-col space-y-3">
             <div className="flex items-center justify-between text-sm bg-gray-50 p-2.5 rounded-lg border border-gray-100">
               <div className="flex items-center">
                 <svg className="h-4 w-4 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
                 <span className="text-gray-700 font-medium">
                   题目数量: <b>{calculateQuestionCount(set)}</b>
-                </span>
+              </span>
               </div>
               
               <div className="flex items-center">
@@ -978,7 +978,7 @@ const HomePage: React.FC = () => {
             </div>
 
             {stats && (
-              <div className="mt-2">
+      <div className="mt-2">
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
                     <span className="text-xs text-gray-500 mb-1">进度</span>
@@ -987,7 +987,7 @@ const HomePage: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                       </svg>
                       <span className="text-sm font-bold">{Math.round(progress)}%</span>
-                    </div>
+        </div>
                   </div>
                   <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
                     <span className="text-xs text-gray-500 mb-1">正确率</span>
@@ -1002,23 +1002,23 @@ const HomePage: React.FC = () => {
                 <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mt-1">
                   <div
                     className="bg-gradient-to-r from-blue-400 to-blue-600 h-1.5 rounded-full transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
             )}
 
             {renderProgressBar(set)}
 
-            <button
+          <button
               onClick={() => onStartQuiz(set)}
               className={`mt-4 w-full py-2.5 px-4 rounded-lg text-white font-medium 
                 flex items-center justify-center transition-all duration-300
                 transform hover:translate-y-[-2px] hover:shadow-md
                 ${
-                  set.accessType === 'expired'
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : set.accessType === 'trial' && set.isPaid
+                set.accessType === 'expired'
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : set.accessType === 'trial' && set.isPaid
                     ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
                     : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
                 }`}
@@ -1042,7 +1042,7 @@ const HomePage: React.FC = () => {
                   {stats ? '继续练习' : '开始练习'}
                 </>
               )}
-            </button>
+          </button>
           </div>
         </div>
       </div>
@@ -1078,7 +1078,7 @@ const HomePage: React.FC = () => {
           </button>
         </div>
       )}
-
+      
       {/* 现代化顶部英雄区域 - 替代原来的横幅 */}
       <div className="relative bg-gradient-to-br from-blue-600 to-indigo-800 pb-10 mb-10 overflow-hidden">
         {/* 装饰性圆形 */}
@@ -1089,8 +1089,8 @@ const HomePage: React.FC = () => {
         <div className="container mx-auto px-4 pt-16 pb-20 relative z-10">
           <div className="max-w-5xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
-              {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
-            </h1>
+                {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
+              </h1>
             <p className="text-xl text-blue-100 mb-10 max-w-3xl mx-auto">
               {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
             </p>
@@ -1181,7 +1181,7 @@ const HomePage: React.FC = () => {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
         {/* 公告信息 - 改为更现代的卡片式设计 */}
-        {homeContent.announcements && (
+            {homeContent.announcements && (
           <div className="relative bg-white rounded-2xl p-6 shadow-xl mb-10 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300">
             <div className="absolute -left-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
               <svg className="h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1191,14 +1191,14 @@ const HomePage: React.FC = () => {
             <p className="text-gray-700">
               <span className="font-bold text-blue-600 mr-2">📢 公告:</span>
               {homeContent.announcements}
-            </p>
-          </div>
-        )}
-
-        {/* 考试倒计时组件 */}
-        <div className="mt-6 mx-auto max-w-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>考试倒计时</h2>
+                </p>
+              </div>
+            )}
+            
+            {/* 考试倒计时组件 */}
+            <div className="mt-6 mx-auto max-w-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>考试倒计时</h2>
             <button 
               onClick={() => navigate('/profile')}
               className="flex items-center text-sm bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg transition-colors"
@@ -1208,9 +1208,9 @@ const HomePage: React.FC = () => {
               </svg>
               个人学习中心
             </button>
-          </div>
-          <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
-        </div>
+                </div>
+              <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
+                      </div>
 
         {/* 推荐题库栏 */}
         {recommendedSets.length > 0 && (
@@ -1230,95 +1230,95 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         )}
-        
-        {!user && (
-          <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
-            <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2`}>随时开始，无需登录</h3>
-            <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-blue-200' : 'text-blue-600'} mb-4`}>
-              您可以直接开始答题，但登录后可以保存答题进度、查看错题记录，以及收藏喜欢的题库。
-            </p>
-            <button 
-              onClick={() => {
-                // 触发登录弹窗而不是跳转到登录页面
-                const loginEvent = new CustomEvent('auth:showLogin', { 
-                  detail: { 
-                    redirect: false,
+            
+            {!user && (
+              <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
+                <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2`}>随时开始，无需登录</h3>
+                <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-blue-200' : 'text-blue-600'} mb-4`}>
+                  您可以直接开始答题，但登录后可以保存答题进度、查看错题记录，以及收藏喜欢的题库。
+                </p>
+                <button 
+                  onClick={() => {
+                    // 触发登录弹窗而不是跳转到登录页面
+                    const loginEvent = new CustomEvent('auth:showLogin', { 
+                      detail: { 
+                        redirect: false,
                     returnUrl: window.location.pathname,
                   }, 
-                });
-                window.dispatchEvent(loginEvent);
-              }}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
-              登录账号
-            </button>
-          </div>
-        )}
-        
-        {/* 管理员入口 */}
-        {user && isAdmin() && (
-          <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-r from-purple-50 to-pink-50'} border ${homeContent.theme === 'dark' ? 'border-purple-800' : 'border-purple-100'} rounded-lg p-4 mx-auto max-w-2xl shadow-sm`}>
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className={`text-md font-medium ${homeContent.theme === 'dark' ? 'text-purple-300' : 'text-purple-800'}`}>管理员控制面板</h3>
-                <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-purple-200' : 'text-purple-600'}`}>
-                  您可以管理用户、题库和网站内容
-                </p>
+                    });
+                    window.dispatchEvent(loginEvent);
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  登录账号
+                </button>
               </div>
-              <Link 
-                to="/admin"
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                进入管理后台
-              </Link>
-            </div>
-          </div>
-        )}
-        
-        {/* 分类选择器 */}
-        <div className="mb-8 flex flex-wrap justify-center gap-2">
-          <button 
-            onClick={() => handleCategoryChange('all')}
-            className={`px-4 py-2 rounded-full text-sm font-medium ${
-              activeCategory === 'all' 
-                ? 'bg-blue-600 text-white' 
-                : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-            }`}
-          >
-            全部题库
-          </button>
-          {homeContent.featuredCategories.map((category) => (
+            )}
+            
+            {/* 管理员入口 */}
+            {user && isAdmin() && (
+              <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-r from-purple-50 to-pink-50'} border ${homeContent.theme === 'dark' ? 'border-purple-800' : 'border-purple-100'} rounded-lg p-4 mx-auto max-w-2xl shadow-sm`}>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className={`text-md font-medium ${homeContent.theme === 'dark' ? 'text-purple-300' : 'text-purple-800'}`}>管理员控制面板</h3>
+                    <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-purple-200' : 'text-purple-600'}`}>
+                      您可以管理用户、题库和网站内容
+                    </p>
+                  </div>
+                  <Link 
+                    to="/admin"
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                  >
+                    <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    进入管理后台
+                  </Link>
+                </div>
+              </div>
+            )}
+
+          {/* 分类选择器 */}
+          <div className="mb-8 flex flex-wrap justify-center gap-2">
             <button 
-              key={category}
-              onClick={() => handleCategoryChange(category)}
+              onClick={() => handleCategoryChange('all')}
               className={`px-4 py-2 rounded-full text-sm font-medium ${
-                activeCategory === category 
-                  ? 'bg-blue-600 text-white' 
+                activeCategory === 'all' 
+                ? 'bg-blue-600 text-white' 
                   : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
               }`}
             >
-              {category}
+              全部题库
             </button>
-          ))}
-        </div>
-
-        {/* 题库列表 */}
+          {homeContent.featuredCategories.map((category) => (
+              <button 
+                key={category}
+                onClick={() => handleCategoryChange(category)}
+                className={`px-4 py-2 rounded-full text-sm font-medium ${
+                  activeCategory === category 
+                  ? 'bg-blue-600 text-white' 
+                    : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+          
+          {/* 题库列表 */}
         <div id="question-sets-section" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {getFilteredQuestionSets().map((set) => (
-            <BaseCard
-              key={set.id}
-              set={set}
-              onStartQuiz={handleStartQuiz}
-            />
-          ))}
-        </div>
+                <BaseCard
+                  key={set.id}
+                  set={set}
+                  onStartQuiz={handleStartQuiz}
+                />
+              ))}
+                      </div>
       </div>
     </div>
   );

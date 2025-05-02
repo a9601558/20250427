@@ -151,11 +151,11 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
           <div className="bg-blue-50 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-blue-600">{stats.completedQuestions}</div>
             <div className="text-xs text-blue-600 mt-1">已答题数</div>
-          </div>
+        </div>
           <div className="bg-green-50 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-green-600">{stats.correctAnswers}</div>
             <div className="text-xs text-green-600 mt-1">答对题数</div>
-          </div>
+        </div>
         </div>
         
         <div className="space-y-4">
@@ -163,14 +163,14 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
             <div className="flex justify-between items-center mb-1">
               <span className="text-sm text-gray-600">正确率</span>
               <span className="text-sm font-semibold">{stats.accuracy.toFixed(1)}%</span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
+        </div>
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div 
                 className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500" 
-                style={{ width: `${stats.accuracy}%` }}
-              ></div>
-            </div>
+              style={{ width: `${stats.accuracy}%` }}
+            ></div>
           </div>
+        </div>
           
           <div>
             <div className="flex justify-between items-center mb-1">
@@ -240,7 +240,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
       <div className={`h-2 ${isExpired ? 'bg-red-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'}`}></div>
       
       <div className="p-5">
-        <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start mb-4">
           <h2 className="text-lg font-semibold text-gray-800 truncate flex items-center">
             <svg className="w-5 h-5 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -250,8 +250,8 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
           <div className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColorClass()}`}>
             {isExpired ? '已过期' : remainingDays < 30 ? '即将过期' : '有效'}
           </div>
-        </div>
-        
+      </div>
+      
         <div className="space-y-1 mt-5 mb-6">
           <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50">
             <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -260,8 +260,8 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
             <div className="flex-1">
               <div className="text-xs text-gray-500">购买日期</div>
               <div className="text-sm font-medium">{formatDate(purchase.purchaseDate)}</div>
-            </div>
-          </div>
+        </div>
+        </div>
           
           <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50">
             <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -270,9 +270,9 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
             <div className="flex-1">
               <div className="text-xs text-gray-500">到期日期</div>
               <div className={`text-sm font-medium ${isExpired ? 'text-red-500' : ''}`}>{formatDate(purchase.expiryDate)}</div>
-            </div>
-          </div>
-          
+        </div>
+        </div>
+        
           <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50">
             <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
@@ -280,11 +280,11 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
             <div className="flex-1">
               <div className="text-xs text-gray-500">支付金额</div>
               <div className="text-sm font-medium">¥{purchase.amount.toFixed(2)}</div>
-            </div>
           </div>
-        </div>
+          </div>
+      </div>
       
-        {!isExpired && (
+      {!isExpired && (
           <div className="mt-4">
             <div className="flex justify-between items-center mb-2 text-sm">
               <span className="text-gray-600">剩余有效期</span>
@@ -303,10 +303,10 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
             </div>
             <div className="flex justify-end mt-1">
               <span className="text-xs text-gray-500">{Math.round((remainingDays / totalValidityDays) * 100)}%</span>
-            </div>
           </div>
-        )}
-        
+        </div>
+      )}
+      
         <button
           onClick={() => navigate(`/quiz/${purchase.questionSetId}`)}
           className={`w-full mt-5 py-2.5 rounded-lg flex items-center justify-center font-medium text-sm transition-all duration-300 ${
@@ -388,10 +388,10 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <div>
+        <div>
             <div className="text-xs text-purple-500 font-medium">兑换码</div>
             <div className="text-sm font-bold tracking-wider">{redeem.code.substring(0, 4)}-****-****</div>
-          </div>
+        </div>
         </div>
         
         <div className="grid grid-cols-2 gap-3 mb-4">
@@ -437,7 +437,7 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
           }`}
           disabled={isExpired}
         >
-          {isExpired ? (
+        {isExpired ? (
             <>
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -507,7 +507,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
             isSelected ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700'
           }`}>
             {String.fromCharCode(65 + index)}
-          </div>
+        </div>
           <span className="text-sm">{option.text}</span>
         </div>
       );
@@ -558,12 +558,12 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
             练习
           </button>
         </div>
-      </div>
-      
+        </div>
+        
       <div className="flex items-center text-xs text-gray-500 mb-3 bg-gray-50 px-3 py-1.5 rounded-md">
         <svg className="w-3.5 h-3.5 mr-1.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+              </svg>
         {formatDate(wrongAnswer.createdAt)}
         
         {wrongAnswer.questionSet && (
@@ -575,7 +575,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
             {wrongAnswer.questionSet.title}
           </>
         )}
-      </div>
+            </div>
       
       {showOptions && (
         <div className="mb-4 border-t border-b border-gray-100 py-3">
@@ -592,9 +592,9 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
               <p className="text-sm text-blue-700">{wrongAnswer.explanation}</p>
             </div>
           )}
-        </div>
-      )}
-      
+          </div>
+        )}
+        
       {isEditing ? (
         <div className="mt-3">
           <textarea
@@ -620,7 +620,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex justify-between items-center mt-2">
+          <div className="flex justify-between items-center mt-2">
           {wrongAnswer.memo ? (
             <div className="flex-1 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">
               <div className="flex items-center mb-1 text-xs text-gray-500">
@@ -628,9 +628,9 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
                 备注
-              </div>
+          </div>
               {wrongAnswer.memo}
-            </div>
+      </div>
           ) : (
             <div className="flex-1">
               <button 
@@ -666,9 +666,9 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
               </svg>
               删除
             </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };
@@ -707,7 +707,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
           </div>
         </div>
         <div className="flex items-center">
-          <button 
+        <button
             onClick={(e) => {
               e.stopPropagation();
               onPractice(group.questionSetId);
@@ -719,7 +719,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             练习全部
-          </button>
+        </button>
           <svg 
             className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isCollapsed ? 'transform rotate-180' : ''}`} 
             fill="none" 
@@ -729,7 +729,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-        </div>
+      </div>
       </div>
       
       {!isCollapsed && (
@@ -1198,20 +1198,20 @@ const ProfilePage: React.FC = () => {
         <div className="overflow-x-auto">
           <nav className="flex relative">
             {/* 标签页选项 */}
-            <button
-              onClick={() => handleTabChange('progress')}
-              className={`
+          <button
+            onClick={() => handleTabChange('progress')}
+            className={`
                 py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'progress'
+              ${activeTab === 'progress'
                   ? 'text-blue-600'
                   : 'text-gray-500 hover:text-gray-700'}
-              `}
-            >
+            `}
+          >
               <svg className={`w-4 h-4 mr-2 ${activeTab === 'progress' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              学习进度
-            </button>
+            学习进度
+          </button>
             
             <button
               onClick={() => handleTabChange('wrong-answers')}
@@ -1233,11 +1233,11 @@ const ProfilePage: React.FC = () => {
               )}
             </button>
             
-            <button
-              onClick={() => handleTabChange('purchases')}
-              className={`
+          <button
+            onClick={() => handleTabChange('purchases')}
+            className={`
                 py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'purchases'
+              ${activeTab === 'purchases'
                   ? 'text-blue-600'
                   : 'text-gray-500 hover:text-gray-700'}
               `}
@@ -1251,27 +1251,27 @@ const ProfilePage: React.FC = () => {
                   {purchases.length}
                 </span>
               )}
-            </button>
+          </button>
             
-            <button
-              onClick={() => handleTabChange('redeemed')}
-              className={`
+          <button
+            onClick={() => handleTabChange('redeemed')}
+            className={`
                 py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'redeemed'
+              ${activeTab === 'redeemed'
                   ? 'text-blue-600'
                   : 'text-gray-500 hover:text-gray-700'}
-              `}
-            >
+            `}
+          >
               <svg className={`w-4 h-4 mr-2 ${activeTab === 'redeemed' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
               </svg>
-              已兑换的
+            已兑换的
               {redeemCodes.length > 0 && (
                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'redeemed' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
                   {redeemCodes.length}
                 </span>
               )}
-            </button>
+          </button>
             
             {/* 活动标签指示器 */}
             <div 
@@ -1283,7 +1283,7 @@ const ProfilePage: React.FC = () => {
                 width: '25%',
               }}
             />
-          </nav>
+        </nav>
         </div>
       </div>
     );
@@ -1291,17 +1291,17 @@ const ProfilePage: React.FC = () => {
 
   // 渲染进度内容
   const renderProgressContent = () => {
-    if (isLoading) {
+  if (isLoading) {
       return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
           <p className="text-gray-500 text-sm">加载学习数据中...</p>
         </div>
       );
-    }
+  }
 
     if (progressStats.length === 0) {
-      return (
+  return (
         <div className="bg-white p-8 rounded-lg text-center flex flex-col items-center">
           <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
             <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1324,11 +1324,11 @@ const ProfilePage: React.FC = () => {
     }
 
     return (
-      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {progressStats.map((stats) => (
-          <ProgressCard key={stats.questionSetId} stats={stats} />
-        ))}
-      </div>
+        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {progressStats.map((stats) => (
+            <ProgressCard key={stats.questionSetId} stats={stats} />
+          ))}
+        </div>
     );
   };
 
@@ -1437,7 +1437,7 @@ const ProfilePage: React.FC = () => {
   // 渲染错题集内容
   const renderWrongAnswersContent = () => {
     if (wrongAnswersLoading) {
-      return (
+  return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
           <p className="text-gray-500 text-sm">加载错题数据中...</p>
@@ -1616,8 +1616,8 @@ const ProfilePage: React.FC = () => {
       
       {/* 主内容区域 */}
       <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center">
               <svg className="w-5 h-5 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1625,19 +1625,19 @@ const ProfilePage: React.FC = () => {
               考试倒计时
             </h2>
             <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">与首页同步</span>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <ExamCountdownWidget theme="light" />
-          </div>
         </div>
-        
-        {renderTabs()}
-        
+          <div className="bg-white rounded-xl shadow-sm p-4">
+        <ExamCountdownWidget theme="light" />
+          </div>
+      </div>
+      
+      {renderTabs()}
+      
         <div className="bg-white rounded-xl shadow-sm p-6">
-          {activeTab === 'progress' ? renderProgressContent() : 
-           activeTab === 'purchases' ? renderPurchasesContent() : 
+      {activeTab === 'progress' ? renderProgressContent() : 
+       activeTab === 'purchases' ? renderPurchasesContent() : 
            activeTab === 'wrong-answers' ? renderWrongAnswersContent() :
-           renderRedeemedContent()}
+       renderRedeemedContent()}
         </div>
       </div>
     </div>
