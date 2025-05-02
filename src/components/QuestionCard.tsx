@@ -236,13 +236,18 @@ const QuestionCard = ({
             const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
               detail: {
                 questionId: question.id,
-                questionContent: question.question || question.text, // 使用已知存在的属性
+                questionSetId: questionSetId,
+                question: question.question || question.text,
                 questionType: question.questionType,
                 options: question.options,
-                selectedOptions: selectedIds,
-                correctOptions: question.options
-                  .filter(opt => opt.isCorrect)
-                  .map(opt => opt.id),
+                selectedOption: question.questionType === 'single' ? selectedIds[0] : undefined,
+                selectedOptions: question.questionType === 'multiple' ? selectedIds : undefined,
+                correctOption: question.questionType === 'single' 
+                  ? question.options.find(opt => opt.isCorrect)?.id
+                  : undefined,
+                correctOptions: question.questionType === 'multiple'
+                  ? question.options.filter(opt => opt.isCorrect).map(opt => opt.id)
+                  : undefined,
                 explanation: question.explanation
               }
             });
@@ -251,23 +256,9 @@ const QuestionCard = ({
         }
       }
       
-      // 无论答对答错，都有反馈和跳转逻辑
-      if (isCorrect) {
-        // 答对自动更快地跳到下一题 (400ms)
-        timeoutId = setTimeout(() => {
-          handleNext();
-        }, 400);
-      } else {
-        // 答错时也允许手动点击下一题按钮
-        setCanProceed(true);
-        // 显示下一题按钮的提示
-        setTimeout(() => {
-          const nextButton = document.querySelector('.next-question-button');
-          if (nextButton) {
-            nextButton.classList.add('pulse-animation');
-          }
-        }, 800);
-      }
+      // 允许继续
+      setCanProceed(true);
+      
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
       // 确保错误情况下也会重置提交状态并允许继续
@@ -688,49 +679,62 @@ const QuestionCard = ({
     }
   };
 
-  return (
-    <div className="bg-white shadow-md rounded-lg p-6 max-w-3xl mx-auto">
-      {/* 顶部导航和标题 */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-        <div>
-          <button 
-            onClick={() => navigate('/')} 
-            className="text-blue-600 hover:text-blue-800 mb-2 sm:mb-0 flex items-center"
-          >
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            返回主页
-          </button>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-sm">
-            {quizTitle}
-          </div>
-        </div>
-      </div>
+  // 处理上一题按钮点击
+  const handlePrevious = () => {
+    if (onJumpToQuestion && questionNumber > 1) {
+      onJumpToQuestion(questionNumber - 2); // 因为索引从0开始，问题编号从1开始
+    }
+  };
 
-      {/* 问题标题和进度 */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          问题 {questionNumber || 1} / {totalQuestions > 0 ? totalQuestions : 1}
-        </h2>
-        <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm">
-          {question.questionType === 'single' ? '单选题' : '多选题'}
-        </span>
-      </div>
+  // 添加快捷键支持
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // 左右箭头控制上一题/下一题
+      if (e.key === 'ArrowLeft') {
+        handlePrevious();
+      } else if (e.key === 'ArrowRight' && (showExplanation || canProceed)) {
+        handleNext();
+      }
       
-      {/* 题号小圆点导航 */}
-      {/* (移除此部分) */}
+      // 数字键选择选项 (1-9)
+      const num = parseInt(e.key);
+      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length) {
+        const optionIndex = num - 1;
+        const option = question.options[optionIndex];
+        if (option) {
+          handleOptionClick(option.text, option.id);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showExplanation, canProceed, question.options]);
 
-      {/* 添加到选项下方的题号导航 */}
-      {/* 选项 */}
-      <div className="mt-6 space-y-2">
+  return (
+    <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+      {/* 题目信息 */}
+      <div className="mb-4 flex justify-between items-center">
+        <div className="flex items-center">
+          <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full font-medium mr-2">
+            {questionNumber} / {totalQuestions}
+          </span>
+          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+            {question.questionType === 'single' ? '单选题' : '多选题'}
+          </span>
+        </div>
+      </div>
+
+      {/* 题目内容 */}
+      <h2 className="text-lg font-semibold text-gray-800 mb-5">{question.question || question.text}</h2>
+
+      {/* 选项列表 */}
+      <div className="space-y-3 mt-4">
         {question.options.map((option, index) => (
           <div
             key={option.id}
             className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all duration-150 ${getOptionClass(option)}`}
-            onClick={() => handleOptionClick(option.text, option.id)}
+            onClick={() => !showExplanation && handleOptionClick(option.text, option.id)}
           >
             <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mr-3 ${
               showExplanation && option.isCorrect 
@@ -748,91 +752,102 @@ const QuestionCard = ({
         ))}
       </div>
 
-      {/* 题号小圆点导航，移动到这里 */}
-      {onJumpToQuestion && (
-        <div className="flex justify-center mb-6 flex-wrap gap-1">
-          {renderNumberButtons()}
-        </div>
-      )}
-
-      {/* 问题内容 */}
-      <div className="mb-6">
-        <p className="text-gray-700 text-lg mb-4">{question.question}</p>
-      </div>
-
-      {/* 解析 */}
-      {isSubmitted && (
-        <div className="mt-6 flex justify-between items-center">
-          {/* 多选题提交按钮 */}
-          {question.questionType === 'multiple' && !showExplanation && (
-            <button
-              onClick={handleSubmit}
-              disabled={selectedOptions.length === 0 || isSubmittingRef.current}
-              className={`px-4 py-2 rounded-md text-white font-medium flex items-center ${
-                selectedOptions.length === 0 || isSubmittingRef.current
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              提交答案
-            </button>
-          )}
-          
-          {/* 解析显示区域 */}
-          {showExplanation && (
-            <div className="w-full">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 mb-4">
-                <div className="flex items-start">
-                  <div className="bg-blue-100 p-1 rounded-md text-blue-700 mr-3">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-blue-800 mb-1">解析</h3>
-                    <p className="text-sm text-blue-700">{question.explanation || "本题暂无解析"}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* 下一题按钮 */}
+      {/* 多选题提交按钮 */}
+      {question.questionType === 'multiple' && !showExplanation && (
+        <div className="mt-4">
           <button
-            onClick={handleNext}
-            className={`next-question-button px-4 py-2 rounded-md text-white font-medium ml-auto flex items-center ${
-              (showExplanation || canProceed) ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'
+            onClick={handleSubmit}
+            disabled={selectedOptions.length === 0 || isSubmittingRef.current}
+            className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
+              selectedOptions.length === 0 || isSubmittingRef.current
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
             }`}
-            disabled={!showExplanation && !canProceed}
           >
-            下一题
-            <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
+            提交答案
           </button>
         </div>
       )}
-
-      {/* 移除 Redeem Code Modal 相关内容 */}
-
-      {/* 添加用于下一题按钮的动画样式 */}
-      <style>
-        {`
-          @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-          }
-          .pulse-animation {
-            animation: pulse 1s infinite;
-            box-shadow: 0 0 0 rgba(72, 187, 120, 0.4);
-            animation: pulse 2s infinite;
-          }
-        `}
-      </style>
+      
+      {/* 解析显示区域 */}
+      {showExplanation && (
+        <div className="mt-5">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <div className="flex items-start">
+              <div className="bg-blue-100 p-1 rounded-md text-blue-700 mr-3 flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-medium text-blue-800 mb-1">解析</h3>
+                <p className="text-sm text-blue-700">{question.explanation || "本题暂无解析"}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 答案正确/错误提示 */}
+          <div className="mt-4 text-center">
+            <div className={`inline-block px-4 py-2 rounded-full font-medium text-sm ${
+              selectedOptions.some(id => 
+                question.options.find(opt => opt.id === id)?.isCorrect
+              ) 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {selectedOptions.some(id => 
+                question.options.find(opt => opt.id === id)?.isCorrect
+              ) 
+                ? '答对了' 
+                : '答错了'
+              }
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 导航按钮区域 - 上一题和下一题 */}
+      <div className="mt-6 flex justify-between">
+        <button
+          onClick={handlePrevious}
+          className={`px-5 py-2 rounded-md flex items-center ${
+            questionNumber > 1 
+              ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+              : 'text-gray-400 bg-gray-50 cursor-not-allowed'
+          }`}
+          disabled={questionNumber <= 1}
+        >
+          <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          上一题
+        </button>
+        
+        <button
+          onClick={handleNext}
+          className={`next-question-button px-5 py-2 rounded-md flex items-center ${
+            (showExplanation || canProceed) 
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+          disabled={!showExplanation && !canProceed}
+        >
+          下一题
+          <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+      
+      {/* 键盘快捷键提示 */}
+      <div className="mt-4 text-center text-xs text-gray-500">
+        <span className="bg-gray-100 rounded px-1.5 py-0.5 mr-1">←</span>上一题
+        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">→</span>下一题
+        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">1-9</span>选择选项
+      </div>
     </div>
   );
 };

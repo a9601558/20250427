@@ -14,6 +14,7 @@ import { toast } from 'react-toastify';
 // 定义答题记录类型
 interface AnsweredQuestion {
   index: number;
+  questionIndex?: number;
   isCorrect: boolean;
   selectedOption: string | string[];
 }
@@ -888,255 +889,374 @@ function QuizPage(): JSX.Element {
   };
   
   // 处理答案提交 - 使用节流机制避免频繁请求
-  const handleAnswerSubmit = async (isCorrect: boolean, selectedOpt: string | string[]): Promise<void> => {
-    if (!questions[currentQuestionIndex] || !user || !socket || !questionSet) return;
-
-    // 检查是否正在提交，避免重复提交
+  const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
     if (isSubmittingRef.current) {
-      console.log('[QuizPage] 正在处理上一次提交，忽略此次请求');
+      console.log('已在提交答案中，忽略重复请求');
       return;
     }
 
-    const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
-    
-    // 添加节流机制，避免短时间内重复提交
-    const now = Date.now();
-    const lastSubmitTime = lastSubmitTimeRef.current || 0;
-    if (now - lastSubmitTime < 800) { // 从1200ms降低到800ms，提高响应速度
-      console.log('[QuizPage] 提交过于频繁，忽略此次提交:', now - lastSubmitTime, 'ms');
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) {
+      console.error('当前问题数据不存在');
       return;
     }
-    
-    try {
-      // 设置提交锁和更新提交时间
-      isSubmittingRef.current = true;
-      lastSubmitTimeRef.current = now;
 
-      // 添加安全机制，防止提交锁永久锁住
-      const safetyTimeoutId = setTimeout(() => {
-        if (isSubmittingRef.current) {
-          console.log('[QuizPage] 安全机制触发，解除提交锁');
-          isSubmittingRef.current = false;
-        }
-      }, 5000); // 5秒后无论如何都解除锁定
+    // 设置提交状态
+    isSubmittingRef.current = true;
 
-      // 当前答题状态
-      const currentAnsweredState = {
-        index: currentQuestionIndex,
+    // 确保selectedOption总是字符串数组
+    const optionIds = Array.isArray(selectedOption) ? selectedOption : [selectedOption];
+
+    // 更新当前问题的状态
+    const updatedAnsweredQuestions = [...answeredQuestions];
+    const timeSpent = quizStartTime ? (Date.now() - quizStartTime) / 1000 : 0;
+
+    // 检查是否已经回答过这个问题
+    const existingAnswerIndex = updatedAnsweredQuestions.findIndex(
+      q => q.questionIndex === currentQuestionIndex
+    );
+
+    if (existingAnswerIndex !== -1) {
+      // 更新已存在的答案
+      updatedAnsweredQuestions[existingAnswerIndex] = {
+        ...updatedAnsweredQuestions[existingAnswerIndex],
         isCorrect,
-        selectedOption: selectedOpt
+        selectedOption: optionIds,
       };
-      
-      // 更新已回答题目列表
-      const updatedAnsweredQuestions = [...answeredQuestions, currentAnsweredState];
-      
-      console.log(`[QuizPage] 提交答案: 题目索引=${currentQuestionIndex}, 正确=${isCorrect}, 已答题数=${updatedAnsweredQuestions.length}`);
-      
-      // 使用Socket.IO保存进度
-      const progressEvent = { 
-        userId: user.id,
-        questionSetId: questionSet.id,
-        questionId: String(questions[currentQuestionIndex].id),
+    } else {
+      // 添加新的答案
+      updatedAnsweredQuestions.push({
+        index: updatedAnsweredQuestions.length,
+        questionIndex: currentQuestionIndex,
+        isCorrect,
+        selectedOption: optionIds,
+      });
+    }
+
+    setAnsweredQuestions(updatedAnsweredQuestions);
+
+    // 更新进度 - 简化为占位函数
+    const updateProgress = (answeredQuestions: AnsweredQuestion[]) => {
+      console.log("[QuizPage] 更新进度:", answeredQuestions.length);
+    };
+    updateProgress(updatedAnsweredQuestions);
+
+    // 更新本地存储 - 简化为占位函数
+    const saveProgressToLocalStorage = (answeredQuestions: AnsweredQuestion[]) => {
+      const localProgressKey = `quiz_progress_${questionSetId}`;
+      localStorage.setItem(localProgressKey, JSON.stringify({
+        lastQuestionIndex: currentQuestionIndex,
+        answeredQuestions,
+        lastUpdated: new Date().toISOString()
+      }));
+    };
+    saveProgressToLocalStorage(updatedAnsweredQuestions);
+
+    // 发送Socket.IO事件
+    if (socket && user?.id && currentQuestion) {
+      socket.emit('progress:update', {
+        questionId: currentQuestion.id,
+        questionSetId: questionSetId,
         isCorrect,
         timeSpent,
-        completedQuestions: updatedAnsweredQuestions.length,
-        totalQuestions: questions.length,
-        correctAnswers: (user.progress?.[questionSet.id]?.correctAnswers || 0) + (isCorrect ? 1 : 0),
-        lastAccessed: new Date().toISOString(),
-        lastQuestionIndex: currentQuestionIndex, // 当前题目索引
-        answeredQuestions: updatedAnsweredQuestions
+        selectedOption: optionIds[0],
+      });
+    }
+
+    // 答题完成后更新总时间
+    if (isTimerActive && updatedAnsweredQuestions.length === questions.length) {
+      setIsTimerActive(false);
+      setQuizTotalTime(timeSpent);
+      
+      // 发送完成事件
+      if (socket && user?.id) {
+        socket.emit('quiz:complete', {
+          questionSetId,
+          totalTime: timeSpent,
+          correctCount: updatedAnsweredQuestions.filter(q => q.isCorrect).length,
+          totalCount: questions.length
+        });
+      }
+    }
+
+    // 重置提交状态 - 更短的时间，用于提高用户体验
+    setTimeout(() => {
+      isSubmittingRef.current = false;
+    }, 800);
+  }, [
+    currentQuestionIndex, 
+    answeredQuestions, 
+    questionSetId, 
+    socket, 
+    user?.id,
+    quizStartTime,
+    questions.length,
+    isTimerActive
+  ]);
+
+  // 处理跳转到特定题目
+  const handleJumpToQuestion = useCallback((index: number) => {
+    // 检查是否是有效的问题索引
+    if (index >= 0 && index < questions.length) {
+      setCurrentQuestionIndex(index);
+      // 更新本地存储中的最后访问问题
+      const progressData = {
+        questionSetId,
+        lastQuestionIndex: index,
+        answeredQuestions,
+        lastUpdated: new Date().toISOString()
       };
       
-      // 使用自定义事件保存进度
-      const saveEvent = new CustomEvent('progress:save', { 
-        detail: progressEvent
-      });
-      window.dispatchEvent(saveEvent);
-      
-      // 同时保存到本地存储，以支持离线场景
-      try {
-        const localProgressKey = `quiz_progress_${questionSet.id}`;
-        localStorage.setItem(localProgressKey, JSON.stringify({
-          lastQuestionIndex: currentQuestionIndex,
-          answeredQuestions: updatedAnsweredQuestions,
-          lastUpdated: new Date().toISOString()
-        }));
-      } catch (e) {
-        console.error('[QuizPage] 本地存储进度失败:', e);
-      }
-      
-      // 更新本地状态
-      if (isCorrect) {
-        setCorrectAnswers(prev => prev + 1);
-      }
-      
-      // 显示解析 - 强制设置为true确保解析显示
-      setShowExplanation(true);
-
-      // 更新已回答问题列表
-      setAnsweredQuestions(updatedAnsweredQuestions);
-
-      // 无论答对答错都有后续动作
-      if (isCorrect && currentQuestionIndex < questions.length - 1) {
-        // 清除可能存在的旧定时器
-        if (timeoutId.current) {
-          clearTimeout(timeoutId.current);
-          timeoutId.current = undefined;
-        }
-        
-        console.log('[QuizPage] 答案正确，设置跳转计时器');
-        
-        // 设置新的定时器，延迟跳转到下一题
-        timeoutId.current = setTimeout(() => {
-          console.log('[QuizPage] 自动跳转到下一题');
-          goToNextQuestion();
-        }, 1500); // 增加延迟时间，确保用户看到结果
-      } else if (!isCorrect) {
-        // 错误答案情况下，显示解析并提示用户可以继续
-        console.log('[QuizPage] 答案错误，显示解析并允许手动继续');
-        // 给"下一题"按钮添加视觉提示 (闪烁效果)
-        setTimeout(() => {
-          const nextButtons = document.querySelectorAll('.next-question-button');
-          nextButtons.forEach(btn => {
-            if (btn instanceof HTMLElement) {
-              btn.classList.add('attention-animation');
-            }
-          });
-        }, 800);
-      }
-      
-      // 判断是否所有题目已完成
-      const allQuestionsAnswered = updatedAnsweredQuestions.length === questions.length;
-      if (allQuestionsAnswered) {
-        // 设置完成标记
-        sessionStorage.setItem(`quiz_completed_${questionSet.id}`, 'true');
-        
-        // 如果所有题都已答完，稍后切换到完成状态
-        setTimeout(() => {
-          console.log('[QuizPage] 所有题目已完成，显示完成状态');
-          setQuizComplete(true);
-        }, 1500);
-      }
-
-      // 清除安全超时
-      clearTimeout(safetyTimeoutId);
-    } catch (error) {
-      console.error('保存进度失败:', error);
-      setError('保存进度失败，请重试');
-      // 确保错误情况下也会重置提交状态
-      isSubmittingRef.current = false;
-    } finally {
-      // 延迟释放提交锁，防止过快重复提交
-      setTimeout(() => {
-        isSubmittingRef.current = false;
-      }, 800); // 从1000ms降低到800ms，提高响应速度
+      const localProgressKey = `quiz_progress_${questionSetId}`;
+      localStorage.setItem(localProgressKey, JSON.stringify(progressData));
     }
-  };
-  
-  // 添加进度保存事件监听器
-  useEffect(() => {
-    if (!socket || !user) return;
-    
-    // 进度保存事件处理函数
-    const handleProgressSave = (event: Event) => {
-      try {
-        const customEvent = event as CustomEvent;
-        const progressData = customEvent.detail;
+  }, [questions.length, questionSetId, answeredQuestions]);
+
+  // 渲染内容
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-red-500 text-xl mb-4">加载失败</div>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button 
+            onClick={() => {window.location.reload()}}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            重试
+          </button>
+        </div>
+      );
+    }
+
+    if (questions.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-xl mb-4">没有找到问题</div>
+          <p className="text-gray-600 mb-6">该题库暂无内容或您可能没有访问权限</p>
+          <button 
+            onClick={() => {navigate('/')}}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            返回首页
+          </button>
+        </div>
+      );
+    }
+
+    if (quizComplete) {
+      // 计算统计数据
+      const correctCount = answeredQuestions.filter(q => q.isCorrect).length;
+      const totalCount = questions.length;
+      const accuracy = Math.round((correctCount / totalCount) * 100);
+      
+      // 格式化用时
+      const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}分${secs}秒`;
+      };
+      
+      // 添加获取访问状态
+      const getAccessStatusText = () => {
+        if (!questionSet) return '';
         
-        // 确保进度数据有效
-        if (!progressData || !progressData.questionId || !progressData.lastQuestionIndex) {
-          console.error('[QuizPage] 无效的进度数据，无法保存');
-          return;
+        if (!questionSet.isPaid) {
+          return '免费题库';
         }
         
-        // 确保不会在短时间内发送多次相似请求
-        const cacheKey = `progress_${progressData.questionId}_${progressData.lastQuestionIndex}`;
-        const now = Date.now();
-        const lastSent = parseInt(sessionStorage.getItem(cacheKey) || '0', 10);
-        
-        if (now - lastSent < 2500) { // 增加到2.5秒内不重复发送
-          console.log('[QuizPage] 短时间内进度保存请求重复，已忽略');
-          return;
+        if (hasAccessToFullQuiz) {
+          // 简化实现，返回一个固定文本
+          return `付费题库 (已购买)`;
         }
         
-        // 记录本次发送时间
-        sessionStorage.setItem(cacheKey, now.toString());
-        
-        console.log('[QuizPage] 通过Socket发送进度更新:', 
-          `题目ID=${progressData.questionId}, 索引=${progressData.lastQuestionIndex}`);
-        
-        // 通过Socket发送
-        socket.emit('progress:update', progressData);
-        
-        // 确认事件监听 - 使用一次性监听器
-        const handleProgressSaved = (response: any) => {
-          if (response.success) {
-            console.log('[Socket] 进度保存成功:', response);
-          } else {
-            console.error('[Socket] 进度保存失败:', response.message);
+        return '付费题库 (未购买)';
+      };
+
+      return (
+        <div className="bg-white rounded-xl shadow-md p-6 max-w-3xl mx-auto">
+          <div className="text-center mb-6">
+            <div className="inline-block p-4 rounded-full bg-green-100 text-green-600 mb-4">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">完成练习!</h2>
+            <p className="text-gray-600">{questionSet?.title || '未知题库'}</p>
             
-            // 保存失败时进行重试，但避免无限重试
-            const retryCount = parseInt(sessionStorage.getItem(`retry_${cacheKey}`) || '0', 10);
-            if (retryCount < 2) { // 最多重试2次
-              console.log('[QuizPage] 尝试重新发送进度数据...');
-              setTimeout(() => {
-                socket.emit('progress:update', progressData);
-                sessionStorage.setItem(`retry_${cacheKey}`, (retryCount + 1).toString());
-              }, 3000); // 3秒后重试
-            }
-          }
-        };
-        
-        socket.once('progress_saved', handleProgressSaved);
-        
-        // 设置超时清理
-        setTimeout(() => {
-          socket.off('progress_saved', handleProgressSaved);
-        }, 5000); // 增加超时时间
-      } catch (error) {
-        console.error('[QuizPage] 处理进度保存事件失败:', error);
-      }
-    };
-    
-    // 添加事件监听
-    window.addEventListener('progress:save', handleProgressSave);
-    
-    // 清理函数
-    return () => {
-      window.removeEventListener('progress:save', handleProgressSave);
-    };
-  }, [socket, user]);
-  
-  // 进入下一题
-  const goToNextQuestion = () => {
-    if (isSubmittingRef.current) {
-      console.log('[QuizPage] 正在提交答案，延迟跳转到下一题');
-      setTimeout(goToNextQuestion, 500);
-      return;
+            {/* 添加题库类型和有效期信息 */}
+            <div className="mt-2 text-sm text-gray-500">
+              {getAccessStatusText()}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="bg-blue-50 rounded-lg p-4 text-center">
+              <div className="text-sm text-blue-600 mb-1">正确率</div>
+              <div className="text-2xl font-bold text-blue-800">{accuracy}%</div>
+              <div className="text-xs text-blue-600 mt-1">{correctCount}/{totalCount}题</div>
+            </div>
+            
+            <div className="bg-purple-50 rounded-lg p-4 text-center">
+              <div className="text-sm text-purple-600 mb-1">用时</div>
+              <div className="text-2xl font-bold text-purple-800">{formatTime(quizTotalTime)}</div>
+              <div className="text-xs text-purple-600 mt-1">平均{formatTime(quizTotalTime/totalCount)}/题</div>
+            </div>
+          </div>
+          
+          <div className="space-y-3 mb-8">
+            {answeredQuestions.map((answer, index) => {
+              if (!answer.questionIndex || answer.questionIndex < 0 || answer.questionIndex >= questions.length) return null;
+              const question = questions[answer.questionIndex];
+              if (!question) return null;
+              
+              return (
+                <div key={index} className={`p-3 rounded-lg border ${answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-2 ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                        {(answer.questionIndex ?? 0) + 1}
+                      </div>
+                      <div className="text-sm font-medium">{question.question ? (question.question.length > 50 ? `${question.question.substring(0, 50)}...` : question.question) : '未知问题'}</div>
+                    </div>
+                    <div className={`text-xs px-2 py-0.5 rounded-full ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                      {answer.isCorrect ? '正确' : '错误'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="flex space-x-3 justify-center">
+            <button 
+              onClick={handleResetQuiz} 
+              className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              重新开始
+            </button>
+            <button 
+              onClick={() => navigate('/')} 
+              className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition flex items-center"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              返回首页
+            </button>
+          </div>
+        </div>
+      );
     }
 
-    // 清除旧定时器
-    if (timeoutId.current) {
-      clearTimeout(timeoutId.current);
-      timeoutId.current = undefined;
-    }
-    
-    // 设置下一题的开始时间
-    setQuestionStartTime(Date.now());
-    
-    // 清除选项和解析状态
-    setSelectedOptions([]);
-    setShowExplanation(false);
-    
-    console.log(`[QuizPage] 跳转至下一题: ${currentQuestionIndex + 1}/${questions.length}`);
-    
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-      // 完成测试
-      console.log('[QuizPage] 已完成所有题目，设置完成状态');
-      setQuizComplete(true);
-    }
+    return (
+      <div className="max-w-4xl mx-auto">
+        {/* 顶部导航栏 */}
+        <div className="flex justify-between items-center mb-6">
+          <button 
+            onClick={() => navigate('/')} 
+            className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            返回首页
+          </button>
+          
+          <div className="flex items-center">
+            {/* 计时器 */}
+            {isTimerActive && (
+              <div className="bg-blue-50 text-blue-800 px-3 py-1 rounded-lg text-sm flex items-center mr-2">
+                <svg className="w-4 h-4 mr-1 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {formatTime(quizTotalTime)}
+              </div>
+            )}
+            
+            <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg text-sm">
+              {questionSet?.title || '加载中...'}
+            </div>
+          </div>
+        </div>
+        
+        {/* 题目卡片 */}
+        {currentQuestion && (
+          <QuestionCard
+            key={`${currentQuestionIndex}-${answeredQuestions.length}`}
+            question={currentQuestion}
+            questionNumber={currentQuestionIndex + 1}
+            totalQuestions={questions.length}
+            onAnswerSubmitted={(isCorrect, selectedOption) => handleAnswerSubmit(isCorrect, selectedOption)}
+            onNext={() => {
+              // 如果已经是最后一题，标记为完成
+              if (currentQuestionIndex === questions.length - 1) {
+                setQuizComplete(true);
+                return;
+              }
+              
+              // 否则跳转到下一题
+              setCurrentQuestionIndex(prevIndex => prevIndex + 1);
+              setSelectedOptions([]);
+              setShowExplanation(false);
+            }}
+            onJumpToQuestion={handleJumpToQuestion}
+            isPaid={questionSet?.isPaid}
+            hasFullAccess={hasAccessToFullQuiz}
+            questionSetId={questionSetId || ''}
+            isLast={currentQuestionIndex === questions.length - 1}
+          />
+        )}
+        
+        {/* 进度条 */}
+        <div className="mt-6 bg-gray-200 rounded-full h-2.5 mb-6">
+          <div 
+            className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+            style={{ width: `${Math.round((answeredQuestions.length / questions.length) * 100)}%` }}
+          ></div>
+        </div>
+        
+        {/* 答题进度指示器 */}
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {questions.map((_, index) => {
+            // 查找该题的答题记录
+            const answer = answeredQuestions.find(a => a.questionIndex === index);
+            let btnClass = "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ";
+            
+            if (index === currentQuestionIndex) {
+              btnClass += "bg-blue-600 text-white ring-2 ring-blue-300 ring-offset-2";
+            } else if (answer) {
+              btnClass += answer.isCorrect 
+                ? "bg-green-100 text-green-800 hover:bg-green-200" 
+                : "bg-red-100 text-red-800 hover:bg-red-200";
+            } else {
+              btnClass += "bg-gray-100 text-gray-800 hover:bg-gray-200";
+            }
+            
+            return (
+              <button 
+                key={index}
+                className={btnClass}
+                onClick={() => handleJumpToQuestion(index)}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
   
   // 重新开始测试
@@ -1783,16 +1903,8 @@ function QuizPage(): JSX.Element {
         setQuestions(shuffled);
       }
       
-      // 保存重置状态到后端
-      if (socket && user && questionSet) {
-        socket.emit('progress:reset', {
-          userId: user.id,
-          questionSetId: questionSet.id
-        });
-        
-        // 提示用户
-        toast.success('进度已重置，开始新的测试！');
-      }
+      // 提示用户
+      toast.success('进度已重置，开始新的测试！');
       
       // 清除本地存储
       try {
@@ -2314,11 +2426,31 @@ function QuizPage(): JSX.Element {
               <QuestionCard
                 key={`question-${currentQuestionIndex}`}
                 question={questions[currentQuestionIndex]}
+                questionNumber={currentQuestionIndex + 1}
+                totalQuestions={questions.length}
                 onAnswerSubmitted={handleAnswerSubmit}
-                onNext={goToNextQuestion}
+                onNext={() => {
+                  // 如果已经是最后一题，标记为完成
+                  if (currentQuestionIndex === questions.length - 1) {
+                    setQuizComplete(true);
+                    // 如果有计时器活动，停止计时
+                    if (isTimerActive) {
+                      setIsTimerActive(false);
+                      setQuizTotalTime(Math.floor((Date.now() - quizStartTime) / 1000));
+                    }
+                    return;
+                  }
+                  
+                  // 否则跳转到下一题
+                  setCurrentQuestionIndex(prevIndex => prevIndex + 1);
+                  setSelectedOptions([]);
+                  setShowExplanation(false);
+                }}
+                onJumpToQuestion={handleJumpToQuestion}
+                isPaid={questionSet?.isPaid}
+                hasFullAccess={hasAccessToFullQuiz}
+                questionSetId={questionSet?.id || ''}
                 isLast={currentQuestionIndex === questions.length - 1}
-                isSubmittingAnswer={false}
-                questionSetId={questionSet?.id || ''} // 传递问题集ID
               />
             )}
           </>
