@@ -59,7 +59,7 @@ WrongAnswer.belongsTo(QuestionSet, { as: 'questionSet', foreignKey: 'questionSet
 
 // Question与WrongAnswer的关联
 Question.hasMany(WrongAnswer, { as: 'wrongAnswers', foreignKey: 'questionId' });
-WrongAnswer.belongsTo(Question, { as: 'question', foreignKey: 'questionId' });
+WrongAnswer.belongsTo(Question, { as: 'wrongAnswerQuestion', foreignKey: 'questionId' });
 
 // 设置RedeemCode的关联
 setupRedeemCodeAssociations();

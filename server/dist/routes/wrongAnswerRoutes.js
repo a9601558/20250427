@@ -38,22 +38,24 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const wrongAnswerController = __importStar(require("../controllers/wrongAnswerController"));
-const auth_1 = require("../middlewares/auth");
+const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
-// 所有路由都需要身份验证
-router.use(auth_1.authenticateJwt);
-// 获取用户的所有错题记录
-router.get('/', wrongAnswerController.getWrongAnswers);
-// 保存错题记录
+// 保护所有路由，需要用户登录
+router.use(authMiddleware_1.protect);
+// 获取用户的错题列表
+router.get('/', wrongAnswerController.getUserWrongAnswers);
+// 保存错题
 router.post('/', wrongAnswerController.saveWrongAnswer);
-// 删除错题记录
-router.delete('/:id', wrongAnswerController.deleteWrongAnswer);
+// 获取错题详情
+router.get('/:id', wrongAnswerController.getWrongAnswerById);
 // 更新错题备注
-router.patch('/:id', wrongAnswerController.updateMemo);
+router.patch('/:id', wrongAnswerController.updateWrongAnswerMemo);
+// 删除错题
+router.delete('/:id', wrongAnswerController.deleteWrongAnswer);
+// 批量删除错题
+router.post('/batch-delete', wrongAnswerController.bulkDeleteWrongAnswers);
 // 标记错题为已掌握
 router.post('/:id/mastered', wrongAnswerController.markAsMastered);
-// 批量删除错题
-router.post('/bulk-delete', wrongAnswerController.bulkDeleteWrongAnswers);
-// 获取题库下的错题
+// 按题库获取错题
 router.get('/by-question-set/:questionSetId', wrongAnswerController.getWrongAnswersByQuestionSet);
 exports.default = router;

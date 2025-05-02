@@ -94,7 +94,7 @@ QuestionSet_1.default.hasMany(WrongAnswer_1.default, { as: 'wrongAnswers', forei
 WrongAnswer_1.default.belongsTo(QuestionSet_1.default, { as: 'questionSet', foreignKey: 'questionSetId' });
 // Question与WrongAnswer的关联
 Question_1.default.hasMany(WrongAnswer_1.default, { as: 'wrongAnswers', foreignKey: 'questionId' });
-WrongAnswer_1.default.belongsTo(Question_1.default, { as: 'question', foreignKey: 'questionId' });
+WrongAnswer_1.default.belongsTo(Question_1.default, { as: 'wrongAnswerQuestion', foreignKey: 'questionId' });
 // 设置RedeemCode的关联
 (0, RedeemCode_1.setupAssociations)();
 exports.default = {

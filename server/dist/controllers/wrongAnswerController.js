@@ -1,11 +1,8 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getWrongAnswersByQuestionSet = exports.bulkDeleteWrongAnswers = exports.markAsMastered = exports.updateMemo = exports.deleteWrongAnswer = exports.saveWrongAnswer = exports.getWrongAnswers = void 0;
-const WrongAnswer_1 = __importDefault(require("../models/WrongAnswer"));
-const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
+exports.getUserWrongAnswers = exports.getWrongAnswerById = exports.getWrongAnswersByQuestionSet = exports.bulkDeleteWrongAnswers = exports.markAsMastered = exports.updateWrongAnswerMemo = exports.deleteWrongAnswer = exports.saveWrongAnswer = exports.getWrongAnswers = void 0;
+const models_1 = require("../models");
+const uuid_1 = require("uuid");
 const sequelize_1 = require("sequelize");
 /**
  * 获取用户所有错题记录
@@ -16,11 +13,16 @@ const getWrongAnswers = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ success: false, message: '未授权，请先登录' });
         }
-        const wrongAnswers = await WrongAnswer_1.default.findAll({
+        const wrongAnswers = await models_1.WrongAnswer.findAll({
             where: { userId },
             include: [
                 {
-                    model: QuestionSet_1.default,
+                    model: models_1.Question,
+                    as: 'wrongAnswerQuestion',
+                    attributes: ['id', 'text', 'questionType', 'explanation']
+                },
+                {
+                    model: models_1.QuestionSet,
                     as: 'questionSet',
                     attributes: ['id', 'title']
                 }
@@ -47,21 +49,26 @@ exports.getWrongAnswers = getWrongAnswers;
 const saveWrongAnswer = async (req, res) => {
     try {
         const userId = req.user?.id;
-        if (!userId) {
-            return res.status(401).json({ success: false, message: '未授权，请先登录' });
+        const { questionId, questionSetId, question, questionType, options, selectedOption, selectedOptions, correctOption, correctOptions, explanation, memo } = req.body;
+        // 验证必要字段
+        if (!questionId || !questionSetId || !question || !questionType || !options) {
+            return res.status(400).json({
+                success: false,
+                message: '缺少必要的错题信息'
+            });
         }
-        const { questionId, questionSetId, question, questionType, options, selectedOption, selectedOptions, correctOption, correctOptions, explanation } = req.body;
-        // 检查是否已存在相同的错题记录（防止重复添加）
-        const existingWrongAnswer = await WrongAnswer_1.default.findOne({
+        // 检查错题是否已存在
+        const existingWrongAnswer = await models_1.WrongAnswer.findOne({
             where: {
                 userId,
                 questionId,
                 questionSetId
             }
         });
+        let wrongAnswer;
         if (existingWrongAnswer) {
-            // 更新已有记录
-            await existingWrongAnswer.update({
+            // 更新现有错题
+            wrongAnswer = await existingWrongAnswer.update({
                 question,
                 questionType,
                 options,
@@ -69,39 +76,39 @@ const saveWrongAnswer = async (req, res) => {
                 selectedOptions,
                 correctOption,
                 correctOptions,
-                explanation
-            });
-            return res.json({
-                success: true,
-                data: existingWrongAnswer,
-                message: '错题记录已更新'
+                explanation,
+                memo
             });
         }
-        // 创建新记录
-        const wrongAnswer = await WrongAnswer_1.default.create({
-            userId,
-            questionId,
-            questionSetId,
-            question,
-            questionType,
-            options,
-            selectedOption,
-            selectedOptions,
-            correctOption,
-            correctOptions,
-            explanation
-        });
-        return res.status(201).json({
+        else {
+            // 创建新错题记录
+            wrongAnswer = await models_1.WrongAnswer.create({
+                id: (0, uuid_1.v4)(),
+                userId,
+                questionId,
+                questionSetId,
+                question,
+                questionType,
+                options,
+                selectedOption,
+                selectedOptions,
+                correctOption,
+                correctOptions,
+                explanation,
+                memo
+            });
+        }
+        res.status(201).json({
             success: true,
-            data: wrongAnswer,
-            message: '错题已保存'
+            message: existingWrongAnswer ? '错题已更新' : '错题已保存',
+            data: wrongAnswer
         });
     }
     catch (error) {
         console.error('保存错题失败:', error);
-        return res.status(500).json({
+        res.status(500).json({
             success: false,
-            message: '服务器错误，保存错题失败'
+            message: '服务器错误，无法保存错题'
         });
     }
 };
@@ -111,12 +118,9 @@ exports.saveWrongAnswer = saveWrongAnswer;
  */
 const deleteWrongAnswer = async (req, res) => {
     try {
-        const userId = req.user?.id;
-        if (!userId) {
-            return res.status(401).json({ success: false, message: '未授权，请先登录' });
-        }
         const { id } = req.params;
-        const wrongAnswer = await WrongAnswer_1.default.findOne({
+        const userId = req.user?.id;
+        const wrongAnswer = await models_1.WrongAnswer.findOne({
             where: {
                 id,
                 userId
@@ -125,20 +129,20 @@ const deleteWrongAnswer = async (req, res) => {
         if (!wrongAnswer) {
             return res.status(404).json({
                 success: false,
-                message: '错题记录不存在'
+                message: '错题不存在或无权访问'
             });
         }
         await wrongAnswer.destroy();
-        return res.json({
+        res.json({
             success: true,
             message: '错题已删除'
         });
     }
     catch (error) {
         console.error('删除错题失败:', error);
-        return res.status(500).json({
+        res.status(500).json({
             success: false,
-            message: '服务器错误，删除错题失败'
+            message: '服务器错误，无法删除错题'
         });
     }
 };
@@ -146,15 +150,12 @@ exports.deleteWrongAnswer = deleteWrongAnswer;
 /**
  * 更新错题备注
  */
-const updateMemo = async (req, res) => {
+const updateWrongAnswerMemo = async (req, res) => {
     try {
-        const userId = req.user?.id;
-        if (!userId) {
-            return res.status(401).json({ success: false, message: '未授权，请先登录' });
-        }
         const { id } = req.params;
         const { memo } = req.body;
-        const wrongAnswer = await WrongAnswer_1.default.findOne({
+        const userId = req.user?.id;
+        const wrongAnswer = await models_1.WrongAnswer.findOne({
             where: {
                 id,
                 userId
@@ -163,25 +164,25 @@ const updateMemo = async (req, res) => {
         if (!wrongAnswer) {
             return res.status(404).json({
                 success: false,
-                message: '错题记录不存在'
+                message: '错题不存在或无权访问'
             });
         }
         await wrongAnswer.update({ memo });
-        return res.json({
+        res.json({
             success: true,
-            data: wrongAnswer,
-            message: '备注已更新'
+            message: '错题备注已更新',
+            data: wrongAnswer
         });
     }
     catch (error) {
-        console.error('更新备注失败:', error);
-        return res.status(500).json({
+        console.error('更新错题备注失败:', error);
+        res.status(500).json({
             success: false,
-            message: '服务器错误，更新备注失败'
+            message: '服务器错误，无法更新错题备注'
         });
     }
 };
-exports.updateMemo = updateMemo;
+exports.updateWrongAnswerMemo = updateWrongAnswerMemo;
 /**
  * 标记错题为已掌握（删除）
  */
@@ -192,7 +193,7 @@ const markAsMastered = async (req, res) => {
             return res.status(401).json({ success: false, message: '未授权，请先登录' });
         }
         const { id } = req.params;
-        const wrongAnswer = await WrongAnswer_1.default.findOne({
+        const wrongAnswer = await models_1.WrongAnswer.findOne({
             where: {
                 id,
                 userId
@@ -235,7 +236,7 @@ const bulkDeleteWrongAnswers = async (req, res) => {
                 message: '请提供要删除的错题ID列表'
             });
         }
-        await WrongAnswer_1.default.destroy({
+        await models_1.WrongAnswer.destroy({
             where: {
                 id: {
                     [sequelize_1.Op.in]: ids
@@ -267,7 +268,7 @@ const getWrongAnswersByQuestionSet = async (req, res) => {
             return res.status(401).json({ success: false, message: '未授权，请先登录' });
         }
         const { questionSetId } = req.params;
-        const wrongAnswers = await WrongAnswer_1.default.findAll({
+        const wrongAnswers = await models_1.WrongAnswer.findAll({
             where: {
                 userId,
                 questionSetId
@@ -288,3 +289,90 @@ const getWrongAnswersByQuestionSet = async (req, res) => {
     }
 };
 exports.getWrongAnswersByQuestionSet = getWrongAnswersByQuestionSet;
+/**
+ * 获取错题详情
+ */
+const getWrongAnswerById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user?.id;
+        const wrongAnswer = await models_1.WrongAnswer.findOne({
+            where: {
+                id,
+                userId
+            },
+            include: [
+                {
+                    model: models_1.Question,
+                    as: 'wrongAnswerQuestion',
+                    attributes: ['id', 'text', 'questionType', 'explanation']
+                },
+                {
+                    model: models_1.QuestionSet,
+                    as: 'questionSet',
+                    attributes: ['id', 'title', 'description', 'category']
+                }
+            ]
+        });
+        if (!wrongAnswer) {
+            return res.status(404).json({
+                success: false,
+                message: '错题不存在或无权访问'
+            });
+        }
+        res.json({
+            success: true,
+            data: wrongAnswer
+        });
+    }
+    catch (error) {
+        console.error('获取错题详情失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '服务器错误，无法获取错题详情'
+        });
+    }
+};
+exports.getWrongAnswerById = getWrongAnswerById;
+/**
+ * 获取用户的错题列表
+ */
+const getUserWrongAnswers = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { questionSetId } = req.query;
+        const query = { userId };
+        // 如果提供了题库ID，则按题库筛选
+        if (questionSetId) {
+            query.questionSetId = questionSetId;
+        }
+        const wrongAnswers = await models_1.WrongAnswer.findAll({
+            where: query,
+            include: [
+                {
+                    model: models_1.Question,
+                    as: 'wrongAnswerQuestion',
+                    attributes: ['id', 'text', 'questionType', 'explanation']
+                },
+                {
+                    model: models_1.QuestionSet,
+                    as: 'questionSet',
+                    attributes: ['id', 'title', 'description', 'category']
+                }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json({
+            success: true,
+            data: wrongAnswers
+        });
+    }
+    catch (error) {
+        console.error('获取错题列表失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '服务器错误，无法获取错题列表'
+        });
+    }
+};
+exports.getUserWrongAnswers = getUserWrongAnswers;
