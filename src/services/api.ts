@@ -267,7 +267,7 @@ export const userService = {
   // 用户登录
   async login(username: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
-      const response = await apiClient.post('/users/login', { username, password });
+      const response = await apiClient.post('/api/users/login', { username, password });
       return handleResponse<{ user: User; token: string }>(response);
     } catch (error: any) {
       return {
@@ -281,7 +281,7 @@ export const userService = {
   // 用户注册
   async register(userData: Partial<User>): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
-      const response = await apiClient.post('/users/register', userData);
+      const response = await apiClient.post('/api/users/register', userData);
       return handleResponse<{ user: User; token: string }>(response);
     } catch (error: any) {
       return {
@@ -295,7 +295,7 @@ export const userService = {
   // 获取当前用户信息
   async getCurrentUser(): Promise<ApiResponse<User>> {
     try {
-      const response = await apiClient.get('/users/profile');
+      const response = await apiClient.get('/api/users/profile');
       return handleResponse<User>(response);
     } catch (error: any) {
       return {
@@ -323,7 +323,7 @@ export const userService = {
   // 获取所有用户 (仅管理员)
   async getAllUsers(): Promise<ApiResponse<User[]>> {
     try {
-      const response = await apiClient.get('/users');
+      const response = await apiClient.get('/api/users');
       return handleResponse<User[]>(response);
     } catch (error: any) {
       return {
@@ -368,7 +368,7 @@ export const questionSetService = {
   // 获取所有题库
   async getAllQuestionSets(): Promise<ApiResponse<QuestionSet[]>> {
     try {
-      const response = await apiClient.get('/question-sets');
+      const response = await apiClient.get('/api/question-sets');
       return handleResponse<QuestionSet[]>(response);
     } catch (error: any) {
       return {
@@ -396,7 +396,7 @@ export const questionSetService = {
   // 获取所有分类
   async getAllCategories(): Promise<ApiResponse<string[]>> {
     try {
-      const response = await apiClient.get('/question-sets/categories');
+      const response = await apiClient.get('/api/question-sets/categories');
       return handleResponse<string[]>(response);
     } catch (error: any) {
       return {
@@ -424,7 +424,7 @@ export const questionSetService = {
   // 创建题库 (仅管理员)
   async createQuestionSet(questionSetData: Partial<QuestionSet>): Promise<ApiResponse<QuestionSet>> {
     try {
-      const response = await apiClient.post('/question-sets', questionSetData);
+      const response = await apiClient.post('/api/question-sets', questionSetData);
       return handleResponse<QuestionSet>(response);
     } catch (error: any) {
       return {
@@ -466,7 +466,7 @@ export const questionSetService = {
   // 批量上传题库 (仅管理员)
   async uploadQuestionSets(questionSets: Partial<QuestionSet>[]): Promise<ApiResponse<QuestionSet[]>> {
     try {
-      const response = await apiClient.post('/question-sets/upload', { questionSets });
+      const response = await apiClient.post('/api/question-sets/upload', { questionSets });
       return handleResponse<QuestionSet[]>(response);
     } catch (error: any) {
       return {
@@ -480,7 +480,7 @@ export const questionSetService = {
   // 获取精选题库
   async getFeaturedQuestionSets(): Promise<ApiResponse<QuestionSet[]>> {
     try {
-      const response = await apiClient.get('/question-sets/featured');
+      const response = await apiClient.get('/api/question-sets/featured');
       return handleResponse<QuestionSet[]>(response);
     } catch (error: any) {
       return {
@@ -508,7 +508,7 @@ export const questionSetService = {
   // 获取用户进度
   async getUserProgress(): Promise<ApiResponse<Record<string, UserProgress>>> {
     try {
-      const response = await apiClient.get('/user-progress/stats');
+      const response = await apiClient.get('/api/user-progress/stats');
       const data = response.data.data;
       
       // 转换数据格式，添加数据校验
@@ -571,7 +571,7 @@ export const questionService = {
   // 添加题目到题库 (仅管理员)
   async addQuestion(questionSetId: string, question: Partial<Question>): Promise<ApiResponse<Question>> {
     try {
-      const response = await apiClient.post('/questions', { ...question, questionSetId });
+      const response = await apiClient.post('/api/questions', { ...question, questionSetId });
       return handleResponse<Question>(response);
     } catch (error: any) {
       return {
@@ -613,7 +613,7 @@ export const questionService = {
   // 批量上传题目 (仅管理员)
   async uploadQuestions(questionSetId: string, questions: Partial<Question>[]): Promise<ApiResponse<Question[]>> {
     try {
-      const response = await apiClient.post('/questions/upload', { questionSetId, questions });
+      const response = await apiClient.post('/api/questions/upload', { questionSetId, questions });
       return handleResponse<Question[]>(response);
     } catch (error: any) {
       return {
@@ -686,7 +686,7 @@ export const userProgressService = {
   // 获取用户的进度数据
   getUserProgress: async () => {
     try {
-      const response = await apiClient.get('/user-progress');
+      const response = await apiClient.get('/api/user-progress');
       return response.data;
     } catch (error) {
       console.error('获取用户进度失败:', error);
@@ -697,7 +697,7 @@ export const userProgressService = {
   // 获取用户的所有进度记录
   getUserProgressRecords: async () => {
     try {
-      const response = await apiClient.get('/user-progress/records');
+      const response = await apiClient.get('/api/user-progress/records');
       return response.data;
     } catch (error) {
       console.error('获取用户进度记录失败:', error);
@@ -708,7 +708,7 @@ export const userProgressService = {
   // 获取用户的历史记录
   getUserHistory: async () => {
     try {
-      const response = await apiClient.get('/user-progress/history');
+      const response = await apiClient.get('/api/user-progress/history');
       return response.data;
     } catch (error) {
       console.error('获取用户历史记录失败:', error);
@@ -719,7 +719,7 @@ export const userProgressService = {
   // 获取用户的统计数据
   getUserStats: async () => {
     try {
-      const response = await apiClient.get('/user-progress/stats');
+      const response = await apiClient.get('/api/user-progress/stats');
       return response.data;
     } catch (error) {
       console.error('获取用户统计数据失败:', error);
@@ -741,7 +741,7 @@ export const userProgressService = {
   // 更新进度
   updateProgress: async (progress: Partial<UserProgress>) => {
     try {
-      const response = await apiClient.post('/user-progress/update', progress);
+      const response = await apiClient.post('/api/user-progress/update', progress);
       return response.data;
     } catch (error) {
       console.error('更新进度失败:', error);
@@ -758,7 +758,7 @@ export const userProgressService = {
     timeSpent: number;
   }) => {
     try {
-      const response = await apiClient.post('/user-progress/save', data);
+      const response = await apiClient.post('/api/user-progress/save', data);
       return response.data;
     } catch (error) {
       console.error('保存答题进度失败:', error);
@@ -772,7 +772,7 @@ export const purchaseService = {
   // 创建购买
   async createPurchase(questionSetId: string, paymentMethod: string, amount: number): Promise<ApiResponse<Purchase>> {
     try {
-      const response = await apiClient.post('/purchases', { questionSetId, paymentMethod, amount });
+      const response = await apiClient.post('/api/purchases', { questionSetId, paymentMethod, amount });
       const purchase = response.data.data;
       // 确保返回的数据使用正确的属性名
       if (purchase.questionSet) {
@@ -795,7 +795,7 @@ export const purchaseService = {
   // 获取用户的所有购买
   async getUserPurchases(): Promise<ApiResponse<Purchase[]>> {
     try {
-      const response = await apiClient.get('/purchases');
+      const response = await apiClient.get('/api/purchases');
       const purchases = response.data.data;
       // 确保返回的数据使用正确的属性名
       purchases.forEach((purchase: any) => {
@@ -876,7 +876,7 @@ export const purchaseService = {
   // 获取用户已兑换的题库记录
   async getUserRedeemCodes(): Promise<ApiResponse<RedeemCode[]>> {
     try {
-      const response = await apiClient.get('/redeem-codes/user');
+      const response = await apiClient.get('/api/redeem-codes/user');
       const redeemCodes = response.data.data;
       // 确保返回的数据使用正确的属性名
       redeemCodes.forEach((code: any) => {
@@ -904,7 +904,7 @@ export const redeemCodeService = {
   // 兑换代码
   async redeemCode(code: string): Promise<ApiResponse<{purchase: Purchase; questionSet: QuestionSet}>> {
     try {
-      const response = await apiClient.post('/redeem-codes/redeem', { code });
+      const response = await apiClient.post('/api/redeem-codes/redeem', { code });
       return handleResponse<{purchase: Purchase; questionSet: QuestionSet}>(response);
     } catch (error: any) {
       return {
@@ -918,7 +918,7 @@ export const redeemCodeService = {
   // 生成兑换码 (仅管理员)
   async generateRedeemCodes(questionSetId: string, validityDays: number, quantity: number): Promise<ApiResponse<RedeemCode[]>> {
     try {
-      const response = await apiClient.post('/redeem-codes/generate', { questionSetId, validityDays, quantity });
+      const response = await apiClient.post('/api/redeem-codes/generate', { questionSetId, validityDays, quantity });
       return handleResponse<RedeemCode[]>(response);
     } catch (error: any) {
       return {
@@ -932,7 +932,7 @@ export const redeemCodeService = {
   // 获取所有兑换码 (仅管理员)
   async getAllRedeemCodes(): Promise<ApiResponse<RedeemCode[]>> {
     try {
-      const response = await apiClient.get('/redeem-codes');
+      const response = await apiClient.get('/api/redeem-codes');
       return handleResponse<RedeemCode[]>(response);
     } catch (error: any) {
       return {
@@ -963,7 +963,7 @@ export const homepageService = {
   // 获取首页内容
   async getHomeContent(): Promise<ApiResponse<any>> {
     try {
-      const response = await apiClient.get('/homepage/content');
+      const response = await apiClient.get('/api/homepage/content');
       return handleResponse<any>(response);
     } catch (error: any) {
       return {
@@ -977,7 +977,7 @@ export const homepageService = {
   // 更新首页内容 (仅管理员)
   async updateHomeContent(content: any): Promise<ApiResponse<any>> {
     try {
-      const response = await apiClient.put('/homepage/content', content);
+      const response = await apiClient.put('/api/homepage/content', content);
       return handleResponse<any>(response);
     } catch (error: any) {
       return {
@@ -991,7 +991,7 @@ export const homepageService = {
   // 获取精选分类
   async getFeaturedCategories(): Promise<ApiResponse<string[]>> {
     try {
-      const response = await apiClient.get('/homepage/featured-categories');
+      const response = await apiClient.get('/api/homepage/featured-categories');
       return handleResponse<string[]>(response);
     } catch (error: any) {
       return {
@@ -1005,7 +1005,7 @@ export const homepageService = {
   // 更新精选分类 (仅管理员)
   async updateFeaturedCategories(featuredCategories: string[]): Promise<ApiResponse<any>> {
     try {
-      const response = await apiClient.put('/homepage/featured-categories', { featuredCategories });
+      const response = await apiClient.put('/api/homepage/featured-categories', { featuredCategories });
       return handleResponse<any>(response);
     } catch (error: any) {
       return {
@@ -1022,7 +1022,7 @@ export const wrongAnswerService = {
   // 获取用户的所有错题
   getWrongAnswers: async () => {
     try {
-      const response = await apiClient.get('/wrong-answers');
+      const response = await apiClient.get('/api/wrong-answers');
       return response.data;
     } catch (error) {
       console.error('获取错题集失败:', error);
@@ -1044,7 +1044,7 @@ export const wrongAnswerService = {
     explanation?: string;
   }) => {
     try {
-      const response = await apiClient.post('/wrong-answers', wrongAnswer);
+      const response = await apiClient.post('/api/wrong-answers', wrongAnswer);
       return response.data;
     } catch (error) {
       console.error('保存错题失败:', error);
