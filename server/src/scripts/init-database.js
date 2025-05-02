@@ -13,7 +13,7 @@ const dbConfig = {
   port: process.env.DB_PORT || '3306',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'exam_practice_app'
+  database: process.env.DB_NAME || 'exam_practice_app',
 };
 
 async function initializeDatabase() {
@@ -27,12 +27,12 @@ async function initializeDatabase() {
       host: dbConfig.host,
       port: dbConfig.port,
       user: dbConfig.user,
-      password: dbConfig.password
+      password: dbConfig.password,
     });
 
     // 检查数据库是否存在
     const [rows] = await connection.execute(
-      `SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?`,
+      'SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?',
       [dbConfig.database]
     );
 
@@ -65,18 +65,18 @@ async function initializeDatabase() {
         port: dbConfig.port,
         user: dbConfig.user,
         password: dbConfig.password,
-        database: dbConfig.database
+        database: dbConfig.database,
       });
       
       // 检查是否存在关键表，如users, question_sets等
-      const [tables] = await dbConnection.execute(`SHOW TABLES`);
-      const tableNames = tables.map(t => Object.values(t)[0].toLowerCase());
+      const [tables] = await dbConnection.execute('SHOW TABLES');
+      const tableNames = tables.map((t) => Object.values(t)[0].toLowerCase());
       
       // 关闭连接
       await dbConnection.end();
       
       const requiredTables = ['users', 'question_sets', 'questions', 'options'];
-      const missingTables = requiredTables.filter(t => !tableNames.includes(t));
+      const missingTables = requiredTables.filter((t) => !tableNames.includes(t));
       
       if (missingTables.length > 0) {
         console.log(`缺少关键表: ${missingTables.join(', ')}，将强制同步所有模型...`);
@@ -94,7 +94,7 @@ async function initializeDatabase() {
         // 运行同步脚本
         execSync('npx ts-node src/scripts/sync-all-models.ts', { 
           stdio: 'inherit',
-          cwd: path.join(__dirname, '../..')
+          cwd: path.join(__dirname, '../..'),
         });
         
         console.log('强制同步模型完成');
@@ -120,12 +120,12 @@ async function initializeDatabase() {
 // 如果直接运行这个脚本
 if (require.main === module) {
   initializeDatabase()
-    .then(success => {
+    .then((success) => {
       if (!success) {
         process.exit(1);
       }
     })
-    .catch(err => {
+    .catch((err) => {
       console.error('初始化数据库时发生错误:', err);
       process.exit(1);
     });

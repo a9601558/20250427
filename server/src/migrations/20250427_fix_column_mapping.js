@@ -7,18 +7,18 @@ module.exports = {
     try {
       // Get table information
       const [questionSetsColumns] = await queryInterface.sequelize.query(
-        "SHOW COLUMNS FROM question_sets",
+        'SHOW COLUMNS FROM question_sets',
         { transaction }
       );
       
       const [purchasesColumns] = await queryInterface.sequelize.query(
-        "SHOW COLUMNS FROM purchases",
+        'SHOW COLUMNS FROM purchases',
         { transaction }
       );
       
       // Convert column arrays to sets for easier checking
-      const questionSetsColumnSet = new Set(questionSetsColumns.map(col => col.Field));
-      const purchasesColumnSet = new Set(purchasesColumns.map(col => col.Field));
+      const questionSetsColumnSet = new Set(questionSetsColumns.map((col) => col.Field));
+      const purchasesColumnSet = new Set(purchasesColumns.map((col) => col.Field));
       
       console.log('Existing question_sets columns:', Array.from(questionSetsColumnSet));
       console.log('Existing purchases columns:', Array.from(purchasesColumnSet));
@@ -29,7 +29,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'is_paid', {
           type: Sequelize.BOOLEAN,
           allowNull: false,
-          defaultValue: false
+          defaultValue: false,
         }, { transaction });
       }
       
@@ -38,7 +38,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'is_featured', {
           type: Sequelize.BOOLEAN,
           allowNull: false,
-          defaultValue: false
+          defaultValue: false,
         }, { transaction });
       }
       
@@ -46,7 +46,7 @@ module.exports = {
         console.log('Adding featured_category column to question_sets table');
         await queryInterface.addColumn('question_sets', 'featured_category', {
           type: Sequelize.STRING,
-          allowNull: true
+          allowNull: true,
         }, { transaction });
       }
       
@@ -54,7 +54,7 @@ module.exports = {
         console.log('Adding trial_questions column to question_sets table');
         await queryInterface.addColumn('question_sets', 'trial_questions', {
           type: Sequelize.INTEGER,
-          allowNull: true
+          allowNull: true,
         }, { transaction });
       }
       
@@ -66,8 +66,8 @@ module.exports = {
           allowNull: true, // Set to true initially to allow migration
           references: {
             model: 'users',
-            key: 'id'
-          }
+            key: 'id',
+          },
         }, { transaction });
       }
       
@@ -78,8 +78,8 @@ module.exports = {
           allowNull: true, // Set to true initially to allow migration
           references: {
             model: 'question_sets',
-            key: 'id'
-          }
+            key: 'id',
+          },
         }, { transaction });
       }
       
@@ -114,5 +114,5 @@ module.exports = {
       await transaction.rollback();
       throw error;
     }
-  }
+  },
 }; 

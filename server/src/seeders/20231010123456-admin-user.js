@@ -7,7 +7,7 @@ module.exports = {
   async up (queryInterface, Sequelize) {
     // 检查是否已有用户
     const users = await queryInterface.sequelize.query(
-      `SELECT id FROM users WHERE username = 'admin'`,
+      'SELECT id FROM users WHERE username = \'admin\'',
       { type: Sequelize.QueryTypes.SELECT }
     );
     
@@ -29,7 +29,7 @@ module.exports = {
       purchases: JSON.stringify([]),
       redeemCodes: JSON.stringify([]),
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     }]);
     
     console.log('管理员用户创建成功！');
@@ -39,5 +39,5 @@ module.exports = {
 
   async down (queryInterface, Sequelize) {
     await queryInterface.bulkDelete('users', { username: 'admin' }, {});
-  }
+  },
 }; 

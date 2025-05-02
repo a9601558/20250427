@@ -9,7 +9,7 @@ async function createTestQuestionSet() {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'quizdb'
+    database: process.env.DB_NAME || 'quizdb',
   });
 
   try {
@@ -53,7 +53,7 @@ async function createTestQuestionSet() {
           `测试题目 ${i}，这是题干内容`,
           `这是题目 ${i} 的解析说明`,
           'single',  // 单选题
-          i - 1
+          i - 1,
         ]
       );
       
@@ -62,7 +62,7 @@ async function createTestQuestionSet() {
         { text: '选项A', isCorrect: i % 4 === 1, optionIndex: 'A' },
         { text: '选项B', isCorrect: i % 4 === 2, optionIndex: 'B' },
         { text: '选项C', isCorrect: i % 4 === 3, optionIndex: 'C' },
-        { text: '选项D', isCorrect: i % 4 === 0, optionIndex: 'D' }
+        { text: '选项D', isCorrect: i % 4 === 0, optionIndex: 'D' },
       ];
       
       for (let j = 0; j < options.length; j++) {
@@ -78,7 +78,7 @@ async function createTestQuestionSet() {
             questionId,
             option.text,
             option.isCorrect ? 1 : 0,
-            option.optionIndex
+            option.optionIndex,
           ]
         );
       }

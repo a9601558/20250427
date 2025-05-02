@@ -42,7 +42,7 @@ const verifyPaymentIntent = async (paymentIntentId) => {
             status: paymentIntent.status,
             amount: paymentIntent.amount,
             metadata: paymentIntent.metadata,
-            isSuccessful: paymentIntent.status === 'succeeded'
+            isSuccessful: paymentIntent.status === 'succeeded',
         };
     }
     catch (error) {

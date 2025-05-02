@@ -28,27 +28,27 @@ Option.init({
         allowNull: false,
         references: {
             model: 'questions',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     text: {
         type: sequelize_1.DataTypes.TEXT,
-        allowNull: false
+        allowNull: false,
     },
     isCorrect: {
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: false
+        defaultValue: false,
     },
     optionIndex: {
         type: sequelize_1.DataTypes.STRING(5),
-        allowNull: false
-    }
+        allowNull: false,
+    },
 }, {
     sequelize: database_1.default,
     tableName: 'options',
     indexes: [
-        { fields: ['questionId'] }
-    ]
+        { fields: ['questionId'] },
+    ],
 });
 exports.default = Option;

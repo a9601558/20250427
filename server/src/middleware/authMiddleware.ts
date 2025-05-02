@@ -32,13 +32,13 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
       // Get user from token (Sequelize方式)
       req.user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
+        attributes: { exclude: ['password'] },
       });
 
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'User not found, token invalid'
+          message: 'User not found, token invalid',
         });
       }
 
@@ -47,7 +47,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       console.error('Authentication error:', error);
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed'
+        message: 'Not authorized, token failed',
       });
     }
   }
@@ -55,7 +55,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized, no token'
+      message: 'Not authorized, no token',
     });
   }
 };
@@ -67,7 +67,7 @@ export const admin = (req: Request, res: Response, next: NextFunction) => {
   } else {
     res.status(403).json({
       success: false,
-      message: 'Not authorized as admin'
+      message: 'Not authorized as admin',
     });
   }
 };

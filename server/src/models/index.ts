@@ -26,5 +26,5 @@ export {
   Purchase,
   RedeemCode,
   UserProgress,
-  sequelize
+  sequelize,
 }; 

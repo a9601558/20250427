@@ -10,7 +10,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'is_paid', {
           type: Sequelize.BOOLEAN,
           defaultValue: false,
-          allowNull: false
+          allowNull: false,
         });
         console.log('成功添加is_paid列到question_sets表');
       } else {
@@ -31,5 +31,5 @@ module.exports = {
       console.error('移除is_paid列失败:', error);
       throw error;
     }
-  }
+  },
 }; 

@@ -19,12 +19,12 @@ const protect = async (req, res, next) => {
             const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || '');
             // Get user from token (Sequelize方式)
             req.user = await User_1.default.findByPk(decoded.id, {
-                attributes: { exclude: ['password'] }
+                attributes: { exclude: ['password'] },
             });
             if (!req.user) {
                 return res.status(401).json({
                     success: false,
-                    message: 'User not found, token invalid'
+                    message: 'User not found, token invalid',
                 });
             }
             return next();
@@ -33,14 +33,14 @@ const protect = async (req, res, next) => {
             console.error('Authentication error:', error);
             return res.status(401).json({
                 success: false,
-                message: 'Not authorized, token failed'
+                message: 'Not authorized, token failed',
             });
         }
     }
     if (!token) {
         return res.status(401).json({
             success: false,
-            message: 'Not authorized, no token'
+            message: 'Not authorized, no token',
         });
     }
 };
@@ -53,7 +53,7 @@ const admin = (req, res, next) => {
     else {
         res.status(403).json({
             success: false,
-            message: 'Not authorized as admin'
+            message: 'Not authorized as admin',
         });
     }
 };

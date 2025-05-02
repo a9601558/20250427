@@ -6,7 +6,7 @@ import {
   updateQuestion,
   deleteQuestion,
   getRandomQuestion,
-  getQuestionCount
+  getQuestionCount,
 } from '../controllers/questionController';
 import { protect, admin } from '../middleware/authMiddleware';
 

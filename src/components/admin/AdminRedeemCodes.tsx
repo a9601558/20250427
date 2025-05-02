@@ -1,26 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
-import { QuestionSet } from '../../types';
+import { QuestionSet, RedeemCode } from '../../types';
 import { questionSetApi } from '../../utils/api';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
+import { logger } from '../../utils/logger';
+
+interface RedeemCodeItem extends RedeemCode {
+  id: string;
+  validityDays: number;
+  usedAt?: string;
+  redeemUser?: {
+    username: string;
+  };
+  redeemCreator?: {
+    username: string;
+  };
+  createdAt: string;
+  code: string;
+}
+
+interface DebuggingResults {
+  totalRedeemCodes: number;
+  totalQuestionSets: number;
+  issues: Array<{
+    code: string;
+    codeId: string;
+    issue: string;
+  }>;
+}
 
 const AdminRedeemCodes: React.FC = () => {
   const { generateRedeemCode, getRedeemCodes } = useUser();
-  const [redeemCodes, setRedeemCodes] = useState<any[]>([]);
+  const [redeemCodes, setRedeemCodes] = useState<RedeemCodeItem[]>([]);
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
-  const [selectedQuestionSetId, setSelectedQuestionSetId] = useState('');
-  const [validityDays, setValidityDays] = useState(30);
-  const [codeCount, setCodeCount] = useState(1);
-  const [generatingCodes, setGeneratingCodes] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [selectedQuestionSetId, setSelectedQuestionSetId] = useState<string>('');
+  const [validityDays, setValidityDays] = useState<number>(30);
+  const [codeCount, setCodeCount] = useState<number>(1);
+  const [generatingCodes, setGeneratingCodes] = useState<boolean>(false);
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'used' | 'unused'>('all');
   const [filterQuestionSet, setFilterQuestionSet] = useState<string>('all');
   const [editingCodeId, setEditingCodeId] = useState<string | null>(null);
   const [newQuestionSetId, setNewQuestionSetId] = useState<string>('');
-  const [updatingCode, setUpdatingCode] = useState(false);
-  const [debuggingResults, setDebuggingResults] = useState<any>(null);
-  const [isDebugging, setIsDebugging] = useState(false);
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [updatingCode, setUpdatingCode] = useState<boolean>(false);
+  const [debuggingResults, setDebuggingResults] = useState<DebuggingResults | null>(null);
+  const [isDebugging, setIsDebugging] = useState<boolean>(false);
+  const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false);
 
   // 加载题库和兑换码数据
   useEffect(() => {
@@ -33,15 +58,15 @@ const AdminRedeemCodes: React.FC = () => {
           // 过滤出付费题库
           const paidSets = qsResponse.data.filter((set: QuestionSet) => set.isPaid);
           if (paidSets.length > 0) {
-            setSelectedQuestionSetId(paidSets[0].id);
+            setSelectedQuestionSetId(paidSets[0].id as string);
           }
         }
         
         // 加载兑换码数据
         const codes = await getRedeemCodes();
-        setRedeemCodes(codes);
+        setRedeemCodes(codes as RedeemCodeItem[]);
       } catch (error) {
-        console.error('加载数据失败:', error);
+        logger.error('加载数据失败:', error);
         setStatusMessage('加载数据失败');
       }
     };
@@ -50,7 +75,7 @@ const AdminRedeemCodes: React.FC = () => {
   }, [getRedeemCodes]);
 
   // Filter redeem codes based on status and question set
-  const filteredCodes = redeemCodes.filter(code => {
+  const filteredCodes = redeemCodes.filter((code) => {
     if (filterStatus === 'used' && !code.usedAt) return false;
     if (filterStatus === 'unused' && code.usedAt) return false;
     if (filterQuestionSet !== 'all' && code.questionSetId !== filterQuestionSet) return false;
@@ -58,7 +83,7 @@ const AdminRedeemCodes: React.FC = () => {
   });
 
   // Handle generating redeem codes
-  const handleGenerateCode = async () => {
+  const handleGenerateCode = async (): Promise<void> => {
     if (!selectedQuestionSetId) {
       setStatusMessage('请选择题库');
       return;
@@ -84,11 +109,11 @@ const AdminRedeemCodes: React.FC = () => {
       }
       
       const updatedCodes = await getRedeemCodes();
-      setRedeemCodes(updatedCodes);
+      setRedeemCodes(updatedCodes as RedeemCodeItem[]);
       
       setStatusMessage(`成功生成 ${codeCount} 个兑换码`);
     } catch (error: any) {
-      console.error('生成兑换码失败:', error);
+      logger.error('生成兑换码失败:', error);
       setStatusMessage(error.message || '生成兑换码失败，请重试');
     } finally {
       setGeneratingCodes(false);
@@ -96,7 +121,7 @@ const AdminRedeemCodes: React.FC = () => {
   };
 
   // Copy code to clipboard
-  const copyToClipboard = (code: string) => {
+  const copyToClipboard = (code: string): void => {
     navigator.clipboard.writeText(code).then(
       () => {
         setStatusMessage('兑换码已复制到剪贴板');
@@ -113,31 +138,31 @@ const AdminRedeemCodes: React.FC = () => {
   };
 
   // Format date
-  const formatDate = (date: string | Date) => {
+  const formatDate = (date: string | Date): string => {
     if (!date) return '';
     return new Date(date).toLocaleString();
   };
 
   // Get question set title by ID
-  const getQuestionSetTitle = (id: string) => {
-    const set = questionSets.find(s => s.id === id);
+  const getQuestionSetTitle = (id: string): string => {
+    const set = questionSets.find((s) => s.id === id);
     return set ? set.title : id;
   };
 
   // 开始编辑兑换码
-  const startEditCode = (codeId: string, currentQuestionSetId: string) => {
+  const startEditCode = (codeId: string, currentQuestionSetId: string): void => {
     setEditingCodeId(codeId);
     setNewQuestionSetId(currentQuestionSetId);
   };
 
   // 取消编辑
-  const cancelEditCode = () => {
+  const cancelEditCode = (): void => {
     setEditingCodeId(null);
     setNewQuestionSetId('');
   };
 
   // 修复兑换码的题库ID
-  const updateRedeemCodeQuestionSet = async (codeId: string) => {
+  const updateRedeemCodeQuestionSet = async (codeId: string): Promise<void> => {
     if (!newQuestionSetId) {
       setStatusMessage('请选择有效的题库');
       return;
@@ -148,7 +173,7 @@ const AdminRedeemCodes: React.FC = () => {
       // 获取token用于验证
       const token = localStorage.getItem('token');
       
-      console.log(`正在发送修复请求: codeId=${codeId}, newQuestionSetId=${newQuestionSetId}`);
+      logger.info(`正在发送修复请求: codeId=${codeId}, newQuestionSetId=${newQuestionSetId}`);
       
       const response = await axios.put(
         `/api/redeem-codes/${codeId}/fix-question-set`, 
@@ -156,34 +181,34 @@ const AdminRedeemCodes: React.FC = () => {
         { 
           headers: { 
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+          },
         }
       );
       
-      console.log('修复请求响应:', response.data);
+      logger.info('修复请求响应:', response.data);
       
       if (response.data.success) {
         // 刷新兑换码列表
         const updatedCodes = await getRedeemCodes();
-        setRedeemCodes(updatedCodes);
+        setRedeemCodes(updatedCodes as RedeemCodeItem[]);
         setStatusMessage(`兑换码题库关联已成功修复为: ${getQuestionSetTitle(newQuestionSetId)}`);
         setEditingCodeId(null);
       } else {
         setStatusMessage(`修复失败: ${response.data.message || '未知错误'}`);
       }
     } catch (error: any) {
-      console.error('修复兑换码关联失败:', error);
+      logger.error('修复兑换码关联失败:', error);
       // 详细记录错误信息
       if (error.response) {
-        console.error('错误响应数据:', error.response.data);
-        console.error('错误状态码:', error.response.status);
+        logger.error('错误响应数据:', error.response.data);
+        logger.error('错误状态码:', error.response.status);
         setStatusMessage(`修复失败(${error.response.status}): ${error.response.data?.message || '服务器错误'}`);
       } else if (error.request) {
-        console.error('未收到响应:', error.request);
+        logger.error('未收到响应:', error.request);
         setStatusMessage('服务器未响应，请检查网络连接');
       } else {
-        console.error('请求配置错误:', error.message);
+        logger.error('请求配置错误:', error.message);
         setStatusMessage(`请求错误: ${error.message}`);
       }
     } finally {
@@ -192,19 +217,19 @@ const AdminRedeemCodes: React.FC = () => {
   };
 
   // 调试功能 - 检查兑换码和题库的一致性
-  const debugRedeemCodes = async () => {
+  const debugRedeemCodes = async (): Promise<void> => {
     setIsDebugging(true);
     try {
       const token = localStorage.getItem('token');
       
-      console.log('正在调试兑换码数据...');
+      logger.info('正在调试兑换码数据...');
       
       const response = await axios.get(
-        `/api/redeem-codes/debug`,
+        '/api/redeem-codes/debug',
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      console.log('调试结果:', response.data);
+      logger.info('调试结果:', response.data);
       
       if (response.data.success) {
         setDebuggingResults(response.data.data);
@@ -219,17 +244,17 @@ const AdminRedeemCodes: React.FC = () => {
         setStatusMessage(`调试失败: ${response.data.message || '未知错误'}`);
       }
     } catch (error: any) {
-      console.error('调试兑换码失败:', error);
+      logger.error('调试兑换码失败:', error);
       
       if (error.response) {
-        console.error('错误响应数据:', error.response.data);
-        console.error('错误状态码:', error.response.status);
+        logger.error('错误响应数据:', error.response.data);
+        logger.error('错误状态码:', error.response.status);
         setStatusMessage(`调试失败(${error.response.status}): ${error.response.data?.message || '服务器错误'}`);
       } else if (error.request) {
-        console.error('未收到响应:', error.request);
+        logger.error('未收到响应:', error.request);
         setStatusMessage('服务器未响应，请检查网络连接');
       } else {
-        console.error('请求配置错误:', error.message);
+        logger.error('请求配置错误:', error.message);
         setStatusMessage(`请求错误: ${error.message}`);
       }
     } finally {
@@ -238,7 +263,7 @@ const AdminRedeemCodes: React.FC = () => {
   };
   
   // 批量修复问题兑换码
-  const batchFixRedeemCodes = async () => {
+  const batchFixRedeemCodes = async (): Promise<void> => {
     if (!debuggingResults || !debuggingResults.issues || debuggingResults.issues.length === 0) {
       setStatusMessage('没有需要修复的兑换码');
       return;
@@ -255,29 +280,29 @@ const AdminRedeemCodes: React.FC = () => {
       
       // 创建修复映射
       const codeToQuestionSetMap: Record<string, string> = {};
-      debuggingResults.issues.forEach((issue: any) => {
+      debuggingResults.issues.forEach((issue) => {
         codeToQuestionSetMap[issue.codeId] = selectedQuestionSetId;
       });
       
-      console.log('准备批量修复兑换码:', codeToQuestionSetMap);
+      logger.info('准备批量修复兑换码:', codeToQuestionSetMap);
       
       const response = await axios.post(
-        `/api/redeem-codes/batch-fix`,
+        '/api/redeem-codes/batch-fix',
         { codeToQuestionSetMap },
         { headers: { 
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }}
+          'Content-Type': 'application/json',
+        } }
       );
       
-      console.log('批量修复结果:', response.data);
+      logger.info('批量修复结果:', response.data);
       
       if (response.data.success) {
         setStatusMessage(response.data.message || '成功修复兑换码');
         
         // 刷新数据
         const updatedCodes = await getRedeemCodes();
-        setRedeemCodes(updatedCodes);
+        setRedeemCodes(updatedCodes as RedeemCodeItem[]);
         
         // 重新运行调试
         await debugRedeemCodes();
@@ -285,7 +310,7 @@ const AdminRedeemCodes: React.FC = () => {
         setStatusMessage(`修复失败: ${response.data.message || '未知错误'}`);
       }
     } catch (error: any) {
-      console.error('批量修复兑换码失败:', error);
+      logger.error('批量修复兑换码失败:', error);
       
       if (error.response) {
         setStatusMessage(`修复失败(${error.response.status}): ${error.response.data?.message || '服务器错误'}`);
@@ -301,7 +326,7 @@ const AdminRedeemCodes: React.FC = () => {
 
   // 添加以下代码来修改表格中的渲染方式
   // 在表格行的渲染中添加编辑功能
-  const renderTableRow = (code: any) => {
+  const renderTableRow = (code: RedeemCodeItem) => {
     const isEditing = editingCodeId === code.id;
     const questionSetTitle = getQuestionSetTitle(code.questionSetId);
 
@@ -330,8 +355,8 @@ const AdminRedeemCodes: React.FC = () => {
               disabled={updatingCode}
             >
               <option value="">-- 请选择题库 --</option>
-              {questionSets.map(set => (
-                <option key={set.id} value={set.id}>{set.title}</option>
+              {questionSets.map((set) => (
+                <option key={set.id} value={set.id as string}>{set.title}</option>
               ))}
             </select>
           ) : (
@@ -420,8 +445,8 @@ const AdminRedeemCodes: React.FC = () => {
               disabled={generatingCodes}
             >
               <option value="">-- 请选择题库 --</option>
-              {questionSets.map(set => (
-                <option key={set.id} value={set.id}>{set.title}</option>
+              {questionSets.map((set) => (
+                <option key={set.id} value={set.id as string}>{set.title}</option>
               ))}
             </select>
           </div>
@@ -512,8 +537,8 @@ const AdminRedeemCodes: React.FC = () => {
               disabled={generatingCodes}
             >
               <option value="all">所有题库</option>
-              {questionSets.map(set => (
-                <option key={set.id} value={set.id}>{set.title}</option>
+              {questionSets.map((set) => (
+                <option key={set.id} value={set.id as string}>{set.title}</option>
               ))}
             </select>
           </div>
@@ -563,7 +588,7 @@ const AdminRedeemCodes: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCodes.map(code => renderTableRow(code))}
+                {filteredCodes.map((code) => renderTableRow(code))}
               </tbody>
             </table>
           </div>
@@ -599,7 +624,7 @@ const AdminRedeemCodes: React.FC = () => {
               <div className="mt-2">
                 <p className="text-red-600 font-medium mb-1">问题详情:</p>
                 <ul className="text-xs bg-white p-2 rounded border border-gray-200 max-h-32 overflow-y-auto">
-                  {debuggingResults.issues.map((issue: any, index: number) => (
+                  {debuggingResults.issues.map((issue, index) => (
                     <li key={index} className="mb-1 pb-1 border-b border-gray-100">
                       <span className="font-mono">Code: {issue.code}</span> → 
                       <span className="text-red-500 ml-1">{issue.issue}</span>

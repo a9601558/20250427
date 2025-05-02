@@ -15,7 +15,7 @@ export const generateRedeemCodes = async (req: Request, res: Response) => {
     if (!questionSetId || !validityDays || validityDays < 1) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide valid questionSetId and validityDays'
+        message: 'Please provide valid questionSetId and validityDays',
       });
     }
 
@@ -24,7 +24,7 @@ export const generateRedeemCodes = async (req: Request, res: Response) => {
     if (!questionSet) {
       return res.status(404).json({
         success: false,
-        message: 'Question set not found'
+        message: 'Question set not found',
       });
     }
 
@@ -45,7 +45,7 @@ export const generateRedeemCodes = async (req: Request, res: Response) => {
         validityDays,
         expiryDate,
         isUsed: false,
-        createdBy: req.user.id
+        createdBy: req.user.id,
       });
       
       generatedCodes.push(redeemCode);
@@ -54,13 +54,13 @@ export const generateRedeemCodes = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       message: `${quantity} redeem code(s) generated successfully`,
-      data: generatedCodes
+      data: generatedCodes,
     });
   } catch (error: any) {
     console.error('Generate redeem codes error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message || 'Server error',
     });
   }
 };
@@ -75,31 +75,31 @@ export const getRedeemCodes = async (req: Request, res: Response) => {
         {
           model: QuestionSet,
           as: 'questionSet',
-          attributes: ['title', 'category']
+          attributes: ['title', 'category'],
         },
         {
           model: User,
           as: 'redeemUser',
-          attributes: ['username', 'email']
+          attributes: ['username', 'email'],
         },
         {
           model: User,
           as: 'redeemCreator',
-          attributes: ['username']
-        }
+          attributes: ['username'],
+        },
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
     });
 
     res.json({
       success: true,
-      data: redeemCodes
+      data: redeemCodes,
     });
   } catch (error: any) {
     console.error('Get redeem codes error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message || 'Server error',
     });
   }
 };
@@ -117,10 +117,10 @@ export const redeemCode = async (req: Request, res: Response) => {
 
     // 直接使用原始SQL查询获取兑换码，避免关联加载问题
     const [redeemCodeResults] = await sequelize.query(
-      `SELECT * FROM redeem_codes WHERE code = ?`,
+      'SELECT * FROM redeem_codes WHERE code = ?',
       {
         replacements: [code],
-        type: QueryTypes.SELECT
+        type: QueryTypes.SELECT,
       }
     );
 
@@ -129,7 +129,7 @@ export const redeemCode = async (req: Request, res: Response) => {
       console.error(`兑换码不存在: ${code}`);
       return res.status(404).json({
         success: false,
-        message: '兑换码不存在'
+        message: '兑换码不存在',
       });
     }
 
@@ -141,7 +141,7 @@ export const redeemCode = async (req: Request, res: Response) => {
       console.error(`兑换码已使用: ${code}`);
       return res.status(400).json({
         success: false,
-        message: '兑换码已被使用'
+        message: '兑换码已被使用',
       });
     }
 
@@ -149,16 +149,16 @@ export const redeemCode = async (req: Request, res: Response) => {
       console.error(`兑换码缺少题库ID: ${redeemCode.id}, 代码=${code}`);
       return res.status(400).json({
         success: false,
-        message: '兑换码配置错误，请联系管理员'
+        message: '兑换码配置错误，请联系管理员',
       });
     }
 
     // 直接查询题库信息
     const [questionSetResults] = await sequelize.query(
-      `SELECT * FROM question_sets WHERE id = ?`,
+      'SELECT * FROM question_sets WHERE id = ?',
       {
         replacements: [redeemCode.questionSetId],
-        type: QueryTypes.SELECT
+        type: QueryTypes.SELECT,
       }
     );
 
@@ -166,7 +166,7 @@ export const redeemCode = async (req: Request, res: Response) => {
       console.error(`题库不存在 - 兑换码ID: ${redeemCode.id}, 题库ID: ${redeemCode.questionSetId}`);
       return res.status(404).json({
         success: false,
-        message: '题库不存在'
+        message: '题库不存在',
       });
     }
 
@@ -183,7 +183,7 @@ export const redeemCode = async (req: Request, res: Response) => {
        VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)`,
       {
         replacements: [purchaseId, userId, questionSet.id, now, expiryDate, now, now],
-        type: QueryTypes.INSERT
+        type: QueryTypes.INSERT,
       }
     );
 
@@ -191,30 +191,30 @@ export const redeemCode = async (req: Request, res: Response) => {
 
     // 更新兑换码状态
     await sequelize.query(
-      `UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`,
+      'UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?',
       {
         replacements: [userId, now, redeemCode.id],
-        type: QueryTypes.UPDATE
+        type: QueryTypes.UPDATE,
       }
     );
 
-    console.log(`已更新兑换码状态为已使用`);
+    console.log('已更新兑换码状态为已使用');
 
     // 查询创建的购买记录
     const [purchase] = await sequelize.query(
-      `SELECT * FROM purchases WHERE id = ?`,
+      'SELECT * FROM purchases WHERE id = ?',
       {
         replacements: [purchaseId],
-        type: QueryTypes.SELECT
+        type: QueryTypes.SELECT,
       }
     );
 
     // 查询用户的socket_id
     const [userSocketResult] = await sequelize.query(
-      `SELECT socket_id FROM users WHERE id = ?`,
+      'SELECT socket_id FROM users WHERE id = ?',
       {
         replacements: [userId],
-        type: QueryTypes.SELECT
+        type: QueryTypes.SELECT,
       }
     );
 
@@ -226,17 +226,17 @@ export const redeemCode = async (req: Request, res: Response) => {
         // 发送题库访问权限更新
         io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
           questionSetId: questionSet.id,
-          hasAccess: true
+          hasAccess: true,
         });
 
         // 发送兑换成功事件
         io.to(userSocket.socket_id).emit('redeem:success', {
           questionSetId: questionSet.id,
           purchaseId: purchaseId,
-          expiryDate: expiryDate
+          expiryDate: expiryDate,
         });
         
-        console.log(`已通过Socket发送兑换成功事件到客户端`);
+        console.log('已通过Socket发送兑换成功事件到客户端');
       } catch (error) {
         console.error('发送Socket事件失败:', error);
       }
@@ -247,14 +247,14 @@ export const redeemCode = async (req: Request, res: Response) => {
       message: '兑换成功',
       data: {
         questionSet,
-        purchase
-      }
+        purchase,
+      },
     });
   } catch (error) {
     console.error('兑换失败:', error);
     res.status(500).json({
       success: false,
-      message: '兑换失败'
+      message: '兑换失败',
     });
   }
 };
@@ -269,7 +269,7 @@ export const deleteRedeemCode = async (req: Request, res: Response) => {
     if (!redeemCode) {
       return res.status(404).json({
         success: false,
-        message: 'Redeem code not found'
+        message: 'Redeem code not found',
       });
     }
 
@@ -277,7 +277,7 @@ export const deleteRedeemCode = async (req: Request, res: Response) => {
     if (redeemCode.isUsed) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete a redeem code that has been used'
+        message: 'Cannot delete a redeem code that has been used',
       });
     }
 
@@ -285,13 +285,13 @@ export const deleteRedeemCode = async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: 'Redeem code deleted'
+      message: 'Redeem code deleted',
     });
   } catch (error: any) {
     console.error('Delete redeem code error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message || 'Server error',
     });
   }
 };
@@ -307,29 +307,29 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
     const redeemCodes = await RedeemCode.findAll({
       where: { 
         usedBy: userId,
-        isUsed: true
+        isUsed: true,
       },
       include: [
         {
           model: QuestionSet,
           as: 'questionSet',
-          attributes: ['id', 'title', 'description', 'icon', 'category']
-        }
+          attributes: ['id', 'title', 'description', 'icon', 'category'],
+        },
       ],
-      order: [['usedAt', 'DESC']]
+      order: [['usedAt', 'DESC']],
     });
 
     // 获取相关的购买记录以检查有效期
     const purchases = await Purchase.findAll({
       where: { 
         userId,
-        status: 'active'
-      }
+        status: 'active',
+      },
     });
 
     // 为兑换码添加失效日期信息
-    const codeWithExpiry = redeemCodes.map(code => {
-      const purchase = purchases.find(p => p.questionSetId === code.questionSetId);
+    const codeWithExpiry = redeemCodes.map((code) => {
+      const purchase = purchases.find((p) => p.questionSetId === code.questionSetId);
       // 确保 usedAt 是字符串类型
       const usedAtString = code.usedAt ? code.usedAt.toString() : new Date().toISOString();
       const usedDate = new Date(usedAtString);
@@ -337,19 +337,19 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
       
       return {
         ...code.toJSON(),
-        expiryDate: purchase?.expiryDate ?? defaultExpiryDate
+        expiryDate: purchase?.expiryDate ?? defaultExpiryDate,
       };
     });
 
     res.json({
       success: true,
-      data: codeWithExpiry
+      data: codeWithExpiry,
     });
   } catch (error: any) {
     console.error('Get user redeemed codes error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message || 'Server error',
     });
   }
 };
@@ -365,7 +365,7 @@ export const fixRedeemCodeQuestionSet = async (req: Request, res: Response) => {
     if (!questionSetId) {
       return res.status(400).json({
         success: false,
-        message: '请提供有效的题库ID'
+        message: '请提供有效的题库ID',
       });
     }
 
@@ -374,7 +374,7 @@ export const fixRedeemCodeQuestionSet = async (req: Request, res: Response) => {
     if (!redeemCode) {
       return res.status(404).json({
         success: false,
-        message: '兑换码不存在'
+        message: '兑换码不存在',
       });
     }
 
@@ -383,7 +383,7 @@ export const fixRedeemCodeQuestionSet = async (req: Request, res: Response) => {
     if (!questionSet) {
       return res.status(404).json({
         success: false,
-        message: '题库不存在'
+        message: '题库不存在',
       });
     }
 
@@ -393,13 +393,13 @@ export const fixRedeemCodeQuestionSet = async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: '兑换码关联已成功修复',
-      data: { redeemCode }
+      data: { redeemCode },
     });
   } catch (error: any) {
     console.error('修复兑换码关联失败:', error);
     res.status(500).json({
       success: false,
-      message: error.message || '服务器错误'
+      message: error.message || '服务器错误',
     });
   }
 };
@@ -411,17 +411,17 @@ export const debugRedeemCodes = async (req: Request, res: Response) => {
   try {
     // 获取所有兑换码
     const redeemCodes = await RedeemCode.findAll({
-      attributes: ['id', 'code', 'questionSetId', 'isUsed', 'createdAt']
+      attributes: ['id', 'code', 'questionSetId', 'isUsed', 'createdAt'],
     });
     
     // 获取所有题库
     const questionSets = await QuestionSet.findAll({
-      attributes: ['id', 'title']
+      attributes: ['id', 'title'],
     });
     
     // 创建题库ID映射
     const questionSetMap = new Map();
-    questionSets.forEach(qs => {
+    questionSets.forEach((qs) => {
       questionSetMap.set(qs.id, qs.title);
     });
     
@@ -435,7 +435,7 @@ export const debugRedeemCodes = async (req: Request, res: Response) => {
           codeId: code.id,
           code: code.code,
           questionSetId: code.questionSetId,
-          issue: '题库不存在'
+          issue: '题库不存在',
         });
       } else {
         validCodes.push({
@@ -444,7 +444,7 @@ export const debugRedeemCodes = async (req: Request, res: Response) => {
           questionSetId: code.questionSetId,
           questionSetTitle: questionSetMap.get(code.questionSetId),
           isUsed: code.isUsed,
-          createdAt: code.createdAt
+          createdAt: code.createdAt,
         });
       }
     }
@@ -455,14 +455,14 @@ export const debugRedeemCodes = async (req: Request, res: Response) => {
         totalRedeemCodes: redeemCodes.length,
         totalQuestionSets: questionSets.length,
         issues,
-        validCodes
-      }
+        validCodes,
+      },
     });
   } catch (error: any) {
     console.error('Debug redeem codes error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || '服务器错误'
+      message: error.message || '服务器错误',
     });
   }
 };
@@ -477,7 +477,7 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
     if (!codeToQuestionSetMap || typeof codeToQuestionSetMap !== 'object') {
       return res.status(400).json({
         success: false,
-        message: '请提供有效的兑换码和题库ID映射'
+        message: '请提供有效的兑换码和题库ID映射',
       });
     }
     
@@ -485,7 +485,7 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
       total: Object.keys(codeToQuestionSetMap).length,
       successful: 0,
       failed: 0,
-      details: [] as any[]
+      details: [] as any[],
     };
     
     // 逐个处理每个兑换码
@@ -498,7 +498,7 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
           results.details.push({
             codeId,
             success: false,
-            message: '题库不存在'
+            message: '题库不存在',
           });
           continue;
         }
@@ -510,7 +510,7 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
           results.details.push({
             codeId,
             success: false,
-            message: '兑换码不存在'
+            message: '兑换码不存在',
           });
           continue;
         }
@@ -524,7 +524,7 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
           success: true,
           message: '更新成功',
           oldQuestionSetId: redeemCode.questionSetId,
-          newQuestionSetId: questionSetId
+          newQuestionSetId: questionSetId,
         });
       } catch (error: any) {
         console.error(`处理兑换码 ${codeId} 时出错:`, error);
@@ -532,7 +532,7 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
         results.details.push({
           codeId,
           success: false,
-          message: error.message || '处理出错'
+          message: error.message || '处理出错',
         });
       }
     }
@@ -540,13 +540,13 @@ export const batchFixRedeemCodes = async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: `已处理 ${results.total} 个兑换码，成功 ${results.successful} 个，失败 ${results.failed} 个`,
-      data: results
+      data: results,
     });
   } catch (error: any) {
     console.error('批量修复兑换码关联失败:', error);
     res.status(500).json({
       success: false,
-      message: error.message || '服务器错误'
+      message: error.message || '服务器错误',
     });
   }
 }; 

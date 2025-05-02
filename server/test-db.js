@@ -34,8 +34,8 @@ try {
       dialect: 'mysql',
       logging: console.log,
       dialectOptions: {
-        connectTimeout: 10000
-      }
+        connectTimeout: 10000,
+      },
     }
   );
   
@@ -61,14 +61,14 @@ try {
           },
           username: {
             type: DataTypes.STRING,
-            allowNull: false
-          }
+            allowNull: false,
+          },
         },
         {
           sequelize,
           modelName: 'TestUser',
           tableName: 'test_users',
-          timestamps: false
+          timestamps: false,
         }
       );
       
@@ -111,7 +111,7 @@ module.exports = sequelize;
           path.join(distDir, 'server/src/config'),
           path.join(distDir, 'src/config'),
           path.join(distDir, 'config'),
-          path.join(process.cwd(), 'dist/server/src/config')
+          path.join(process.cwd(), 'dist/server/src/config'),
         ];
         
         let targetDir = null;
@@ -135,7 +135,7 @@ module.exports = sequelize;
       
       process.exit(0);
     })
-    .catch(error => {
+    .catch((error) => {
       console.error('数据库连接测试失败:', error);
       process.exit(1);
     });

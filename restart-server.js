@@ -95,7 +95,7 @@ const startServer = () => {
       cwd: serverDir,
       detached: true,
       stdio: 'ignore',
-      shell: true
+      shell: true,
     });
     
     // 分离子进程

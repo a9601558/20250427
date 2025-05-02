@@ -14,8 +14,8 @@ async function createTestUser() {
     // 检查用户是否已存在
     const existingUser = await User.findOne({
       where: {
-        username: 'testuser'
-      }
+        username: 'testuser',
+      },
     });
 
     if (existingUser) {
@@ -36,7 +36,7 @@ async function createTestUser() {
       isAdmin: true,
       progress: {},
       purchases: [],
-      redeemCodes: []
+      redeemCodes: [],
     });
 
     console.log('测试用户创建成功!');

@@ -17,7 +17,7 @@ const sendResponse = (res, status, data, message) => {
     res.status(status).json({
         success: status >= 200 && status < 300,
         data,
-        message
+        message,
     });
 };
 // 统一错误响应
@@ -25,7 +25,7 @@ const sendError = (res, status, message, error) => {
     res.status(status).json({
         success: false,
         message,
-        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined,
     });
 };
 // @desc    Register a new user
@@ -44,7 +44,7 @@ const registerUser = async (req, res) => {
         }
         // 检查用户是否已存在
         const existingUser = await User_1.default.findOne({
-            where: { email }
+            where: { email },
         });
         if (existingUser) {
             return sendError(res, 400, '该邮箱已被注册');
@@ -63,7 +63,7 @@ const registerUser = async (req, res) => {
             redeemCodes: [],
             progress: {},
             socket_id: null,
-            isAdmin: false
+            isAdmin: false,
         };
         const user = await User_1.default.unscoped().create(userData);
         // 生成 JWT token
@@ -75,11 +75,11 @@ const registerUser = async (req, res) => {
             email: user.email,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
-            isAdmin: user.isAdmin
+            isAdmin: user.isAdmin,
         };
         sendResponse(res, 201, {
             user: userResponse,
-            token
+            token,
         }, '注册成功');
     }
     catch (error) {
@@ -100,12 +100,12 @@ const loginUser = async (req, res) => {
         }
         // 先尝试按用户名查找，使用withPassword作用域以包含密码字段
         let user = await User_1.default.scope('withPassword').findOne({
-            where: { username: username }
+            where: { username: username },
         });
         // 如果按用户名找不到，再按邮箱查找
         if (!user) {
             user = await User_1.default.scope('withPassword').findOne({
-                where: { email: username }
+                where: { email: username },
             });
         }
         // 如果用户不存在，返回错误
@@ -130,11 +130,11 @@ const loginUser = async (req, res) => {
                     email: user.email,
                     createdAt: user.createdAt,
                     updatedAt: user.updatedAt,
-                    isAdmin: user.isAdmin
+                    isAdmin: user.isAdmin,
                 };
                 sendResponse(res, 200, {
                     user: userResponse,
-                    token: generateToken(user.id)
+                    token: generateToken(user.id),
                 }, '登录成功');
             }
             else {
@@ -223,11 +223,11 @@ const updateUserProfile = async (req, res) => {
                 createdAt: updatedUser.createdAt,
                 updatedAt: updatedUser.updatedAt,
                 isAdmin: updatedUser.isAdmin,
-                examCountdowns: updatedUser.examCountdowns // 添加examCountdowns到响应中
+                examCountdowns: updatedUser.examCountdowns, // 添加examCountdowns到响应中
             };
             sendResponse(res, 200, {
                 user: userResponse,
-                token: generateToken(updatedUser.id)
+                token: generateToken(updatedUser.id),
             }, '用户信息更新成功');
         }
         else {
@@ -246,7 +246,7 @@ exports.updateUserProfile = updateUserProfile;
 const getUsers = async (req, res) => {
     try {
         const users = await User_1.default.findAll({
-            attributes: { exclude: ['password'] }
+            attributes: { exclude: ['password'] },
         });
         sendResponse(res, 200, users);
     }
@@ -262,7 +262,7 @@ exports.getUsers = getUsers;
 const getUserById = async (req, res) => {
     try {
         const user = await User_1.default.findByPk(req.params.id, {
-            attributes: { exclude: ['password'] }
+            attributes: { exclude: ['password'] },
         });
         if (user) {
             sendResponse(res, 200, user);
@@ -302,7 +302,7 @@ const updateUser = async (req, res) => {
                 createdAt: updatedUser.createdAt,
                 updatedAt: updatedUser.updatedAt,
                 isAdmin: updatedUser.isAdmin,
-                examCountdowns: updatedUser.examCountdowns // 添加examCountdowns到响应中
+                examCountdowns: updatedUser.examCountdowns, // 添加examCountdowns到响应中
             };
             sendResponse(res, 200, userResponse, '用户信息更新成功');
         }

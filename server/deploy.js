@@ -22,10 +22,10 @@ try {
   const dirs = [
     path.join(rootDir, 'uploads'),
     path.join(rootDir, 'public'),
-    path.join(rootDir, 'public/images')
+    path.join(rootDir, 'public/images'),
   ];
 
-  dirs.forEach(dir => {
+  dirs.forEach((dir) => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
       console.log(`创建目录: ${dir}`);
@@ -45,7 +45,7 @@ try {
     console.log('正在复制默认图片...');
     const imageFiles = fs.readdirSync(defaultImagesDir);
     
-    imageFiles.forEach(file => {
+    imageFiles.forEach((file) => {
       const sourcePath = path.join(defaultImagesDir, file);
       const targetPath = path.join(targetImagesDir, file);
       

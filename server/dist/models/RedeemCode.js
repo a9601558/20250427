@@ -50,52 +50,52 @@ RedeemCode.init({
     code: {
         type: sequelize_1.DataTypes.STRING(20),
         allowNull: false,
-        unique: true
+        unique: true,
     },
     questionSetId: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
         references: {
             model: 'question_sets',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     validityDays: {
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: false,
         validate: {
-            min: 1
-        }
+            min: 1,
+        },
     },
     expiryDate: {
         type: sequelize_1.DataTypes.DATE,
-        allowNull: false
+        allowNull: false,
     },
     isUsed: {
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: false
+        defaultValue: false,
     },
     usedBy: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: true,
         references: {
             model: 'users',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     usedAt: {
         type: sequelize_1.DataTypes.DATE,
-        allowNull: true
+        allowNull: true,
     },
     createdBy: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
         references: {
             model: 'users',
-            key: 'id'
-        }
-    }
+            key: 'id',
+        },
+    },
 }, {
     sequelize: database_1.default,
     tableName: 'redeem_codes',
@@ -104,7 +104,7 @@ RedeemCode.init({
         { fields: ['questionSetId'] },
         { fields: ['isUsed'] },
         { fields: ['usedBy'] },
-        { fields: ['createdBy'] }
+        { fields: ['createdBy'] },
     ],
     hooks: {
         beforeValidate: async (redeemCode) => {
@@ -118,7 +118,7 @@ RedeemCode.init({
                 expiryDate.setDate(expiryDate.getDate() + redeemCode.validityDays);
                 redeemCode.expiryDate = expiryDate;
             }
-        }
-    }
+        },
+    },
 });
 exports.default = RedeemCode;

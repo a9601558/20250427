@@ -29,7 +29,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
   }
 
   // 获取有进度记录的题库
-  const progressQuestionSets = questionSets.filter(qs => 
+  const progressQuestionSets = questionSets.filter((qs) => 
     progressStats[qs.id] && progressStats[qs.id].completedQuestions > 0
   );
 

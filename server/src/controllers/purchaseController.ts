@@ -11,7 +11,7 @@ const sendResponse = <T>(res: Response, status: number, data: T, message?: strin
   res.status(status).json({
     success: status >= 200 && status < 300,
     data,
-    message
+    message,
   });
 };
 
@@ -20,7 +20,7 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
   res.status(status).json({
     success: false,
     message,
-    error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+    error: process.env.NODE_ENV === 'development' ? error?.message : undefined,
   });
 };
 
@@ -59,9 +59,9 @@ export const createPurchase = async (req: Request, res: Response) => {
         questionSetId: questionSetId,
         status: 'completed',
         expiryDate: {
-          [Op.gt]: new Date()
-        }
-      }
+          [Op.gt]: new Date(),
+        },
+      },
     });
 
     if (existingPurchase) {
@@ -79,7 +79,7 @@ export const createPurchase = async (req: Request, res: Response) => {
       purchaseDate: new Date(),
       expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     // TODO: 调用支付接口处理支付
@@ -91,8 +91,8 @@ export const createPurchase = async (req: Request, res: Response) => {
       include: [{
         model: QuestionSet,
         as: 'questionSet',
-        attributes: ['id', 'title', 'category', 'icon']
-      }]
+        attributes: ['id', 'title', 'category', 'icon'],
+      }],
     });
 
     sendResponse(res, 201, purchaseWithQuestionSet);
@@ -124,7 +124,7 @@ export const getUserPurchases = async (req: Request, res: Response) => {
       include: [
         {
         model: QuestionSet,
-          as: 'questionSet'
+          as: 'questionSet',
         },
       ],
     }));
@@ -159,7 +159,7 @@ export const checkAccess = async (req: Request, res: Response) => {
     if (!questionSet.isPaid) {
       return sendResponse(res, 200, {
         hasAccess: true,
-        isPaid: false
+        isPaid: false,
       });
     }
     
@@ -170,9 +170,9 @@ export const checkAccess = async (req: Request, res: Response) => {
         questionSetId,
         status: 'active',
         expiryDate: {
-          [Op.gt]: new Date()
-        }
-      }
+          [Op.gt]: new Date(),
+        },
+      },
     });
     
     if (purchase) {
@@ -182,13 +182,13 @@ export const checkAccess = async (req: Request, res: Response) => {
         hasAccess: true,
         isPaid: true,
         expiryDate: purchase.expiryDate,
-        remainingDays
+        remainingDays,
       });
     } else {
       sendResponse(res, 200, {
         hasAccess: false,
         isPaid: true,
-        price: questionSet.price
+        price: questionSet.price,
       });
     }
   } catch (error) {
@@ -217,14 +217,14 @@ export const getActivePurchases = async (req: Request, res: Response) => {
       {
         replacements: { userId: req.user.id },
         logging: console.log,
-        type: QueryTypes.SELECT
+        type: QueryTypes.SELECT,
       }
     ) as any[];
     
     console.log(`[getActivePurchases] 原始SQL查询返回 ${rawResults.length} 条结果`);
     
     if (rawResults && rawResults.length > 0) {
-      console.log(`[getActivePurchases] 找到购买记录，第一条:`, rawResults[0]);
+      console.log('[getActivePurchases] 找到购买记录，第一条:', rawResults[0]);
       
       const formattedResults = rawResults.map((record: any) => {
         // 确保日期是有效的
@@ -237,7 +237,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           
           // 验证日期
           if (isNaN(purchaseDate.getTime()) || isNaN(expiryDate.getTime())) {
-            console.warn(`[getActivePurchases] 无效日期:`, { purchaseDate, expiryDate });
+            console.warn('[getActivePurchases] 无效日期:', { purchaseDate, expiryDate });
             // 使用默认值
             purchaseDate = now;
             expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -246,7 +246,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           // 计算剩余天数
           remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
         } catch (error) {
-          console.error(`[getActivePurchases] 日期处理错误:`, error);
+          console.error('[getActivePurchases] 日期处理错误:', error);
           purchaseDate = now;
           expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
           remainingDays = 30;
@@ -264,8 +264,8 @@ export const getActivePurchases = async (req: Request, res: Response) => {
             id: record.question_set_id,
             title: record.title,
             description: record.description,
-            category: record.category
-          }
+            category: record.category,
+          },
         };
       });
       
@@ -276,21 +276,21 @@ export const getActivePurchases = async (req: Request, res: Response) => {
     // 如果原始 SQL 查询没有结果，再尝试 Sequelize
     const purchases = await Purchase.findAll({
       where: {
-        userId: req.user.id
+        userId: req.user.id,
       },
       include: [
         {
           model: QuestionSet,
           as: 'questionSet',
-          required: true
-        }
-      ]
+          required: true,
+        },
+      ],
     });
     
     console.log(`[getActivePurchases] Sequelize查询返回 ${purchases.length} 条结果`);
     
     // 格式化返回数据
-    const formattedPurchases = purchases.map(purchase => {
+    const formattedPurchases = purchases.map((purchase) => {
       try {
         const now = new Date();
         // 确保日期字段是有效的
@@ -302,7 +302,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           console.error('[getActivePurchases] Invalid date found:', { 
             purchaseId: purchase.id, 
             purchaseDate, 
-            expiryDate 
+            expiryDate, 
           });
           throw new Error('Invalid date values');
         }
@@ -325,7 +325,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           remainingDays,
           status: purchase.status,
           questionSet: questionSetData,
-          hasAccess: true
+          hasAccess: true,
         };
       } catch (error) {
         console.error('[getActivePurchases] Error formatting purchase:', purchase.id, error);
@@ -339,13 +339,13 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           remainingDays: 30,
           status: purchase.status || 'active',
           questionSet: purchase.get('questionSet'),
-          hasAccess: true
+          hasAccess: true,
         };
       }
     });
     
     // 过滤掉任何无效的记录
-    const validPurchases = formattedPurchases.filter(purchase => purchase && purchase.questionSetId);
+    const validPurchases = formattedPurchases.filter((purchase) => purchase && purchase.questionSetId);
     
     console.log(`[getActivePurchases] Sequelize方式返回 ${validPurchases.length} 条有效的购买记录`);
     return sendResponse(res, 200, validPurchases.length > 0 ? validPurchases : []);
@@ -363,14 +363,14 @@ export const getPurchaseById = async (req: Request, res: Response) => {
     const purchase = await Purchase.findOne({
       where: {
         id: req.params.id,
-        userId: req.user.id
+        userId: req.user.id,
       },
       include: [
         {
           model: QuestionSet,
-          as: 'questionSet'
-        }
-      ]
+          as: 'questionSet',
+        },
+      ],
     });
 
     if (!purchase) {
@@ -393,8 +393,8 @@ export const cancelPurchase = async (req: Request, res: Response) => {
       where: {
         id: req.params.id,
         userId: req.user.id,
-        status: 'pending'
-      }
+        status: 'pending',
+      },
     });
 
     if (!purchase) {
@@ -427,8 +427,8 @@ export const extendPurchase = async (req: Request, res: Response) => {
       where: {
         id: req.params.id,
         userId: req.user.id,
-        status: 'completed'
-      }
+        status: 'completed',
+      },
     });
 
     if (!purchase) {

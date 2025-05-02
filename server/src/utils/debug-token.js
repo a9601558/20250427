@@ -84,7 +84,7 @@ const commonSecrets = [
   'app-secret',
   'APP_SECRET',
   'token-secret',
-  'TOKEN_SECRET'
+  'TOKEN_SECRET',
 ];
 
 for (const secret of commonSecrets) {

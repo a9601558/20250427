@@ -12,7 +12,7 @@ const colors = {
     yellow: '\x1b[33m',
     blue: '\x1b[34m',
     magenta: '\x1b[35m',
-    cyan: '\x1b[36m'
+    cyan: '\x1b[36m',
 };
 
 console.log(`${colors.cyan}=== 宝塔面板自动部署脚本 ===${colors.reset}`);
@@ -30,11 +30,11 @@ const checkEnv = () => {
     console.log(`${colors.yellow}[1/5] 检查环境变量...${colors.reset}`);
     
     const requiredVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
-    const missing = requiredVars.filter(varName => !process.env[varName]);
+    const missing = requiredVars.filter((varName) => !process.env[varName]);
     
     if (missing.length > 0) {
         console.error(`${colors.red}错误: 缺少必要的环境变量: ${missing.join(', ')}${colors.reset}`);
-        console.log(`请确保 .env 文件存在并包含所有必要的变量。`);
+        console.log('请确保 .env 文件存在并包含所有必要的变量。');
         process.exit(1);
     }
     
@@ -76,7 +76,7 @@ const setupDatabase = async () => {
         connection = await mysql.createConnection({
             host: dbConfig.host,
             user: dbConfig.user,
-            password: dbConfig.password
+            password: dbConfig.password,
         });
         
         // 创建数据库（如果不存在）

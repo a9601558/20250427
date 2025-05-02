@@ -23,44 +23,44 @@ User.init(
       allowNull: false,
       unique: true,
       validate: {
-        len: [3, 50]
-      }
+        len: [3, 50],
+      },
     },
     email: {
       type: DataTypes.STRING(100),
       allowNull: false,
       unique: true,
       validate: {
-        isEmail: true
-      }
+        isEmail: true,
+      },
     },
     password: {
       type: DataTypes.STRING(100),
       allowNull: false,
       validate: {
-        len: [6, 100]
-      }
+        len: [6, 100],
+      },
     },
     isAdmin: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
     },
     progress: {
       type: DataTypes.JSON,
       allowNull: false,
-      defaultValue: {}
+      defaultValue: {},
     },
     purchases: {
       type: DataTypes.JSON,
       allowNull: false,
-      defaultValue: []
+      defaultValue: [],
     },
     redeemCodes: {
       type: DataTypes.JSON,
       allowNull: false,
-      defaultValue: []
-    }
+      defaultValue: [],
+    },
   },
   {
     sequelize,
@@ -68,7 +68,7 @@ User.init(
     indexes: [
       { unique: true, fields: ['username'] },
       { unique: true, fields: ['email'] },
-    ]
+    ],
   }
 );
 

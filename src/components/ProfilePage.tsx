@@ -120,7 +120,7 @@ const formatDate = (dateString: string): string => {
   return date.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'short',
-    day: 'numeric'
+    day: 'numeric',
   });
 };
 
@@ -470,7 +470,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
   wrongAnswer, 
   onDelete, 
   onUpdateMemo,
-  onPractice
+  onPractice,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [memo, setMemo] = useState(wrongAnswer.memo || '');
@@ -490,14 +490,14 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
         : wrongAnswer.selectedOptions?.includes(option.id);
       
       // 基础样式
-      let optionClass = "p-3 my-1.5 rounded-lg flex items-start border ";
+      let optionClass = 'p-3 my-1.5 rounded-lg flex items-start border ';
       
       if (isCorrect) {
-        optionClass += "bg-green-50 border-green-200 ";
+        optionClass += 'bg-green-50 border-green-200 ';
       } else if (isSelected) {
-        optionClass += "bg-red-50 border-red-200 ";
+        optionClass += 'bg-red-50 border-red-200 ';
       } else {
-        optionClass += "bg-gray-50 border-gray-200 ";
+        optionClass += 'bg-gray-50 border-gray-200 ';
       }
       
       return (
@@ -525,7 +525,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
   
@@ -685,7 +685,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
   group, 
   onDelete, 
   onUpdateMemo,
-  onPractice
+  onPractice,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -734,7 +734,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
       
       {!isCollapsed && (
         <div className="mt-3 pl-4 border-l-2 border-red-200">
-          {group.wrongAnswers.map(wrongAnswer => (
+          {group.wrongAnswers.map((wrongAnswer) => (
             <WrongAnswerCard 
               key={wrongAnswer.id}
               wrongAnswer={wrongAnswer}
@@ -769,7 +769,7 @@ const ProfilePage: React.FC = () => {
     const progressMap = new Map<string, Map<string, ProgressRecord>>();
     
     // 处理每条记录，按题库和题目分组，保留最后一次作答
-    records.forEach(record => {
+    records.forEach((record) => {
       const qsId = record.questionSetId;
       const qId = record.questionId;
       
@@ -798,7 +798,7 @@ const ProfilePage: React.FC = () => {
         
         // 统计数据
         const completedQuestions = finalRecords.length;
-        const correctAnswers = finalRecords.filter(r => r.isCorrect).length;
+        const correctAnswers = finalRecords.filter((r) => r.isCorrect).length;
         const totalTimeSpent = finalRecords.reduce((sum, r) => sum + r.timeSpent, 0);
         const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
         const accuracy = Math.min(100, (correctAnswers / completedQuestions) * 100);
@@ -815,7 +815,7 @@ const ProfilePage: React.FC = () => {
           correctAnswers,
           totalTimeSpent,
           averageTimeSpent,
-          accuracy
+          accuracy,
         });
       }
     });
@@ -832,7 +832,7 @@ const ProfilePage: React.FC = () => {
       const questionSetsMap = new Map<string, QuestionSet>();
       
       if (questionSetsResponse.success && questionSetsResponse.data) {
-        questionSetsResponse.data.forEach(qs => {
+        questionSetsResponse.data.forEach((qs) => {
           questionSetsMap.set(qs.id, { id: qs.id, title: qs.title });
         });
       }
@@ -882,8 +882,8 @@ const ProfilePage: React.FC = () => {
                 (p.questionSet ? { 
                   id: p.questionSet.id, 
                   title: p.questionSet.title,
-                  description: p.questionSet.description
-                } : undefined)
+                  description: p.questionSet.description,
+                } : undefined),
             };
             return purchase;
           });
@@ -922,8 +922,8 @@ const ProfilePage: React.FC = () => {
                 (r.questionSet ? { 
                   id: r.questionSet.id, 
                   title: r.questionSet.title,
-                  description: r.questionSet.description
-                } : undefined)
+                  description: r.questionSet.description,
+                } : undefined),
             };
             return redeemRecord;
           });
@@ -974,16 +974,16 @@ const ProfilePage: React.FC = () => {
     const checkAccessForAllSets = () => {
       // 组合购买和兑换的所有题库ID
       const allQuestionSetIds = new Set([
-        ...purchases.map(p => p.questionSetId), 
-        ...redeemCodes.map(r => r.questionSetId)
+        ...purchases.map((p) => p.questionSetId), 
+        ...redeemCodes.map((r) => r.questionSetId),
       ]);
       
       // 为每个题库发送访问权限验证请求
-      allQuestionSetIds.forEach(questionSetId => {
+      allQuestionSetIds.forEach((questionSetId) => {
         if (questionSetId) {
           socket.emit('questionSet:checkAccess', {
             userId: user.id,
-            questionSetId
+            questionSetId,
           });
         }
       });
@@ -1027,15 +1027,15 @@ const ProfilePage: React.FC = () => {
     // 只有当数据加载完成后才检查访问权限
     const checkAccess = () => {
       const allQuestionSetIds = new Set([
-        ...purchases.map(p => p.questionSetId), 
-        ...redeemCodes.map(r => r.questionSetId)
+        ...purchases.map((p) => p.questionSetId), 
+        ...redeemCodes.map((r) => r.questionSetId),
       ]);
       
-      allQuestionSetIds.forEach(questionSetId => {
+      allQuestionSetIds.forEach((questionSetId) => {
         if (questionSetId) {
           socket.emit('questionSet:checkAccess', {
             userId: user.id,
-            questionSetId
+            questionSetId,
           });
         }
       });
@@ -1082,13 +1082,13 @@ const ProfilePage: React.FC = () => {
       window.dispatchEvent(new CustomEvent('questionSets:refreshAccess'));
       
       // 如果有socket，直接触发检查
-      const allQuestionSetIds = [...purchases.map(p => p.questionSetId), ...redeemCodes.map(r => r.questionSetId)];
+      const allQuestionSetIds = [...purchases.map((p) => p.questionSetId), ...redeemCodes.map((r) => r.questionSetId)];
       
       if (allQuestionSetIds.length > 0) {
         console.log('[ProfilePage] 通知首页刷新题库状态');
         socket.emit('questionSet:checkAccessBatch', {
           userId: user.id,
-          questionSetIds: Array.from(new Set(allQuestionSetIds))
+          questionSetIds: Array.from(new Set(allQuestionSetIds)),
         });
       }
     };
@@ -1113,14 +1113,14 @@ const ProfilePage: React.FC = () => {
       
       // 获取所有题库ID
       const allQuestionSetIds = [
-        ...purchases.map(p => p.questionSetId),
-        ...redeemCodes.map(r => r.questionSetId)
+        ...purchases.map((p) => p.questionSetId),
+        ...redeemCodes.map((r) => r.questionSetId),
       ];
       
       if (allQuestionSetIds.length > 0) {
         socket.emit('questionSet:checkAccessBatch', {
           userId: user.id,
-          questionSetIds: Array.from(new Set(allQuestionSetIds))
+          questionSetIds: Array.from(new Set(allQuestionSetIds)),
         });
       }
     }, 3600000); // 1小时检查一次
@@ -1144,7 +1144,7 @@ const ProfilePage: React.FC = () => {
       const userCache = cacheData[user.id];
       
       // 检查每个题库的缓存是否过期
-      Object.keys(userCache).forEach(questionSetId => {
+      Object.keys(userCache).forEach((questionSetId) => {
         const record = userCache[questionSetId];
         const cacheAge = Date.now() - record.timestamp;
         
@@ -1280,7 +1280,7 @@ const ProfilePage: React.FC = () => {
                 left: activeTab === 'progress' ? '0%' : 
                       activeTab === 'wrong-answers' ? '25%' : 
                       activeTab === 'purchases' ? '50%' : '75%',
-                width: '25%'
+                width: '25%',
               }}
             />
           </nav>
@@ -1484,7 +1484,7 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
         
-        {groups.map(group => (
+        {groups.map((group) => (
           <WrongAnswerGroupComponent
             key={group.questionSetId}
             group={group}
@@ -1501,7 +1501,7 @@ const ProfilePage: React.FC = () => {
   const groupedWrongAnswers = useCallback(() => {
     const groups: { [key: string]: WrongAnswerGroup } = {};
     
-    wrongAnswers.forEach(answer => {
+    wrongAnswers.forEach((answer) => {
       const setId = answer.questionSetId;
       const setTitle = answer.questionSet?.title || '未知题库';
       
@@ -1509,7 +1509,7 @@ const ProfilePage: React.FC = () => {
         groups[setId] = {
           questionSetId: setId,
           questionSetTitle: setTitle,
-          wrongAnswers: []
+          wrongAnswers: [],
         };
       }
       
@@ -1526,7 +1526,7 @@ const ProfilePage: React.FC = () => {
       const response = await wrongAnswerService.deleteWrongAnswer(id);
       
       if (response.success) {
-        setWrongAnswers(prevAnswers => prevAnswers.filter(answer => answer.id !== id));
+        setWrongAnswers((prevAnswers) => prevAnswers.filter((answer) => answer.id !== id));
         toast.success('删除成功');
       } else {
         throw new Error(response.message || '删除失败');
@@ -1543,8 +1543,8 @@ const ProfilePage: React.FC = () => {
       const response = await wrongAnswerService.updateMemo(id, memo);
       
       if (response.success) {
-        setWrongAnswers(prevAnswers => 
-          prevAnswers.map(answer => 
+        setWrongAnswers((prevAnswers) => 
+          prevAnswers.map((answer) => 
             answer.id === id ? { ...answer, memo } : answer
           )
         );
@@ -1561,11 +1561,11 @@ const ProfilePage: React.FC = () => {
   // 更新错题练习功能
   const handlePracticeWrongAnswers = (questionSetId: string) => {
     // 创建问题ID列表，用于URL参数传递
-    const group = groupedWrongAnswers().find(g => g.questionSetId === questionSetId);
+    const group = groupedWrongAnswers().find((g) => g.questionSetId === questionSetId);
     
     if (group && group.wrongAnswers.length > 0) {
       // 收集错题的questionId
-      const wrongQuestionIds = group.wrongAnswers.map(answer => answer.questionId).join(',');
+      const wrongQuestionIds = group.wrongAnswers.map((answer) => answer.questionId).join(',');
       
       // 导航到指定题库，并传递错题ID列表和错题模式参数
       navigate(`/quiz/${questionSetId}?mode=wrong-answers&questions=${wrongQuestionIds}`);

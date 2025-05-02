@@ -64,15 +64,15 @@ const AdminFeaturedQuestionSets: React.FC = () => {
 
       if (response.success) {
         // 更新本地状态
-        setQuestionSets(prev => 
-          prev.map(qs => 
+        setQuestionSets((prev) => 
+          prev.map((qs) => 
             qs.id === id ? { ...qs, isFeatured } : qs
           )
         );
         
         setMessage({ 
           type: 'success', 
-          text: `题库已${isFeatured ? '添加到' : '从'}首页${isFeatured ? '' : '移除'}` 
+          text: `题库已${isFeatured ? '添加到' : '从'}首页${isFeatured ? '' : '移除'}`, 
         });
       } else {
         const errorMsg = response.error || '更新失败';
@@ -93,7 +93,7 @@ const AdminFeaturedQuestionSets: React.FC = () => {
   const handleFeaturedCategoryChange = async (id: string, featuredCategory: string) => {
     try {
       // 首先获取当前题库的状态
-      const currentSet = questionSets.find(qs => qs.id === id);
+      const currentSet = questionSets.find((qs) => qs.id === id);
       if (!currentSet) {
         setMessage({ type: 'error', text: '找不到指定题库' });
         return;
@@ -107,8 +107,8 @@ const AdminFeaturedQuestionSets: React.FC = () => {
 
       if (response.success) {
         // 更新本地状态
-        setQuestionSets(prev => 
-          prev.map(qs => 
+        setQuestionSets((prev) => 
+          prev.map((qs) => 
             qs.id === id ? { ...qs, featuredCategory } : qs
           )
         );
@@ -165,31 +165,31 @@ const AdminFeaturedQuestionSets: React.FC = () => {
   const handleDeleteCategory = async (category: string) => {
     try {
       // 检查是否有题库使用该分类
-      const hasQuestionSets = questionSets.some(qs => qs.featuredCategory === category);
+      const hasQuestionSets = questionSets.some((qs) => qs.featuredCategory === category);
       if (hasQuestionSets) {
         // 提示用户有题库使用该分类
-        if (!window.confirm(`有题库正在使用该分类，删除将会清除这些题库的分类设置。确定删除？`)) {
+        if (!window.confirm('有题库正在使用该分类，删除将会清除这些题库的分类设置。确定删除？')) {
           return;
         }
 
         // 清除使用该分类的题库分类设置
         await Promise.all(
           questionSets
-            .filter(qs => qs.featuredCategory === category)
+            .filter((qs) => qs.featuredCategory === category)
             .map(async (qs) => {
               await questionSetService.setFeaturedQuestionSet(qs.id, qs.isFeatured, '');
             })
         );
         
         // 更新本地状态
-        setQuestionSets(prev => 
-          prev.map(qs => 
+        setQuestionSets((prev) => 
+          prev.map((qs) => 
             qs.featuredCategory === category ? { ...qs, featuredCategory: '' } : qs
           )
         );
       }
 
-      const updatedCategories = featuredCategories.filter(c => c !== category);
+      const updatedCategories = featuredCategories.filter((c) => c !== category);
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
@@ -259,7 +259,7 @@ const AdminFeaturedQuestionSets: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {featuredCategories.map(category => (
+              {featuredCategories.map((category) => (
                 <div key={category} className="flex justify-between items-center p-2 bg-white rounded border">
                   <span>{category}</span>
                   <button

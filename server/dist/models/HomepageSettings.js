@@ -21,15 +21,15 @@ HomepageSettings.init({
     id: {
         type: sequelize_1.DataTypes.INTEGER,
         primaryKey: true,
-        defaultValue: 1
+        defaultValue: 1,
     },
     welcome_title: {
         type: sequelize_1.DataTypes.STRING(255),
-        allowNull: false
+        allowNull: false,
     },
     welcome_description: {
         type: sequelize_1.DataTypes.TEXT,
-        allowNull: false
+        allowNull: false,
     },
     featured_categories: {
         type: sequelize_1.DataTypes.TEXT,
@@ -40,25 +40,25 @@ HomepageSettings.init({
         },
         set(value) {
             this.setDataValue('featured_categories', JSON.stringify(value));
-        }
+        },
     },
     announcements: {
         type: sequelize_1.DataTypes.TEXT,
-        allowNull: true
+        allowNull: true,
     },
     footer_text: {
         type: sequelize_1.DataTypes.TEXT,
-        allowNull: true
+        allowNull: true,
     },
     banner_image: {
         type: sequelize_1.DataTypes.STRING(255),
-        allowNull: true
+        allowNull: true,
     },
     theme: {
         type: sequelize_1.DataTypes.STRING(50),
         allowNull: true,
-        defaultValue: 'light'
-    }
+        defaultValue: 'light',
+    },
 }, {
     sequelize: database_1.default,
     modelName: 'HomepageSettings',
@@ -66,6 +66,6 @@ HomepageSettings.init({
     underscored: true,
     timestamps: true,
     createdAt: 'created_at',
-    updatedAt: 'updated_at'
+    updatedAt: 'updated_at',
 });
 exports.default = HomepageSettings;

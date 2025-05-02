@@ -13,7 +13,7 @@ const colors = {
   blue: '\x1b[34m',
   cyan: '\x1b[36m',
   magenta: '\x1b[35m',
-  bold: '\x1b[1m'
+  bold: '\x1b[1m',
 };
 
 console.log(`${colors.magenta}${colors.bold}===== 宝塔面板配置指南 =====\n${colors.reset}`);

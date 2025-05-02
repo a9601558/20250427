@@ -51,7 +51,7 @@ router.post('/test', (req, res) => {
     res.status(200).json({
         success: true,
         message: '测试POST请求成功',
-        receivedData: req.body
+        receivedData: req.body,
     });
 });
 exports.default = router;

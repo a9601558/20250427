@@ -27,7 +27,7 @@ const dbConfig = {
   username: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'quiz_app',
-  logging: console.log
+  logging: console.log,
 };
 
 const sequelize = new Sequelize(
@@ -40,8 +40,8 @@ const sequelize = new Sequelize(
     dialect: dbConfig.dialect,
     logging: dbConfig.logging,
     dialectOptions: {
-      connectTimeout: 20000 // 增加超时时间以处理较慢的连接
-    }
+      connectTimeout: 20000, // 增加超时时间以处理较慢的连接
+    },
   }
 );
 
@@ -57,7 +57,7 @@ async function fixIndexes() {
       host: dbConfig.host,
       port: dbConfig.port,
       database: dbConfig.database,
-      username: dbConfig.username
+      username: dbConfig.username,
     });
     
     // 测试连接
@@ -70,7 +70,7 @@ async function fixIndexes() {
     // 获取所有表
     const tables = await sequelize.query('SHOW TABLES', { 
       type: sequelize.QueryTypes.SHOWTABLES,
-      transaction 
+      transaction, 
     });
     console.log('所有表:', tables);
     
@@ -87,7 +87,7 @@ async function fixIndexes() {
     
     // 收集非主键索引
     const indexesToRemove = new Set();
-    indexes.forEach(index => {
+    indexes.forEach((index) => {
       if (index.Key_name !== 'PRIMARY') {
         indexesToRemove.add(index.Key_name);
       }
@@ -144,7 +144,7 @@ fixIndexes()
     console.log('修复脚本执行完成');
     process.exit(0);
   })
-  .catch(error => {
+  .catch((error) => {
     console.error('修复脚本执行出错:', error);
     process.exit(1);
   }); 

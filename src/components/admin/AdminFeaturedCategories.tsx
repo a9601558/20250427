@@ -25,30 +25,30 @@ const AdminFeaturedCategories: React.FC = () => {
         const qsResponse = await questionSetService.getAllQuestionSets();
         
         if (response.success && response.data) {
-          console.log('成功获取精选分类:', response.data);
+          logger.info('成功获取精选分类:', response.data);
           setFeaturedCategories(response.data || []);
           
           // 检查每个分类被哪些题库使用
           if (qsResponse.success && qsResponse.data) {
             const inUseCount: {[key: string]: number} = {};
             
-            qsResponse.data.forEach(qs => {
+            qsResponse.data.forEach((qs) => {
               if (qs.featuredCategory && response.data && response.data.includes(qs.featuredCategory)) {
                 inUseCount[qs.featuredCategory] = (inUseCount[qs.featuredCategory] || 0) + 1;
               }
             });
             
             setInUseCategories(inUseCount);
-            console.log('分类使用情况:', inUseCount);
+            logger.info('分类使用情况:', inUseCount);
           }
         } else {
           const errorMsg = response.message || '加载精选分类失败';
-          console.error('获取精选分类失败:', errorMsg);
+          logger.error('获取精选分类失败:', errorMsg);
           setError(errorMsg);
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : '加载数据时发生错误';
-        console.error('获取精选分类时发生异常:', errorMsg);
+        logger.error('获取精选分类时发生异常:', errorMsg);
         setError(errorMsg);
       } finally {
         setLoading(false);
@@ -83,16 +83,16 @@ const AdminFeaturedCategories: React.FC = () => {
         setMessage({ type: 'success', text: '分类添加成功' });
         
         // 添加分类后重置使用计数
-        setInUseCategories(prev => ({
+        setInUseCategories((prev) => ({
           ...prev,
-          [newCategory.trim()]: 0
+          [newCategory.trim()]: 0,
         }));
       } else {
-        console.error('添加分类失败:', response.message);
+        logger.error('添加分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '添加分类失败' });
       }
     } catch (err) {
-      console.error('添加分类过程中发生错误:', err);
+      logger.error('添加分类过程中发生错误:', err);
       setMessage({ type: 'error', text: '添加分类时发生错误' });
     } finally {
       setIsSaving(false);
@@ -117,23 +117,23 @@ const AdminFeaturedCategories: React.FC = () => {
     
     try {
       setIsSaving(true);
-      const updatedCategories = featuredCategories.filter(c => c !== category);
+      const updatedCategories = featuredCategories.filter((c) => c !== category);
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);
         // 更新使用计数
-        const newInUseCategories = {...inUseCategories};
+        const newInUseCategories = { ...inUseCategories };
         delete newInUseCategories[category];
         setInUseCategories(newInUseCategories);
         
         setMessage({ type: 'success', text: '分类删除成功' });
       } else {
-        console.error('删除分类失败:', response.message);
+        logger.error('删除分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '删除分类失败' });
       }
     } catch (err) {
-      console.error('删除分类过程中发生错误:', err);
+      logger.error('删除分类过程中发生错误:', err);
       setMessage({ type: 'error', text: '删除分类时发生错误' });
     } finally {
       setIsSaving(false);
@@ -162,7 +162,7 @@ const AdminFeaturedCategories: React.FC = () => {
     try {
       setIsSaving(true);
       // 替换分类名称
-      const updatedCategories = featuredCategories.map(c => 
+      const updatedCategories = featuredCategories.map((c) => 
         c === oldCategory ? newCategoryName.trim() : c
       );
       
@@ -173,18 +173,18 @@ const AdminFeaturedCategories: React.FC = () => {
         
         // 更新使用计数
         const useCount = inUseCategories[oldCategory] || 0;
-        const newInUseCategories = {...inUseCategories};
+        const newInUseCategories = { ...inUseCategories };
         delete newInUseCategories[oldCategory];
         newInUseCategories[newCategoryName.trim()] = useCount;
         setInUseCategories(newInUseCategories);
         
         setMessage({ type: 'success', text: '分类名称更新成功' });
       } else {
-        console.error('更新分类名称失败:', response.message);
+        logger.error('更新分类名称失败:', response.message);
         setMessage({ type: 'error', text: response.message || '更新分类名称失败' });
       }
     } catch (err) {
-      console.error('更新分类名称过程中发生错误:', err);
+      logger.error('更新分类名称过程中发生错误:', err);
       setMessage({ type: 'error', text: '更新分类名称时发生错误' });
     } finally {
       setIsSaving(false);

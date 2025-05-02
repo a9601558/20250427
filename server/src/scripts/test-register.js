@@ -14,7 +14,7 @@ const randomString = () => Math.random().toString(36).substring(2, 10);
 const testUser = {
   username: `test_${randomString()}`,
   email: `test_${randomString()}@example.com`,
-  password: 'Password123'
+  password: 'Password123',
 };
 
 console.log(chalk.blue('===== 用户注册测试 ====='));
@@ -32,8 +32,8 @@ async function testRegister() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': data.length
-      }
+        'Content-Length': data.length,
+      },
     };
     
     console.log(chalk.blue('\n1. 发送注册请求...'));
@@ -85,7 +85,7 @@ async function checkDatabase(registerResponse) {
     port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'exam_practice_app'
+    database: process.env.DB_NAME || 'exam_practice_app',
   };
   
   try {

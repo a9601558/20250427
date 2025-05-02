@@ -12,7 +12,7 @@ async function createAdminUser() {
     DB_PORT, 
     DB_NAME, 
     DB_USER, 
-    DB_PASSWORD 
+    DB_PASSWORD, 
   } = process.env;
   
   let connection;
@@ -24,14 +24,14 @@ async function createAdminUser() {
       port: DB_PORT,
       database: DB_NAME,
       user: DB_USER,
-      password: DB_PASSWORD
+      password: DB_PASSWORD,
     });
     
     console.log('已连接到数据库');
     
     // 检查用户表是否存在
     const [tables] = await connection.query(
-      `SHOW TABLES LIKE 'users'`
+      'SHOW TABLES LIKE \'users\''
     );
     
     if (tables.length === 0) {
@@ -41,7 +41,7 @@ async function createAdminUser() {
     
     // 检查管理员用户是否已存在
     const [admins] = await connection.query(
-      `SELECT * FROM users WHERE username = 'admin'`
+      'SELECT * FROM users WHERE username = \'admin\''
     );
     
     if (admins.length > 0) {
@@ -72,7 +72,7 @@ async function createAdminUser() {
         '[]', // empty purchases
         '[]', // empty redeemCodes
         now,
-        now
+        now,
       ]
     );
     

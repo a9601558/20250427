@@ -5,6 +5,14 @@ import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
+import { logger } from '../utils/logger';
+
+// Define interface for API responses
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+}
 
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -52,13 +60,13 @@ interface HomeContentData {
 
 // 默认首页内容
 const defaultHomeContent: HomeContentData = {
-  welcomeTitle: "ExamTopics 模拟练习",
-  welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-  featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-  announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-  footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-  bannerImage: "https://via.placeholder.com/1500x500/4F46E5/FFFFFF?text=考试练习系统",
-  theme: 'light'
+  welcomeTitle: 'ExamTopics 模拟练习',
+  welcomeDescription: '选择以下任一题库开始练习，测试您的知识水平',
+  featuredCategories: ['网络协议', '编程语言', '计算机基础'],
+  announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
+  footerText: '© 2023 ExamTopics 在线题库系统 保留所有权利',
+  bannerImage: 'https://via.placeholder.com/1500x500/4F46E5/FFFFFF?text=考试练习系统',
+  theme: 'light',
 };
 
 // Add this helper function after the defaultHomeContent definition
@@ -83,7 +91,6 @@ interface HomeContentData {
   theme?: 'light' | 'dark' | 'auto';
 }
 
-
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
@@ -106,32 +113,32 @@ const HomePage: React.FC = () => {
       setLoading(true);
       
       // 统一使用cacheDuration策略，允许10分钟缓存，不强制刷新
-      const response = await apiClient.get('/api/question-sets', undefined, { 
+      const response = await apiClient.get<ApiResponse<BaseQuestionSet[]>>('/api/question-sets', undefined, { 
         cacheDuration: 600000, // 10分钟缓存，与初始加载保持一致
       });
       
       if (response && response.success) {
         // 预处理题库数据，添加 accessType
-        const preparedSets = prepareQuestionSets(response.data);
+        const preparedSets = prepareQuestionSets(response.data || []);
         setQuestionSets(preparedSets);
         
         // 如果用户已登录，检查访问权限
         if (user?.id && socket) {
-          const paidSets = preparedSets.filter(set => set.isPaid);
+          const paidSets = preparedSets.filter((set) => set.isPaid);
           if (paidSets.length > 0) {
             socket.emit('questionSet:checkAccessBatch', {
               userId: user.id,
-              questionSetIds: paidSets.map(set => set.id)
+              questionSetIds: paidSets.map((set) => set.id),
             });
           }
         }
       } else {
         // 明确处理请求成功但返回错误的情况
-        console.error('获取题库列表返回错误:', response?.message || '未知错误');
+        logger.error('获取题库列表返回错误:', response?.message || '未知错误');
         setErrorMessage(response?.message || '获取题库列表失败，请稍后重试');
       }
     } catch (error) {
-      console.error('获取题库列表失败:', error);
+      logger.error('获取题库列表失败:', error);
       setErrorMessage('获取题库列表失败，请稍后重试');
     } finally {
       setLoading(false);
@@ -151,12 +158,12 @@ const HomePage: React.FC = () => {
     }) => {
       if (!data.updates || !Array.isArray(data.updates)) return;
       
-      setQuestionSets(prevSets => {
+      setQuestionSets((prevSets) => {
         const newSets = [...prevSets];
         let hasUpdates = false;
         
-        data.updates.forEach(update => {
-          const setIndex = newSets.findIndex(set => set.id === update.questionSetId);
+        data.updates.forEach((update) => {
+          const setIndex = newSets.findIndex((set) => set.id === update.questionSetId);
           if (setIndex !== -1) {
             const set = newSets[setIndex];
             let accessType: AccessType = set.accessType;
@@ -171,7 +178,7 @@ const HomePage: React.FC = () => {
               ...set,
               hasAccess: update.hasAccess,
               remainingDays: update.remainingDays,
-              accessType
+              accessType,
             };
             hasUpdates = true;
           }
@@ -213,7 +220,7 @@ const HomePage: React.FC = () => {
   const getFilteredQuestionSets = useCallback(() => {
     // 先根据搜索词过滤
     let filteredSets = searchTerm.trim() ? 
-      questionSets.filter(set => 
+      questionSets.filter((set) => 
         set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
         set.category.toLowerCase().includes(searchTerm.toLowerCase())
       ) : 
@@ -222,10 +229,10 @@ const HomePage: React.FC = () => {
     // 再根据分类过滤
     if (activeCategory !== 'all') {
       // 直接按选中的分类筛选
-      filteredSets = filteredSets.filter(set => set.category === activeCategory);
+      filteredSets = filteredSets.filter((set) => set.category === activeCategory);
     } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
       // 在全部模式，且有精选分类时，只显示精选分类或标记为精选的题库
-      filteredSets = filteredSets.filter(set => 
+      filteredSets = filteredSets.filter((set) => 
         // 属于精选分类
         homeContent.featuredCategories.includes(set.category) || 
         // 或者本身被标记为精选
@@ -234,7 +241,7 @@ const HomePage: React.FC = () => {
         (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory))
       );
       
-      console.log(`[HomePage] 精选分类过滤: 共${filteredSets.length}个符合条件的题库`);
+      logger.debug(`[HomePage] 精选分类过滤: 共${filteredSets.length}个符合条件的题库`);
     }
     
     return filteredSets;
@@ -242,7 +249,7 @@ const HomePage: React.FC = () => {
 
   // 获取推荐题库的函数
   const getRecommendedSets = useCallback(() => {
-    return questionSets.filter(set => set.isFeatured).slice(0, 3);
+    return questionSets.filter((set) => set.isFeatured).slice(0, 3);
   }, [questionSets]);
 
   // 获取首页设置、分类和题库列表
@@ -255,22 +262,22 @@ const HomePage: React.FC = () => {
         // 并行请求首页数据，减少请求阻塞
         const [settingsData, categoriesData] = await Promise.all([
           // 获取首页设置 - 增加重试机制，无缓存确保实时数据
-          apiClient.get('/api/homepage/content', undefined, { 
+          apiClient.get<ApiResponse<HomeContentData>>('/api/homepage/content', undefined, { 
             cacheDuration: 0,
-            retries: 2
+            retries: 2,
           }),
           
           // 获取精选分类 - 增加重试机制，无缓存确保实时数据
-          apiClient.get('/api/homepage/featured-categories', undefined, { 
+          apiClient.get<ApiResponse<string[]>>('/api/homepage/featured-categories', undefined, { 
             cacheDuration: 0,
-            retries: 2
-          })
+            retries: 2,
+          }),
         ]);
 
         // 处理首页设置数据
         if (settingsData.success && settingsData.data) {
           const contentData = settingsData.data;
-          console.log('[HomePage] 成功获取首页设置:', contentData);
+          logger.info('[HomePage] 成功获取首页设置:', contentData);
           setHomeContent(contentData);
           
           // 更新active category
@@ -278,27 +285,27 @@ const HomePage: React.FC = () => {
             setActiveCategory('all'); // 保持全部选中，但更新分类列表
           }
         } else {
-          console.error('[HomePage] 获取首页设置失败:', 
+          logger.error('[HomePage] 获取首页设置失败:', 
             settingsData.message || '未知错误'
           );
         }
 
         // 处理分类数据
         if (categoriesData.success && categoriesData.data) {
-          console.log('[HomePage] 成功获取精选分类:', categoriesData.data);
+          logger.info('[HomePage] 成功获取精选分类:', categoriesData.data);
           // 确保更新所有地方
-          setHomeContent(prev => ({
+          setHomeContent((prev) => ({
             ...prev,
-            featuredCategories: categoriesData.data
+            featuredCategories: categoriesData.data || [],
           }));
         } else {
-          console.error('[HomePage] 获取精选分类失败:', 
+          logger.error('[HomePage] 获取精选分类失败:', 
             categoriesData.message || '未知错误'
           );
         }
 
       } catch (error) {
-        console.error('[HomePage] 获取数据失败:', error);
+        logger.error('[HomePage] 获取数据失败:', error);
         setErrorMessage('获取数据失败，请稍后重试');
       } finally {
         setLoading(false);
@@ -321,7 +328,7 @@ const HomePage: React.FC = () => {
       const raw = localStorage.getItem('questionSetAccessCache') || '{}';
       return JSON.parse(raw);
     } catch (e) {
-      console.error('[HomePage] 读取缓存失败:', e);
+      logger.error('[HomePage] 读取缓存失败:', e);
       return {};
     }
   };
@@ -340,14 +347,14 @@ const HomePage: React.FC = () => {
       cache[user.id][questionSetId] = {
         hasAccess,
         remainingDays,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
       
       // Save back to localStorage
       localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
-      console.log(`[HomePage] 已保存题库 ${questionSetId} 的访问权限到缓存，用户: ${user.id}`);
+      logger.info(`[HomePage] 已保存题库 ${questionSetId} 的访问权限到缓存，用户: ${user.id}`);
     } catch (error) {
-      console.error('[HomePage] 保存访问权限缓存失败:', error);
+      logger.error('[HomePage] 保存访问权限缓存失败:', error);
     }
   }, [user?.id]);
 
@@ -371,17 +378,17 @@ const HomePage: React.FC = () => {
         // 1. 缓存超过24小时 (86400000 ms)
         // 2. 缓存的剩余天数 <= 0（题库已过期）
         if (cacheAge > 86400000 || (remainingDays !== null && remainingDays <= 0)) {
-          console.log(`[HomePage] 缓存已失效 ${questionSetId}`, 
+          logger.info(`[HomePage] 缓存已失效 ${questionSetId}`, 
             cacheAge > 86400000 ? '缓存超时' : '题库已过期');
           return null;
         }
         
-        console.log(`[HomePage] 从缓存读取题库 ${questionSetId} 的访问权限，用户: ${user.id}`);
+        logger.info(`[HomePage] 从缓存读取题库 ${questionSetId} 的访问权限，用户: ${user.id}`);
         return userCache[questionSetId];
       }
       return null;
     } catch (error) {
-      console.error('[HomePage] 读取访问权限缓存失败:', error);
+      logger.error('[HomePage] 读取访问权限缓存失败:', error);
       return null;
     }
   }, [user?.id]);
@@ -390,11 +397,11 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     if (!questionSets.length) return;
     
-    console.log('[HomePage] 检查缓存的题库访问权限');
+    logger.info('[HomePage] 检查缓存的题库访问权限');
     
     // 仅当用户登录时加载缓存
     if (user?.id) {
-      setQuestionSets(prevSets => {
+      setQuestionSets((prevSets) => {
         const newSets = [...prevSets];
         let hasUpdates = false;
         
@@ -406,7 +413,7 @@ const HomePage: React.FC = () => {
         newSets[index] = {
           ...newSets[index],
                 hasAccess: cachedAccess.hasAccess,
-                remainingDays: cachedAccess.remainingDays
+                remainingDays: cachedAccess.remainingDays,
               };
               hasUpdates = true;
             }
@@ -423,17 +430,17 @@ const HomePage: React.FC = () => {
     // 仅当用户已登录且题库列表已加载时执行
     if (!user?.id || !questionSets.length) return;
     
-    console.log('[HomePage] 用户已登录，主动获取题库访问权限');
+    logger.info('[HomePage] 用户已登录，主动获取题库访问权限');
     
     const fetchAccessStatusFromServer = async () => {
       try {
         // 仅查询付费题库的访问权限
-        const paidQuestionSets = questionSets.filter(set => set.isPaid);
+        const paidQuestionSets = questionSets.filter((set) => set.isPaid);
         
         // 没有付费题库，不需要查询
         if (paidQuestionSets.length === 0) return;
         
-        console.log(`[HomePage] 主动获取 ${paidQuestionSets.length} 个付费题库的访问权限`);
+        logger.info(`[HomePage] 主动获取 ${paidQuestionSets.length} 个付费题库的访问权限`);
         
         // 方式一：使用RESTful API（如果有的话）
         // const response = await apiClient.post('/api/user/access-status', {
@@ -450,16 +457,16 @@ const HomePage: React.FC = () => {
           if (socket.connected) {
             socket.emit('questionSet:checkAccessBatch', {
               userId: user.id,
-              questionSetIds: paidQuestionSets.map(set => set.id)
+              questionSetIds: paidQuestionSets.map((set) => set.id),
             });
           } else {
             // 如果socket未连接，等待连接后再发送
-            console.log('[HomePage] Socket未连接，等待连接后获取权限');
+            logger.info('[HomePage] Socket未连接，等待连接后获取权限');
             const checkConnection = () => {
               if (socket.connected) {
                 socket.emit('questionSet:checkAccessBatch', {
                   userId: user.id,
-                  questionSetIds: paidQuestionSets.map(set => set.id)
+                  questionSetIds: paidQuestionSets.map((set) => set.id),
                 });
                 clearInterval(connectionTimer);
               }
@@ -470,12 +477,12 @@ const HomePage: React.FC = () => {
             // 最多等待10秒
             setTimeout(() => {
               clearInterval(connectionTimer);
-              console.log('[HomePage] Socket连接超时，无法获取题库权限');
+              logger.info('[HomePage] Socket连接超时，无法获取题库权限');
             }, 10000);
           }
         }
       } catch (error) {
-        console.error('[HomePage] 获取题库访问权限失败:', error);
+        logger.error('[HomePage] 获取题库访问权限失败:', error);
       }
     };
     
@@ -493,38 +500,38 @@ const HomePage: React.FC = () => {
   }>) => {
     if (!updates || !Array.isArray(updates) || updates.length === 0) return;
     
-    console.log('[updateQuestionSetsAccess] 收到批量更新:', updates);
+    logger.info('[updateQuestionSetsAccess] 收到批量更新:', updates);
     
-    setQuestionSets(prevSets => {
+    setQuestionSets((prevSets) => {
         const newSets = [...prevSets];
       let updatedCount = 0;
       
       // 批量更新题库状态
-      updates.forEach(update => {
+      updates.forEach((update) => {
         // 标准化ID格式，避免类型不匹配
         const normalizedUpdateId = String(update.questionSetId).trim();
-        console.log(`[updateQuestionSetsAccess] 处理更新: questionSetId=${normalizedUpdateId}, hasAccess=${update.hasAccess}, remainingDays=${update.remainingDays}`);
+        logger.info(`[updateQuestionSetsAccess] 处理更新: questionSetId=${normalizedUpdateId}, hasAccess=${update.hasAccess}, remainingDays=${update.remainingDays}`);
         
-        const index = newSets.findIndex(set => String(set.id).trim() === normalizedUpdateId);
+        const index = newSets.findIndex((set) => String(set.id).trim() === normalizedUpdateId);
         if (index !== -1) {
-          console.log(`[updateQuestionSetsAccess] 找到匹配题库 index=${index}, 旧值:`, {
+          logger.info(`[updateQuestionSetsAccess] 找到匹配题库 index=${index}, 旧值:`, {
             id: newSets[index].id,
             title: newSets[index].title,
             hasAccess: newSets[index].hasAccess,
-            remainingDays: newSets[index].remainingDays
+            remainingDays: newSets[index].remainingDays,
           });
           
         newSets[index] = {
           ...newSets[index],
             hasAccess: update.hasAccess,
-            remainingDays: update.remainingDays
+            remainingDays: update.remainingDays,
           };
           
-          console.log(`[updateQuestionSetsAccess] 更新后的题库:`, {
+          logger.info('[updateQuestionSetsAccess] 更新后的题库:', {
             id: newSets[index].id,
             title: newSets[index].title,
             hasAccess: newSets[index].hasAccess, 
-            remainingDays: newSets[index].remainingDays
+            remainingDays: newSets[index].remainingDays,
           });
           
           updatedCount++;
@@ -532,11 +539,11 @@ const HomePage: React.FC = () => {
           // 保存到localStorage缓存
           saveAccessToLocalStorage(update.questionSetId, update.hasAccess, update.remainingDays);
         } else {
-          console.warn(`[updateQuestionSetsAccess] 未找到匹配的题库ID: ${normalizedUpdateId}`);
+          logger.warn(`[updateQuestionSetsAccess] 未找到匹配的题库ID: ${normalizedUpdateId}`);
         }
       });
       
-      console.log(`[updateQuestionSetsAccess] 完成更新 ${updatedCount}/${updates.length} 个题库`);
+      logger.info(`[updateQuestionSetsAccess] 完成更新 ${updatedCount}/${updates.length} 个题库`);
       return updatedCount > 0 ? newSets : prevSets;
     });
   }, [saveAccessToLocalStorage]);
@@ -552,13 +559,13 @@ const HomePage: React.FC = () => {
       // 从事件中获取剩余天数，如果不存在则使用默认值
       const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 30;
       
-      console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
+      logger.info('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
       
       if (questionSetId) {
-        setQuestionSets(prevSets => {
-          return prevSets.map(set => {
+        setQuestionSets((prevSets) => {
+          return prevSets.map((set) => {
             if (set.id === questionSetId) {
-              console.log('[HomePage] 更新题库访问状态:', set.title);
+              logger.info('[HomePage] 更新题库访问状态:', set.title);
               
               // 保存到localStorage缓存，确保用户已登录
               if (user?.id) {
@@ -566,16 +573,16 @@ const HomePage: React.FC = () => {
               }
               
               // Add to recently updated sets for animation
-              setRecentlyUpdatedSets(prev => ({
+              setRecentlyUpdatedSets((prev) => ({
                 ...prev,
-                [questionSetId]: Date.now() 
+                [questionSetId]: Date.now(), 
               }));
               
               return {
                 ...set,
                 hasAccess: true,
                 remainingDays,
-                accessType: 'redeemed'
+                accessType: 'redeemed',
               };
             }
             return set;
@@ -593,7 +600,7 @@ const HomePage: React.FC = () => {
 
   // 预处理题库数据，添加访问类型
   const prepareQuestionSets = (sets: BaseQuestionSet[]): PreparedQuestionSet[] => {
-    return sets.map(set => {
+    return sets.map((set) => {
       const { hasAccess, remainingDays } = getQuestionSetAccessStatus(set);
       
       let accessType: AccessType = 'trial';
@@ -615,7 +622,7 @@ const HomePage: React.FC = () => {
         ...set,
         accessType,
         remainingDays: remainingDays || null,
-        validityPeriod
+        validityPeriod,
       };
     });
   };
@@ -665,8 +672,8 @@ const HomePage: React.FC = () => {
         detail: { 
           redirect: false,
           returnUrl: `/quiz/${questionSet.id}`,
-          message: '登录后即可开始学习付费题库'
-        } 
+          message: '登录后即可开始学习付费题库',
+        }, 
       });
       window.dispatchEvent(loginEvent);
       return;
@@ -705,17 +712,17 @@ const HomePage: React.FC = () => {
 
     // 直接使用题库的hasAccess属性(通过API或socket实时更新)
     if (questionSet.hasAccess !== undefined) {
-      console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 有hasAccess字段:`, questionSet.hasAccess);
+      logger.info(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 有hasAccess字段:`, questionSet.hasAccess);
       
       // 检查是否已过期（remainingDays <= 0）
       if (questionSet.remainingDays !== undefined && questionSet.remainingDays !== null && questionSet.remainingDays <= 0) {
-        console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 已过期:`, questionSet.remainingDays);
+        logger.info(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 已过期:`, questionSet.remainingDays);
         return { hasAccess: false, remainingDays: 0 };
       }
       
       return { 
         hasAccess: questionSet.hasAccess, 
-        remainingDays: questionSet.remainingDays || null 
+        remainingDays: questionSet.remainingDays || null, 
       };
     }
     
@@ -738,8 +745,8 @@ const HomePage: React.FC = () => {
     }) => {
       if (!data.updates || !Array.isArray(data.updates) || data.updates.length === 0) return;
       
-      console.log('[Socket] batchAccessUpdate 返回:', data);
-      console.log('[HomePage] 收到批量题库访问状态更新:', data.updates);
+      logger.info('[Socket] batchAccessUpdate 返回:', data);
+      logger.info('[HomePage] 收到批量题库访问状态更新:', data.updates);
       
       // 使用统一的更新函数处理
       updateQuestionSetsAccess(data.updates);
@@ -754,14 +761,14 @@ const HomePage: React.FC = () => {
       hasAccess: boolean;
       remainingDays: number | null;
     }) => {
-      console.log('[Socket] accessUpdate 返回:', data);
-      console.log('[HomePage] 收到单个题库访问状态更新:', data);
+      logger.info('[Socket] accessUpdate 返回:', data);
+      logger.info('[HomePage] 收到单个题库访问状态更新:', data);
       
       // 转换为批量更新格式并使用统一的更新函数
       updateQuestionSetsAccess([{
         questionSetId: data.questionSetId,
         hasAccess: data.hasAccess,
-        remainingDays: data.remainingDays
+        remainingDays: data.remainingDays,
       }]);
     };
 
@@ -776,19 +783,19 @@ const HomePage: React.FC = () => {
   // 监听来自ProfilePage的刷新通知
   useEffect(() => {
     const handleRefreshAccess = () => {
-      console.log('[HomePage] 收到刷新题库访问权限的通知');
+      logger.info('[HomePage] 收到刷新题库访问权限的通知');
       
       // 检查用户和socket是否可用
       if (!user?.id || !socket) return;
       
       // 只检查付费题库
-      const paidQuestionSets = questionSets.filter(set => set.isPaid);
+      const paidQuestionSets = questionSets.filter((set) => set.isPaid);
       if (paidQuestionSets.length === 0) return;
       
       // 发送批量检查请求
       socket.emit('questionSet:checkAccessBatch', {
         userId: user.id,
-        questionSetIds: paidQuestionSets.map(set => set.id)
+        questionSetIds: paidQuestionSets.map((set) => set.id),
       });
     };
     
@@ -805,18 +812,18 @@ const HomePage: React.FC = () => {
     if (!user?.id || !socket || questionSets.length === 0) return;
     
     // 获取付费题库
-    const paidQuestionSets = questionSets.filter(set => set.isPaid);
+    const paidQuestionSets = questionSets.filter((set) => set.isPaid);
     if (paidQuestionSets.length === 0) return;
     
-    console.log('[HomePage] 设置定期检查题库访问状态');
+    logger.info('[HomePage] 设置定期检查题库访问状态');
     
     // 从1小时改为2小时检查一次，减少服务器负载
     const checkTimer = setInterval(() => {
-      console.log('[HomePage] 定期检查题库访问状态');
+      logger.info('[HomePage] 定期检查题库访问状态');
       
       socket.emit('questionSet:checkAccessBatch', {
         userId: user.id,
-        questionSetIds: paidQuestionSets.map(set => set.id)
+        questionSetIds: paidQuestionSets.map((set) => set.id),
       });
     }, 7200000); // 2小时
     
@@ -1100,11 +1107,11 @@ const HomePage: React.FC = () => {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       // 触发搜索逻辑
-                      const filtered = questionSets.filter(set => 
+                      const filtered = questionSets.filter((set) => 
                         set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         set.category.toLowerCase().includes(searchTerm.toLowerCase())
                       );
-                      console.log(`[HomePage] 搜索: "${searchTerm}", 找到 ${filtered.length} 个结果`);
+                      logger.debug(`[HomePage] 搜索: "${searchTerm}", 找到 ${filtered.length} 个结果`);
                     }
                   }}
                 />
@@ -1129,12 +1136,12 @@ const HomePage: React.FC = () => {
                   onClick={() => {
                     // 搜索按钮逻辑
                     if (searchTerm.trim()) {
-                      console.log(`[HomePage] 搜索: "${searchTerm}"`);
+                      logger.debug(`[HomePage] 搜索: "${searchTerm}"`);
                       // 已经在getFilteredQuestionSets函数中处理搜索逻辑
                       // 这里可以滚动到结果区域
                       document.getElementById('question-sets-section')?.scrollIntoView({ 
                         behavior: 'smooth',
-                        block: 'start'
+                        block: 'start',
                       });
                     } else {
                       handleStartQuiz(questionSets[0] || recommendedSets[0]);
@@ -1210,13 +1217,13 @@ const HomePage: React.FC = () => {
           <div className="mt-8 mx-auto">
             <div className="flex items-center mb-4">
               <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>推荐题库</h2>
-              <span className={`ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full`}>精选</span>
+              <span className={'ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full'}>精选</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recommendedSets.map(set => (
+              {recommendedSets.map((set) => (
                 <BaseCard 
                   key={set.id} 
-                  set={{...set, accessType: set.accessType}} 
+                  set={{ ...set, accessType: set.accessType }} 
                   onStartQuiz={handleStartQuiz} 
                 />
               ))}
@@ -1236,8 +1243,8 @@ const HomePage: React.FC = () => {
                 const loginEvent = new CustomEvent('auth:showLogin', { 
                   detail: { 
                     redirect: false,
-                    returnUrl: window.location.pathname
-                  } 
+                    returnUrl: window.location.pathname,
+                  }, 
                 });
                 window.dispatchEvent(loginEvent);
               }}
@@ -1281,19 +1288,19 @@ const HomePage: React.FC = () => {
             onClick={() => handleCategoryChange('all')}
             className={`px-4 py-2 rounded-full text-sm font-medium ${
               activeCategory === 'all' 
-                ? `bg-blue-600 text-white` 
+                ? 'bg-blue-600 text-white' 
                 : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
             }`}
           >
             全部题库
           </button>
-          {homeContent.featuredCategories.map(category => (
+          {homeContent.featuredCategories.map((category) => (
             <button 
               key={category}
               onClick={() => handleCategoryChange(category)}
               className={`px-4 py-2 rounded-full text-sm font-medium ${
                 activeCategory === category 
-                  ? `bg-blue-600 text-white` 
+                  ? 'bg-blue-600 text-white' 
                   : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
               }`}
             >
@@ -1304,7 +1311,7 @@ const HomePage: React.FC = () => {
 
         {/* 题库列表 */}
         <div id="question-sets-section" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {getFilteredQuestionSets().map(set => (
+          {getFilteredQuestionSets().map((set) => (
             <BaseCard
               key={set.id}
               set={set}

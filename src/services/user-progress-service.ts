@@ -1,5 +1,6 @@
 import apiClient from '../utils/api-client';
 import { userService } from './api';
+import { logger } from '../utils/logger';
 
 interface SaveProgressParams {
   questionId: string;
@@ -27,14 +28,29 @@ interface ApiResponse<T> {
   message?: string;
 }
 
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message: string;
+}
+
+interface ProgressRecord {
+  questionId: string;
+  questionSetId: string;
+  selectedOption: string[];
+  isCorrect: boolean;
+  timeSpent: number;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
 class UserProgressService {
   private baseUrl = '/api/user-progress';
   private cachedUserId: string | null = null;
-
-  private getAuthHeader() {
-    const token = localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
 
   async saveProgress(params: SaveProgressParams): Promise<ApiResponse<void>> {
     try {
@@ -47,32 +63,36 @@ class UserProgressService {
           ? params.selectedOption 
           : [params.selectedOption].filter(Boolean),
         isCorrect: Boolean(params.isCorrect),
-        timeSpent: Number(params.timeSpent) || 0
+        timeSpent: Number(params.timeSpent) || 0,
       };
 
       // 验证参数完整性
       if (!validatedParams.questionId || !validatedParams.questionSetId) {
-        console.error('保存进度参数无效:', validatedParams);
+        logger.error('保存进度参数无效:', validatedParams);
         return { 
           success: false, 
-          message: '问题ID或题库ID无效' 
+          message: '问题ID或题库ID无效', 
         };
       }
       
-      // 使用apiClient的post方法
-      const response = await apiClient.post(
+      // 使用apiClient的post方法，确保返回类型是ApiResponse<void>
+      const response = await apiClient.post<ApiResponse<void>>(
         `${this.baseUrl}/save`, 
         validatedParams, 
         {
           retries: 3,
-          retryDelay: 500
+          retryDelay: 500,
         }
       );
       
       return response;
-    } catch (error: any) {
-      console.error('保存进度失败:', error?.response?.data || error.message);
-      return { success: false, message: error?.response?.data?.message || '保存进度失败' };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      logger.error('保存进度失败:', apiError?.response?.data?.message || apiError.message);
+      return { 
+        success: false, 
+        message: apiError?.response?.data?.message || '保存进度失败', 
+      };
     }
   }
 
@@ -95,13 +115,13 @@ class UserProgressService {
         ? `${this.baseUrl}/stats/${userId}?questionSetId=${questionSetId}`
         : `${this.baseUrl}/stats/${userId}`;
 
-      console.log("获取用户进度，用户ID:", userId);
+      logger.info('获取用户进度，用户ID:', userId);
 
-      // 使用apiClient的get方法，添加缓存和重试
-      const response = await apiClient.get(url, undefined, {
+      // 使用apiClient的get方法，确保返回类型是ApiResponse<Record<string, ProgressStats>>
+      const response = await apiClient.get<ApiResponse<Record<string, ProgressStats>>>(url, undefined, {
         cacheDuration: 30000, // 缓存30秒
         retries: 2,
-        retryDelay: 400
+        retryDelay: 400,
       });
 
       if (response.success && response.data) {
@@ -117,7 +137,7 @@ class UserProgressService {
               totalTimeSpent: 0,
               averageTimeSpent: 0,
               accuracy: 0,
-              lastAccessed: new Date().toISOString()
+              lastAccessed: new Date().toISOString(),
             } as ProgressStats;
             return acc;
           }
@@ -133,71 +153,76 @@ class UserProgressService {
             totalTimeSpent: progressStats.totalTimeSpent || 0,
             averageTimeSpent: progressStats.averageTimeSpent || 0,
             accuracy: progressStats.accuracy || 0,
-            lastAccessed: progressStats.lastAccessed ? progressStats.lastAccessed : new Date().toISOString()
+            lastAccessed: progressStats.lastAccessed ? progressStats.lastAccessed : new Date().toISOString(),
           };
           return acc;
         }, {} as Record<string, ProgressStats>);
 
-        console.log("处理后的进度数据:", processedData);
+        logger.info('处理后的进度数据:', processedData);
 
         return {
           success: true,
-          data: processedData
+          data: processedData,
         };
       }
 
       return response;
-    } catch (error: any) {
-      console.error('获取用户进度失败:', error?.response?.data || error.message);
-      return { success: false, message: error?.response?.data?.message || '获取用户进度失败' };
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      logger.error('获取用户进度失败:', apiError?.response?.data?.message || apiError.message);
+      return { 
+        success: false, 
+        message: apiError?.response?.data?.message || '获取用户进度失败', 
+      };
     }
   }
 
   async getUserProgressRecords(
     questionSetId?: string
-  ): Promise<ApiResponse<any[]>> {
+  ): Promise<ApiResponse<ProgressRecord[]>> {
     try {
       const url = questionSetId 
         ? `${this.baseUrl}/records?questionSetId=${questionSetId}`
         : `${this.baseUrl}/records`;
       
-      // 使用apiClient的get方法
-      const response = await apiClient.get(url, undefined, {
+      // 使用apiClient的get方法，确保返回类型是ApiResponse<Record<string, unknown>[]>
+      const response = await apiClient.get<ApiResponse<Record<string, unknown>[]>>(url, undefined, {
         cacheDuration: 60000, // 缓存1分钟
-        retries: 2
+        retries: 2,
       });
 
       // 确保返回数据的安全性和一致性
       if (response.success && Array.isArray(response.data)) {
         // 确保每条记录都有必要的字段
-        const processedRecords = response.data.map((record: any) => {
+        const processedRecords = response.data.map((record: Record<string, unknown>) => {
           return {
             ...record,
-            questionId: record.questionId || '',
-            questionSetId: record.questionSetId || '',
-            selectedOption: record.selectedOption || [],
+            questionId: (record.questionId as string) || '',
+            questionSetId: (record.questionSetId as string) || '',
+            selectedOption: (record.selectedOption as string[]) || [],
             isCorrect: Boolean(record.isCorrect),
-            timeSpent: record.timeSpent || 0,
-            createdAt: record.createdAt || new Date().toISOString(),
-            updatedAt: record.updatedAt || new Date().toISOString()
+            timeSpent: (record.timeSpent as number) || 0,
+            createdAt: (record.createdAt as string) || new Date().toISOString(),
+            updatedAt: (record.updatedAt as string) || new Date().toISOString(),
           };
         });
         
         return {
           success: true,
-          data: processedRecords
+          data: processedRecords,
         };
       }
       
       return response.success 
-        ? response 
+        ? { ...response, data: (response.data || []) as ProgressRecord[] }
         : { success: false, message: response.message || '获取记录失败', data: [] };
-    } catch (error: any) {
-      console.error('获取用户进度记录失败:', error?.response?.data || error.message);
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      logger.error('获取用户进度记录失败:', apiError?.response?.data?.message || apiError.message);
       return { 
         success: false, 
-        message: error?.response?.data?.message || '获取用户进度记录失败',
-        data: [] // 返回空数组而不是 undefined
+        message: apiError?.response?.data?.message || '获取用户进度记录失败',
+        data: [], // 返回空数组而不是 undefined
       };
     }
   }

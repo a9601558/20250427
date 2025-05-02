@@ -35,7 +35,7 @@ exports.questionSetAttributes = (0, exports.mapAttributes)({
     'is_featured': 'isFeatured',
     'featured_category': 'featuredCategory',
     'created_at': 'createdAt',
-    'updated_at': 'updatedAt'
+    'updated_at': 'updatedAt',
 });
 /**
  * Purchase模型的属性映射
@@ -51,7 +51,7 @@ exports.purchaseAttributes = (0, exports.mapAttributes)({
     'purchase_date': 'purchaseDate',
     'expiry_date': 'expiryDate',
     'created_at': 'createdAt',
-    'updated_at': 'updatedAt'
+    'updated_at': 'updatedAt',
 });
 /**
  * 购买记录中QuestionSet包含属性的映射
@@ -62,5 +62,5 @@ exports.purchaseQuestionSetAttributes = (0, exports.mapAttributes)({
     'category': 'category',
     'icon': 'icon',
     'is_paid': 'isPaid',
-    'price': 'price'
+    'price': 'price',
 });

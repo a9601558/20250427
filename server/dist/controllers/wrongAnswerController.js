@@ -22,21 +22,21 @@ const getWrongAnswers = async (req, res) => {
                 {
                     model: QuestionSet_1.default,
                     as: 'questionSet',
-                    attributes: ['id', 'title']
-                }
+                    attributes: ['id', 'title'],
+                },
             ],
-            order: [['createdAt', 'DESC']]
+            order: [['createdAt', 'DESC']],
         });
         return res.json({
             success: true,
-            data: wrongAnswers
+            data: wrongAnswers,
         });
     }
     catch (error) {
         console.error('获取错题记录失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，获取错题记录失败'
+            message: '服务器错误，获取错题记录失败',
         });
     }
 };
@@ -50,14 +50,14 @@ const saveWrongAnswer = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ success: false, message: '未授权，请先登录' });
         }
-        const { questionId, questionSetId, question, questionType, options, selectedOption, selectedOptions, correctOption, correctOptions, explanation } = req.body;
+        const { questionId, questionSetId, question, questionType, options, selectedOption, selectedOptions, correctOption, correctOptions, explanation, } = req.body;
         // 检查是否已存在相同的错题记录（防止重复添加）
         const existingWrongAnswer = await WrongAnswer_1.default.findOne({
             where: {
                 userId,
                 questionId,
-                questionSetId
-            }
+                questionSetId,
+            },
         });
         if (existingWrongAnswer) {
             // 更新已有记录
@@ -69,12 +69,12 @@ const saveWrongAnswer = async (req, res) => {
                 selectedOptions,
                 correctOption,
                 correctOptions,
-                explanation
+                explanation,
             });
             return res.json({
                 success: true,
                 data: existingWrongAnswer,
-                message: '错题记录已更新'
+                message: '错题记录已更新',
             });
         }
         // 创建新记录
@@ -89,19 +89,19 @@ const saveWrongAnswer = async (req, res) => {
             selectedOptions,
             correctOption,
             correctOptions,
-            explanation
+            explanation,
         });
         return res.status(201).json({
             success: true,
             data: wrongAnswer,
-            message: '错题已保存'
+            message: '错题已保存',
         });
     }
     catch (error) {
         console.error('保存错题失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，保存错题失败'
+            message: '服务器错误，保存错题失败',
         });
     }
 };
@@ -119,26 +119,26 @@ const deleteWrongAnswer = async (req, res) => {
         const wrongAnswer = await WrongAnswer_1.default.findOne({
             where: {
                 id,
-                userId
-            }
+                userId,
+            },
         });
         if (!wrongAnswer) {
             return res.status(404).json({
                 success: false,
-                message: '错题记录不存在'
+                message: '错题记录不存在',
             });
         }
         await wrongAnswer.destroy();
         return res.json({
             success: true,
-            message: '错题已删除'
+            message: '错题已删除',
         });
     }
     catch (error) {
         console.error('删除错题失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，删除错题失败'
+            message: '服务器错误，删除错题失败',
         });
     }
 };
@@ -157,27 +157,27 @@ const updateMemo = async (req, res) => {
         const wrongAnswer = await WrongAnswer_1.default.findOne({
             where: {
                 id,
-                userId
-            }
+                userId,
+            },
         });
         if (!wrongAnswer) {
             return res.status(404).json({
                 success: false,
-                message: '错题记录不存在'
+                message: '错题记录不存在',
             });
         }
         await wrongAnswer.update({ memo });
         return res.json({
             success: true,
             data: wrongAnswer,
-            message: '备注已更新'
+            message: '备注已更新',
         });
     }
     catch (error) {
         console.error('更新备注失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，更新备注失败'
+            message: '服务器错误，更新备注失败',
         });
     }
 };
@@ -195,26 +195,26 @@ const markAsMastered = async (req, res) => {
         const wrongAnswer = await WrongAnswer_1.default.findOne({
             where: {
                 id,
-                userId
-            }
+                userId,
+            },
         });
         if (!wrongAnswer) {
             return res.status(404).json({
                 success: false,
-                message: '错题记录不存在'
+                message: '错题记录不存在',
             });
         }
         await wrongAnswer.destroy();
         return res.json({
             success: true,
-            message: '已标记为掌握，该题已从错题集中移除'
+            message: '已标记为掌握，该题已从错题集中移除',
         });
     }
     catch (error) {
         console.error('标记为已掌握失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，标记为已掌握失败'
+            message: '服务器错误，标记为已掌握失败',
         });
     }
 };
@@ -232,27 +232,27 @@ const bulkDeleteWrongAnswers = async (req, res) => {
         if (!Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: '请提供要删除的错题ID列表'
+                message: '请提供要删除的错题ID列表',
             });
         }
         await WrongAnswer_1.default.destroy({
             where: {
                 id: {
-                    [sequelize_1.Op.in]: ids
+                    [sequelize_1.Op.in]: ids,
                 },
-                userId
-            }
+                userId,
+            },
         });
         return res.json({
             success: true,
-            message: `成功删除${ids.length}条错题记录`
+            message: `成功删除${ids.length}条错题记录`,
         });
     }
     catch (error) {
         console.error('批量删除错题失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，批量删除错题失败'
+            message: '服务器错误，批量删除错题失败',
         });
     }
 };
@@ -270,20 +270,20 @@ const getWrongAnswersByQuestionSet = async (req, res) => {
         const wrongAnswers = await WrongAnswer_1.default.findAll({
             where: {
                 userId,
-                questionSetId
+                questionSetId,
             },
-            order: [['createdAt', 'DESC']]
+            order: [['createdAt', 'DESC']],
         });
         return res.json({
             success: true,
-            data: wrongAnswers
+            data: wrongAnswers,
         });
     }
     catch (error) {
         console.error('获取题库错题失败:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，获取题库错题失败'
+            message: '服务器错误，获取题库错题失败',
         });
     }
 };

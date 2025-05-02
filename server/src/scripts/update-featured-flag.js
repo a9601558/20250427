@@ -18,7 +18,7 @@ const sequelize = new Sequelize(dbName, dbUser, dbPassword, {
   host: dbHost,
   port: dbPort,
   dialect: 'mysql',
-  logging: console.log
+  logging: console.log,
 });
 
 // 更新现有题库的isFeatured标志
@@ -40,13 +40,13 @@ async function updateFeaturedFlag() {
 
     // 检查列是否存在
     const [columns] = await sequelize.query(
-      `SHOW COLUMNS FROM question_sets LIKE 'is_featured'`
+      'SHOW COLUMNS FROM question_sets LIKE \'is_featured\''
     );
 
     if (columns.length === 0) {
       console.log('is_featured列不存在，正在添加...');
       await sequelize.query(
-        `ALTER TABLE question_sets ADD COLUMN is_featured BOOLEAN NOT NULL DEFAULT false`
+        'ALTER TABLE question_sets ADD COLUMN is_featured BOOLEAN NOT NULL DEFAULT false'
       );
       console.log('is_featured列添加成功');
     } else {
@@ -55,13 +55,13 @@ async function updateFeaturedFlag() {
 
     // 查询所有题库
     const [questionSets] = await sequelize.query(
-      `SELECT id, title FROM question_sets`
+      'SELECT id, title FROM question_sets'
     );
 
     console.log(`找到 ${questionSets.length} 个题库`);
 
     // 设置前3个题库为精选
-    const featuredIds = questionSets.slice(0, 3).map(qs => qs.id);
+    const featuredIds = questionSets.slice(0, 3).map((qs) => qs.id);
     
     if (featuredIds.length > 0) {
       console.log(`正在将以下题库设为精选: ${featuredIds.join(', ')}`);
@@ -69,7 +69,7 @@ async function updateFeaturedFlag() {
       await sequelize.query(
         `UPDATE question_sets SET is_featured = true WHERE id IN (${featuredIds.map(() => '?').join(',')})`,
         {
-          replacements: featuredIds
+          replacements: featuredIds,
         }
       );
       

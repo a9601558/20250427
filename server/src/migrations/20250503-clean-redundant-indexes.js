@@ -23,7 +23,7 @@ module.exports = {
       const userIndexesToDrop = [
         'email_2', 'username_3', 'email_3', 'username_4', 'email_4',
         'username_5', 'email_5', 'username_6', 'email_6', 'username_7',
-        'email_7', 'username_8', 'email_8'
+        'email_7', 'username_8', 'email_8',
       ];
       
       for (const indexName of userIndexesToDrop) {
@@ -43,7 +43,7 @@ module.exports = {
       
       // 删除redeem_codes表中的冗余索引
       const redeemCodeIndexesToDrop = [
-        'code_2', 'code_3', 'code_4', 'code_5', 'code_6', 'code_7', 'code_8'
+        'code_2', 'code_3', 'code_4', 'code_5', 'code_6', 'code_7', 'code_8',
       ];
       
       for (const indexName of redeemCodeIndexesToDrop) {
@@ -125,5 +125,5 @@ module.exports = {
       console.error('恢复索引时出错:', error);
       return Promise.reject(error);
     }
-  }
+  },
 }; 

@@ -1,4 +1,5 @@
 import { Option } from '../types';
+import { logger } from '../utils/logger';
 
 // Using an interface that matches the ApiResponse in api.ts
 interface ApiResponse<T> {
@@ -46,10 +47,8 @@ export const optionService = {
       const { questionService } = await import('./api');
       return questionService.bulkAddOptions(questionId, options);
     } catch (error) {
-      console.error('Error bulk adding options:', error);
+      logger.error('Error bulk adding options:', error);
       return { success: false, error: 'Failed to bulk add options' };
     }
-  }
-};
-
-export default optionService; 
+  },
+}; 

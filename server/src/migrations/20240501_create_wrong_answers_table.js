@@ -6,79 +6,79 @@ module.exports = {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
-        defaultValue: Sequelize.UUIDV4
+        defaultValue: Sequelize.UUIDV4,
       },
       userId: {
         type: Sequelize.UUID,
         allowNull: false,
         references: {
           model: 'Users',
-          key: 'id'
+          key: 'id',
         },
-        onDelete: 'CASCADE'
+        onDelete: 'CASCADE',
       },
       questionId: {
         type: Sequelize.UUID,
         allowNull: false,
         references: {
           model: 'Questions',
-          key: 'id'
+          key: 'id',
         },
-        onDelete: 'CASCADE'
+        onDelete: 'CASCADE',
       },
       questionSetId: {
         type: Sequelize.UUID,
         allowNull: false,
         references: {
           model: 'QuestionSets',
-          key: 'id'
+          key: 'id',
         },
-        onDelete: 'CASCADE'
+        onDelete: 'CASCADE',
       },
       question: {
         type: Sequelize.TEXT,
-        allowNull: false
+        allowNull: false,
       },
       questionType: {
         type: Sequelize.STRING,
-        allowNull: false
+        allowNull: false,
       },
       options: {
         type: Sequelize.JSON,
-        allowNull: false
+        allowNull: false,
       },
       selectedOption: {
         type: Sequelize.STRING,
-        allowNull: true
+        allowNull: true,
       },
       selectedOptions: {
         type: Sequelize.JSON,
-        allowNull: true
+        allowNull: true,
       },
       correctOption: {
         type: Sequelize.STRING,
-        allowNull: true
+        allowNull: true,
       },
       correctOptions: {
         type: Sequelize.JSON,
-        allowNull: true
+        allowNull: true,
       },
       explanation: {
         type: Sequelize.TEXT,
-        allowNull: true
+        allowNull: true,
       },
       memo: {
         type: Sequelize.TEXT,
-        allowNull: true
+        allowNull: true,
       },
       createdAt: {
         allowNull: false,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
       },
       updatedAt: {
         allowNull: false,
-        type: Sequelize.DATE
-      }
+        type: Sequelize.DATE,
+      },
     });
 
     // 添加联合索引，加速查询
@@ -88,5 +88,5 @@ module.exports = {
 
   down: async (queryInterface, Sequelize) => {
     await queryInterface.dropTable('WrongAnswers');
-  }
+  },
 }; 

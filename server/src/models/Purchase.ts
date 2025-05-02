@@ -37,8 +37,8 @@ Purchase.init(
       field: 'user_id',
       references: {
         model: 'users',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     questionSetId: {
       type: DataTypes.UUID,
@@ -46,8 +46,8 @@ Purchase.init(
       field: 'question_set_id',
       references: {
         model: 'question_sets',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     amount: {
       type: DataTypes.DECIMAL(10, 2),
@@ -103,8 +103,8 @@ Purchase.init(
     indexes: [
       { fields: ['user_id'] },
       { fields: ['question_set_id'] },
-      { fields: ['user_id', 'question_set_id'] }
-    ]
+      { fields: ['user_id', 'question_set_id'] },
+    ],
   }
 );
 

@@ -38,7 +38,7 @@ export const progressService = {
       if (!progress.questionSetId) {
         return {
           success: false,
-          error: 'Question set ID (questionSetId) cannot be empty'
+          error: 'Question set ID (questionSetId) cannot be empty',
         };
       }
       
@@ -47,7 +47,5 @@ export const progressService = {
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }
-};
-
-export default progressService; 
+  },
+}; 

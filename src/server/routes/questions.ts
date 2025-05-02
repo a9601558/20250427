@@ -18,14 +18,14 @@ router.get('/', (async (req: Request, res: Response) => {
     if (!questionSetId) {
       return res.status(400).json({ 
         success: false,
-        error: 'questionSetId is required' 
+        error: 'questionSetId is required', 
       });
     }
     
     // 获取问题列表
     console.log(`获取题库 ${questionSetId} 的题目`);
     const questions: QueryResult = await db.query(
-      `SELECT * FROM questions WHERE questionSetId = ? ORDER BY orderIndex`,
+      'SELECT * FROM questions WHERE questionSetId = ? ORDER BY orderIndex',
       [questionSetId]
     );
     
@@ -34,7 +34,7 @@ router.get('/', (async (req: Request, res: Response) => {
     // 获取每个问题的选项
     for (const question of questions) {
       const options = await db.query(
-        `SELECT * FROM options WHERE questionId = ? ORDER BY optionIndex`,
+        'SELECT * FROM options WHERE questionId = ? ORDER BY optionIndex',
         [question.id]
       );
       question.options = options;
@@ -43,13 +43,13 @@ router.get('/', (async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      data: questions
+      data: questions,
     });
   } catch (error) {
     console.error('Error fetching questions:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch questions' 
+      error: 'Failed to fetch questions', 
     });
   }
 }) as RequestHandler);

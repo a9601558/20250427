@@ -26,8 +26,8 @@ export const questionService = {
       const response = await fetch(`/api/questions/${questionId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
       
       const data = await response.json();
@@ -75,7 +75,5 @@ export const questionService = {
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }
-};
-
-export default questionService; 
+  },
+}; 

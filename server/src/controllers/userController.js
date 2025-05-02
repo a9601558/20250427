@@ -16,7 +16,7 @@ exports.registerUser = async (req, res) => {
     if (!username || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: '请提供用户名、邮箱和密码'
+        message: '请提供用户名、邮箱和密码',
       });
     }
 
@@ -25,15 +25,15 @@ exports.registerUser = async (req, res) => {
       where: {
         [User.sequelize.Op.or]: [
           { username },
-          { email }
-        ]
-      }
+          { email },
+        ],
+      },
     });
 
     if (userExists) {
       return res.status(400).json({
         success: false,
-        message: '用户名或邮箱已被注册'
+        message: '用户名或邮箱已被注册',
       });
     }
 
@@ -50,7 +50,7 @@ exports.registerUser = async (req, res) => {
       isAdmin: false,
       progress: {},
       purchases: [],
-      redeemCodes: []
+      redeemCodes: [],
     });
 
     // 创建JWT令牌
@@ -66,16 +66,16 @@ exports.registerUser = async (req, res) => {
       username: user.username,
       email: user.email,
       isAdmin: user.isAdmin,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     };
 
     res.status(201).json({
       success: true,
       data: {
         user: userWithoutPassword,
-        token
+        token,
       },
-      message: '用户注册成功'
+      message: '用户注册成功',
     });
     
   } catch (error) {
@@ -83,7 +83,7 @@ exports.registerUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: '服务器错误',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -101,7 +101,7 @@ exports.loginUser = async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: '请提供用户名和密码'
+        message: '请提供用户名和密码',
       });
     }
 
@@ -110,15 +110,15 @@ exports.loginUser = async (req, res) => {
       where: {
         [User.sequelize.Op.or]: [
           { username },
-          { email: username }
-        ]
-      }
+          { email: username },
+        ],
+      },
     });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: '用户名或密码不正确'
+        message: '用户名或密码不正确',
       });
     }
 
@@ -128,7 +128,7 @@ exports.loginUser = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: '用户名或密码不正确'
+        message: '用户名或密码不正确',
       });
     }
 
@@ -145,16 +145,16 @@ exports.loginUser = async (req, res) => {
       username: user.username,
       email: user.email,
       isAdmin: user.isAdmin,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     };
 
     res.status(200).json({
       success: true,
       data: {
         user: userWithoutPassword,
-        token
+        token,
       },
-      message: '登录成功'
+      message: '登录成功',
     });
     
   } catch (error) {
@@ -162,7 +162,7 @@ exports.loginUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: '服务器错误',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -175,19 +175,19 @@ exports.loginUser = async (req, res) => {
 exports.getUserProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password'] },
     });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: '用户不存在'
+        message: '用户不存在',
       });
     }
 
     res.status(200).json({
       success: true,
-      data: user
+      data: user,
     });
     
   } catch (error) {
@@ -195,7 +195,7 @@ exports.getUserProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: '服务器错误',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -215,7 +215,7 @@ exports.updateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: '用户不存在'
+        message: '用户不存在',
       });
     }
     
@@ -223,7 +223,7 @@ exports.updateUser = async (req, res) => {
     if (userId !== req.user.id && !req.user.isAdmin) {
       return res.status(403).json({
         success: false,
-        message: '没有权限修改其他用户的信息'
+        message: '没有权限修改其他用户的信息',
       });
     }
     
@@ -249,13 +249,13 @@ exports.updateUser = async (req, res) => {
     
     // Return updated user (excluding password)
     const updatedUser = await User.findByPk(userId, {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password'] },
     });
     
     res.status(200).json({
       success: true,
       data: updatedUser,
-      message: '用户信息更新成功'
+      message: '用户信息更新成功',
     });
     
   } catch (error) {
@@ -263,7 +263,7 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: '服务器错误',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 }; 

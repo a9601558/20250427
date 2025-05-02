@@ -25,10 +25,10 @@ export async function getUserQuestionSetProgress(userId: string, questionSetId: 
         include: [{
           model: Question,
           as: 'questionSetQuestions',
-          attributes: ['id']
-        }]
-      }
-    ]
+          attributes: ['id'],
+        }],
+      },
+    ],
   });
 }
 
@@ -38,20 +38,20 @@ export async function calculateProgressStats(userId: string, questionSetId: stri
     include: [{
       model: Question,
       as: 'questionSetQuestions',
-      attributes: ['id']
-    }]
+      attributes: ['id'],
+    }],
   });
   const totalQuestions = questionSet?.questionSetQuestions?.length || 0;
 
   // 获取用户的所有答题记录
   const progressRecords = await UserProgress.findAll({
     where: { userId, questionSetId },
-    attributes: ['isCorrect', 'timeSpent']
+    attributes: ['isCorrect', 'timeSpent'],
   });
 
   // 计算统计数据
   const completedQuestions = progressRecords.length;
-  const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
+  const correctAnswers = progressRecords.filter((p) => p.isCorrect).length;
   const totalTimeSpent = progressRecords.reduce((sum, p) => sum + p.timeSpent, 0);
   const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
   const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
@@ -66,6 +66,6 @@ export async function calculateProgressStats(userId: string, questionSetId: stri
     // 兼容旧的字段名
     total: totalQuestions,
     correct: correctAnswers,
-    timeSpent: totalTimeSpent
+    timeSpent: totalTimeSpent,
   };
 } 

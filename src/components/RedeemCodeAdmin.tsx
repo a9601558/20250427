@@ -24,7 +24,7 @@ const RedeemCodeAdmin: React.FC = () => {
         const questionSetsResponse = await questionSetService.getAllQuestionSets();
         if (questionSetsResponse.success && questionSetsResponse.data) {
           // 过滤出付费题库
-          const paidQuestionSets = questionSetsResponse.data.filter(qs => qs.isPaid);
+          const paidQuestionSets = questionSetsResponse.data.filter((qs) => qs.isPaid);
           setQuestionSets(paidQuestionSets);
           
           if (paidQuestionSets.length > 0) {
@@ -79,7 +79,7 @@ const RedeemCodeAdmin: React.FC = () => {
       if (response.success && response.data) {
         // 更新兑换码列表
         const newCodes = response.data as any[];
-        setRedeemCodes(prev => [...newCodes, ...prev]);
+        setRedeemCodes((prev) => [...newCodes, ...prev]);
         setGeneratedCodes(newCodes);
         setShowGeneratedCodes(true);
         toast.success(`成功生成 ${quantity} 个兑换码`);
@@ -98,7 +98,7 @@ const RedeemCodeAdmin: React.FC = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
       .then(() => toast.success('已复制到剪贴板'))
-      .catch(err => {
+      .catch((err) => {
         console.error('复制失败:', err);
         toast.error('复制失败');
       });
@@ -110,7 +110,7 @@ const RedeemCodeAdmin: React.FC = () => {
       const response = await redeemCodeService.deleteRedeemCode(codeId);
       
       if (response.success) {
-        setRedeemCodes(prev => prev.filter(code => code.id !== codeId));
+        setRedeemCodes((prev) => prev.filter((code) => code.id !== codeId));
         toast.success('兑换码已删除');
       } else {
         throw new Error(response.message || '删除兑换码失败');
@@ -128,14 +128,14 @@ const RedeemCodeAdmin: React.FC = () => {
       month: 'short', 
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     };
     return new Date(dateString).toLocaleDateString('zh-CN', options);
   };
   
   // 根据题库ID获取题库标题
   const getQuestionSetTitle = (questionSetId: string) => {
-    const questionSet = questionSets.find(qs => qs.id === questionSetId);
+    const questionSet = questionSets.find((qs) => qs.id === questionSetId);
     return questionSet ? questionSet.title : '未知题库';
   };
   
@@ -163,12 +163,12 @@ const RedeemCodeAdmin: React.FC = () => {
               </label>
               <select
                 value={selectedQuestionSetId}
-                onChange={e => setSelectedQuestionSetId(e.target.value)}
+                onChange={(e) => setSelectedQuestionSetId(e.target.value)}
                 className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               >
                 <option value="">选择题库</option>
-                {questionSets.map(qs => (
+                {questionSets.map((qs) => (
                   <option key={qs.id} value={qs.id}>{qs.title}</option>
                 ))}
               </select>
@@ -181,7 +181,7 @@ const RedeemCodeAdmin: React.FC = () => {
               <input
                 type="number"
                 value={validityDays}
-                onChange={e => setValidityDays(parseInt(e.target.value))}
+                onChange={(e) => setValidityDays(parseInt(e.target.value))}
                 min="1"
                 max="3650"
                 className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -196,7 +196,7 @@ const RedeemCodeAdmin: React.FC = () => {
               <input
                 type="number"
                 value={quantity}
-                onChange={e => setQuantity(parseInt(e.target.value))}
+                onChange={(e) => setQuantity(parseInt(e.target.value))}
                 min="1"
                 max="100"
                 className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -246,7 +246,7 @@ const RedeemCodeAdmin: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-green-200">
-                {generatedCodes.map(code => (
+                {generatedCodes.map((code) => (
                   <tr key={code.id} className="hover:bg-green-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{code.code}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getQuestionSetTitle(code.questionSetId)}</td>
@@ -302,7 +302,7 @@ const RedeemCodeAdmin: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {redeemCodes.length > 0 ? (
-                redeemCodes.map(code => (
+                redeemCodes.map((code) => (
                   <tr key={code.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{code.code}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getQuestionSetTitle(code.questionSetId)}</td>

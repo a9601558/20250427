@@ -2,12 +2,12 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    try { userId
+    try { userId;
       // Add isPaid column to question_sets table
       await queryInterface.addColumn('question_sets', 'is_paid', {
         type: Sequelize.BOOLEAN,
         allowNull: false,
-        defaultValue: false
+        defaultValue: false,
       });
 
       // Add userId column to purchases table
@@ -16,8 +16,8 @@ module.exports = {
         allowNull: false,
         references: {
           model: 'users',
-          key: 'id'
-        }
+          key: 'id',
+        },
       });
 
       console.log('Successfully added missing columns');
@@ -40,5 +40,5 @@ module.exports = {
       console.error('Error removing columns:', error);
       throw error;
     }
-  }
+  },
 }; 

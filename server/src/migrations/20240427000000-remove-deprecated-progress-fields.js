@@ -5,10 +5,10 @@ module.exports = {
     try {
       // 检查列是否存在
       const [columns] = await queryInterface.query(
-        "SHOW COLUMNS FROM user_progress"
+        'SHOW COLUMNS FROM user_progress'
       );
       
-      const columnNames = columns.map(col => col.Field);
+      const columnNames = columns.map((col) => col.Field);
       
       // 只删除存在的列
       if (columnNames.includes('completedQuestions')) {
@@ -38,10 +38,10 @@ module.exports = {
     try {
       // 检查列是否存在
       const [columns] = await queryInterface.query(
-        "SHOW COLUMNS FROM user_progress"
+        'SHOW COLUMNS FROM user_progress'
       );
       
-      const columnNames = columns.map(col => col.Field);
+      const columnNames = columns.map((col) => col.Field);
       
       // 只添加不存在的列
       if (!columnNames.includes('completedQuestions')) {
@@ -65,5 +65,5 @@ module.exports = {
       console.error('Migration rollback failed:', error);
       throw error;
     }
-  }
+  },
 }; 

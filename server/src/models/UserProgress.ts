@@ -58,33 +58,33 @@ UserProgress.init(
       allowNull: false,
       references: {
         model: 'users',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: 'question_sets',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     questionId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: 'questions',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     isCorrect: {
       type: DataTypes.BOOLEAN,
-      allowNull: false
+      allowNull: false,
     },
     timeSpent: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 0
+      defaultValue: 0,
     },
     completedQuestions: {
       type: DataTypes.INTEGER,
@@ -105,7 +105,7 @@ UserProgress.init(
     lastAccessed: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
     },
     createdAt: {
       type: DataTypes.DATE,
@@ -116,7 +116,7 @@ UserProgress.init(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
-    }
+    },
   },
   {
     sequelize,
@@ -127,8 +127,8 @@ UserProgress.init(
       { fields: ['userId'] },
       { fields: ['questionSetId'] },
       { fields: ['questionId'] },
-      { fields: ['userId', 'questionSetId'] }
-    ]
+      { fields: ['userId', 'questionSetId'] },
+    ],
   }
 );
 

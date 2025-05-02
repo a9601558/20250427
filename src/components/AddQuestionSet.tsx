@@ -15,7 +15,7 @@ const categoryOptions = [
   '软件工程',
   '人工智能',
   '云计算',
-  '其他'
+  '其他',
 ];
 
 // 图标选项
@@ -72,7 +72,7 @@ const AddQuestionSet: React.FC = () => {
 
   // 删除题目
   const handleDeleteQuestion = (questionId: string | number) => {
-    setQuestions(questions.filter(q => q.id !== questionId));
+    setQuestions(questions.filter((q) => q.id !== questionId));
   };
 
   // 检查服务器状态
@@ -83,7 +83,7 @@ const AddQuestionSet: React.FC = () => {
       // 这个接口应该在生产环境中也存在
       await axios.get('/api/question-sets', { 
         timeout: 5000,
-        params: { limit: 1 } // 只请求一条数据以减少负载
+        params: { limit: 1 }, // 只请求一条数据以减少负载
       });
       setServerStatus('online');
       return true;
@@ -134,9 +134,9 @@ const AddQuestionSet: React.FC = () => {
           options: q.options.map((opt, i) => ({
             text: opt.text,
             isCorrect: opt.isCorrect,
-            optionIndex: opt.optionIndex || String.fromCharCode('A'.charCodeAt(0) + i)
-          }))
-        }))
+            optionIndex: opt.optionIndex || String.fromCharCode('A'.charCodeAt(0) + i),
+          })),
+        })),
       };
 
       console.log('题库数据:', JSON.stringify(questionSetData));
@@ -145,9 +145,9 @@ const AddQuestionSet: React.FC = () => {
       const response = await axios.post('/api/question-sets', questionSetData, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
-        timeout: 15000 // 15秒超时
+        timeout: 15000, // 15秒超时
       });
 
       console.log('创建题库响应:', response);

@@ -38,12 +38,13 @@ export interface AccessCheckResult {
 }
 
 // 创建购买
-export const createPurchase = async (questionSetId: string, paymentMethod: string, amount: number): Promise<Purchase> => {
+export const createPurchase = async (questionSetId: string, paymentMethod: string, amount: number): Promise<
+Purchase> => {
   try {
     const response = await axios.post<ApiResponse<Purchase>>(`${API_BASE_URL}/purchases`, {
       questionSetId,
       paymentMethod,
-      amount
+      amount,
     });
     return response.data.data!;
   } catch (error) {

@@ -84,5 +84,5 @@ export const stopAutoRefresh = (): void => {
 
 export default {
   initAutoRefresh,
-  stopAutoRefresh
+  stopAutoRefresh,
 }; 

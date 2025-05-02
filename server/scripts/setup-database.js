@@ -13,7 +13,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || '',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
 };
 
 // 数据库名称
@@ -27,7 +27,7 @@ async function setupDatabase() {
     // 创建连接池（不包含数据库名）
     const pool = mysql.createPool({
       ...dbConfig,
-      database: undefined
+      database: undefined,
     });
     
     // 检查数据库是否存在，不存在则创建
@@ -47,7 +47,7 @@ async function setupDatabase() {
     // 创建新的连接池（包含数据库名）
     const dbPool = mysql.createPool({
       ...dbConfig,
-      database: DB_NAME
+      database: DB_NAME,
     });
     
     // 读取建表SQL文件
@@ -55,7 +55,7 @@ async function setupDatabase() {
     const createTablesSql = await fs.readFile(path.join(__dirname, 'create-tables.sql'), 'utf8');
     
     // 执行SQL语句（按分号分割为多个语句）
-    const statements = createTablesSql.split(';').filter(stmt => stmt.trim());
+    const statements = createTablesSql.split(';').filter((stmt) => stmt.trim());
     
     for (const statement of statements) {
       if (statement.trim()) {

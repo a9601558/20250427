@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { Question, User, QuestionSet, Purchase, RedeemCode, UserProgress, Option } from '../types';
-import { AccessCheckResult } from './purchaseService';
+import { AccessCheckResult } from './purchase-service';
+import { logger } from '../utils/logger';
 
 // API基础URL
 export const API_BASE_URL = '/api';
@@ -37,7 +38,7 @@ export class ApiClient {
     return `${endpoint}:${params ? JSON.stringify(params) : 'no-params'}`;
   }
   
-  private cleanCache() {
+  private cleanCache(): void {
     const now = Date.now();
     const expiredKeys: string[] = [];
     
@@ -47,7 +48,7 @@ export class ApiClient {
       }
     });
     
-    expiredKeys.forEach(key => this.cache.delete(key));
+    expiredKeys.forEach((key) => this.cache.delete(key));
     
     // 同时清理节流记录
     const expiredThrottleKeys: string[] = [];
@@ -57,9 +58,9 @@ export class ApiClient {
       }
     });
     
-    expiredThrottleKeys.forEach(key => this.throttleMap.delete(key));
+    expiredThrottleKeys.forEach((key) => this.throttleMap.delete(key));
     
-    console.log(`[API] 清理了 ${expiredKeys.length} 个过期缓存和 ${expiredThrottleKeys.length} 个节流记录`);
+    logger.info(`[API] 清理了 ${expiredKeys.length} 个过期缓存和 ${expiredThrottleKeys.length} 个节流记录`);
   }
   
   private shouldThrottle(key: string, throttleTime: number = this.defaultThrottleTime): boolean {
@@ -97,8 +98,8 @@ export class ApiClient {
       ...config,
       headers: {
         ...config.headers,
-        Authorization: `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     };
   }
   
@@ -120,7 +121,7 @@ export class ApiClient {
       throttleTime = this.defaultThrottleTime,
       retries = this.defaultRetries,
       retryDelay = 1000,
-      bypassCache = false
+      bypassCache = false,
     } = options;
     
     const url = `${this.baseURL}${endpoint}`;
@@ -131,31 +132,31 @@ export class ApiClient {
     if (method === 'GET' && cacheDuration > 0 && !bypassCache) {
       const cachedItem = this.cache.get(cacheKey);
       if (cachedItem && (Date.now() - cachedItem.timestamp < cacheDuration)) {
-        console.log(`[API] 使用缓存: ${endpoint}`);
+        logger.debug(`[API] 使用缓存: ${endpoint}`);
         return {
           success: true,
-          data: cachedItem.data
+          data: cachedItem.data,
         };
       }
     }
     
     // 对所有请求进行节流
     if (throttleTime > 0 && this.shouldThrottle(throttleKey, throttleTime)) {
-      console.log(`[API] 请求被节流: ${endpoint}`);
+      logger.debug(`[API] 请求被节流: ${endpoint}`);
       
       // 如果有缓存，即使过期也返回
       const cachedItem = this.cache.get(cacheKey);
       if (cachedItem) {
-        console.log(`[API] 请求被节流，返回过期缓存: ${endpoint}`);
+        logger.debug(`[API] 请求被节流，返回过期缓存: ${endpoint}`);
         return {
           success: true,
-          data: cachedItem.data
+          data: cachedItem.data,
         };
       }
       
       return {
         success: false,
-        message: '请求频率过高，请稍后再试'
+        message: '请求频率过高，请稍后再试',
       };
     }
     
@@ -170,7 +171,7 @@ export class ApiClient {
           ...(method === 'GET' 
             ? { params: data } 
             : { data }
-          )
+          ),
         });
         
         const response: AxiosResponse = await axios(config);
@@ -179,13 +180,13 @@ export class ApiClient {
         if (method === 'GET' && cacheDuration > 0) {
           this.cache.set(cacheKey, {
             data: response.data,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
         }
         
         return {
           success: true,
-          data: response.data
+          data: response.data,
         };
       } catch (error: any) {
         lastError = error;
@@ -200,8 +201,8 @@ export class ApiClient {
         if ((isNetworkError || isRateLimitError || isServerError) && attempt <= retries) {
           // 指数退避重试
           const delay = retryDelay * Math.pow(2, attempt - 1);
-          console.log(`[API] 请求失败 (${method} ${endpoint})，第 ${attempt} 次重试，等待 ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          logger.warn(`[API] 请求失败 (${method} ${endpoint})，第 ${attempt} 次重试，等待 ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
         
@@ -217,31 +218,31 @@ export class ApiClient {
     }
     
     // 所有重试都失败
-    console.error(`[API] 请求失败 (${method} ${endpoint})，已重试 ${attempt} 次`, lastError);
+    logger.error(`[API] 请求失败 (${method} ${endpoint})，已重试 ${attempt} 次`, lastError);
     
     return {
       success: false,
-      message: lastError.response?.data?.message || lastError.message || '请求失败，请稍后再试'
+      message: lastError.response?.data?.message || lastError.message || '请求失败，请稍后再试',
     };
   }
   
-  async get<T = any>(endpoint: string, params?: any, options = {}) {
+  async get<T = any>(endpoint: string, params?: any, options = {}): Promise<{success: boolean, data?: T, message?: string}> {
     return this.request<T>('GET', endpoint, params, options);
   }
   
-  async post<T = any>(endpoint: string, data?: any, options = {}) {
+  async post<T = any>(endpoint: string, data?: any, options = {}): Promise<{success: boolean, data?: T, message?: string}> {
     return this.request<T>('POST', endpoint, data, options);
   }
   
-  async put<T = any>(endpoint: string, data?: any, options = {}) {
+  async put<T = any>(endpoint: string, data?: any, options = {}): Promise<{success: boolean, data?: T, message?: string}> {
     return this.request<T>('PUT', endpoint, data, options);
   }
   
-  async delete<T = any>(endpoint: string, params?: any, options = {}) {
+  async delete<T = any>(endpoint: string, params?: any, options = {}): Promise<{success: boolean, data?: T, message?: string}> {
     return this.request<T>('DELETE', endpoint, params, options);
   }
   
-  async patch<T = any>(endpoint: string, data?: any, options = {}) {
+  async patch<T = any>(endpoint: string, data?: any, options = {}): Promise<{success: boolean, data?: T, message?: string}> {
     return this.request<T>('PATCH', endpoint, data, options);
   }
 }
@@ -273,7 +274,7 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -287,7 +288,7 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -301,7 +302,7 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -315,7 +316,7 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -329,7 +330,7 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -343,7 +344,7 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -357,10 +358,10 @@ export const userService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
-  }
+  },
 };
 
 // 题库API服务
@@ -374,7 +375,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -388,7 +389,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -402,7 +403,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -416,7 +417,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -430,7 +431,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -444,7 +445,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -458,7 +459,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -472,7 +473,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -486,7 +487,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -500,7 +501,7 @@ export const questionSetService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -516,7 +517,7 @@ export const questionSetService = {
       data.forEach((progress: any) => {
         // 数据校验
         if (!progress.questionSetId || !progress.questionSet) {
-          console.warn('Invalid progress data:', progress);
+          logger.warn('Invalid progress data:', progress);
           return;
         }
         
@@ -534,22 +535,22 @@ export const questionSetService = {
           title: progress.questionSet?.title,
           totalTimeSpent: progress.totalTimeSpent || 0,
           averageTimeSpent: progress.averageTimeSpent || 0,
-          accuracy: progress.accuracy || 0
+          accuracy: progress.accuracy || 0,
         };
       });
       
       return {
         success: true,
-        data: formattedData
+        data: formattedData,
       };
     } catch (error: any) {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
-  }
+  },
 };
 
 // 题目API服务
@@ -563,7 +564,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -577,7 +578,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -591,7 +592,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -605,7 +606,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -619,7 +620,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -633,7 +634,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -647,7 +648,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -661,7 +662,7 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -675,76 +676,76 @@ export const questionService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
-  }
+  },
 };
 
 // 用户进度API服务
 export const userProgressService = {
   // 获取用户的进度数据
-  getUserProgress: async () => {
+  getUserProgress: async (): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.get('/api/user-progress');
       return response.data;
-    } catch (error) {
-      console.error('获取用户进度失败:', error);
+    } catch (error: any) {
+      logger.error('获取用户进度失败:', error);
       return { success: false, message: '获取用户进度失败' };
     }
   },
   
   // 获取用户的所有进度记录
-  getUserProgressRecords: async () => {
+  getUserProgressRecords: async (): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.get('/api/user-progress/records');
       return response.data;
-    } catch (error) {
-      console.error('获取用户进度记录失败:', error);
+    } catch (error: any) {
+      logger.error('获取用户进度记录失败:', error);
       return { success: false, message: '获取用户进度记录失败' };
     }
   },
   
   // 获取用户的历史记录
-  getUserHistory: async () => {
+  getUserHistory: async (): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.get('/api/user-progress/history');
       return response.data;
-    } catch (error) {
-      console.error('获取用户历史记录失败:', error);
+    } catch (error: any) {
+      logger.error('获取用户历史记录失败:', error);
       return { success: false, message: '获取用户历史记录失败' };
     }
   },
   
   // 获取用户的统计数据
-  getUserStats: async () => {
+  getUserStats: async (): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.get('/api/user-progress/stats');
       return response.data;
-    } catch (error) {
-      console.error('获取用户统计数据失败:', error);
+    } catch (error: any) {
+      logger.error('获取用户统计数据失败:', error);
       return { success: false, message: '获取用户统计数据失败' };
     }
   },
   
   // 根据题库ID获取进度
-  getProgressByQuestionSetId: async (questionSetId: string) => {
+  getProgressByQuestionSetId: async (questionSetId: string): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.get(`/user-progress/${questionSetId}`);
       return response.data;
-    } catch (error) {
-      console.error(`获取题库${questionSetId}的进度失败:`, error);
+    } catch (error: any) {
+      logger.error(`获取题库${questionSetId}的进度失败:`, error);
       return { success: false, message: '获取题库进度失败' };
     }
   },
   
   // 更新进度
-  updateProgress: async (progress: Partial<UserProgress>) => {
+  updateProgress: async (progress: Partial<UserProgress>): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.post('/api/user-progress/update', progress);
       return response.data;
-    } catch (error) {
-      console.error('更新进度失败:', error);
+    } catch (error: any) {
+      logger.error('更新进度失败:', error);
       return { success: false, message: '更新进度失败' };
     }
   },
@@ -756,15 +757,15 @@ export const userProgressService = {
     selectedOption: string | string[];
     isCorrect: boolean;
     timeSpent: number;
-  }) => {
+  }): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.post('/api/user-progress/save', data);
       return response.data;
-    } catch (error) {
-      console.error('保存答题进度失败:', error);
+    } catch (error: any) {
+      logger.error('保存答题进度失败:', error);
       return { success: false, message: '保存答题进度失败' };
     }
-  }
+  },
 };
 
 // 购买API服务
@@ -781,13 +782,13 @@ export const purchaseService = {
       }
       return {
         success: true,
-        data: purchase
+        data: purchase,
       };
     } catch (error: any) {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -806,13 +807,13 @@ export const purchaseService = {
       });
       return {
         success: true,
-        data: purchases
+        data: purchases,
       };
     } catch (error: any) {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -826,7 +827,7 @@ export const purchaseService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -840,7 +841,7 @@ export const purchaseService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -854,7 +855,7 @@ export const purchaseService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -868,7 +869,7 @@ export const purchaseService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -887,16 +888,16 @@ export const purchaseService = {
       });
       return {
         success: true,
-        data: redeemCodes
+        data: redeemCodes,
       };
     } catch (error: any) {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
-  }
+  },
 };
 
 // 兑换码API服务
@@ -910,7 +911,7 @@ export const redeemCodeService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -924,7 +925,7 @@ export const redeemCodeService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -938,7 +939,7 @@ export const redeemCodeService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -952,10 +953,10 @@ export const redeemCodeService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
-  }
+  },
 };
 
 // 首页内容API服务
@@ -969,7 +970,7 @@ export const homepageService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -983,7 +984,7 @@ export const homepageService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -997,7 +998,7 @@ export const homepageService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
   },
@@ -1011,21 +1012,21 @@ export const homepageService = {
       return {
         success: false,
         message: error.message,
-        error: error.error
+        error: error.error,
       };
     }
-  }
+  },
 };
 
 // 错题集服务
 export const wrongAnswerService = {
   // 获取用户的所有错题
-  getWrongAnswers: async () => {
+  getWrongAnswers: async (): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.get('/api/wrong-answers');
       return response.data;
-    } catch (error) {
-      console.error('获取错题集失败:', error);
+    } catch (error: any) {
+      logger.error('获取错题集失败:', error);
       return { success: false, message: '获取错题集失败' };
     }
   },
@@ -1042,46 +1043,46 @@ export const wrongAnswerService = {
     correctOption?: string;
     correctOptions?: string[];
     explanation?: string;
-  }) => {
+  }): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.post('/api/wrong-answers', wrongAnswer);
       return response.data;
-    } catch (error) {
-      console.error('保存错题失败:', error);
+    } catch (error: any) {
+      logger.error('保存错题失败:', error);
       return { success: false, message: '保存错题失败' };
     }
   },
 
   // 删除错题
-  deleteWrongAnswer: async (id: string) => {
+  deleteWrongAnswer: async (id: string): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.delete(`/wrong-answers/${id}`);
       return response.data;
-    } catch (error) {
-      console.error('删除错题失败:', error);
+    } catch (error: any) {
+      logger.error('删除错题失败:', error);
       return { success: false, message: '删除错题失败' };
     }
   },
 
   // 更新错题备注
-  updateMemo: async (id: string, memo: string) => {
+  updateMemo: async (id: string, memo: string): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.patch(`/wrong-answers/${id}`, { memo });
       return response.data;
-    } catch (error) {
-      console.error('更新错题备注失败:', error);
+    } catch (error: any) {
+      logger.error('更新错题备注失败:', error);
       return { success: false, message: '更新错题备注失败' };
     }
   },
 
   // 标记错题为已掌握（删除）
-  markAsMastered: async (id: string) => {
+  markAsMastered: async (id: string): Promise<ApiResponse<any>> => {
     try {
       const response = await apiClient.post(`/wrong-answers/${id}/mastered`);
       return response.data;
-    } catch (error) {
-      console.error('标记错题为已掌握失败:', error);
+    } catch (error: any) {
+      logger.error('标记错题为已掌握失败:', error);
       return { success: false, message: '标记错题为已掌握失败' };
     }
-  }
+  },
 }; 

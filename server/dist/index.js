@@ -48,7 +48,7 @@ app.use((0, helmet_1.default)());
 // Rate limiting
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
+    max: 100, // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
 // API routes
@@ -66,7 +66,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({
         success: false,
         message: '服务器内部错误',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
 });
 // Start server
@@ -89,13 +89,13 @@ database_1.default.sync({ alter: true }).then(() => {
             console.log('创建 HomepageSettings 初始数据...');
             return HomepageSettings_1.default.create({
                 id: 1,
-                welcome_title: "ExamTopics 模拟练习",
-                welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
-                featured_categories: ["网络协议", "编程语言", "计算机基础"],
-                announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-                footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-                banner_image: "/images/banner.jpg",
-                theme: 'light'
+                welcome_title: 'ExamTopics 模拟练习',
+                welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
+                featured_categories: ['网络协议', '编程语言', '计算机基础'],
+                announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
+                footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
+                banner_image: '/images/banner.jpg',
+                theme: 'light',
             });
         }
     }).then(() => {

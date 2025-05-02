@@ -12,7 +12,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'is_paid', {
           type: Sequelize.BOOLEAN,
           allowNull: false,
-          defaultValue: false
+          defaultValue: false,
         });
       } else {
         console.log('is_paid字段已存在');
@@ -24,7 +24,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'price', {
           type: Sequelize.DECIMAL(10, 2),
           allowNull: true,
-          defaultValue: null
+          defaultValue: null,
         });
       } else {
         console.log('price字段已存在');
@@ -36,7 +36,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'trial_questions', {
           type: Sequelize.INTEGER,
           allowNull: true,
-          defaultValue: null
+          defaultValue: null,
         });
       } else {
         console.log('trial_questions字段已存在');
@@ -48,7 +48,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'is_featured', {
           type: Sequelize.BOOLEAN,
           allowNull: false,
-          defaultValue: false
+          defaultValue: false,
         });
       } else {
         console.log('is_featured字段已存在');
@@ -60,7 +60,7 @@ module.exports = {
         await queryInterface.addColumn('question_sets', 'featured_category', {
           type: Sequelize.STRING,
           allowNull: true,
-          defaultValue: null
+          defaultValue: null,
         });
       } else {
         console.log('featured_category字段已存在');
@@ -103,5 +103,5 @@ module.exports = {
       console.error('移除字段失败:', error);
       throw error;
     }
-  }
+  },
 }; 

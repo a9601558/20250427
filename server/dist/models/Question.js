@@ -30,19 +30,19 @@ Question.init({
         allowNull: false,
         references: {
             model: 'question_sets',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     text: {
         type: sequelize_1.DataTypes.TEXT,
         allowNull: false,
         validate: {
             notNull: {
-                msg: 'text字段不能为null'
+                msg: 'text字段不能为null',
             },
             notEmpty: {
-                msg: 'text字段不能为空'
-            }
+                msg: 'text字段不能为空',
+            },
         },
         set(value) {
             // 确保值不为null或空字符串
@@ -52,28 +52,28 @@ Question.init({
             else {
                 this.setDataValue('text', String(value).trim());
             }
-        }
+        },
     },
     questionType: {
         type: sequelize_1.DataTypes.ENUM('single', 'multiple'),
         allowNull: false,
-        defaultValue: 'single'
+        defaultValue: 'single',
     },
     explanation: {
         type: sequelize_1.DataTypes.TEXT,
-        allowNull: false
+        allowNull: false,
     },
     orderIndex: {
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 0
-    }
+        defaultValue: 0,
+    },
 }, {
     sequelize: database_1.default,
     tableName: 'questions',
     indexes: [
         { fields: ['questionSetId'] },
-        { fields: ['questionSetId', 'orderIndex'] }
-    ]
+        { fields: ['questionSetId', 'orderIndex'] },
+    ],
 });
 exports.default = Question;

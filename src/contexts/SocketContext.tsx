@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useUser } from './UserContext';
+import { logger } from '../utils/logger';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -11,11 +12,24 @@ interface SocketContextType {
   disableSocket?: () => void;
 }
 
+interface SocketRequestInfo {
+  count: number;
+  lastTime: number;
+}
+
+interface SocketRequestsMap {
+  [key: string]: SocketRequestInfo;
+}
+
+interface ThrottleData {
+  [key: string]: unknown;
+}
+
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
   reconnect: () => {},
-  lastError: null
+  lastError: null,
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -38,10 +52,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const reconnectDelay = useRef(1000); // 初始重连延迟1秒
   const maxReconnectDelay = 30000; // 最大重连延迟30秒
   const maxReconnectAttempts = 5; // 减少最大重连尝试次数，避免过多无效请求
-  const requestsCount = useRef<{[key: string]: {count: number, lastTime: number}}>({});
+  const requestsCount = useRef<SocketRequestsMap>({});
   
   // 使用节流函数减少请求频率
-  const throttleRequest = (eventName: string, data: any, interval = 2000) => {
+  const throttleRequest = (eventName: string, data: ThrottleData, interval = 2000) => {
     const now = Date.now();
     const requestKey = `${eventName}-${JSON.stringify(data)}`;
     
@@ -53,7 +67,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // 如果在间隔时间内已经发送过相同请求，则忽略
     if (now - reqInfo.lastTime < interval) {
-      console.log(`[Socket] 节流: 忽略重复的 ${eventName} 请求`);
+      logger.debug(`[Socket] 节流: 忽略重复的 ${eventName} 请求`);
       return false;
     }
     
@@ -68,16 +82,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const initSocket = () => {
     // 如果Socket连接被禁用，直接返回
     if (socketDisabled) {
-      console.log('[Socket] 连接已被禁用，跳过初始化');
+      logger.info('[Socket] 连接已被禁用，跳过初始化');
       return null;
     }
     
     if (socket) {
-      console.log('[Socket] 关闭旧连接');
+      logger.info('[Socket] 关闭旧连接');
       socket.disconnect();
     }
     
-    console.log('[Socket] 初始化新连接');
+    logger.info('[Socket] 初始化新连接');
     
     try {
       // 创建新的Socket实例 - 基于当前环境自动选择正确的URL
@@ -99,7 +113,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         SOCKET_URL = `${protocol}://${currentDomain}${currentPort ? ':' + currentPort : ''}`;
       }
       
-      console.log(`[Socket] 尝试连接到 ${SOCKET_URL}`);
+      logger.info(`[Socket] 尝试连接到 ${SOCKET_URL}`);
       
       // 获取认证令牌
       const token = localStorage.getItem('token');
@@ -112,17 +126,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         reconnectionDelayMax: 5000,
         autoConnect: true,
         auth: {
-          token: token // 在auth对象中提供令牌
+          token: token, // 在auth对象中提供令牌
         },
         query: {
           userId: user?.id,
-          token: token // 同时在query中也提供令牌，确保兼容性
-        }
+          token: token, // 同时在query中也提供令牌，确保兼容性
+        },
       });
       
       // 添加断线重连和错误处理
       newSocket.on('connect', () => {
-        console.log('[Socket] 已连接到服务器');
+        logger.info('[Socket] 已连接到服务器');
         setIsConnected(true);
         setLastError(null);
         reconnectCount.current = 0;
@@ -132,7 +146,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // 如果服务器仍然需要额外auth事件，可以取消注释下面的代码
         /*
         if (user && token) {
-          console.log('[Socket] 发送额外认证信息');
+          logger.info('[Socket] 发送额外认证信息');
           newSocket.emit('auth', { 
             userId: user.id, 
             token: token,
@@ -144,17 +158,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // 优化断开连接处理
       newSocket.on('disconnect', (reason) => {
-        console.log(`[Socket] 断开连接: ${reason}`);
+        logger.info(`[Socket] 断开连接: ${reason}`);
         
         // 处理认证错误导致的断开连接
         if (reason === 'io server disconnect') {
           // 服务器主动断开连接，可能是认证问题
-          console.log('[Socket] 服务器主动断开连接，可能是认证问题');
+          logger.info('[Socket] 服务器主动断开连接，可能是认证问题');
           
           // 检查token
           const currentToken = localStorage.getItem('token');
           if (!currentToken || currentToken !== authToken) {
-            console.log('[Socket] token失效或变化，更新状态');
+            logger.info('[Socket] token失效或变化，更新状态');
             setAuthToken(currentToken);
           }
         }
@@ -165,7 +179,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           
           // 实现指数退避重连
           if (reconnectCount.current < maxReconnectAttempts) {
-            console.log(`[Socket] 将在 ${reconnectDelay.current/1000}秒后尝试重连...`);
+            logger.info(`[Socket] 将在 ${reconnectDelay.current/1000}秒后尝试重连...`);
             
             // 清除之前的重连定时器
             if (reconnectTimerId.current) {
@@ -176,11 +190,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             reconnectTimerId.current = setTimeout(() => {
               reconnectCount.current++;
               reconnectDelay.current = Math.min(reconnectDelay.current * 2, maxReconnectDelay);
-              console.log(`[Socket] 第 ${reconnectCount.current} 次尝试重连`);
+              logger.info(`[Socket] 第 ${reconnectCount.current} 次尝试重连`);
               
               // 检查是否应该禁用Socket连接
               if (reconnectCount.current >= maxReconnectAttempts) {
-                console.log('[Socket] 达到最大重连次数，禁用Socket连接');
+                logger.warn('[Socket] 达到最大重连次数，禁用Socket连接');
                 setSocketDisabled(true);
                 setLastError('已达到最大重连次数，Socket已禁用');
               } else {
@@ -188,7 +202,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               }
             }, reconnectDelay.current);
           } else {
-            console.log('[Socket] 达到最大重连次数，禁用Socket连接');
+            logger.warn('[Socket] 达到最大重连次数，禁用Socket连接');
             setSocketDisabled(true);
             setLastError('已达到最大重连次数，Socket已禁用');
           }
@@ -197,7 +211,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // 处理连接错误，避免异常渲染
       newSocket.on('connect_error', (error) => {
-        console.error('[Socket] 连接错误:', error);
+        logger.error('[Socket] 连接错误:', error);
         const errorMsg = `连接错误: ${error.message}`;
         setLastError(errorMsg);
         
@@ -207,19 +221,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             error.message.includes('auth') || 
             error.message.includes('令牌') ||
             error.message.includes('已过期')) {
-          console.log('[Socket] 检测到认证错误，检查token有效性');
+          logger.info('[Socket] 检测到认证错误，检查token有效性');
           
           // 获取当前token
           const currentToken = localStorage.getItem('token');
           
           // token不存在或无效 - 清除错误的token
           if (!currentToken || currentToken === 'undefined' || currentToken === 'null') {
-            console.log('[Socket] 无效token，清除localStorage');
+            logger.info('[Socket] 无效token，清除localStorage');
             localStorage.removeItem('token');
             setAuthToken(null);
           } else if (error.message.includes('已过期')) {
             // 令牌已过期，尝试刷新令牌
-            console.log('[Socket] 令牌已过期，尝试刷新令牌');
+            logger.info('[Socket] 令牌已过期，尝试刷新令牌');
             
             // 这里可以调用您的刷新令牌API
             // 例如: refreshToken().then(newToken => {...})
@@ -228,14 +242,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setAuthToken(null);
           } else {
             // 尝试验证token并刷新连接
-            console.log('[Socket] 尝试使用新token重新连接');
+            logger.info('[Socket] 尝试使用新token重新连接');
             
             // 更新Socket的auth和query参数
             newSocket.auth = { token: currentToken };
             if (newSocket.io && newSocket.io.opts) {
               newSocket.io.opts.query = {
                 ...newSocket.io.opts.query,
-                token: currentToken
+                token: currentToken,
               };
             }
             
@@ -243,7 +257,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setAuthToken(currentToken);
             // 稍后尝试重连
             setTimeout(() => {
-              console.log('[Socket] 使用更新后的认证参数重新连接');
+              logger.info('[Socket] 使用更新后的认证参数重新连接');
               newSocket.connect();
             }, 1000);
           }
@@ -251,7 +265,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         // 连续失败多次后自动禁用Socket，避免过多429错误
         if (reconnectCount.current >= maxReconnectAttempts) {
-          console.log('[Socket] 连接持续失败，自动禁用Socket功能');
+          logger.warn('[Socket] 连接持续失败，自动禁用Socket功能');
           setSocketDisabled(true);
         }
         
@@ -261,11 +275,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // 截获所有事件，优化请求频率
       const originalEmit = newSocket.emit;
-      newSocket.emit = function(eventName: string, ...args: any[]) {
-        // 如果Socket已被禁用，则直接返回空对象
+      newSocket.emit = function<Ev extends string>(eventName: Ev, ...args: any[]) {
+        // 如果Socket已被禁用，则直接返回Socket实例以兼容链式调用
         if (socketDisabled) {
-          console.log(`[Socket] Socket已禁用，忽略事件: ${eventName}`);
-          return {} as any;
+          logger.info(`[Socket] Socket已禁用，忽略事件: ${eventName}`);
+          return this;
         }
         
         // 不限制内部事件
@@ -274,12 +288,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         // 对外部事件进行节流
-        if (throttleRequest(eventName, args[0])) {
+        if (throttleRequest(eventName, args[0] as ThrottleData || {})) {
           return originalEmit.apply(this, [eventName, ...args]);
         }
         
-        // 返回空对象以保持API兼容性
-        return {} as any;
+        // 返回socket实例以保持API兼容性
+        return this;
       };
       
       // 保存socket实例
@@ -287,8 +301,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       return newSocket;
     } catch (error) {
-      console.error('[Socket] 初始化Socket时发生错误:', error);
-      setLastError(`Socket初始化错误: ${error}`);
+      const err = error as Error;
+      logger.error('[Socket] 初始化Socket时发生错误:', err);
+      setLastError(`Socket初始化错误: ${err.message}`);
       setSocketDisabled(true);
       return null;
     }
@@ -297,12 +312,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 监听用户认证状态变化，更新Socket连接
   useEffect(() => {
     // 用户登录、登出或token变化时重新初始化Socket
-    console.log('[Socket] 用户状态或Token发生变化，重新初始化连接');
+    logger.info('[Socket] 用户状态或Token发生变化，重新初始化连接');
     const newSocket = initSocket();
     
     // 组件卸载时清理
     return () => {
-      console.log('[Socket] 组件卸载，断开连接');
+      logger.info('[Socket] 组件卸载，断开连接');
       if (reconnectTimerId.current) {
         clearTimeout(reconnectTimerId.current);
       }
@@ -314,11 +329,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const reconnect = () => {
     if (socketDisabled) {
       // 如果之前被禁用，则重新启用
-      console.log('[Socket] 重新启用Socket连接');
+      logger.info('[Socket] 重新启用Socket连接');
       setSocketDisabled(false);
       setTimeout(() => initSocket(), 500); // 稍微延迟，确保状态更新
     } else {
-      console.log('[Socket] 手动触发重连');
+      logger.info('[Socket] 手动触发重连');
       reconnectCount.current = 0;
       reconnectDelay.current = 1000;
       initSocket();
@@ -327,7 +342,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // 禁用Socket连接
   const disableSocket = () => {
-    console.log('[Socket] 用户手动禁用Socket连接');
+    logger.info('[Socket] 用户手动禁用Socket连接');
     setSocketDisabled(true);
     if (socket) {
       socket.disconnect();
@@ -341,7 +356,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      Object.keys(requestsCount.current).forEach(key => {
+      Object.keys(requestsCount.current).forEach((key) => {
         if (now - requestsCount.current[key].lastTime > 600000) { // 10分钟未使用则清理
           delete requestsCount.current[key];
         }
@@ -357,12 +372,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'token') {
         const newToken = e.newValue;
-        console.log('[Socket] 检测到token变化，需要重新认证');
+        logger.info('[Socket] 检测到token变化，需要重新认证');
         setAuthToken(newToken);
         
         // 重新连接Socket，使用新的token
         if (socket) {
-          console.log('[Socket] 断开旧连接，使用新token重连');
+          logger.info('[Socket] 断开旧连接，使用新token重连');
           socket.disconnect();
           // 稍微延迟重连，确保断开操作完成
           setTimeout(() => initSocket(), 500);
@@ -384,12 +399,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const intervalId = setInterval(() => {
       const currentToken = localStorage.getItem('token');
       if (currentToken !== authToken) {
-        console.log('[Socket] 本地检测到token变化，更新状态');
+        logger.info('[Socket] 本地检测到token变化，更新状态');
         setAuthToken(currentToken);
         
         // 如果token变化了，重新连接Socket
         if (socket) {
-          console.log('[Socket] 断开旧连接，使用新token重连');
+          logger.info('[Socket] 断开旧连接，使用新token重连');
           socket.disconnect();
           setTimeout(() => initSocket(), 500);
         }
@@ -406,7 +421,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconnect, 
       lastError,
       socketDisabled,
-      disableSocket
+      disableSocket,
     }}>
       {children}
       {lastError && !isConnected && (

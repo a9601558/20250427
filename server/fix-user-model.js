@@ -17,7 +17,7 @@ const possibleUserJsPaths = [
   path.join(__dirname, 'dist/server/src/models/User.js'),
   path.join(__dirname, 'dist/src/models/User.js'),
   path.join(__dirname, 'dist/models/User.js'),
-  path.join(__dirname, 'server/dist/models/User.js')
+  path.join(__dirname, 'server/dist/models/User.js'),
 ];
 
 let userJsPath = null;
@@ -112,7 +112,7 @@ const sequelize = new Sequelize(
   
   // 保存修改后的文件
   fs.writeFileSync(userJsPath, userJsContent, 'utf8');
-  console.log(`已保存修改后的 User.js 文件`);
+  console.log('已保存修改后的 User.js 文件');
   
   console.log('User.js文件修复完成');
 } catch (error) {

@@ -16,13 +16,13 @@ interface HomeContent {
 
 // 默认首页内容
 const defaultHomeContent: HomeContent = {
-  welcomeTitle: "ExamTopics 模拟练习",
-  welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-  featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-  announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-  footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-  bannerImage: "/images/banner.jpg",
-  theme: 'light'
+  welcomeTitle: 'ExamTopics 模拟练习',
+  welcomeDescription: '选择以下任一题库开始练习，测试您的知识水平',
+  featuredCategories: ['网络协议', '编程语言', '计算机基础'],
+  announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
+  footerText: '© 2023 ExamTopics 在线题库系统 保留所有权利',
+  bannerImage: '/images/banner.jpg',
+  theme: 'light',
 };
 
 const AdminHomeContent: React.FC = () => {
@@ -69,9 +69,9 @@ const AdminHomeContent: React.FC = () => {
   // 处理输入变化
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setHomeContent(prev => ({
+    setHomeContent((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -93,9 +93,9 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
+        setHomeContent((prev) => ({
           ...prev,
-          featuredCategories: updatedCategories
+          featuredCategories: updatedCategories,
         }));
         setNewCategory('');
         setMessage({ type: 'success', text: '分类添加成功' });
@@ -119,9 +119,9 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
+        setHomeContent((prev) => ({
           ...prev,
-          featuredCategories: updatedCategories
+          featuredCategories: updatedCategories,
         }));
         setMessage({ type: 'success', text: '分类删除成功' });
       } else {
@@ -151,9 +151,9 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
+        setHomeContent((prev) => ({
           ...prev,
-          featuredCategories: updatedCategories
+          featuredCategories: updatedCategories,
         }));
         setMessage({ type: 'success', text: '分类更新成功' });
       } else {

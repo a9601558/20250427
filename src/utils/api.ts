@@ -1,4 +1,4 @@
-// @ts-nocheck - 禁用 TypeScript 未使用变量检查
+// Replace @ts-nocheck with more specific typing
 import { User, Purchase, RedeemCode, QuestionSet } from '../types';
 import { logger } from './logger';
 
@@ -10,7 +10,7 @@ import {
   userProgressService,
   purchaseService,
   redeemCodeService,
-  homepageService
+  homepageService,
 } from '../services/api';
 
 // 导出API服务
@@ -25,8 +25,8 @@ export const purchaseApi = purchaseService;
 export const redeemCodeApi = redeemCodeService;
 export const homepageApi = homepageService;
 
-// API响应接口
-interface ApiResponse<T> {
+// Define proper types for API responses
+interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;

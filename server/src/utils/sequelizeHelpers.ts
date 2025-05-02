@@ -33,7 +33,7 @@ export const questionSetAttributes = mapAttributes({
   'is_featured': 'isFeatured',
   'featured_category': 'featuredCategory',
   'created_at': 'createdAt',
-  'updated_at': 'updatedAt'
+  'updated_at': 'updatedAt',
 });
 
 /**
@@ -50,7 +50,7 @@ export const purchaseAttributes = mapAttributes({
   'purchase_date': 'purchaseDate',
   'expiry_date': 'expiryDate',
   'created_at': 'createdAt',
-  'updated_at': 'updatedAt'
+  'updated_at': 'updatedAt',
 });
 
 /**
@@ -62,5 +62,5 @@ export const purchaseQuestionSetAttributes = mapAttributes({
   'category': 'category',
   'icon': 'icon',
   'is_paid': 'isPaid',
-  'price': 'price'
+  'price': 'price',
 }); 

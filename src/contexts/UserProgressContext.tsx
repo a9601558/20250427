@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useSocket } from './SocketContext';
-import { userProgressService } from '../services/UserProgressService';
+import { userProgressService } from '../services/user-progress-service';
 import { useUser } from './UserContext';
 
 interface ProgressStats {
@@ -33,7 +33,7 @@ const defaultProgress: ProgressStats = {
   totalTimeSpent: 0,
   averageTimeSpent: 0,
   accuracy: 0,
-  lastAccessed: new Date(0).toISOString()
+  lastAccessed: new Date(0).toISOString(),
 };
 
 /**
@@ -68,7 +68,7 @@ const processSingleProgressRecord = (key: string, value: any): ProgressStats => 
   if (!value) {
     return {
       ...defaultProgress,
-      questionSetId: key
+      questionSetId: key,
     };
   }
   
@@ -82,7 +82,7 @@ const processSingleProgressRecord = (key: string, value: any): ProgressStats => 
     totalTimeSpent: value.totalTimeSpent || 0,
     averageTimeSpent: value.averageTimeSpent || 0,
     accuracy: value.accuracy || 0,
-    lastAccessed: ensureValidLastAccessed(value)
+    lastAccessed: ensureValidLastAccessed(value),
   };
 };
 
@@ -105,7 +105,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
       user,
       lastUserId,
       reset: () => setProgressStats({}),
-      requestCount: requestCountRef.current
+      requestCount: requestCountRef.current,
     };
   }
 
@@ -122,7 +122,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
           totalTimeSpent: value.totalTimeSpent || 0,
           averageTimeSpent: value.averageTimeSpent || 0,
           accuracy: value.accuracy || 0,
-          lastAccessed: value.lastAccessed || new Date(0).toISOString()
+          lastAccessed: value.lastAccessed || new Date(0).toISOString(),
         };
         return acc;
       }, {} as Record<string, ProgressStats>);
@@ -155,7 +155,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const response = await userProgressService.getUserProgress();
       if (response.success && response.data) {
-        console.log("获取到的进度:", response.data);
+        console.log('获取到的进度:', response.data);
 
         // 确保每个进度记录都有完整的字段
         const processedData = Object.entries(response.data).reduce((acc, [key, value]) => {
@@ -163,7 +163,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
             ...defaultProgress,
             ...value,
             questionSetId: key,
-            lastAccessed: value.lastAccessed || new Date(0).toISOString()
+            lastAccessed: value.lastAccessed || new Date(0).toISOString(),
           };
           return acc;
         }, {} as Record<string, ProgressStats>);
@@ -193,7 +193,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     // 处理用户登出情况
     if (!user) {
-      console.log("用户登出，清空进度");
+      console.log('用户登出，清空进度');
       setProgressStats({});
       setLastUserId(null);
       return;
@@ -210,9 +210,9 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // 用setTimeout延迟请求，避免组件渲染期间的过多请求
       const timer = setTimeout(() => {
         if (!isRequesting) {
-          console.log("拉取新用户进度:", user.id);
-          fetchUserProgress().catch(err => {
-            console.error("拉取新用户进度失败:", err);
+          console.log('拉取新用户进度:', user.id);
+          fetchUserProgress().catch((err) => {
+            console.error('拉取新用户进度失败:', err);
           });
         }
       }, 300);
@@ -227,11 +227,11 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const handleProgressUpdate = async (data: { userId: string }) => {
       if (data.userId === user.id && !isRequesting) {
-        console.log("收到进度更新事件，刷新进度");
+        console.log('收到进度更新事件，刷新进度');
         try {
           await fetchUserProgress();
         } catch (err) {
-          console.error("更新进度失败:", err);
+          console.error('更新进度失败:', err);
         }
       }
     };
@@ -247,10 +247,10 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     // 只有当组件挂载且用户存在且不在请求中时才执行
     if (user && !isRequesting) {
-      console.log("组件挂载，初始化进度");
+      console.log('组件挂载，初始化进度');
       const timer = setTimeout(() => {
-        fetchUserProgress().catch(err => {
-        console.error("初始化进度失败:", err);
+        fetchUserProgress().catch((err) => {
+        console.error('初始化进度失败:', err);
       });
       }, 500);
       
@@ -264,7 +264,7 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
       fetchUserProgress,
       updateProgressStats,
       isLoading,
-      error
+      error,
     }}>
       {children}
     </UserProgressContext.Provider>

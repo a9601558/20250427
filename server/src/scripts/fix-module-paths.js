@@ -20,7 +20,7 @@ const configDirOptions = [
   path.join(distDir, 'server/src/config'),
   path.join(distDir, 'src/config'),
   path.join(rootDir, 'dist/config'),
-  path.join(rootDir, 'server/dist/config')
+  path.join(rootDir, 'server/dist/config'),
 ];
 
 let configDir = null;
@@ -107,7 +107,7 @@ try {
   fs.writeFileSync(dbJsPath, content, 'utf8');
   console.log(`成功: 已创建兼容性文件 ${dbJsPath}`);
 } catch (error) {
-  console.error(`错误: 创建文件失败:`, error);
+  console.error('错误: 创建文件失败:', error);
 }
 
 // 创建任何其他所需的兼容性文件

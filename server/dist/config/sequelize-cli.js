@@ -18,7 +18,7 @@ module.exports = {
         host: DB_HOST,
         port: DB_PORT,
         dialect: 'mysql',
-        logging: console.log
+        logging: console.log,
     },
     test: {
         username: DB_USER,
@@ -27,7 +27,7 @@ module.exports = {
         host: DB_HOST,
         port: DB_PORT,
         dialect: 'mysql',
-        logging: false
+        logging: false,
     },
     production: {
         username: DB_USER,
@@ -41,7 +41,7 @@ module.exports = {
             max: 5,
             min: 0,
             acquire: 30000,
-            idle: 10000
-        }
-    }
+            idle: 10000,
+        },
+    },
 };

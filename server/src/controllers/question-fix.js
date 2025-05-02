@@ -10,7 +10,7 @@ function normalizeQuestionData(questions) {
   }
   
   return questions
-    .filter(q => q) // 过滤掉null和undefined
+    .filter((q) => q) // 过滤掉null和undefined
     .map((q, index) => {
       // 确保text字段不为null
       const questionText = q.text || q.question || `问题 ${index + 1}`;
@@ -22,13 +22,13 @@ function normalizeQuestionData(questions) {
         explanation: explanation,
         questionType: q.questionType || 'single',
         orderIndex: q.orderIndex !== undefined ? q.orderIndex : index,
-        options: []
+        options: [],
       };
       
       // 处理选项
       if (Array.isArray(q.options)) {
         normalizedQuestion.options = q.options
-          .filter(opt => opt) // 过滤掉null和undefined
+          .filter((opt) => opt) // 过滤掉null和undefined
           .map((opt, j) => {
             const optionText = opt.text || `选项 ${String.fromCharCode(65 + j)}`;
             const optionIndex = opt.optionIndex || opt.id || String.fromCharCode(65 + j);
@@ -36,14 +36,14 @@ function normalizeQuestionData(questions) {
             return {
               text: optionText,
               isCorrect: !!opt.isCorrect,
-              optionIndex
+              optionIndex,
             };
           });
       } else {
         // 创建默认选项
         normalizedQuestion.options = [
           { text: '选项 A', isCorrect: true, optionIndex: 'A' },
-          { text: '选项 B', isCorrect: false, optionIndex: 'B' }
+          { text: '选项 B', isCorrect: false, optionIndex: 'B' },
         ];
       }
       
@@ -58,35 +58,35 @@ function testNormalize() {
   const testCases = [
     { 
       input: null,
-      expected: []
+      expected: [],
     },
     {
-      input: [{text: null, options: [{text: "选项1"}]}],
+      input: [{ text: null, options: [{ text: '选项1' }] }],
       expected: [
         {
-          text: "问题 0",
-          explanation: "暂无解析",
-          questionType: "single",
+          text: '问题 0',
+          explanation: '暂无解析',
+          questionType: 'single',
           orderIndex: 0,
-          options: [{text: "选项1", isCorrect: false, optionIndex: "A"}]
-        }
-      ]
+          options: [{ text: '选项1', isCorrect: false, optionIndex: 'A' }],
+        },
+      ],
     },
     {
-      input: [{question: "测试问题", options: null}],
+      input: [{ question: '测试问题', options: null }],
       expected: [
         {
-          text: "测试问题",
-          explanation: "暂无解析",
-          questionType: "single",
+          text: '测试问题',
+          explanation: '暂无解析',
+          questionType: 'single',
           orderIndex: 0,
           options: [
-            {text: "选项 A", isCorrect: true, optionIndex: "A"},
-            {text: "选项 B", isCorrect: false, optionIndex: "B"}
-          ]
-        }
-      ]
-    }
+            { text: '选项 A', isCorrect: true, optionIndex: 'A' },
+            { text: '选项 B', isCorrect: false, optionIndex: 'B' },
+          ],
+        },
+      ],
+    },
   ];
   
   for (let i = 0; i < testCases.length; i++) {

@@ -37,7 +37,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
       return;
     }
     
-    setOptions(options.filter(option => option.id !== optionId));
+    setOptions(options.filter((option) => option.id !== optionId));
     
     // 如果删除的是已选中的选项，重置选择
     if (selectedOption === optionId) {
@@ -45,14 +45,14 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
     }
     
     if (selectedOptions.includes(optionId)) {
-      setSelectedOptions(selectedOptions.filter(id => id !== optionId));
+      setSelectedOptions(selectedOptions.filter((id) => id !== optionId));
     }
   };
 
   // 更新选项文本
   const handleOptionTextChange = (optionId: string, text: string) => {
     setOptions(
-      options.map(option =>
+      options.map((option) =>
         option.id === optionId ? { ...option, text } : option
       )
     );
@@ -60,9 +60,9 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
 
   // 切换多选选项
   const handleMultipleOptionToggle = (optionId: string) => {
-    setSelectedOptions(prev =>
+    setSelectedOptions((prev) =>
       prev.includes(optionId)
-        ? prev.filter(id => id !== optionId)
+        ? prev.filter((id) => id !== optionId)
         : [...prev, optionId]
     );
   };
@@ -79,7 +79,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
       }
       
       // 验证选项 - 确保所有选项都有文本内容
-      const validOptions = options.filter(option => option.text.trim() !== '');
+      const validOptions = options.filter((option) => option.text.trim() !== '');
       if (validOptions.length < 2) {
         setErrorMessage('请至少添加两个有效选项');
         return;
@@ -107,14 +107,14 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
         id: `${Date.now()}`,
         text: questionText.trim(),
         questionType,
-        options: validOptions.map(opt => ({
+        options: validOptions.map((opt) => ({
           ...opt,
           isCorrect: questionType === 'single' 
             ? opt.id === selectedOption 
-            : selectedOptions.includes(opt.id)
+            : selectedOptions.includes(opt.id),
         })),
         explanation: explanation.trim(),
-        questionSetId: questionSetId
+        questionSetId: questionSetId,
       };
       
       // 提交题目

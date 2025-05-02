@@ -23,7 +23,7 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
   isSubmitted,
   isMultiple = false,
   onClick,
-  index
+  index,
 }) => {
   // 根据当前状态确定背景颜色
   const getBgColor = () => {

@@ -17,7 +17,7 @@ interface RecentlyStudiedQuestionSetsProps {
 const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = ({
   questionSets,
   limit = 5,
-  theme = 'light'
+  theme = 'light',
 }) => {
   const { user } = useUser();
   const { progressStats } = useUserProgress();
@@ -40,12 +40,12 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
       ...progress,
       completedQuestions: progress.completedQuestions || 0,
       totalQuestions: progress.totalQuestions || 0,
-      lastAccessed: progress.lastAccessed || new Date().toISOString()
+      lastAccessed: progress.lastAccessed || new Date().toISOString(),
     };
   };
 
   // 获取用户有进度记录的题库，添加更严格的检查
-  const studiedSets = questionSets.filter(qs => {
+  const studiedSets = questionSets.filter((qs) => {
     const progress = getSafeProgress(qs.id);
     return progress && progress.completedQuestions > 0;
   });
@@ -123,7 +123,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
       </div>
 
       <div className="space-y-2">
-        {displaySets.map(set => {
+        {displaySets.map((set) => {
           const progress = getSafeProgress(set.id);
           const progressPercentage = progress && progress.totalQuestions > 0
             ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)

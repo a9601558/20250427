@@ -4,7 +4,8 @@ import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
 import { initializeSocket, authenticateUser } from '../config/socket';
 import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
-import { userProgressService } from '../services/UserProgressService';
+import { userProgressService } from '../services/user-progress-service';
+import { logger } from '../utils/logger';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -24,6 +25,49 @@ interface ProgressUpdateEvent {
     averageTimeSpent: number;
     accuracy: number;
   };
+}
+
+// Define interfaces for redeem types
+interface RedeemItem {
+  questionSetId: string;
+  [key: string]: unknown;
+}
+
+interface RedeemedCode {
+  questionSetId: string;
+  [key: string]: unknown;
+}
+
+interface PurchaseResponse {
+  id: string;
+  questionSetId?: string;
+  question_set_id?: string;
+  purchaseDate?: string;
+  purchase_date?: string;
+  expiryDate?: string;
+  expiry_date?: string;
+  status?: string;
+  amount?: number;
+  transactionId?: string;
+  paymentMethod?: string;
+  purchaseQuestionSet?: unknown;
+  [key: string]: unknown;
+}
+
+interface QuestionSetResponse {
+  id: string;
+  title: string;
+  [key: string]: unknown;
+}
+
+interface RedeemCodeResponse {
+  success: boolean;
+  data?: {
+    purchase?: PurchaseResponse;
+    questionSet?: QuestionSetResponse;
+  };
+  message?: string;
+  error?: string;
 }
 
 export interface QuizProgress {
@@ -74,7 +118,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   // 创建一个用户变化事件
-  const [userChangeEvent, setUserChangeEvent] = useState<{userId: string | null, timestamp: number}>({userId: null, timestamp: 0});
+  const [userChangeEvent, setUserChangeEvent] = useState<{userId: string | null, timestamp: number}>({ userId: null, timestamp: 0 });
   // 添加一个上次通知时间引用，用于防抖
   const lastNotifyTimeRef = useRef<number>(0);
   // 添加当前用户ID引用，用于比较
@@ -90,7 +134,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // 如果与上次通知的用户ID相同且时间间隔小于500ms，则忽略此次通知
     if (newUserId === prevUserIdRef.current && now - lastNotifyTimeRef.current < 500) {
-      console.log('忽略重复的用户变更通知:', newUserId);
+      logger.info('忽略重复的用户变更通知:', newUserId);
       return;
     }
     
@@ -99,10 +143,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     prevUserIdRef.current = newUserId;
     
     // 触发事件
-    console.log('发送用户变更通知:', newUserId);
+    logger.info('发送用户变更通知:', newUserId);
     setUserChangeEvent({
       userId: newUserId,
-      timestamp: now
+      timestamp: now,
     });
   }, []);
 
@@ -125,7 +169,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     authenticateUser(user.id, localStorage.getItem('token') || '');
     
     socket.on('progress:update', (data: ProgressUpdateEvent) => {
-      setUser(prev => {
+      setUser((prev) => {
         if (!prev) return null;
         return {
           ...prev,
@@ -133,9 +177,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev.progress,
             [data.questionSetId]: {
               ...data.progress,
-                lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
-            }
-          }
+                lastAccessed: data.progress?.lastAccessed || new Date().toISOString(),
+            },
+          },
         };
       });
     });
@@ -154,27 +198,27 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await userApi.getCurrentUser();
       if (response.success && response.data) {
         // 添加特别的调试日志，检查用户数据结构
-        console.log('[UserContext] 获取到用户数据:', response.data);
+        logger.info('[UserContext] 获取到用户数据:', response.data);
         
         // 检查购买记录
         if (response.data.purchases) {
-          console.log('[UserContext] 用户购买记录数量:', response.data.purchases.length);
+          logger.info('[UserContext] 用户购买记录数量:', response.data.purchases.length);
           
           // 详细打印第一条购买记录的结构（如果有）
           if (response.data.purchases.length > 0) {
-            console.log('[UserContext] 购买记录结构示例:', JSON.stringify(response.data.purchases[0]));
+            logger.info('[UserContext] 购买记录结构示例:', JSON.stringify(response.data.purchases[0]));
             
             // 检查关键字段
             const firstPurchase = response.data.purchases[0];
-            console.log('[UserContext] 购买记录字段检查:');
-            console.log('- questionSetId:', firstPurchase.questionSetId);
-            console.log('- question_set_id:', (firstPurchase as any).question_set_id);
-            console.log('- purchaseQuestionSet:', firstPurchase.purchaseQuestionSet);
-            console.log('- expiryDate:', firstPurchase.expiryDate);
-            console.log('- expiry_date:', (firstPurchase as any).expiry_date);
+            logger.info('[UserContext] 购买记录字段检查:');
+            logger.info('- questionSetId:', firstPurchase.questionSetId);
+            logger.info('- question_set_id:', (firstPurchase as PurchaseResponse).question_set_id);
+            logger.info('- purchaseQuestionSet:', firstPurchase.purchaseQuestionSet);
+            logger.info('- expiryDate:', firstPurchase.expiryDate);
+            logger.info('- expiry_date:', (firstPurchase as PurchaseResponse).expiry_date);
           }
         } else {
-          console.log('[UserContext] 用户没有购买记录或购买记录字段缺失');
+          logger.info('[UserContext] 用户没有购买记录或购买记录字段缺失');
         }
         
         setUser(response.data || null);
@@ -186,7 +230,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (error) {
       localStorage.removeItem('token');
-      console.error('[UserProvider] Failed to fetch current user:', error);
+      logger.error('[UserProvider] Failed to fetch current user:', error);
       setError('An error occurred while fetching user data');
       return null;
     } finally {
@@ -214,52 +258,52 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           // 延迟一下再检查题库权限，确保Socket连接已建立
           setTimeout(() => {
-            console.log("[UserContext] 登录成功，开始检查题库访问权限");
+            logger.info('[UserContext] 登录成功，开始检查题库访问权限');
             
             // 获取所有题库ID并检查权限
             if (socketInstance) {
               // 检查已购买题库
-              const purchasedQuestionSetIds = userData.purchases?.map(p => p.questionSetId) || [];
-              console.log(`[UserContext] 已购买题库: ${purchasedQuestionSetIds.length}个`);
+              const purchasedQuestionSetIds = userData.purchases?.map((p) => p.questionSetId) || [];
+              logger.info(`[UserContext] 已购买题库: ${purchasedQuestionSetIds.length}个`);
               
               // 检查已兑换题库 - 根据用户类型可能有不同的字段名
               const redeemedQuestionSetIds: string[] = [];
               
               // 检查redeems字段（如果存在）
-              if (Array.isArray((userData as any).redeems)) {
-                const redeemIds = (userData as any).redeems
-                  .map((r: any) => r.questionSetId)
-                  .filter(Boolean);
+              if (Array.isArray((userData as User & { redeems?: RedeemItem[] }).redeems)) {
+                const redeemIds = (userData as User & { redeems?: RedeemItem[] }).redeems
+                  ?.map((r: RedeemItem) => r.questionSetId)
+                  .filter(Boolean) || [];
                 redeemedQuestionSetIds.push(...redeemIds);
               }
               
               // 检查redeemedCodes字段（如果存在）
-              if (Array.isArray((userData as any).redeemedCodes)) {
-                const redeemCodeIds = (userData as any).redeemedCodes
-                  .map((r: any) => r.questionSetId)
-                  .filter(Boolean);
+              if (Array.isArray((userData as User & { redeemedCodes?: RedeemedCode[] }).redeemedCodes)) {
+                const redeemCodeIds = (userData as User & { redeemedCodes?: RedeemedCode[] }).redeemedCodes
+                  ?.map((r: RedeemedCode) => r.questionSetId)
+                  .filter(Boolean) || [];
                 redeemedQuestionSetIds.push(...redeemCodeIds);
               }
               
-              console.log(`[UserContext] 已兑换题库: ${redeemedQuestionSetIds.length}个`);
+              logger.info(`[UserContext] 已兑换题库: ${redeemedQuestionSetIds.length}个`);
               
               // 合并去重
               const allQuestionSetIds = [...new Set([...purchasedQuestionSetIds, ...redeemedQuestionSetIds])];
-              console.log(`[UserContext] 总共需要检查: ${allQuestionSetIds.length}个题库`);
+              logger.info(`[UserContext] 总共需要检查: ${allQuestionSetIds.length}个题库`);
               
               if (allQuestionSetIds.length > 0) {
                 // 批量检查
                 socketInstance.emit('questionSet:checkAccessBatch', {
                   userId: userData.id,
-                  questionSetIds: allQuestionSetIds
+                  questionSetIds: allQuestionSetIds,
                 });
                 
                 // 逐个检查作为备份
-                allQuestionSetIds.forEach(questionSetId => {
+                allQuestionSetIds.forEach((questionSetId) => {
                   if (questionSetId) {
                     socketInstance.emit('questionSet:checkAccess', {
                       userId: userData.id,
-                      questionSetId: String(questionSetId).trim()
+                      questionSetId: String(questionSetId).trim(),
                     });
                   }
                 });
@@ -279,24 +323,24 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             setTimeout(() => {
               if (socketInstance) {
-                const purchasedQuestionSetIds = userResponse.purchases?.map(p => p.questionSetId) || [];
+                const purchasedQuestionSetIds = userResponse.purchases?.map((p) => p.questionSetId) || [];
                 
                 // 检查已兑换题库 - 根据用户类型可能有不同的字段名
                 const redeemedQuestionSetIds: string[] = [];
                 
                 // 检查redeems字段（如果存在）
-                if (Array.isArray((userResponse as any).redeems)) {
-                  const redeemIds = (userResponse as any).redeems
-                    .map((r: any) => r.questionSetId)
-                    .filter(Boolean);
+                if (Array.isArray((userResponse as User & { redeems?: RedeemItem[] }).redeems)) {
+                  const redeemIds = (userResponse as User & { redeems?: RedeemItem[] }).redeems
+                    ?.map((r: RedeemItem) => r.questionSetId)
+                    .filter(Boolean) || [];
                   redeemedQuestionSetIds.push(...redeemIds);
                 }
                 
                 // 检查redeemedCodes字段（如果存在）
-                if (Array.isArray((userResponse as any).redeemedCodes)) {
-                  const redeemCodeIds = (userResponse as any).redeemedCodes
-                    .map((r: any) => r.questionSetId)
-                    .filter(Boolean);
+                if (Array.isArray((userResponse as User & { redeemedCodes?: RedeemedCode[] }).redeemedCodes)) {
+                  const redeemCodeIds = (userResponse as User & { redeemedCodes?: RedeemedCode[] }).redeemedCodes
+                    ?.map((r: RedeemedCode) => r.questionSetId)
+                    .filter(Boolean) || [];
                   redeemedQuestionSetIds.push(...redeemCodeIds);
                 }
                 
@@ -306,15 +350,15 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   // 批量检查
                   socketInstance.emit('questionSet:checkAccessBatch', {
                     userId: userResponse.id,
-                    questionSetIds: allQuestionSetIds
+                    questionSetIds: allQuestionSetIds,
                   });
                   
                   // 逐个检查作为备份
-                  allQuestionSetIds.forEach(questionSetId => {
+                  allQuestionSetIds.forEach((questionSetId) => {
                     if (questionSetId) {
                       socketInstance.emit('questionSet:checkAccess', {
                         userId: userResponse.id,
-                        questionSetId: String(questionSetId).trim()
+                        questionSetId: String(questionSetId).trim(),
                       });
                     }
                   });
@@ -331,7 +375,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
     } catch (error) {
-      console.error('[UserProvider] Login failed:', error);
+      logger.error('[UserProvider] Login failed:', error);
       setError('An error occurred during login');
       return false;
     } finally {
@@ -371,7 +415,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
     } catch (error) {
-      console.error('[UserProvider] Registration failed:', error);
+      logger.error('[UserProvider] Registration failed:', error);
       setError('An error occurred during registration');
       return false;
     } finally {
@@ -391,7 +435,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setError(response.message || 'Failed to update user');
       }
     } catch (error) {
-      console.error('[UserProvider] Failed to update user:', error);
+      logger.error('[UserProvider] Failed to update user:', error);
       setError('An error occurred while updating user');
     } finally {
       setLoading(false);
@@ -400,7 +444,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addProgress = async (progress: QuizProgress) => {
     if (!user) {
-      console.error('[UserProvider] User not logged in');
+      logger.error('[UserProvider] User not logged in');
       return;
     }
 
@@ -415,7 +459,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         lastAccessed: new Date().toISOString(),
         totalTimeSpent: 0,
         averageTimeSpent: 0,
-        accuracy: 0
+        accuracy: 0,
       };
 
       const updatedProgress: UserProgress = {
@@ -428,7 +472,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           : new Date().toISOString(),
         totalTimeSpent: existingProgress.totalTimeSpent,
         averageTimeSpent: existingProgress.averageTimeSpent,
-        accuracy: existingProgress.accuracy
+        accuracy: existingProgress.accuracy,
       };
 
       // Sync with backend
@@ -439,12 +483,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const newProgress: Record<string, UserProgress> = {
         ...currentProgress,
-        [progress.questionSetId]: updatedProgress
+        [progress.questionSetId]: updatedProgress,
       };
 
       await updateUser({ progress: newProgress });
     } catch (error) {
-      console.error('[UserProvider] Failed to add progress:', error);
+      logger.error('[UserProvider] Failed to add progress:', error);
       throw error;
     }
   };
@@ -452,26 +496,26 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addPurchase = async (purchase: Purchase) => {
     if (!user) return;
     try {
-      console.log(`[addPurchase] 开始添加购买记录:`, purchase);
+      logger.info('[addPurchase] 开始添加购买记录:', purchase);
       
       // 确保ID格式正确
       const formattedPurchase = {
         ...purchase,
-        questionSetId: String(purchase.questionSetId).trim()
+        questionSetId: String(purchase.questionSetId).trim(),
       };
       
       // 检查是否已存在相同ID的购买记录
       const updatedPurchases = [...(user.purchases || [])];
-      if (!updatedPurchases.some(p => p.id === formattedPurchase.id)) {
+      if (!updatedPurchases.some((p) => p.id === formattedPurchase.id)) {
         updatedPurchases.push(formattedPurchase);
         
-        console.log(`[addPurchase] 更新前用户购买记录数量: ${user.purchases?.length || 0}`);
-        console.log(`[addPurchase] 更新后用户购买记录数量: ${updatedPurchases.length}`);
+        logger.info(`[addPurchase] 更新前用户购买记录数量: ${user.purchases?.length || 0}`);
+        logger.info(`[addPurchase] 更新后用户购买记录数量: ${updatedPurchases.length}`);
         
         // 创建更新后的用户对象
         const updatedUser = {
           ...user,
-          purchases: updatedPurchases
+          purchases: updatedPurchases,
         };
         
         // 更新用户状态
@@ -479,11 +523,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // 尝试通过socket通知权限更新
         if (socket) {
-          console.log(`[addPurchase] 通过socket发送权限更新通知: ${formattedPurchase.questionSetId}`);
+          logger.info(`[addPurchase] 通过socket发送权限更新通知: ${formattedPurchase.questionSetId}`);
           socket.emit('questionSet:accessUpdate', {
             userId: user.id,
             questionSetId: formattedPurchase.questionSetId,
-            hasAccess: true
+            hasAccess: true,
           });
           
           // 发送购买成功事件
@@ -491,7 +535,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             userId: user.id,
             questionSetId: formattedPurchase.questionSetId,
             purchaseId: formattedPurchase.id,
-            expiryDate: formattedPurchase.expiryDate
+            expiryDate: formattedPurchase.expiryDate,
           });
         }
         
@@ -500,29 +544,29 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // 强制刷新用户数据
         setTimeout(() => {
-          console.log(`[addPurchase] 开始获取最新用户数据`);
+          logger.info('[addPurchase] 开始获取最新用户数据');
           fetchCurrentUser();
         }, 500);
       } else {
-        console.log(`[addPurchase] 购买记录ID已存在，跳过添加: ${formattedPurchase.id}`);
+        logger.info(`[addPurchase] 购买记录ID已存在，跳过添加: ${formattedPurchase.id}`);
       }
       
       // 同步更新到数据库
       await updateUser({ purchases: updatedPurchases });
-      console.log(`[addPurchase] 购买记录已同步到数据库`);
+      logger.info('[addPurchase] 购买记录已同步到数据库');
     } catch (error) {
-      console.error('[addPurchase] 添加购买记录失败:', error);
+      logger.error('[addPurchase] 添加购买记录失败:', error);
       throw error;
     }
   };
 
   const hasAccessToQuestionSet = useCallback((questionSetId: string): boolean => {
     if (!user || !user.purchases) {
-      console.log(`[hasAccessToQuestionSet] 无权限访问题库 ${questionSetId}:`, { hasUser: !!user, hasPurchases: !!(user?.purchases) });
+      logger.info(`[hasAccessToQuestionSet] 无权限访问题库 ${questionSetId}:`, { hasUser: !!user, hasPurchases: !!(user?.purchases) });
       return false;
     }
 
-    console.log(`[hasAccessToQuestionSet] 检查题库权限 ${questionSetId}, 购买记录:`, user.purchases);
+    logger.info(`[hasAccessToQuestionSet] 检查题库权限 ${questionSetId}, 购买记录:`, user.purchases);
     
     // 确保questionSetId是字符串类型并规范化比较
     const strQuestionSetId = String(questionSetId).trim();
@@ -530,22 +574,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 打印出所有购买记录的ID以便调试
     user.purchases.forEach((purchase, index) => {
       const purchaseId = String(purchase.questionSetId).trim();
-      console.log(`[hasAccessToQuestionSet] 购买记录 #${index}: ${purchaseId} vs ${strQuestionSetId}, 匹配: ${purchaseId === strQuestionSetId}`);
+      logger.info(`[hasAccessToQuestionSet] 购买记录 #${index}: ${purchaseId} vs ${strQuestionSetId}, 匹配: ${purchaseId === strQuestionSetId}`);
     });
     
-    const hasAccess = user.purchases.some(p => {
+    const hasAccess = user.purchases.some((p) => {
       // 对两个ID进行严格的字符串处理
       const purchaseQuestionSetId = String(p.questionSetId).trim();
       const isMatching = purchaseQuestionSetId === strQuestionSetId;
       const isValid = new Date(p.expiryDate) > new Date() || !p.expiryDate;
       const isActive = p.status !== 'cancelled' && p.status !== 'expired';
       
-      console.log(`[hasAccessToQuestionSet] 评估: ID匹配=${isMatching}, 有效期=${isValid}, 状态有效=${isActive}`);
+      logger.info(`[hasAccessToQuestionSet] 评估: ID匹配=${isMatching}, 有效期=${isValid}, 状态有效=${isActive}`);
       
       return isMatching && isValid && isActive;
     });
     
-    console.log(`[hasAccessToQuestionSet] 题库 ${questionSetId} 访问结果:`, hasAccess);
+    logger.info(`[hasAccessToQuestionSet] 题库 ${questionSetId} 访问结果:`, hasAccess);
     
     return hasAccess;
   }, [user]);
@@ -553,7 +597,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
 
-    const purchase = user.purchases.find(p => 
+    const purchase = user.purchases.find((p) => 
       p.questionSetId === questionSetId && 
       new Date(p.expiryDate) > new Date()
     );
@@ -591,7 +635,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       totalQuestions: progress.totalQuestions,
       correctAnswers: progress.correctAnswers,
       score: progress.totalQuestions > 0 ? Math.round((progress.correctAnswers / progress.totalQuestions) * 100) : 0,
-      lastAttemptDate: progress.lastAccessed ? new Date(progress.lastAccessed) : undefined
+      lastAttemptDate: progress.lastAccessed ? new Date(progress.lastAccessed) : undefined,
     };
   };
 
@@ -607,31 +651,31 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const redeemCode = async (code: string): Promise<{ success: boolean; message: string; questionSetId?: string; quizTitle?: string }> => {
     if (!user) return { success: false, message: '请先登录' };
     try {
-      console.log(`[RedeemCode] 开始兑换码: ${code}`);
-      const response = await redeemCodeApi.redeemCode(code);
+      logger.info(`[RedeemCode] 开始兑换码: ${code}`);
+      const response = await redeemCodeApi.redeemCode(code) as RedeemCodeResponse;
       
-      console.log(`[RedeemCode] 后端响应:`, response);
+      logger.info('[RedeemCode] 后端响应:', response);
       
       if (response.success) {
         // 获取购买记录和题库信息
         const rawPurchase = response.data?.purchase;
         const questionSet = response.data?.questionSet;
         
-        console.log(`[RedeemCode] 原始购买记录:`, rawPurchase);
-        console.log(`[RedeemCode] 题库信息:`, questionSet);
+        logger.info('[RedeemCode] 原始购买记录:', rawPurchase);
+        logger.info('[RedeemCode] 题库信息:', questionSet);
         
         if (rawPurchase && user) {
           // 从原始数据中获取字段，考虑到API可能返回蛇形命名法
           const questionSetId = questionSet?.id || 
                              rawPurchase.questionSetId || 
-                             (rawPurchase as any).question_set_id;
+                             rawPurchase.question_set_id;
                              
           const purchaseDate = rawPurchase.purchaseDate || 
-                            (rawPurchase as any).purchase_date || 
+                            rawPurchase.purchase_date || 
                             new Date().toISOString();
                             
           const expiryDate = rawPurchase.expiryDate || 
-                          (rawPurchase as any).expiry_date || 
+                          rawPurchase.expiry_date || 
                           new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
           
           // 格式化购买记录，确保符合Purchase接口定义
@@ -644,37 +688,37 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             status: rawPurchase.status || 'active',
             amount: rawPurchase.amount || 0,
             transactionId: rawPurchase.transactionId || '',
-            paymentMethod: rawPurchase.paymentMethod || 'redeem'
+            paymentMethod: rawPurchase.paymentMethod || 'redeem',
           };
           
-          console.log(`[RedeemCode] 格式化后的购买记录:`, formattedPurchase);
-          console.log(`[RedeemCode] 格式化后的购买记录ID: ${formattedPurchase.questionSetId}`);
+          logger.info('[RedeemCode] 格式化后的购买记录:', formattedPurchase);
+          logger.info(`[RedeemCode] 格式化后的购买记录ID: ${formattedPurchase.questionSetId}`);
           
           // 直接更新用户状态中的购买记录
           const updatedPurchases = [...(user.purchases || [])];
           
           // 确保不添加重复的购买记录
-          if (!updatedPurchases.some(p => p.id === formattedPurchase.id)) {
+          if (!updatedPurchases.some((p) => p.id === formattedPurchase.id)) {
             updatedPurchases.push(formattedPurchase);
             
-            console.log(`[RedeemCode] 更新前用户购买记录数量: ${user.purchases?.length || 0}`);
-            console.log(`[RedeemCode] 更新后用户购买记录数量: ${updatedPurchases.length}`);
+            logger.info(`[RedeemCode] 更新前用户购买记录数量: ${user.purchases?.length || 0}`);
+            logger.info(`[RedeemCode] 更新后用户购买记录数量: ${updatedPurchases.length}`);
             
             // 立即更新用户状态
             const updatedUser = {
               ...user,
-              purchases: updatedPurchases
+              purchases: updatedPurchases,
             };
             
             setUser(updatedUser);
             
             // 尝试通过socket通知权限更新
             if (socket) {
-              console.log(`[RedeemCode] 通过socket发送权限更新通知: ${questionSetId}`);
+              logger.info(`[RedeemCode] 通过socket发送权限更新通知: ${questionSetId}`);
               socket.emit('questionSet:accessUpdate', {
                 userId: user.id,
                 questionSetId: String(questionSetId).trim(),
-                hasAccess: true
+                hasAccess: true,
               });
             }
             
@@ -683,44 +727,45 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             // 强制刷新用户数据
             setTimeout(() => {
-              console.log(`[RedeemCode] 开始获取最新用户数据`);
+              logger.info('[RedeemCode] 开始获取最新用户数据');
               fetchCurrentUser();
             }, 500);
             
-            console.log(`[RedeemCode] 用户状态已更新，新购买记录已添加`);
+            logger.info('[RedeemCode] 用户状态已更新，新购买记录已添加');
           } else {
-            console.log(`[RedeemCode] 购买记录已存在，跳过添加`);
+            logger.info('[RedeemCode] 购买记录已存在，跳过添加');
           }
         } else {
-          console.warn(`[RedeemCode] 无法更新用户状态:`, { hasPurchase: !!rawPurchase, hasUser: !!user });
+          logger.warn('[RedeemCode] 无法更新用户状态:', { hasPurchase: !!rawPurchase, hasUser: !!user });
         }
         
         // 安全地获取题库ID和标题
         const questionSetId = questionSet?.id || 
                       rawPurchase?.questionSetId || 
-                      (rawPurchase as any)?.question_set_id;
+                      rawPurchase?.question_set_id;
         const quizTitle = questionSet?.title;
         
-        console.log(`[RedeemCode] 返回兑换结果:`, { questionSetId, quizTitle });
+        logger.info('[RedeemCode] 返回兑换结果:', { questionSetId, quizTitle });
         
         return {
           success: true,
           message: '兑换成功!',
           questionSetId,
-          quizTitle
+          quizTitle,
         };
       } else {
-        console.error('兑换码兑换失败:', response.message, response);
+        logger.error('兑换码兑换失败:', response.message, response);
         return {
           success: false,
-          message: response.message || '兑换失败，请检查兑换码是否有效'
+          message: response.message || '兑换失败，请检查兑换码是否有效',
         };
       }
-    } catch (error: any) {
-      console.error('兑换码处理错误:', error);
+    } catch (error) {
+      const errorObj = error as Error;
+      logger.error('兑换码处理错误:', errorObj);
       return {
         success: false,
-        message: error.message || '兑换过程中发生错误'
+        message: errorObj.message || '兑换过程中发生错误',
       };
     }
   };
@@ -734,16 +779,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { 
           success: true, 
           codes: response.data, 
-          message: `成功生成 ${response.data.length} 个兑换码` 
+          message: `成功生成 ${response.data.length} 个兑换码`, 
         };
       } else {
         return { 
           success: false, 
-          message: response.message || response.error || '生成兑换码失败' 
+          message: response.message || response.error || '生成兑换码失败', 
         };
       }
-    } catch (error: any) {
-      return { success: false, message: error.message || '生成兑换码过程中发生错误' };
+    } catch (error) {
+      const errorObj = error as Error;
+      return { success: false, message: errorObj.message || '生成兑换码过程中发生错误' };
     }
   };
 
@@ -789,13 +835,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateUserProgress = (progressUpdate: Partial<UserProgress>) => {
     if (!progressUpdate.questionSetId) {
-      console.error('questionSetId is required for progress update');
+      logger.error('questionSetId is required for progress update');
       return;
     }
 
     const questionSetId = progressUpdate.questionSetId;
 
-    setUser(prev => {
+    setUser((prev) => {
       if (!prev) return null;
       return {
         ...prev,
@@ -804,9 +850,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           [questionSetId]: {
             ...prev.progress?.[questionSetId],
             ...progressUpdate,
-            lastAccessed: new Date().toISOString()
-          } as UserProgress
-        }
+            lastAccessed: new Date().toISOString(),
+          } as UserProgress,
+        },
       };
     });
   };
@@ -835,8 +881,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     getAllUsers,
     deleteUser,
     adminRegister,
-    updateUserProgress
-  }), [user, loading, error, userChangeEvent]);
+    updateUserProgress,
+  }), [user, loading, error, userChangeEvent, hasAccessToQuestionSet, getRemainingAccessDays]);
 
   return (
     <UserContext.Provider value={contextValue}>

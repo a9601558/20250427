@@ -71,14 +71,14 @@ export const monitorUserProgress = () => {
       
       if (
         prevKeys.length !== currentKeys.length ||
-        prevKeys.some(key => !currentKeys.includes(key)) ||
-        currentKeys.some(key => !prevKeys.includes(key))
+        prevKeys.some((key) => !currentKeys.includes(key)) ||
+        currentKeys.some((key) => !prevKeys.includes(key))
       ) {
         console.log('[进度监控] 进度键变化:', {
           prevKeys,
           currentKeys,
-          添加的键: currentKeys.filter(key => !prevKeys.includes(key)),
-          移除的键: prevKeys.filter(key => !currentKeys.includes(key)),
+          添加的键: currentKeys.filter((key) => !prevKeys.includes(key)),
+          移除的键: prevKeys.filter((key) => !currentKeys.includes(key)),
         });
       }
       
@@ -158,5 +158,5 @@ export const testUserProgressReset = async () => {
 // 导出测试工具
 export default {
   monitorUserProgress,
-  testUserProgressReset
+  testUserProgressReset,
 }; 

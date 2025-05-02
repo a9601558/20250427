@@ -3,7 +3,7 @@ import {
   createPurchase,
   getUserPurchases,
   checkAccess,
-  getActivePurchases
+  getActivePurchases,
 } from '../controllers/purchaseController';
 import { protect } from '../middleware/authMiddleware';
 

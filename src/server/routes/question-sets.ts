@@ -7,17 +7,17 @@ const router = express.Router();
 router.get('/', (async (_req: Request, res: Response) => {
   try {
     const questionSets = await db.query(
-      `SELECT * FROM question_sets ORDER BY title`
+      'SELECT * FROM question_sets ORDER BY title'
     );
     res.json({
       success: true,
-      data: questionSets
+      data: questionSets,
     });
   } catch (error) {
     console.error('Error fetching question sets:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch question sets' 
+      error: 'Failed to fetch question sets', 
     });
   }
 }) as RequestHandler);
@@ -26,17 +26,17 @@ router.get('/', (async (_req: Request, res: Response) => {
 router.get('/categories', (async (_req: Request, res: Response) => {
   try {
     const categories = await db.query(
-      `SELECT DISTINCT category FROM question_sets ORDER BY category`
+      'SELECT DISTINCT category FROM question_sets ORDER BY category'
     );
     res.json({
       success: true,
-      data: categories.map(item => item.category)
+      data: categories.map((item) => item.category),
     });
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch categories' 
+      error: 'Failed to fetch categories', 
     });
   }
 }) as RequestHandler);
@@ -46,18 +46,18 @@ router.get('/by-category/:category', (async (req: Request, res: Response) => {
   try {
     const { category } = req.params;
     const questionSets = await db.query(
-      `SELECT * FROM question_sets WHERE category = ? ORDER BY title`,
+      'SELECT * FROM question_sets WHERE category = ? ORDER BY title',
       [category]
     );
     res.json({
       success: true,
-      data: questionSets
+      data: questionSets,
     });
   } catch (error) {
     console.error(`Error fetching question sets for category ${req.params.category}:`, error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch question sets by category' 
+      error: 'Failed to fetch question sets by category', 
     });
   }
 }) as RequestHandler);
@@ -67,7 +67,7 @@ router.get('/:id', (async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const questionSets: QueryResult = await db.query(
-      `SELECT * FROM question_sets WHERE id = ?`,
+      'SELECT * FROM question_sets WHERE id = ?',
       [id]
     );
     
@@ -77,19 +77,19 @@ router.get('/:id', (async (req: Request, res: Response) => {
     if (!questionSet) {
       return res.status(404).json({ 
         success: false,
-        error: 'Question set not found' 
+        error: 'Question set not found', 
       });
     }
     
     res.json({
       success: true,
-      data: questionSet
+      data: questionSet,
     });
   } catch (error) {
     console.error(`Error fetching question set ${req.params.id}:`, error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch question set' 
+      error: 'Failed to fetch question set', 
     });
   }
 }) as RequestHandler);
@@ -106,14 +106,14 @@ router.post('/', (async (req: Request, res: Response) => {
       isPaid, 
       price, 
       trialQuestions,
-      questions 
+      questions, 
     } = req.body;
     
     // Validate required fields
     if (!id || !title || !category) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required fields' 
+        error: 'Missing required fields', 
       });
     }
     
@@ -161,13 +161,13 @@ router.post('/', (async (req: Request, res: Response) => {
     res.status(201).json({ 
       success: true,
       data: { id },
-      message: 'Question set created successfully' 
+      message: 'Question set created successfully', 
     });
   } catch (error) {
     console.error('Error creating question set:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to create question set' 
+      error: 'Failed to create question set', 
     });
   }
 }) as RequestHandler);
@@ -179,32 +179,32 @@ router.delete('/:id', (async (req: Request, res: Response) => {
     
     // Check if question set exists
     const questionSets: QueryResult = await db.query(
-      `SELECT id FROM question_sets WHERE id = ?`,
+      'SELECT id FROM question_sets WHERE id = ?',
       [id]
     );
     
     if (questionSets.length === 0) {
       return res.status(404).json({ 
         success: false,
-        error: 'Question set not found' 
+        error: 'Question set not found', 
       });
     }
     
     // Delete the question set (cascading delete will handle questions and options)
     await db.query(
-      `DELETE FROM question_sets WHERE id = ?`,
+      'DELETE FROM question_sets WHERE id = ?',
       [id]
     );
     
     res.json({ 
       success: true,
-      message: 'Question set deleted successfully' 
+      message: 'Question set deleted successfully', 
     });
   } catch (error) {
     console.error(`Error deleting question set ${req.params.id}:`, error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to delete question set' 
+      error: 'Failed to delete question set', 
     });
   }
 }) as RequestHandler);

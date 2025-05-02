@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { UserProgress } from '../types';
+import { logger } from '../utils/logger';
 
 interface ProgressData {
   userId: string;
@@ -29,7 +30,7 @@ let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 // 初始化Socket连接
 const initializeSocket = (): Socket => {
   if (!socket) {
-    console.log('初始化Socket.IO连接，使用当前域名');
+    logger.info('初始化Socket.IO连接，使用当前域名');
     
     // 获取用户令牌
     const token = localStorage.getItem('token');
@@ -48,26 +49,26 @@ const initializeSocket = (): Socket => {
       upgrade: true, // 允许传输升级
       rejectUnauthorized: false, // 允许自签名证书
       auth: {
-        token: token // 添加JWT令牌到auth属性
+        token: token, // 添加JWT令牌到auth属性
       },
       extraHeaders: {
-        "Connection": "keep-alive", // 保持连接活跃
-        "X-Client-Version": "1.0" // 添加客户端版本标识
-      }
+        'Connection': 'keep-alive', // 保持连接活跃
+        'X-Client-Version': '1.0', // 添加客户端版本标识
+      },
     });
 
     // 启动心跳检测
     startHeartbeat();
 
     // 添加请求日志记录连接过程
-    socket.io.on("packet", ({type, data}) => {
-      console.log(`Socket.IO传输包: 类型=${type}`, data ? `数据=${JSON.stringify(data)}` : '');
+    socket.io.on('packet', ({ type, data }) => {
+      logger.debug(`Socket.IO传输包: 类型=${type}`, data ? `数据=${JSON.stringify(data)}` : '');
     });
     
     // 监听连接事件
     socket.on('connect', () => {
-      console.log('Socket.IO连接成功，ID:', socket.id);
-      console.log('Socket.IO传输方式:', socket.io.engine.transport.name);
+      logger.info('Socket.IO连接成功，ID:', socket.id);
+      logger.info('Socket.IO传输方式:', socket.io.engine.transport.name);
       reconnectAttempts = 0; // 重置重连计数器
       
       // 连接成功后也启动心跳
@@ -76,43 +77,43 @@ const initializeSocket = (): Socket => {
 
     // 监听断开连接事件
     socket.on('disconnect', (reason) => {
-      console.log(`Socket.IO断开连接: ${reason}`);
+      logger.info(`Socket.IO断开连接: ${reason}`);
       
       // 停止心跳检测
       stopHeartbeat();
       
       // 分析断开原因
       if (reason === 'transport close') {
-        console.warn('Socket.IO传输层关闭，可能是网络连接问题');
+        logger.warn('Socket.IO传输层关闭，可能是网络连接问题');
         attemptReconnect(1000); // 传输关闭快速重连
       } else if (reason === 'ping timeout') {
-        console.warn('Socket.IO ping超时，服务器未响应');
+        logger.warn('Socket.IO ping超时，服务器未响应');
         attemptReconnect(2000); // ping超时延迟一点重连
       } else if (reason === 'io server disconnect') {
         // 服务器主动断开连接，可能是服务重启
-        console.warn('服务器主动断开连接，等待5秒后尝试重连');
+        logger.warn('服务器主动断开连接，等待5秒后尝试重连');
         attemptReconnect(5000);
       }
     });
 
     // 监听服务器自定义心跳
     socket.on('ping_from_server', () => {
-      console.log('收到服务器心跳ping');
+      logger.debug('收到服务器心跳ping');
       // 回应服务器心跳
       socket.emit('pong_from_client');
     });
 
     // 监听错误事件
     socket.on('connect_error', (error) => {
-      console.error('Socket.IO连接错误:', error.message);
+      logger.error('Socket.IO连接错误:', error.message);
       reconnectAttempts++;
       
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        console.warn(`Socket.IO已尝试重连${MAX_RECONNECT_ATTEMPTS}次，停止自动重连`);
+        logger.warn(`Socket.IO已尝试重连${MAX_RECONNECT_ATTEMPTS}次，停止自动重连`);
         
         // 尝试一次从polling到websocket的切换
         if (socket.io.engine.transport.name === 'polling') {
-          console.log('尝试强制使用WebSocket连接...');
+          logger.info('尝试强制使用WebSocket连接...');
           // 关闭当前传输层尝试升级
           socket.io.engine.transport.close();
         }
@@ -121,7 +122,7 @@ const initializeSocket = (): Socket => {
 
     // 监听重连尝试
     socket.on('reconnect_attempt', (attempt) => {
-      console.log(`Socket.IO重连尝试 #${attempt}`);
+      logger.info(`Socket.IO重连尝试 #${attempt}`);
       
       // 在重连时尝试改变传输方式
       if (attempt > 3) {
@@ -132,7 +133,7 @@ const initializeSocket = (): Socket => {
 
     // 监听重连成功
     socket.on('reconnect', (attempt) => {
-      console.log(`Socket.IO重连成功，尝试次数: ${attempt}`);
+      logger.info(`Socket.IO重连成功，尝试次数: ${attempt}`);
       // 重置尝试次数
       reconnectAttempts = 0;
       // 重连成功后重新启动心跳
@@ -141,12 +142,12 @@ const initializeSocket = (): Socket => {
     
     // 监听pong响应
     socket.on('pong', () => {
-      console.log('收到服务器pong响应');
+      logger.debug('收到服务器pong响应');
     });
     
     // 监听错误
     socket.on('error', (error) => {
-      console.error('Socket.IO错误事件:', error);
+      logger.error('Socket.IO错误事件:', error);
     });
   }
 
@@ -161,13 +162,13 @@ const startHeartbeat = () => {
   // 每30秒发送一次心跳包
   heartbeatInterval = setInterval(() => {
     if (socket && socket.connected) {
-      console.log('发送心跳ping...');
+      logger.debug('发送心跳ping...');
       socket.emit('ping');
       
       // 设置ping超时检测
       const pingTimeout = setTimeout(() => {
         if (socket && socket.connected) {
-          console.warn('ping超时未收到响应，主动尝试重连');
+          logger.warn('ping超时未收到响应，主动尝试重连');
           socket.disconnect().connect(); // 断开并立即重连
         }
       }, 10000); // 10秒内未收到响应就重连
@@ -180,7 +181,7 @@ const startHeartbeat = () => {
       
       socket.on('pong', pongHandler);
     } else {
-      console.warn('心跳检测：Socket未连接，尝试重连');
+      logger.warn('心跳检测：Socket未连接，尝试重连');
       attemptReconnect();
     }
   }, 30000);
@@ -198,7 +199,7 @@ const stopHeartbeat = () => {
 const attemptReconnect = (delay = 1000) => {
   if (socket && !socket.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
     reconnectAttempts++;
-    console.log(`手动尝试重连 #${reconnectAttempts}...`);
+    logger.info(`手动尝试重连 #${reconnectAttempts}...`);
     
     // 先断开旧连接
     socket.disconnect();
@@ -207,14 +208,14 @@ const attemptReconnect = (delay = 1000) => {
     setTimeout(() => {
       // 检查是否已经连接
       if (!socket.connected) {
-        console.log(`尝试重新连接...`);
+        logger.info('尝试重新连接...');
         
         // 先尝试不同的传输方式
         if (reconnectAttempts % 2 === 0) {
-          console.log('尝试使用polling传输方式重连');
+          logger.info('尝试使用polling传输方式重连');
           socket.io.opts.transports = ['polling', 'websocket'];
         } else {
-          console.log('尝试使用websocket传输方式重连');
+          logger.info('尝试使用websocket传输方式重连');
           socket.io.opts.transports = ['websocket', 'polling'];
         }
         
@@ -222,7 +223,7 @@ const attemptReconnect = (delay = 1000) => {
       }
     }, delay);
   } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error('达到最大重连次数，需要用户手动刷新页面');
+    logger.error('达到最大重连次数，需要用户手动刷新页面');
     // 可以在这里触发一个全局事件，通知UI显示一个重连失败的提示
   }
 };
@@ -278,5 +279,5 @@ export {
   authenticateUser,
   sendProgressUpdate,
   onProgressUpdate,
-  testConnection
+  testConnection,
 }; 

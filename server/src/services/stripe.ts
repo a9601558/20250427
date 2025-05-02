@@ -46,7 +46,7 @@ export const verifyPaymentIntent = async (paymentIntentId: string) => {
       status: paymentIntent.status,
       amount: paymentIntent.amount,
       metadata: paymentIntent.metadata,
-      isSuccessful: paymentIntent.status === 'succeeded'
+      isSuccessful: paymentIntent.status === 'succeeded',
     };
   } catch (error) {
     console.error('Stripe verify payment intent error:', error);

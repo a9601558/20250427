@@ -26,24 +26,24 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
   useEffect(() => {
     if (question && question.options) {
       // 转换选项格式
-      const initialOptions = question.options.map(opt => ({
+      const initialOptions = question.options.map((opt) => ({
         id: opt.id,
         text: opt.text,
-        optionIndex: opt.optionIndex || opt.id
+        optionIndex: opt.optionIndex || opt.id,
       }));
       
       setOptions(initialOptions);
       
       // 设置正确答案
       if (question.questionType === 'single') {
-        const correctOption = question.options.find(opt => opt.isCorrect);
+        const correctOption = question.options.find((opt) => opt.isCorrect);
         if (correctOption) {
           setSelectedOption(correctOption.id);
         }
       } else {
         const correctOptions = question.options
-          .filter(opt => opt.isCorrect)
-          .map(opt => opt.id);
+          .filter((opt) => opt.isCorrect)
+          .map((opt) => opt.id);
         setSelectedOptions(correctOptions);
       }
     }
@@ -62,7 +62,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       return;
     }
     
-    setOptions(options.filter(option => option.id !== optionId));
+    setOptions(options.filter((option) => option.id !== optionId));
     
     // 如果删除的是已选中的选项，重置选择
     if (selectedOption === optionId) {
@@ -70,14 +70,14 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
     }
     
     if (selectedOptions.includes(optionId)) {
-      setSelectedOptions(selectedOptions.filter(id => id !== optionId));
+      setSelectedOptions(selectedOptions.filter((id) => id !== optionId));
     }
   };
 
   // 更新选项文本
   const handleOptionTextChange = (optionId: string, text: string) => {
     setOptions(
-      options.map(option =>
+      options.map((option) =>
         option.id === optionId ? { ...option, text } : option
       )
     );
@@ -85,9 +85,9 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
 
   // 切换多选选项
   const handleMultipleOptionToggle = (optionId: string) => {
-    setSelectedOptions(prev =>
+    setSelectedOptions((prev) =>
       prev.includes(optionId)
-        ? prev.filter(id => id !== optionId)
+        ? prev.filter((id) => id !== optionId)
         : [...prev, optionId]
     );
   };
@@ -102,7 +102,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       return;
     }
     
-    if (options.some(option => !option.text.trim())) {
+    if (options.some((option) => !option.text.trim())) {
       setErrorMessage('选项内容不能为空');
       return;
     }
@@ -118,13 +118,13 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
     }
     
     // 创建问题对象
-    const questionOptions: QuestionOption[] = options.map(option => ({
+    const questionOptions: QuestionOption[] = options.map((option) => ({
       id: option.id,
       text: option.text,
       isCorrect:
         questionType === 'single'
           ? option.id === selectedOption
-          : selectedOptions.includes(option.id)
+          : selectedOptions.includes(option.id),
     }));
     
     const updatedQuestion: Question = {

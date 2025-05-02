@@ -31,11 +31,11 @@ if (!sequelizeInstance) {
             max: 5,
             min: 0,
             acquire: 30000,
-            idle: 10000
+            idle: 10000,
         },
         dialectOptions: {
-            connectTimeout: 10000
-        }
+            connectTimeout: 10000,
+        },
     });
 }
 class User extends sequelize_1.Model {
@@ -80,9 +80,9 @@ User.init({
             notEmpty: { msg: '用户名不能为空' },
             len: {
                 args: [3, 30],
-                msg: '用户名长度必须在3-30个字符之间'
-            }
-        }
+                msg: '用户名长度必须在3-30个字符之间',
+            },
+        },
     },
     email: {
         type: sequelize_1.DataTypes.STRING(100),
@@ -90,8 +90,8 @@ User.init({
         unique: true,
         validate: {
             isEmail: { msg: '请输入有效的邮箱地址' },
-            notEmpty: { msg: '邮箱不能为空' }
-        }
+            notEmpty: { msg: '邮箱不能为空' },
+        },
     },
     password: {
         type: sequelize_1.DataTypes.STRING(255),
@@ -100,14 +100,14 @@ User.init({
             notEmpty: { msg: '密码不能为空' },
             len: {
                 args: [6, 100],
-                msg: '密码长度必须在6-100个字符之间'
-            }
-        }
+                msg: '密码长度必须在6-100个字符之间',
+            },
+        },
     },
     isAdmin: {
         type: sequelize_1.DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: false
+        defaultValue: false,
     },
     socket_id: {
         type: sequelize_1.DataTypes.STRING(255),
@@ -152,13 +152,13 @@ User.init({
     tableName: 'users',
     timestamps: true,
     defaultScope: {
-        attributes: { exclude: ['password'] }
+        attributes: { exclude: ['password'] },
     },
     scopes: {
         withPassword: {
-            attributes: { include: ['password'] }
-        }
-    }
+            attributes: { include: ['password'] },
+        },
+    },
 });
 // 密码加密钩子
 User.beforeSave(async (user) => {

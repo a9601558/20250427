@@ -62,9 +62,9 @@ export const initializeSocket = (io: SocketIOServer) => {
             {
               model: User,
               as: 'users',
-              through: { attributes: [] }
-            }
-          ]
+              through: { attributes: [] },
+            },
+          ],
         });
 
         if (questionSet) {
@@ -78,7 +78,7 @@ export const initializeSocket = (io: SocketIOServer) => {
             price: questionSet.price,
             trialQuestions: questionSet.trialQuestions,
             category: questionSet.category,
-            updatedAt: questionSet.updatedAt
+            updatedAt: questionSet.updatedAt,
           });
 
           // 如果题库是付费的，检查所有相关用户的购买状态
@@ -87,10 +87,10 @@ export const initializeSocket = (io: SocketIOServer) => {
               where: {
                 questionSetId: questionSet.id,
                 expiryDate: {
-                  [Op.gt]: new Date()
-                }
+                  [Op.gt]: new Date(),
+                },
               },
-              include: [User]
+              include: [User],
             }) as PurchaseWithUser[];
 
             // 向有购买权限的用户发送更新
@@ -99,7 +99,7 @@ export const initializeSocket = (io: SocketIOServer) => {
                 io.to(purchase.user.socket_id).emit('questionSet:accessUpdate', {
                   questionSetId: purchase.questionSetId,
                   hasAccess: true,
-                  remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                  remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
                 });
               }
             });
@@ -148,12 +148,12 @@ export const initializeSocket = (io: SocketIOServer) => {
             amount: questionSet.price || 0,
             status: 'completed',
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
           });
 
           // 更新用户的购买记录
           await user.update({
-            purchases: [...(user.purchases || []), purchase]
+            purchases: [...(user.purchases || []), purchase],
           });
 
           // 向用户发送购买成功通知
@@ -161,7 +161,7 @@ export const initializeSocket = (io: SocketIOServer) => {
             io.to(user.socket_id).emit('purchase:success', {
               questionSetId: purchase.questionSetId,
               purchaseId: purchase.id,
-              expiryDate: purchase.expiryDate
+              expiryDate: purchase.expiryDate,
             });
           }
         }
@@ -185,7 +185,7 @@ export const initializeSocket = (io: SocketIOServer) => {
               io.to(user.socket_id).emit('questionSet:accessUpdate', {
                 questionSetId: questionSet.id,
                 hasAccess: true,
-                remainingDays: null
+                remainingDays: null,
               });
             }
             return;
@@ -197,13 +197,13 @@ export const initializeSocket = (io: SocketIOServer) => {
             where: {
               userId: user.id,
               expiryDate: {
-                [Op.gt]: new Date()
-              }
-            }
+                [Op.gt]: new Date(),
+              },
+            },
           });
           
           // 找到匹配的购买记录，使用更灵活的匹配方式
-          const purchase = purchases.find(p => {
+          const purchase = purchases.find((p) => {
             const purchaseQsId = String(p.questionSetId).trim();
             // 精确匹配
             const exactMatch = purchaseQsId === normalizedQuestionSetId;
@@ -225,7 +225,7 @@ export const initializeSocket = (io: SocketIOServer) => {
             io.to(user.socket_id).emit('questionSet:accessUpdate', {
               questionSetId: questionSet.id, // 统一使用请求中的题库ID
               hasAccess: true,
-              remainingDays
+              remainingDays,
             });
           } else if (user.socket_id) {
             // 没有有效的购买记录
@@ -234,7 +234,7 @@ export const initializeSocket = (io: SocketIOServer) => {
             io.to(user.socket_id).emit('questionSet:accessUpdate', {
               questionSetId: data.questionSetId,
               hasAccess: false,
-              remainingDays: null
+              remainingDays: null,
             });
           }
         }
@@ -251,14 +251,14 @@ export const initializeSocket = (io: SocketIOServer) => {
           include: [
             {
               model: QuestionSet,
-              as: 'questionSet'
+              as: 'questionSet',
             },
             {
               model: User,
-              as: 'user'
-            }
+              as: 'user',
+            },
           ],
-          order: [['purchaseDate', 'DESC']]
+          order: [['purchaseDate', 'DESC']],
         });
 
         if (socket.connected) {
@@ -278,8 +278,8 @@ export const initializeSocket = (io: SocketIOServer) => {
         const purchase = await Purchase.findByPk(data.purchaseId, {
           include: [
             { model: User, as: 'user' },
-            { model: QuestionSet, as: 'questionSet' }
-          ]
+            { model: QuestionSet, as: 'questionSet' },
+          ],
         });
 
         if (purchase) {
@@ -299,7 +299,7 @@ export const initializeSocket = (io: SocketIOServer) => {
     socket.on('purchase:delete', async (data: { purchaseId: string }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
-          include: [{ model: User, as: 'user' }]
+          include: [{ model: User, as: 'user' }],
         });
 
         if (purchase) {
@@ -320,13 +320,13 @@ export const initializeSocket = (io: SocketIOServer) => {
     socket.on('purchase:expire', async (data: { purchaseId: string }) => {
       try {
         const purchase = await Purchase.findByPk(data.purchaseId, {
-          include: [{ model: User, as: 'user' }]
+          include: [{ model: User, as: 'user' }],
         });
 
         if (purchase && purchase.user?.socket_id) {
           io.to(purchase.user.socket_id).emit('purchase:expire', {
             questionSetId: purchase.questionSetId,
-            purchaseId: purchase.id
+            purchaseId: purchase.id,
           });
         }
       } catch (error) {
@@ -341,17 +341,17 @@ export const initializeSocket = (io: SocketIOServer) => {
           where: {
             expiryDate: {
               [Op.lt]: new Date(),
-              [Op.gt]: new Date(Date.now() - 24 * 60 * 60 * 1000) // 过去24小时内过期的
-            }
+              [Op.gt]: new Date(Date.now() - 24 * 60 * 60 * 1000), // 过去24小时内过期的
+            },
           },
-          include: [{ model: User, as: 'user' }]
+          include: [{ model: User, as: 'user' }],
         });
 
-        expiredPurchases.forEach(purchase => {
+        expiredPurchases.forEach((purchase) => {
           if (purchase.user?.socket_id) {
             io.to(purchase.user.socket_id).emit('purchase:expire', {
               questionSetId: purchase.questionSetId,
-              purchaseId: purchase.id
+              purchaseId: purchase.id,
             });
           }
         });
@@ -390,8 +390,8 @@ export const initializeSocket = (io: SocketIOServer) => {
           where: {
             ...(data.purchaseId ? { id: data.purchaseId } : {}),
             userId: user.id,
-            questionSetId: questionSet.id
-          }
+            questionSetId: questionSet.id,
+          },
         });
 
         // 发送成功消息给客户端
@@ -400,14 +400,14 @@ export const initializeSocket = (io: SocketIOServer) => {
           io.to(user.socket_id).emit('questionSet:accessUpdate', {
             questionSetId: questionSet.id,
             hasAccess: true,
-            purchaseId: purchase?.id
+            purchaseId: purchase?.id,
           });
 
           // 发送兑换成功事件
           io.to(user.socket_id).emit('redeem:success', {
             questionSetId: questionSet.id,
             purchaseId: purchase?.id,
-            expiryDate: purchase?.expiryDate
+            expiryDate: purchase?.expiryDate,
           });
         }
       } catch (error) {
@@ -445,7 +445,7 @@ export const initializeSocket = (io: SocketIOServer) => {
           where: {
             userId: data.userId,
             questionSetId: data.questionSetId,
-            questionId: data.questionId
+            questionId: data.questionId,
           },
           defaults: {
             userId: data.userId,
@@ -456,8 +456,8 @@ export const initializeSocket = (io: SocketIOServer) => {
             completedQuestions: data.completedQuestions,
             totalQuestions: data.totalQuestions,
             correctAnswers: data.correctAnswers,
-            lastAccessed: new Date(data.lastAccessed)
-          }
+            lastAccessed: new Date(data.lastAccessed),
+          },
         });
 
         if (!created) {
@@ -467,7 +467,7 @@ export const initializeSocket = (io: SocketIOServer) => {
             completedQuestions: data.completedQuestions,
             totalQuestions: data.totalQuestions,
             correctAnswers: data.correctAnswers,
-            lastAccessed: new Date(data.lastAccessed)
+            lastAccessed: new Date(data.lastAccessed),
           });
         }
 
@@ -477,7 +477,7 @@ export const initializeSocket = (io: SocketIOServer) => {
           completedQuestions: data.completedQuestions,
           totalQuestions: data.totalQuestions,
           correctAnswers: data.correctAnswers,
-          lastAccessed: new Date(data.lastAccessed)
+          lastAccessed: new Date(data.lastAccessed),
         };
         userProgress[data.questionSetId] = progressSummary;
         await user.update({ progress: userProgress });
@@ -488,8 +488,8 @@ export const initializeSocket = (io: SocketIOServer) => {
             questionSetId: data.questionSetId,
             progress: {
               ...progressSummary,
-              lastAccessed: progressSummary.lastAccessed.toISOString()
-            }
+              lastAccessed: progressSummary.lastAccessed.toISOString(),
+            },
           });
         }
       } catch (error) {
@@ -515,15 +515,15 @@ export const initializeSocket = (io: SocketIOServer) => {
           where: {
             userId: user.id,
             expiryDate: {
-              [Op.gt]: new Date()
-            }
+              [Op.gt]: new Date(),
+            },
           },
           include: [
             {
               model: QuestionSet,
-              as: 'purchaseQuestionSet'
-            }
-          ]
+              as: 'purchaseQuestionSet',
+            },
+          ],
         });
         
         console.log(`用户(${data.userId})有${purchases.length}条有效购买记录`);
@@ -532,9 +532,9 @@ export const initializeSocket = (io: SocketIOServer) => {
         if (user.socket_id) {
           io.to(user.socket_id).emit('user:purchasesSynced', {
             success: true,
-            purchases: purchases.map(p => p.toJSON()),
+            purchases: purchases.map((p) => p.toJSON()),
             message: `已同步${purchases.length}条购买记录`,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           
           // 对每个购买记录，单独发送访问权限更新
@@ -542,7 +542,7 @@ export const initializeSocket = (io: SocketIOServer) => {
             io.to(user.socket_id).emit('questionSet:accessUpdate', {
               questionSetId: purchase.questionSetId,
               hasAccess: true,
-              remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+              remainingDays: Math.ceil((new Date(purchase.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
             });
           }
         }
@@ -552,7 +552,7 @@ export const initializeSocket = (io: SocketIOServer) => {
           socket.emit('user:purchasesSynced', {
             success: false,
             message: '同步购买记录失败，请稍后再试',
-            error: process.env.NODE_ENV === 'development' ? String(error) : undefined
+            error: process.env.NODE_ENV === 'development' ? String(error) : undefined,
           });
         }
       }

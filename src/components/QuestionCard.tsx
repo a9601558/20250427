@@ -38,7 +38,7 @@ const MESSAGES = {
   SHOW_EXPLANATION: '查看解析',
   HIDE_EXPLANATION: '隐藏解析',
   ANALYSIS: '解析:',
-  NEXT_QUESTION: '下一题'
+  NEXT_QUESTION: '下一题',
 };
 
 const QuestionCard = ({ 
@@ -55,7 +55,7 @@ const QuestionCard = ({
   trialQuestions = 0,
   questionSetId,
   isLast = false,
-  isSubmittingAnswer = false
+  isSubmittingAnswer = false,
 }: QuestionCardProps) => {
   // 单选题选择一个选项，多选题选择多个选项
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -91,18 +91,18 @@ const QuestionCard = ({
         question.questionType === 'single'
           ? (() => {
               // 找到正确选项的ID
-              const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+              const correctOptionId = question.options.find((opt) => opt.isCorrect)?.id;
               return selectedOption === correctOptionId;
             })()
           : (() => {
               // 对于多选题，找出所有正确选项的ID
               const correctOptionIds = question.options
-                .filter(opt => opt.isCorrect)
-                .map(opt => opt.id);
+                .filter((opt) => opt.isCorrect)
+                .map((opt) => opt.id);
               
               const lengthMatch = selectedOptions.length === correctOptionIds.length;
-              const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
-              const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+              const allSelectedAreCorrect = selectedOptions.every((id) => correctOptionIds.includes(id));
+              const allCorrectAreSelected = correctOptionIds.every((id) => selectedOptions.includes(id));
                 
               return (
                 lengthMatch &&
@@ -124,10 +124,10 @@ const QuestionCard = ({
       }, 100);
     } else {
       // 多选题，切换选中状态
-      setSelectedOptions(prev => {
+      setSelectedOptions((prev) => {
         if (prev.includes(optionId)) {
           // 如果已选中，则移除
-          return prev.filter(id => id !== optionId);
+          return prev.filter((id) => id !== optionId);
         } else {
           // 如果未选中，则添加
           return [...prev, optionId];
@@ -172,7 +172,7 @@ const QuestionCard = ({
     
     try {
       // 修改判断逻辑，找到正确选项的ID比较
-      const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+      const correctOptionId = question.options.find((opt) => opt.isCorrect)?.id;
       const isCorrect = optionId === correctOptionId;
       
       setIsSubmitted(true);
@@ -194,8 +194,8 @@ const QuestionCard = ({
             options: question.options,
             selectedOption: optionId,
             correctOption: correctOptionId,
-            explanation: question.explanation
-          }
+            explanation: question.explanation,
+          },
         });
         window.dispatchEvent(wrongAnswerEvent);
         
@@ -225,7 +225,7 @@ const QuestionCard = ({
         setIsSubmitted(true);
         
         // 修改判断逻辑，找到正确选项的ID比较
-        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+        const correctOptionId = question.options.find((opt) => opt.isCorrect)?.id;
         const isCorrect = selectedOption === correctOptionId;
         
         if (onAnswerSubmitted) {
@@ -245,8 +245,8 @@ const QuestionCard = ({
               options: question.options,
               selectedOption: selectedOption,
               correctOption: correctOptionId,
-              explanation: question.explanation
-            }
+              explanation: question.explanation,
+            },
           });
           window.dispatchEvent(wrongAnswerEvent);
           
@@ -263,12 +263,12 @@ const QuestionCard = ({
         
         // 修改多选题判断逻辑
         const correctOptionIds = question.options
-          .filter(opt => opt.isCorrect)
-          .map(opt => opt.id);
+          .filter((opt) => opt.isCorrect)
+          .map((opt) => opt.id);
         
         const lengthMatch = selectedOptions.length === correctOptionIds.length;
-        const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
-        const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+        const allSelectedAreCorrect = selectedOptions.every((id) => correctOptionIds.includes(id));
+        const allCorrectAreSelected = correctOptionIds.every((id) => selectedOptions.includes(id));
         const isCorrect = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
         
         if (onAnswerSubmitted) {
@@ -288,8 +288,8 @@ const QuestionCard = ({
               options: question.options,
               selectedOptions: selectedOptions,
               correctOptions: correctOptionIds,
-              explanation: question.explanation
-            }
+              explanation: question.explanation,
+            },
           });
           window.dispatchEvent(wrongAnswerEvent);
           
@@ -402,7 +402,7 @@ const QuestionCard = ({
       const targetId = String(questionSetId).trim();
       
       // 使用更宽松的匹配逻辑检查兑换记录
-      return redeemedIds.some(id => {
+      return redeemedIds.some((id) => {
         const redeemedId = String(id || '').trim();
         // 精确匹配
         const exactMatch = redeemedId === targetId;
@@ -535,16 +535,16 @@ const QuestionCard = ({
       let isCorrectAnswer = false;
       if (isSubmitted) {
         if (question.questionType === 'single') {
-          const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+          const correctOptionId = question.options.find((opt) => opt.isCorrect)?.id;
           isCorrectAnswer = selectedOption === correctOptionId;
         } else {
           const correctOptionIds = question.options
-            .filter(opt => opt.isCorrect)
-            .map(opt => opt.id);
+            .filter((opt) => opt.isCorrect)
+            .map((opt) => opt.id);
             
           const lengthMatch = selectedOptions.length === correctOptionIds.length;
-          const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
-          const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+          const allSelectedAreCorrect = selectedOptions.every((id) => correctOptionIds.includes(id));
+          const allCorrectAreSelected = correctOptionIds.every((id) => selectedOptions.includes(id));
           
           isCorrectAnswer = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
         }
@@ -558,7 +558,7 @@ const QuestionCard = ({
         isSubmitted,
         isCorrect: isCorrectAnswer,
         showExplanation,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
       
       localStorage.setItem(storageKey, JSON.stringify(stateToSave));
@@ -617,7 +617,7 @@ const QuestionCard = ({
             id={`option-${index}`}
             tabIndex={0}
             onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
-            className={`focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-md`}
+            className={'focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-md'}
           >
             <QuestionOption
               option={option}
@@ -662,14 +662,14 @@ const QuestionCard = ({
                 {isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER}
                 {!isCorrect && question.questionType === 'single' && (
                   ` ${MESSAGES.CORRECT_ANSWER_IS} ${
-                    question.options.find(opt => opt.isCorrect)?.text || ''
+                    question.options.find((opt) => opt.isCorrect)?.text || ''
                   }`
                 )}
                 {!isCorrect && question.questionType === 'multiple' && (
                   ` ${MESSAGES.CORRECT_ANSWER_IS} ${
                     question.options
-                      .filter(opt => opt.isCorrect)
-                      .map(opt => opt.text)
+                      .filter((opt) => opt.isCorrect)
+                      .map((opt) => opt.text)
                       .join(', ')
                   }`
                 )}
@@ -749,8 +749,8 @@ const QuestionCard = ({
                 detail: {
                   questionSetId,
                   remainingDays: 180, // 默认180天有效期
-                  forceRefresh: true
-                }
+                  forceRefresh: true,
+                },
               });
               
               window.dispatchEvent(event);

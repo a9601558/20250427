@@ -8,7 +8,7 @@ import {
   uploadQuestionSets,
   getQuestionSetCategories,
   getQuestionSetsByCategory,
-  addQuestionToQuestionSet
+  addQuestionToQuestionSet,
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -67,7 +67,7 @@ router.post('/test', (req, res) => {
   res.status(200).json({
     success: true,
     message: '测试POST请求成功',
-    receivedData: req.body
+    receivedData: req.body,
   });
 });
 

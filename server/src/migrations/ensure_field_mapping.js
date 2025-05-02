@@ -8,14 +8,14 @@ module.exports = {
       
       // 获取question_sets表的结构信息
       const questionSetsColumns = await queryInterface.sequelize.query(
-        "SHOW COLUMNS FROM question_sets",
+        'SHOW COLUMNS FROM question_sets',
         { type: queryInterface.sequelize.QueryTypes.SELECT }
       );
-      console.log('question_sets表结构:', questionSetsColumns.map(col => col.Field));
+      console.log('question_sets表结构:', questionSetsColumns.map((col) => col.Field));
       
       // 检查特定列
-      const isPaidCol = questionSetsColumns.find(col => col.Field === 'is_paid');
-      const isFeaturedCol = questionSetsColumns.find(col => col.Field === 'is_featured');
+      const isPaidCol = questionSetsColumns.find((col) => col.Field === 'is_paid');
+      const isFeaturedCol = questionSetsColumns.find((col) => col.Field === 'is_featured');
       
       if (isPaidCol) {
         console.log('is_paid列已存在，默认值:', isPaidCol.Default);
@@ -31,7 +31,7 @@ module.exports = {
       
       // 获取数据库版本信息
       const dbVersionInfo = await queryInterface.sequelize.query(
-        "SELECT version()",
+        'SELECT version()',
         { type: queryInterface.sequelize.QueryTypes.SELECT }
       );
       console.log('数据库版本信息:', dbVersionInfo);
@@ -70,5 +70,5 @@ module.exports = {
   down: async (queryInterface, Sequelize) => {
     // 这个迁移主要是诊断性的，不需要回滚操作
     return true;
-  }
+  },
 }; 

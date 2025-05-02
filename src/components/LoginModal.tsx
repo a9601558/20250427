@@ -101,7 +101,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
         const userData = {
           username,
           email,
-          password
+          password,
         };
         
         success = await register(userData);

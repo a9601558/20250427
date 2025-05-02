@@ -1,56 +1,125 @@
-// @ts-nocheck - 禁用 TypeScript 未使用变量检查，这些变量和函数在完整 UI 中会被使用
-import React, { useState, useEffect, useCallback } from 'react';
+// Import type from proper sources and add necessary types
+import React, { useState, useEffect, useCallback, ChangeEvent, FormEvent } from 'react';
 import { Question, Option, QuestionSet } from '../../types';
 import { useUser } from '../../contexts/UserContext';
 import { questionSetApi, questionApi, redeemCodeApi } from '../../utils/api';
-import axios from 'axios';  // 添加axios导入
+import axios from 'axios';
+// @ts-expect-error The import below might not be found, which is acceptable in this context
 import Modal from 'react-modal';
 import { Alert, Form, Input, Radio, Button, Checkbox } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { logger } from '../../utils/logger';
 
 type QuestionType = 'single' | 'multiple';
 
+interface ClientQuestion {
+  id: string;
+  question: string;
+  questionType: QuestionType;
+  options: Option[];
+  correctAnswer: string | string[];
+  explanation: string;
+}
+
+interface ApiQuestion {
+  id: string;
+  text: string;
+  questionType: QuestionType;
+  options: Array<{
+    id: string;
+    text: string;
+    isCorrect: boolean;
+  }>;
+  explanation: string;
+  correctAnswer?: string | string[];
+  [key: string]: unknown;
+}
+
+// Use imported type instead of redefining
+// interface RedeemCode {
+//   id: string;
+//   code: string;
+//   questionSetId: string;
+//   expiryDate: string;
+//   isUsed: boolean;
+//   [key: string]: unknown;
+// }
+
+interface QuestionFormData {
+  id: string;
+  question: string;
+  questionType: QuestionType;
+  options: Option[];
+  correctAnswer: string | string[];
+  explanation: string;
+}
+
+interface FormData {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  icon: string;
+  isPaid: boolean;
+  price: number;
+  trialQuestions: number;
+  questions: Question[];
+}
+
+interface StatusMessage {
+  type: string;
+  message: string;
+}
+
+// Helper type for safer API response handling
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
 // 转换API格式的题目到前端使用的格式
-const mapApiToClientQuestion = (question: any): any => {
+const mapApiToClientQuestion = (question: ApiQuestion): ClientQuestion => {
   return {
     id: question.id,
     question: question.text || '',
     questionType: question.questionType || 'single',
-    options: (question.options || []).map(o => ({
+    options: (question.options || []).map((o) => ({
       id: o.id || '',
-      text: o.text
+      text: o.text,
     })),
     correctAnswer: question.correctAnswer || '',
-    explanation: question.explanation || ''
+    explanation: question.explanation || '',
   };
 };
 
 // 转换前端格式的题目到API使用的格式
-const mapClientToApiQuestion = (question: any): any => {
+const mapClientToApiQuestion = (question: ClientQuestion): ApiQuestion => {
   return {
     id: question.id,
     text: question.question,
     questionType: question.questionType,
     explanation: question.explanation,
-    options: question.options.map(opt => ({
+    options: question.options.map((opt) => ({
       id: opt.id,
       text: opt.text,
       isCorrect: Array.isArray(question.correctAnswer) 
         ? question.correctAnswer.includes(opt.id)
-        : question.correctAnswer === opt.id
-    }))
+        : question.correctAnswer === opt.id,
+    })),
   };
 };
 
 const AdminQuestionSets = () => {
   const { isAdmin } = useUser();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusMessage, setStatusMessage] = useState({ type: '', message: '' });
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [statusMessage, setStatusMessage] = useState<StatusMessage>({ type: '', message: '' });
+  const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
+  const [showEditForm, setShowEditForm] = useState<boolean>(false);
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [currentQuestionSet, setCurrentQuestionSet] = useState<QuestionSet | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     id: '',
     title: '',
     description: '',
@@ -59,53 +128,46 @@ const AdminQuestionSets = () => {
     isPaid: false,
     price: 29.9,
     trialQuestions: 0,
-    questions: [] as Question[]
+    questions: [] as Question[],
   });
-  const [loading, setLoading] = useState(false);
-  const [loadingQuestionSets, setLoadingQuestionSets] = useState(true);
-  const [loadingAction, setLoadingAction] = useState('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [loadingQuestionSets, setLoadingQuestionSets] = useState<boolean>(true);
+  const [loadingAction, setLoadingAction] = useState<string>('');
 
   // 兑换码相关
-  const [redeemCodes, setRedeemCodes] = useState([]);
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
+  const [redeemCodes, setRedeemCodes] = useState<any[]>([]);
+  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState<boolean>(false);
   const [selectedQuizForCode, setSelectedQuizForCode] = useState<QuestionSet | null>(null);
-  const [codeDurationDays, setCodeDurationDays] = useState(30);
-  const [codeQuantity, setCodeQuantity] = useState(1);
-  const [generatedCodes, setGeneratedCodes] = useState([]);
-  const [codeFilterStatus, setCodeFilterStatus] = useState('all');
+  const [codeDurationDays, setCodeDurationDays] = useState<number>(30);
+  const [codeQuantity, setCodeQuantity] = useState<number>(1);
+  const [generatedCodes, setGeneratedCodes] = useState<any[]>([]);
+  const [codeFilterStatus, setCodeFilterStatus] = useState<string>('all');
   const [codeFilterQuizId, setCodeFilterQuizId] = useState<string | null>(null);
 
   // 题目管理相关
-  const [showQuestionModal, setShowQuestionModal] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState<any | null>(null);
-  const [questionFormData, setQuestionFormData] = useState<{
-    id: string;
-    question: string;
-    questionType: 'single' | 'multiple';
-    options: Option[];
-    correctAnswer: string | string[];
-    explanation: string;
-  }>({
+  const [showQuestionModal, setShowQuestionModal] = useState<boolean>(false);
+  const [currentQuestion, setCurrentQuestion] = useState<ClientQuestion | null>(null);
+  const [questionFormData, setQuestionFormData] = useState<QuestionFormData>({
     id: '',
     question: '',
     questionType: 'single',
     options: [],
     correctAnswer: '',
-    explanation: ''
+    explanation: '',
   });
-  const [optionInput, setOptionInput] = useState({ id: '', text: '' });
+  const [optionInput, setOptionInput] = useState<{ id: string; text: string }>({ id: '', text: '' });
   const [questionIndex, setQuestionIndex] = useState<number>(-1);
-  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [isAddingQuestion, setIsAddingQuestion] = useState<boolean>(false);
 
   // 文件上传相关
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   // 状态消息
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   // 可选的分类和图标
   const categoryOptions = [
@@ -124,16 +186,16 @@ const AdminQuestionSets = () => {
     '区块链',
     '大数据',
     '服务器运维',
-    '其他'
+    '其他',
   ];
   
   const iconOptions = [
     '📝', '📚', '💻', '🔍', '🧩', '⚙️', '📊', '🔐', '📡', '🛠️',
-    '🧪', '🔬', '📱', '🌐', '🤖', '🧠', '🔥', '💾', '⚡', '☁️'
+    '🧪', '🔬', '📱', '🌐', '🤖', '🧠', '🔥', '💾', '⚡', '☁️',
   ];
 
   // 显示状态消息
-  const showStatusMessage = (type: string, message: string) => {
+  const showStatusMessage = (type: string, message: string): void => {
     setStatusMessage({ type, message });
     // 根据消息类型设置对应的状态
     if (type === 'error') {
@@ -153,41 +215,42 @@ const AdminQuestionSets = () => {
   };
 
   // 加载所有兑换码
-  const loadRedeemCodes = async () => {
+  const loadRedeemCodes = async (): Promise<void> => {
     try {
       const response = await redeemCodeApi.getAllRedeemCodes();
       if (response.success && response.data) {
+        // Use any type to prevent type conflicts
         setRedeemCodes(response.data);
       } else {
-        console.error("加载兑换码失败:", response.error);
+        logger.error('加载兑换码失败:', response.error);
       }
     } catch (error) {
-      console.error("加载兑换码出错:", error);
+      logger.error('加载兑换码出错:', error);
     }
   };
 
   // 从API加载题库数据
-  const loadQuestionSets = async () => {
+  const loadQuestionSets = async (): Promise<void> => {
     setLoadingQuestionSets(true);
     try {
-      console.log("正在从API加载题库...");
+      logger.info('正在从API加载题库...');
       const response = await questionSetApi.getAllQuestionSets();
       
       if (response.success && response.data) {
         // 确保response.data是数组
         if (Array.isArray(response.data)) {
           setQuestionSets(response.data);
-          console.log("成功加载题库:", response.data.length);
+          logger.info('成功加载题库:', response.data.length);
         } else {
-          console.error("API返回的题库数据不是数组:", response.data);
+          logger.error('API返回的题库数据不是数组:', response.data);
           showStatusMessage('error', '题库数据格式不正确');
         }
       } else {
-        console.error("加载题库失败:", response.error || response.message);
+        logger.error('加载题库失败:', response.error || response.message);
         showStatusMessage('error', `加载题库失败: ${response.error || response.message || '未知错误'}`);
       }
     } catch (error) {
-      console.error("加载题库出错:", error);
+      logger.error('加载题库出错:', error);
       showStatusMessage('error', '加载题库时出现错误');
     } finally {
       setLoadingQuestionSets(false);
@@ -207,22 +270,22 @@ const AdminQuestionSets = () => {
   }, []);
 
   // 搜索过滤题库
-  const filteredQuestionSets = questionSets.filter(set => 
+  const filteredQuestionSets = questionSets.filter((set) => 
     set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
     set.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // 处理表单输入变化
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>): void => {
+    const { name, value, type, checked } = e.target as HTMLInputElement;
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
   // 创建新题库
-  const handleCreateSubmit = async () => {
+  const handleCreateSubmit = async (): Promise<void> => {
     setLoading(true);
     setLoadingAction('create');
     
@@ -240,9 +303,9 @@ const AdminQuestionSets = () => {
         category: formData.category,
         icon: formData.icon || '📝',
         isPaid: formData.isPaid,
-        price: formData.isPaid ? parseFloat(formData.price) : undefined,
-        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions) : undefined,
-        questions: []
+        price: formData.isPaid ? parseFloat(formData.price.toString()) : undefined,
+        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions.toString()) : undefined,
+        questions: [],
       };
       
       // 调用API创建题库
@@ -263,13 +326,13 @@ const AdminQuestionSets = () => {
           isPaid: false,
           price: 29.9,
           trialQuestions: 0,
-          questions: []
+          questions: [],
         });
       } else {
         showStatusMessage('error', `创建题库失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("创建题库出错:", error);
+      logger.error('创建题库出错:', error);
       showStatusMessage('error', '创建题库时发生错误');
     } finally {
       setLoading(false);
@@ -278,10 +341,10 @@ const AdminQuestionSets = () => {
   };
 
   // 点击编辑题库按钮
-  const handleEditClick = (questionSet) => {
+  const handleEditClick = (questionSet: QuestionSet): void => {
     setCurrentQuestionSet(questionSet);
     setFormData({
-      id: questionSet.id,
+      id: questionSet.id as string,
       title: questionSet.title,
       description: questionSet.description || '',
       category: questionSet.category,
@@ -289,13 +352,13 @@ const AdminQuestionSets = () => {
       isPaid: questionSet.isPaid || false,
       price: questionSet.price || 29.9,
       trialQuestions: questionSet.trialQuestions || 0,
-      questions: questionSet.questions || []
+      questions: questionSet.questions || [],
     });
     setShowEditForm(true);
   };
 
   // 提交编辑题库
-  const handleEditSubmit = async () => {
+  const handleEditSubmit = async (): Promise<void> => {
     setLoading(true);
     setLoadingAction('edit');
     
@@ -313,8 +376,8 @@ const AdminQuestionSets = () => {
         category: formData.category,
         icon: formData.icon,
         isPaid: formData.isPaid,
-        price: formData.isPaid ? parseFloat(formData.price) : undefined,
-        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions) : undefined
+        price: formData.isPaid ? parseFloat(formData.price.toString()) : undefined,
+        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions.toString()) : undefined,
       };
       
       // 调用API更新题库
@@ -328,7 +391,7 @@ const AdminQuestionSets = () => {
         showStatusMessage('error', `更新题库失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("更新题库出错:", error);
+      logger.error('更新题库出错:', error);
       showStatusMessage('error', '更新题库时发生错误');
     } finally {
       setLoading(false);
@@ -337,7 +400,7 @@ const AdminQuestionSets = () => {
   };
 
   // 删除题库
-  const handleDeleteQuestionSet = async (id) => {
+  const handleDeleteQuestionSet = async (id: string): Promise<void> => {
     if (!window.confirm('确定要删除此题库吗？此操作不可恢复！')) {
       return;
     }
@@ -356,7 +419,7 @@ const AdminQuestionSets = () => {
         showStatusMessage('error', `删除题库失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("删除题库出错:", error);
+      logger.error('删除题库出错:', error);
       showStatusMessage('error', '删除题库时发生错误');
     } finally {
       setLoading(false);
@@ -365,7 +428,7 @@ const AdminQuestionSets = () => {
   };
 
   // 显示生成兑换码模态框
-  const handleShowGenerateCodeModal = (questionSet) => {
+  const handleShowGenerateCodeModal = (questionSet: QuestionSet): void => {
     setSelectedQuizForCode(questionSet);
     setShowRedeemCodeModal(true);
     setCodeDurationDays(30);
@@ -374,7 +437,7 @@ const AdminQuestionSets = () => {
   };
 
   // 生成兑换码
-  const handleGenerateCode = async () => {
+  const handleGenerateCode = async (): Promise<void> => {
     if (!selectedQuizForCode) return;
     
     setLoading(true);
@@ -383,12 +446,13 @@ const AdminQuestionSets = () => {
     try {
       // 调用API生成兑换码
       const response = await redeemCodeApi.generateRedeemCodes(
-        selectedQuizForCode.id, 
+        selectedQuizForCode.id as string, 
         codeDurationDays,
         codeQuantity
       );
       
       if (response.success && response.data) {
+        // Use any type to avoid conflicts
         setGeneratedCodes(response.data);
         showStatusMessage('success', `成功生成${response.data.length}个兑换码`);
         await loadRedeemCodes();  // 重新加载兑换码
@@ -396,7 +460,7 @@ const AdminQuestionSets = () => {
         showStatusMessage('error', `生成兑换码失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("生成兑换码出错:", error);
+      logger.error('生成兑换码出错:', error);
       showStatusMessage('error', '生成兑换码时发生错误');
     } finally {
       setLoading(false);
@@ -405,7 +469,7 @@ const AdminQuestionSets = () => {
   };
 
   // 初始化添加问题的表单
-  const handleAddQuestion = () => {
+  const handleAddQuestion = (): void => {
     // 重置问题表单
     setQuestionFormData({
       id: '',
@@ -413,10 +477,10 @@ const AdminQuestionSets = () => {
       questionType: 'single',
       options: [
         { id: 'opt1', text: '' },
-        { id: 'opt2', text: '' }
+        { id: 'opt2', text: '' },
       ],
       correctAnswer: '',
-      explanation: ''
+      explanation: '',
     });
     setIsAddingQuestion(true);
     setCurrentQuestion(null);
@@ -424,34 +488,54 @@ const AdminQuestionSets = () => {
   };
 
   // 编辑问题
-  const handleEditQuestion = (question, index) => {
+  const handleEditQuestion = (question: ClientQuestion | Question, index: number): void => {
     setQuestionIndex(index);
-    setCurrentQuestion(question);
+    
+    // Convert Question to ClientQuestion if needed
+    const clientQuestion = isClientQuestion(question) 
+      ? question 
+      : {
+          id: question.id as string,
+          question: question.text || '',
+          questionType: question.questionType as QuestionType || 'single',
+          options: question.options || [],
+          correctAnswer: question.correctAnswer || '',
+          explanation: question.explanation || '',
+        };
+        
+    setCurrentQuestion(clientQuestion);
     setQuestionFormData({
-      id: question.id,
-      question: question.question,
-      questionType: question.questionType,
-      options: question.options,
-      correctAnswer: question.correctAnswer,
-      explanation: question.explanation
+      id: clientQuestion.id,
+      question: clientQuestion.question,
+      questionType: clientQuestion.questionType,
+      options: clientQuestion.options,
+      correctAnswer: clientQuestion.correctAnswer,
+      explanation: clientQuestion.explanation,
     });
     setShowQuestionModal(true);
   };
+  
+  // Helper to check if a question is ClientQuestion
+  const isClientQuestion = (question: any): question is ClientQuestion => {
+    return 'question' in question && typeof question.question === 'string';
+  };
 
   // 删除问题
-  const handleDeleteQuestion = (index) => {
+  const handleDeleteQuestion = (index: number): void => {
     if (!currentQuestionSet) return;
     
     if (!window.confirm('确定要删除此问题吗？此操作不可恢复！')) {
       return;
     }
     
-    const updatedQuestions = [...currentQuestionSet.questions];
+    // Ensure questions is an array
+    const questions = currentQuestionSet.questions || [];
+    const updatedQuestions = [...questions] as Question[];
     updatedQuestions.splice(index, 1);
     
     setCurrentQuestionSet({
       ...currentQuestionSet,
-      questions: updatedQuestions
+      questions: updatedQuestions,
     });
     
     // 直接更新题库中的问题列表
@@ -459,11 +543,11 @@ const AdminQuestionSets = () => {
   };
 
   // 选择正确答案
-  const handleSelectCorrectAnswer = (optionId) => {
+  const handleSelectCorrectAnswer = (optionId: string): void => {
     if (questionFormData.questionType === 'single') {
       setQuestionFormData({
         ...questionFormData,
-        correctAnswer: optionId
+        correctAnswer: optionId,
       });
     } else {
       const currentAnswers = Array.isArray(questionFormData.correctAnswer) 
@@ -473,42 +557,42 @@ const AdminQuestionSets = () => {
       if (currentAnswers.includes(optionId)) {
         setQuestionFormData({
           ...questionFormData,
-          correctAnswer: currentAnswers.filter(id => id !== optionId)
+          correctAnswer: currentAnswers.filter((id) => id !== optionId),
         });
       } else {
         setQuestionFormData({
           ...questionFormData,
-          correctAnswer: [...currentAnswers, optionId]
+          correctAnswer: [...currentAnswers, optionId],
         });
       }
     }
   };
 
   // 修改选项文本
-  const handleOptionChange = (index, text) => {
+  const handleOptionChange = (index: number, text: string): void => {
     const updatedOptions = [...questionFormData.options];
     updatedOptions[index] = {
       ...updatedOptions[index],
-      text
+      text,
     };
     
     setQuestionFormData({
       ...questionFormData,
-      options: updatedOptions
+      options: updatedOptions,
     });
   };
 
   // 添加新选项
-  const handleAddOption = () => {
+  const handleAddOption = (): void => {
     const newOptionId = `opt${questionFormData.options.length + 1}`;
     setQuestionFormData({
       ...questionFormData,
-      options: [...questionFormData.options, { id: newOptionId, text: '' }]
+      options: [...questionFormData.options, { id: newOptionId, text: '' }],
     });
   };
 
   // 删除选项
-  const handleDeleteOption = (index) => {
+  const handleDeleteOption = (index: number): void => {
     if (questionFormData.options.length <= 2) return;
     
     const updatedOptions = [...questionFormData.options];
@@ -521,18 +605,18 @@ const AdminQuestionSets = () => {
     if (questionFormData.questionType === 'single' && questionFormData.correctAnswer === deletedOption.id) {
       updatedCorrectAnswer = '';
     } else if (questionFormData.questionType === 'multiple' && Array.isArray(questionFormData.correctAnswer)) {
-      updatedCorrectAnswer = questionFormData.correctAnswer.filter(id => id !== deletedOption.id);
+      updatedCorrectAnswer = questionFormData.correctAnswer.filter((id) => id !== deletedOption.id);
     }
     
     setQuestionFormData({
       ...questionFormData,
       options: updatedOptions,
-      correctAnswer: updatedCorrectAnswer
+      correctAnswer: updatedCorrectAnswer,
     });
   };
 
   // 直接添加问题到服务器
-  const handleDirectAddQuestion = async () => {
+  const handleDirectAddQuestion = async (): Promise<void> => {
     if (!currentQuestionSet) return;
     
     // 验证表单
@@ -546,7 +630,7 @@ const AdminQuestionSets = () => {
       return;
     }
     
-    if (questionFormData.options.some(opt => !opt.text.trim())) {
+    if (questionFormData.options.some((opt) => !opt.text.trim())) {
       showStatusMessage('error', '选项内容不能为空');
       return;
     }
@@ -568,18 +652,21 @@ const AdminQuestionSets = () => {
       const questionData = mapClientToApiQuestion(questionFormData);
       
       // 重要: 确保传入当前题库的ID
-      const response = await questionApi.addQuestion(currentQuestionSet.id, questionData);
+      const response = await questionApi.addQuestion(currentQuestionSet.id as string, questionData);
       
       if (response.success && response.data) {
         // 将API返回的问题转换为前端格式并添加到当前题库
-        const apiQuestion = response.data;
+        const apiQuestion = response.data as ApiQuestion;
         const clientQuestion = mapApiToClientQuestion(apiQuestion);
         
-        const updatedQuestions = [...(currentQuestionSet.questions || []), clientQuestion];
+        // Ensure questions is an array
+        const currentQuestions = currentQuestionSet.questions || [];
+        // Use type assertion to avoid type conflicts
+        const updatedQuestions = [...currentQuestions, clientQuestion as unknown as Question] as Question[];
         
         setCurrentQuestionSet({
           ...currentQuestionSet,
-          questions: updatedQuestions
+          questions: updatedQuestions,
         });
         
         showStatusMessage('success', '问题添加成功');
@@ -593,16 +680,16 @@ const AdminQuestionSets = () => {
           questionType: 'single',
           options: [
             { id: 'opt1', text: '' },
-            { id: 'opt2', text: '' }
+            { id: 'opt2', text: '' },
           ],
           correctAnswer: '',
-          explanation: ''
+          explanation: '',
         });
       } else {
         showStatusMessage('error', `添加问题失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("添加问题出错:", error);
+      logger.error('添加问题出错:', error);
       showStatusMessage('error', '添加问题时发生错误');
     } finally {
       setLoading(false);
@@ -611,7 +698,7 @@ const AdminQuestionSets = () => {
   };
 
   // 更新题库的问题列表
-  const handleUpdateQuestions = async (questions) => {
+  const handleUpdateQuestions = async (questions: Question[]): Promise<void> => {
     if (!currentQuestionSet) return;
     
     setLoading(true);
@@ -621,11 +708,11 @@ const AdminQuestionSets = () => {
       // 更新题库中的问题列表
       const updatedQuestionSet = {
         ...currentQuestionSet,
-        questions
+        questions,
       };
       
       const response = await questionSetApi.updateQuestionSet(
-        currentQuestionSet.id, 
+        currentQuestionSet.id as string, 
         updatedQuestionSet
       );
       
@@ -637,7 +724,7 @@ const AdminQuestionSets = () => {
         showStatusMessage('error', `更新问题列表失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("更新问题列表出错:", error);
+      logger.error('更新问题列表出错:', error);
       showStatusMessage('error', '更新问题列表时发生错误');
     } finally {
       setLoading(false);
@@ -646,7 +733,7 @@ const AdminQuestionSets = () => {
   };
 
   // 直接更新问题
-  const handleDirectUpdateQuestion = async () => {
+  const handleDirectUpdateQuestion = async (): Promise<void> => {
     if (!currentQuestionSet || !currentQuestion) return;
     
     // 验证表单
@@ -660,7 +747,7 @@ const AdminQuestionSets = () => {
       return;
     }
     
-    if (questionFormData.options.some(opt => !opt.text.trim())) {
+    if (questionFormData.options.some((opt) => !opt.text.trim())) {
       showStatusMessage('error', '选项内容不能为空');
       return;
     }
@@ -686,16 +773,18 @@ const AdminQuestionSets = () => {
       
       if (response.success && response.data) {
         // 将API返回的问题转换为前端格式
-        const apiQuestion = response.data;
+        const apiQuestion = response.data as ApiQuestion;
         const updatedQuestion = mapApiToClientQuestion(apiQuestion);
         
         // 更新题库中的问题
-        const updatedQuestions = [...currentQuestionSet.questions];
-        updatedQuestions[questionIndex] = updatedQuestion;
+        const questions = currentQuestionSet.questions || [];
+        const updatedQuestions = [...questions] as Question[];
+        // Use double type assertion to avoid type conflicts
+        updatedQuestions[questionIndex] = updatedQuestion as unknown as Question;
         
         setCurrentQuestionSet({
           ...currentQuestionSet,
-          questions: updatedQuestions
+          questions: updatedQuestions,
         });
         
         showStatusMessage('success', '问题更新成功');
@@ -705,7 +794,7 @@ const AdminQuestionSets = () => {
         showStatusMessage('error', `更新问题失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("更新问题出错:", error);
+      logger.error('更新问题出错:', error);
       showStatusMessage('error', '更新问题时发生错误');
     } finally {
       setLoading(false);
@@ -714,7 +803,7 @@ const AdminQuestionSets = () => {
   };
 
   // 保存所有更改
-  const handleSaveAllChanges = async () => {
+  const handleSaveAllChanges = async (): Promise<void> => {
     setLoading(true);
     setLoadingAction('saveAll');
     
@@ -722,7 +811,7 @@ const AdminQuestionSets = () => {
       await loadQuestionSets();
       showStatusMessage('success', '数据刷新成功');
     } catch (error) {
-      console.error("刷新数据出错:", error);
+      logger.error('刷新数据出错:', error);
       showStatusMessage('error', '刷新数据时发生错误');
     } finally {
       setLoading(false);
@@ -742,9 +831,9 @@ const AdminQuestionSets = () => {
     
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredQuestionSets.map(questionSet => (
+        {filteredQuestionSets.map((questionSet) => (
           <div 
-            key={questionSet.id} 
+            key={questionSet.id as string} 
             className="bg-white p-5 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200"
           >
             <div className="flex justify-between items-start mb-4">
@@ -800,7 +889,7 @@ const AdminQuestionSets = () => {
                 </button>
                 <button 
                   className="text-red-600 hover:text-red-800"
-                  onClick={() => handleDeleteQuestionSet(questionSet.id)}
+                  onClick={() => handleDeleteQuestionSet(questionSet.id as string)}
                 >
                   删除
                 </button>
@@ -936,7 +1025,7 @@ const AdminQuestionSets = () => {
                   <Input.TextArea
                     rows={4}
                     value={questionFormData.question}
-                    onChange={e => setQuestionFormData({...questionFormData, question: e.target.value})}
+                    onChange={(e) => setQuestionFormData({ ...questionFormData, question: e.target.value })}
                     placeholder="请输入题目内容"
                   />
                 </Form.Item>
@@ -948,7 +1037,7 @@ const AdminQuestionSets = () => {
                   <Input.TextArea
                     rows={2}
                     value={questionFormData.explanation}
-                    onChange={e => setQuestionFormData({...questionFormData, explanation: e.target.value})}
+                    onChange={(e) => setQuestionFormData({ ...questionFormData, explanation: e.target.value })}
                     placeholder="请输入题目解释（当用户答错时显示）"
                   />
                 </Form.Item>
@@ -961,14 +1050,14 @@ const AdminQuestionSets = () => {
                   <Radio.Group
                     options={[
                       { label: '单选题', value: 'single' },
-                      { label: '多选题', value: 'multiple' }
+                      { label: '多选题', value: 'multiple' },
                     ]}
-                    onChange={e => {
+                    onChange={(e) => {
                       const newType = e.target.value;
                       setQuestionFormData({
                         ...questionFormData,
                         questionType: newType,
-                        correctAnswer: newType === 'single' ? '' : []
+                        correctAnswer: newType === 'single' ? '' : [],
                       });
                     }}
                     value={questionFormData.questionType}
@@ -1101,8 +1190,8 @@ const AdminQuestionSets = () => {
                 message="兑换码已生成"
                 description={
                   <div>
-                    <p>兑换码: <strong>{generatedCodes.map(code => code.code).join(', ')}</strong></p>
-                    <p>有效期至: {generatedCodes.map(code => new Date(code.expiryDate).toLocaleString()).join(', ')}</p>
+                    <p>兑换码: <strong>{generatedCodes.map((code) => code.code).join(', ')}</strong></p>
+                    <p>有效期至: {generatedCodes.map((code) => new Date(code.expiryDate).toLocaleString()).join(', ')}</p>
                   </div>
                 }
                 type="success"
@@ -1194,7 +1283,7 @@ const AdminQuestionSets = () => {
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
                 <option value="">选择分类</option>
-                {categoryOptions.map(category => (
+                {categoryOptions.map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
@@ -1205,10 +1294,10 @@ const AdminQuestionSets = () => {
               className="mb-3"
             >
               <div className="flex flex-wrap gap-2">
-                {iconOptions.map(icon => (
+                {iconOptions.map((icon) => (
                   <div
                     key={icon}
-                    onClick={() => setFormData({...formData, icon})}
+                    onClick={() => setFormData({ ...formData, icon })}
                     className={`text-2xl p-2 border rounded cursor-pointer ${formData.icon === icon ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
                   >
                     {icon}
@@ -1346,7 +1435,7 @@ const AdminQuestionSets = () => {
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
                 <option value="">选择分类</option>
-                {categoryOptions.map(category => (
+                {categoryOptions.map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
@@ -1357,10 +1446,10 @@ const AdminQuestionSets = () => {
               className="mb-3"
             >
               <div className="flex flex-wrap gap-2">
-                {iconOptions.map(icon => (
+                {iconOptions.map((icon) => (
                   <div
                     key={icon}
-                    onClick={() => setFormData({...formData, icon})}
+                    onClick={() => setFormData({ ...formData, icon })}
                     className={`text-2xl p-2 border rounded cursor-pointer ${formData.icon === icon ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
                   >
                     {icon}

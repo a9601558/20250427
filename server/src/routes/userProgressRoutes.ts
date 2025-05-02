@@ -10,7 +10,7 @@ import {
   deleteProgressRecord,
   getUserProgressStats,
   getUserProgressRecords,
-  getProgressSummary
+  getProgressSummary,
 } from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 

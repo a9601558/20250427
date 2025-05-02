@@ -12,8 +12,8 @@ module.exports = {
         
         // 先删除原有的外键约束
         await queryInterface.sequelize.query(
-          `ALTER TABLE purchases DROP FOREIGN KEY purchases_ibfk_1`
-        ).catch(err => {
+          'ALTER TABLE purchases DROP FOREIGN KEY purchases_ibfk_1'
+        ).catch((err) => {
           console.log('删除外键约束失败，可能不存在:', err.message);
         });
         
@@ -27,10 +27,10 @@ module.exports = {
           name: 'purchases_question_set_id_fkey',
           references: {
             table: 'question_sets',
-            field: 'id'
+            field: 'id',
           },
           onDelete: 'CASCADE',
-          onUpdate: 'CASCADE'
+          onUpdate: 'CASCADE',
         });
         
         console.log('成功将purchases表中的quiz_id字段更新为question_set_id');
@@ -55,8 +55,8 @@ module.exports = {
       if (tableInfo.question_set_id && !tableInfo.quiz_id) {
         // 先删除新的外键约束
         await queryInterface.sequelize.query(
-          `ALTER TABLE purchases DROP FOREIGN KEY purchases_question_set_id_fkey`
-        ).catch(err => {
+          'ALTER TABLE purchases DROP FOREIGN KEY purchases_question_set_id_fkey'
+        ).catch((err) => {
           console.log('删除外键约束失败，可能不存在:', err.message);
         });
         
@@ -70,10 +70,10 @@ module.exports = {
           name: 'purchases_ibfk_1',
           references: {
             table: 'question_sets',
-            field: 'id'
+            field: 'id',
           },
           onDelete: 'CASCADE',
-          onUpdate: 'CASCADE'
+          onUpdate: 'CASCADE',
         });
         
         console.log('成功将purchases表中的question_set_id字段回滚为quiz_id');
@@ -84,5 +84,5 @@ module.exports = {
       console.error('回滚字段名更改失败:', error);
       throw error;
     }
-  }
+  },
 }; 

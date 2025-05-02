@@ -7,7 +7,7 @@ import {
   getUsers,
   deleteUser,
   getUserById,
-  updateUser
+  updateUser,
 } from '../controllers/userController';
 import { protect, admin } from '../middleware/authMiddleware';
 

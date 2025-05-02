@@ -17,8 +17,8 @@ const initializeSocket = (server) => {
     exports.io = new socket_io_1.Server(server, {
         cors: {
             origin: process.env.CLIENT_URL || 'http://localhost:3000',
-            methods: ['GET', 'POST']
-        }
+            methods: ['GET', 'POST'],
+        },
     });
     // 添加认证中间件
     exports.io.use((socket, next) => {
@@ -48,7 +48,7 @@ const initializeSocket = (server) => {
             console.log('JWT解码成功, 内容:', {
                 id: decoded.id,
                 exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'none',
-                iat: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : 'none'
+                iat: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : 'none',
             });
             socket.userId = decoded.id; // 将用户ID绑定到socket实例
             console.log(`Socket认证成功: 用户ID ${socket.userId}`);
@@ -58,7 +58,7 @@ const initializeSocket = (server) => {
             console.error('Socket认证失败详情:', {
                 message: error.message,
                 name: error.name,
-                expiredAt: error.expiredAt ? new Date(error.expiredAt).toISOString() : undefined
+                expiredAt: error.expiredAt ? new Date(error.expiredAt).toISOString() : undefined,
             });
             // 检查错误类型并发送更具体的错误信息
             if (error.name === 'TokenExpiredError') {
@@ -146,7 +146,7 @@ const initializeSocket = (server) => {
                     totalQuestions: 1,
                     correctAnswers: isCorrect ? 1 : 0,
                     lastAccessed: new Date(),
-                    lastQuestionIndex: lastQuestionIndex // 保存最后题目索引
+                    lastQuestionIndex: lastQuestionIndex, // 保存最后题目索引
                 });
                 console.log(`用户进度已${created ? '创建' : '更新'}: ${userId}, ${questionSetId}`);
                 // 转换为纯对象
@@ -154,12 +154,12 @@ const initializeSocket = (server) => {
                 // 向用户发送进度已更新通知
                 exports.io.to(userId).emit('progress:update', {
                     questionSetId,
-                    progress: progressData
+                    progress: progressData,
                 });
                 // 向客户端确认进度已保存
                 socket.emit('progress_saved', {
                     success: true,
-                    progress: progressData
+                    progress: progressData,
                 });
             }
             catch (error) {

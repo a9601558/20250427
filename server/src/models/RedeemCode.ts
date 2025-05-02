@@ -78,52 +78,52 @@ RedeemCode.init(
     code: {
       type: DataTypes.STRING(20),
       allowNull: false,
-      unique: true
+      unique: true,
     },
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: 'question_sets',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     validityDays: {
       type: DataTypes.INTEGER,
       allowNull: false,
       validate: {
-        min: 1
-      }
+        min: 1,
+      },
     },
     expiryDate: {
       type: DataTypes.DATE,
-      allowNull: false
+      allowNull: false,
     },
     isUsed: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
     },
     usedBy: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: 'users',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     usedAt: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
     },
     createdBy: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: 'users',
-        key: 'id'
-      }
-    }
+        key: 'id',
+      },
+    },
   },
   {
     sequelize,
@@ -133,7 +133,7 @@ RedeemCode.init(
       { fields: ['questionSetId'] },
       { fields: ['isUsed'] },
       { fields: ['usedBy'] },
-      { fields: ['createdBy'] }
+      { fields: ['createdBy'] },
     ],
     hooks: {
       beforeValidate: async (redeemCode: RedeemCode) => {
@@ -148,8 +148,8 @@ RedeemCode.init(
           expiryDate.setDate(expiryDate.getDate() + redeemCode.validityDays);
           redeemCode.expiryDate = expiryDate;
         }
-      }
-    }
+      },
+    },
   }
 );
 

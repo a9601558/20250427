@@ -19,14 +19,14 @@ const getQuestions = async (req, res) => {
         const includeOptions = include === 'options' ? [{
                 model: Option_1.default,
                 as: 'options',
-                attributes: ['id', 'text', 'isCorrect', 'optionIndex']
+                attributes: ['id', 'text', 'isCorrect', 'optionIndex'],
             }] : [];
         const { count, rows: questions } = await Question_1.default.findAndCountAll({
             where,
             include: includeOptions,
             limit: Number(limit),
             offset,
-            order: [['orderIndex', 'ASC']]
+            order: [['orderIndex', 'ASC']],
         });
         console.log(`Found ${questions.length} questions with options: ${include === 'options' ? 'yes' : 'no'}`);
         if (questions.length > 0 && include === 'options') {
@@ -35,7 +35,7 @@ const getQuestions = async (req, res) => {
         // Return response in the format expected by the frontend
         res.status(200).json({
             success: true,
-            data: questions
+            data: questions,
         });
     }
     catch (error) {
@@ -43,7 +43,7 @@ const getQuestions = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '获取问题列表失败',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined,
         });
     }
 };
@@ -80,7 +80,7 @@ const createQuestion = async (req, res) => {
             text,
             questionType,
             explanation,
-            orderIndex: orderIndex || 0
+            orderIndex: orderIndex || 0,
         });
         (0, responseUtils_1.sendResponse)(res, 201, '创建问题成功', question);
     }
@@ -104,7 +104,7 @@ const updateQuestion = async (req, res) => {
             text,
             questionType,
             explanation,
-            orderIndex
+            orderIndex,
         });
         (0, responseUtils_1.sendResponse)(res, 200, '更新问题成功', question);
     }
@@ -148,7 +148,7 @@ const getRandomQuestion = async (req, res) => {
         const randomOffset = Math.floor(Math.random() * count);
         const question = await Question_1.default.findOne({
             where: { questionSetId: String(questionSetId) },
-            offset: randomOffset
+            offset: randomOffset,
         });
         (0, responseUtils_1.sendResponse)(res, 200, '获取随机问题成功', question);
     }
@@ -172,7 +172,7 @@ const getQuestionCount = async (req, res) => {
         return res.status(200).json({
             success: true,
             count,
-            message: `题库 ${questionSetId} 包含 ${count} 个问题`
+            message: `题库 ${questionSetId} 包含 ${count} 个问题`,
         });
     }
     catch (error) {
@@ -180,7 +180,7 @@ const getQuestionCount = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: '获取题目数量失败',
-            error: error.message
+            error: error.message,
         });
     }
 };

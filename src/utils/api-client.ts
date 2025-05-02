@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosRequestConfig, AxiosError } from 'axios';
+import { logger } from './logger';
 
 /**
  * 先进的API客户端，提供：
@@ -8,22 +9,34 @@ import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
  * 4. 请求速率限制
  */
 
-interface CacheItem<T = any> {
+interface CacheItem<T> {
   data: T;
   timestamp: number;
   expiresAt: number;
 }
 
-interface PendingRequest<T = any> {
+interface PendingRequest<T> {
   promise: Promise<T>;
   controller: AbortController;
   timestamp: number;
 }
 
+interface RequestOptions {
+  cacheDuration?: number;   // 缓存持续时间（毫秒）
+  skipCache?: boolean;      // 是否跳过缓存
+  retries?: number;         // 重试次数
+  retryDelay?: number;      // 初始重试延迟（毫秒）
+  forceRefresh?: boolean;   // 强制刷新缓存
+}
+
+interface ApiClientParams {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
 class ApiClient {
-  private cache: Map<string, CacheItem> = new Map();
-  private pendingRequests: Map<string, PendingRequest> = new Map();
-  private requestsPerMinute: Map<string, number[]> = new Map();
+  private cache = new Map<string, CacheItem<unknown>>();
+  private pendingRequests = new Map<string, PendingRequest<unknown>>();
+  private requestsPerMinute = new Map<string, number[]>();
   private maxRequestsPerMinute = 50; // 每分钟最大请求数
   private defaultCacheDuration = 60000; // 默认缓存1分钟
 
@@ -50,12 +63,12 @@ class ApiClient {
     }
     
     // 只保留一分钟内的请求
-    const requests = this.requestsPerMinute.get(url)!.filter(time => time > oneMinuteAgo);
+    const requests = this.requestsPerMinute.get(url)!.filter((time) => time > oneMinuteAgo);
     this.requestsPerMinute.set(url, requests);
     
     // 检查是否达到限制
     if (requests.length >= this.maxRequestsPerMinute) {
-      console.warn(`Rate limit reached for ${url}: ${requests.length} requests in the last minute`);
+      logger.warn(`Rate limit reached for ${url}: ${requests.length} requests in the last minute`);
       return false;
     }
     
@@ -67,16 +80,10 @@ class ApiClient {
   /**
    * 执行HTTP请求，带缓存、重试和速率限制
    */
-  public async request<T = any>(
+  public async request<T>(
     url: string, 
     config?: AxiosRequestConfig,
-    options?: {
-      cacheDuration?: number;   // 缓存持续时间（毫秒）
-      skipCache?: boolean;      // 是否跳过缓存
-      retries?: number;         // 重试次数
-      retryDelay?: number;      // 初始重试延迟（毫秒）
-      forceRefresh?: boolean;   // 强制刷新缓存
-    }
+    options?: RequestOptions
   ): Promise<T> {
     // 默认选项
     const {
@@ -84,7 +91,7 @@ class ApiClient {
       skipCache = false,
       retries = 3,
       retryDelay = 300,
-      forceRefresh = false
+      forceRefresh = false,
     } = options || {};
     
     // 生成缓存键
@@ -95,12 +102,12 @@ class ApiClient {
       // 如果有缓存，返回缓存数据
       const cached = this.cache.get(cacheKey);
       if (cached) {
-        console.log(`[API] Rate limited, returning cached data for: ${url}`);
-        return cached.data;
+        logger.info(`[API] Rate limited, returning cached data for: ${url}`);
+        return cached.data as T;
       }
       
       // 否则等待一秒再重试
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
     // 1. 先检查缓存（除非指定跳过）
@@ -109,8 +116,8 @@ class ApiClient {
       const now = Date.now();
       
       if (cached && cached.expiresAt > now) {
-        console.log(`[API] Cache hit for: ${url}`);
-        return cached.data;
+        logger.info(`[API] Cache hit for: ${url}`);
+        return cached.data as T;
       }
     }
 
@@ -119,8 +126,8 @@ class ApiClient {
       const pendingRequest = this.pendingRequests.get(cacheKey)!;
       // 如果请求不超过10秒，复用正在进行的请求
       if (Date.now() - pendingRequest.timestamp < 10000) {
-        console.log(`[API] Reusing pending request for: ${url}`);
-        return pendingRequest.promise;
+        logger.info(`[API] Reusing pending request for: ${url}`);
+        return pendingRequest.promise as Promise<T>;
       } else {
         // 清理超时的请求
         pendingRequest.controller.abort();
@@ -139,7 +146,7 @@ class ApiClient {
           url,
         };
         
-        console.log(`[API] Request ${attempt > 0 ? `(attempt ${attempt+1})` : ''} for: ${url}`);
+        logger.info(`[API] Request ${attempt > 0 ? `(attempt ${attempt+1})` : ''} for: ${url}`);
         const response = await axios.request<T>(axiosConfig);
         
         // 缓存响应
@@ -147,35 +154,40 @@ class ApiClient {
           this.cache.set(cacheKey, {
             data: response.data,
             timestamp: Date.now(),
-            expiresAt: Date.now() + cacheDuration
+            expiresAt: Date.now() + cacheDuration,
           });
         }
         
         return response.data;
-      } catch (error: any) {
+      } catch (error) {
+        const err = error as Error | AxiosError;
         // 如果是被我们的控制器中止的请求，不进行重试
-        if (error.name === 'CanceledError' || error.name === 'AbortError') {
-          throw error;
+        if (err.name === 'CanceledError' || err.name === 'AbortError') {
+          throw err;
         }
         
+        // 检查是否是 AxiosError
+        const axiosError = error as AxiosError;
         // 如果是429错误，延长重试时间
-        const retryAfter = error.response?.headers?.['retry-after'];
-        const isTooManyRequestsError = error.response?.status === 429;
+        const retryAfter = axiosError.response?.headers?.['retry-after'];
+        const isTooManyRequestsError = axiosError.response?.status === 429;
         
         // 如果还有重试次数，并且错误是可以重试的
-        if (attempt < retries && (error.response?.status >= 500 || isTooManyRequestsError)) {
+        if (attempt < retries && (axiosError.response?.status === undefined || 
+            axiosError.response?.status >= 500 || 
+            isTooManyRequestsError)) {
           // 计算重试延迟（指数退避）
           const delay = isTooManyRequestsError && retryAfter
             ? parseInt(retryAfter, 10) * 1000
             : Math.min(retryDelay * Math.pow(2, attempt), 30000); // 最大延迟30秒
             
-          console.log(`[API] Retrying ${url} after ${delay}ms (${attempt+1}/${retries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          logger.info(`[API] Retrying ${url} after ${delay}ms (${attempt+1}/${retries})`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
           return executeRequest(attempt + 1);
         }
         
         // 没有重试次数了，抛出错误
-        throw error;
+        throw err;
       }
     };
 
@@ -187,7 +199,7 @@ class ApiClient {
     this.pendingRequests.set(cacheKey, {
       promise: requestPromise,
       controller,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     return requestPromise;
@@ -196,10 +208,10 @@ class ApiClient {
   /**
    * 执行GET请求
    */
-  public async get<T = any>(
+  public async get<T>(
     url: string, 
-    params?: any, 
-    options?: any
+    params?: Record<string, ApiClientParams>, 
+    options?: RequestOptions
   ): Promise<T> {
     return this.request<T>(url, { method: 'GET', params }, options);
   }
@@ -207,10 +219,10 @@ class ApiClient {
   /**
    * 执行POST请求
    */
-  public async post<T = any>(
+  public async post<T>(
     url: string, 
-    data?: any, 
-    options?: any
+    data?: Record<string, unknown>, 
+    options?: RequestOptions
   ): Promise<T> {
     return this.request<T>(url, { method: 'POST', data }, { ...options, skipCache: true });
   }
@@ -218,10 +230,10 @@ class ApiClient {
   /**
    * 执行PUT请求
    */
-  public async put<T = any>(
+  public async put<T>(
     url: string, 
-    data?: any, 
-    options?: any
+    data?: Record<string, unknown>, 
+    options?: RequestOptions
   ): Promise<T> {
     return this.request<T>(url, { method: 'PUT', data }, { ...options, skipCache: true });
   }
@@ -229,9 +241,9 @@ class ApiClient {
   /**
    * 执行DELETE请求
    */
-  public async delete<T = any>(
+  public async delete<T>(
     url: string, 
-    options?: any
+    options?: RequestOptions
   ): Promise<T> {
     return this.request<T>(url, { method: 'DELETE' }, { ...options, skipCache: true });
   }
@@ -294,11 +306,11 @@ class ApiClient {
         if (error.response?.status === 401) {
           // 401错误，清除token并可能跳转到登录页
           localStorage.removeItem('token');
-          console.log('会话已过期，请重新登录');
+          logger.warn('会话已过期，请重新登录');
           // 如果需要自动跳转到登录页
           // window.location.href = '/login';
         } else if (error.response?.status === 429) {
-          console.warn('请求过于频繁，请稍后再试');
+          logger.warn('请求过于频繁，请稍后再试');
         }
         
         return Promise.reject(error);

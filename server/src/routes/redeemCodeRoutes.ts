@@ -7,7 +7,7 @@ import {
   getUserRedeemCodes,
   fixRedeemCodeQuestionSet,
   debugRedeemCodes,
-  batchFixRedeemCodes
+  batchFixRedeemCodes,
 } from '../controllers/redeemCodeController';
 import { protect, admin } from '../middleware/authMiddleware';
 

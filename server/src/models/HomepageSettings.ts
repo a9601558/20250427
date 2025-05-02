@@ -19,15 +19,15 @@ HomepageSettings.init(
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: 1
+      defaultValue: 1,
     },
     welcome_title: {
       type: DataTypes.STRING(255),
-      allowNull: false
+      allowNull: false,
     },
     welcome_description: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     },
     featured_categories: {
       type: DataTypes.TEXT,
@@ -38,25 +38,25 @@ HomepageSettings.init(
       },
       set(value: string[]) {
         this.setDataValue('featured_categories', JSON.stringify(value));
-      }
+      },
     },
     announcements: {
       type: DataTypes.TEXT,
-      allowNull: true
+      allowNull: true,
     },
     footer_text: {
       type: DataTypes.TEXT,
-      allowNull: true
+      allowNull: true,
     },
     banner_image: {
       type: DataTypes.STRING(255),
-      allowNull: true
+      allowNull: true,
     },
     theme: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      defaultValue: 'light' as const
-    }
+      defaultValue: 'light' as const,
+    },
   },
   {
     sequelize,
@@ -65,7 +65,7 @@ HomepageSettings.init(
     underscored: true,
     timestamps: true,
     createdAt: 'created_at',
-    updatedAt: 'updated_at'
+    updatedAt: 'updated_at',
   }
 );
 

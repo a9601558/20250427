@@ -18,7 +18,7 @@ async function addTestQuestionSet() {
       isPaid: false,
       price: undefined,
       trialQuestions: 0,
-      isFeatured: false
+      isFeatured: false,
     });
     
     console.log(`测试题库创建成功，ID: ${questionSet.id}`);
@@ -31,7 +31,7 @@ async function addTestQuestionSet() {
         text: `测试题目 ${i}`,
         explanation: `这是测试题目 ${i} 的解析`,
         questionType: 'single',
-        orderIndex: i - 1
+        orderIndex: i - 1,
       });
       
       console.log(`题目 ${i} 创建成功，ID: ${question.id}`);
@@ -41,7 +41,7 @@ async function addTestQuestionSet() {
         { text: '选项A', isCorrect: i === 1, optionIndex: 'A' },
         { text: '选项B', isCorrect: i === 2, optionIndex: 'B' },
         { text: '选项C', isCorrect: i === 3, optionIndex: 'C' },
-        { text: '选项D', isCorrect: false, optionIndex: 'D' }
+        { text: '选项D', isCorrect: false, optionIndex: 'D' },
       ];
       
       for (const option of options) {
@@ -50,7 +50,7 @@ async function addTestQuestionSet() {
           questionId: question.id,
           text: option.text,
           isCorrect: option.isCorrect,
-          optionIndex: option.optionIndex
+          optionIndex: option.optionIndex,
         });
       }
       

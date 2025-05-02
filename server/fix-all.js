@@ -30,7 +30,7 @@ const possibleUserJsPaths = [
   // 添加更多可能的路径
   path.join(distDir, 'server/src/models/User.js'),
   path.join(distDir, 'src/models/User.js'),
-  path.join(distDir, 'models/User.js')
+  path.join(distDir, 'models/User.js'),
 ];
 
 // 1. 修复 User.js 文件
@@ -95,7 +95,7 @@ const sequelize = new Sequelize(
 `;
     
     // 替换或添加Sequelize配置
-    if (userJsContent.includes("require('../config/db')") || userJsContent.includes("require(\"../config/db\")")) {
+    if (userJsContent.includes("require('../config/db')") || userJsContent.includes('require("../config/db")')) {
       userJsContent = userJsContent.replace(/const sequelize = require\(['"]\.\.\/config\/db['"]\);/, inlineSequelizeCode);
       console.log('已替换Sequelize导入语句');
     } else {
@@ -133,7 +133,7 @@ const possibleConfigDirs = [
   path.join(rootDir, 'server/dist/config'),
   path.join(distDir, 'server/src/config'),
   path.join(distDir, 'src/config'),
-  path.join(distDir, 'config')
+  path.join(distDir, 'config'),
 ];
 
 let configDir = null;
@@ -217,17 +217,17 @@ try {
   fs.writeFileSync(dbJsPath, dbJsContent, 'utf8');
   console.log(`成功: 已创建兼容性文件 ${dbJsPath}`);
 } catch (error) {
-  console.error(`错误: 创建数据库配置文件失败:`, error);
+  console.error('错误: 创建数据库配置文件失败:', error);
 }
 
 // 3. 复制或创建数据库配置
 console.log('\n步骤3: 复制数据库配置到所有可能位置...');
 
 const possibleDatabasePaths = [
-  path.join(configDir, 'database.js')
+  path.join(configDir, 'database.js'),
 ];
 
-possibleDatabasePaths.forEach(dbPath => {
+possibleDatabasePaths.forEach((dbPath) => {
   try {
     fs.writeFileSync(dbPath, dbJsContent, 'utf8');
     console.log(`成功: 已创建/更新数据库配置文件 ${dbPath}`);
@@ -246,7 +246,7 @@ const possibleIndexFixScripts = [
   path.join(rootDir, 'dist/src/scripts/fix-db-indexes.js'),
   path.join(distDir, 'scripts/fix-db-indexes.js'),
   path.join(distDir, 'server/src/scripts/fix-db-indexes.js'),
-  path.join(distDir, 'src/scripts/fix-db-indexes.js')
+  path.join(distDir, 'src/scripts/fix-db-indexes.js'),
 ];
 
 let indexFixScript = null;

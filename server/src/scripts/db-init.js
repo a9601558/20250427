@@ -12,7 +12,7 @@ const chalk = require('chalk') || { green: (t) => t, red: (t) => t, blue: (t) =>
 const log = {
   success: (msg) => console.log(chalk.green(`✓ ${msg}`)),
   error: (msg) => console.log(chalk.red(`✗ ${msg}`)),
-  info: (msg) => console.log(chalk.blue(`ℹ ${msg}`))
+  info: (msg) => console.log(chalk.blue(`ℹ ${msg}`)),
 };
 
 async function initDatabase() {
@@ -42,7 +42,7 @@ async function initDatabase() {
           isAdmin: false,
           progress: {},
           purchases: [],
-          redeemCodes: []
+          redeemCodes: [],
         });
         log.success('测试用户创建成功！用户名: testuser, 密码: Password123');
       } else {

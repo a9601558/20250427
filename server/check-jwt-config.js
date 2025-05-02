@@ -18,7 +18,7 @@ const possibleEnvPaths = [
   path.join(process.cwd(), '../.env'),
   path.join(process.cwd(), '../../.env'),
   path.join(process.cwd(), 'server/.env'),
-  path.join(process.cwd(), 'dist/server/.env')
+  path.join(process.cwd(), 'dist/server/.env'),
 ];
 
 let envFound = false;
@@ -44,7 +44,7 @@ if (!envFound) {
   const lines = envContent.split('\n');
   
   // 检查JWT相关配置
-  const jwtLines = lines.filter(line => 
+  const jwtLines = lines.filter((line) => 
     line.includes('JWT') || 
     line.includes('SECRET') || 
     line.includes('TOKEN')
@@ -54,7 +54,7 @@ if (!envFound) {
     console.warn('警告: .env文件中没有找到JWT相关配置');
   } else {
     console.log('发现以下JWT相关配置:');
-    jwtLines.forEach(line => {
+    jwtLines.forEach((line) => {
       // 不显示实际密钥值，只显示长度和前几个字符
       const parts = line.split('=');
       if (parts.length === 2) {
@@ -106,7 +106,7 @@ try {
     id: 'test-user-id',
     username: 'test-user',
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 3600 // 1小时后过期
+    exp: Math.floor(Date.now() / 1000) + 3600, // 1小时后过期
   };
   
   const testToken = jwt.sign(testPayload, jwtSecret || 'test-secret');

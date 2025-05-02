@@ -80,7 +80,7 @@ const sendResponse = <T>(res: Response, status: number, data: T, message?: strin
   res.status(status).json({
     success: status >= 200 && status < 300,
     data,
-    message
+    message,
   });
 };
 
@@ -89,7 +89,7 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
   res.status(status).json({
     success: false,
     message,
-    error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+    error: process.env.NODE_ENV === 'development' ? error?.message : undefined,
   });
 };
 
@@ -106,21 +106,21 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
       ...withQuestionSetAttributes({
         order: [['created_at', 'DESC']],
         limit,
-        offset
+        offset,
       }),
       include: [{
         model: Question,
         as: 'questionSetQuestions',
-        attributes: ['id']  // 只拿 id 就够用
-      }]
+        attributes: ['id'],  // 只拿 id 就够用
+      }],
     });
 
     const total = await QuestionSet.count();
 
     // 添加 questionCount 字段
-    const result = questionSets.map(set => ({
+    const result = questionSets.map((set) => ({
       ...set.toJSON(),
-      questionCount: set.questionSetQuestions?.length || 0
+      questionCount: set.questionSetQuestions?.length || 0,
     }));
 
     res.status(200).json({
@@ -130,15 +130,15 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         total,
         page,
         limit,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error: any) {
     console.error('获取题集列表失败:', error);
     res.status(500).json({
       success: false,
       message: '获取题库列表失败',
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -156,9 +156,9 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
         as: 'questionSetQuestions',
         include: [{
           model: Option,
-          as: 'options'
-        }]
-      }]
+          as: 'options',
+        }],
+      }],
     });
     
     if (!questionSet) {
@@ -187,7 +187,7 @@ export const createQuestionSet = async (req: Request, res: Response) => {
       featuredCategory, 
       isPaid, 
       price, 
-      trialQuestions 
+      trialQuestions, 
     } = req.body;
 
     // 验证必填字段
@@ -209,7 +209,7 @@ export const createQuestionSet = async (req: Request, res: Response) => {
       price: isPaid ? price : null,
       trialQuestions: isPaid ? trialQuestions : null,
       isFeatured: isFeatured || false,
-      featuredCategory
+      featuredCategory,
     });
 
     sendResponse(res, 201, questionSet, '题库创建成功');
@@ -235,7 +235,7 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
         featuredCategory, 
         isPaid, 
         price, 
-        trialQuestions 
+        trialQuestions, 
       } = req.body;
 
       // 如果是付费题库，验证价格
@@ -299,10 +299,10 @@ export const getAllCategories = async (req: Request, res: Response) => {
   try {
     const categories = await QuestionSet.findAll({
       attributes: ['category'],
-      group: ['category']
+      group: ['category'],
     });
 
-    const categoryList = categories.map(row => row.category);
+    const categoryList = categories.map((row) => row.category);
     
     sendResponse(res, 200, categoryList);
   } catch (error) {
@@ -318,20 +318,20 @@ export const getFeaturedQuestionSets = async (req: Request, res: Response) => {
   try {
     const questionSets = await QuestionSet.findAll(withQuestionSetAttributes({
       where: {
-        isFeatured: true
-      }
+        isFeatured: true,
+      },
     }));
 
     res.status(200).json({
       success: true,
-      data: questionSets
+      data: questionSets,
     });
   } catch (error: any) {
     console.error('获取推荐题集失败:', error);
     res.status(500).json({
       success: false,
       message: '获取推荐题集失败',
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -372,7 +372,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
     if (!questionSets || !Array.isArray(questionSets) || questionSets.length === 0) {
       return res.status(400).json({
         success: false,
-        message: '请提供有效的题库数据'
+        message: '请提供有效的题库数据',
       });
     }
     
@@ -398,7 +398,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           icon: setData.icon || existingSet.icon,
           isPaid: setData.isPaid !== undefined ? setData.isPaid : existingSet.isPaid,
           price: setData.isPaid && setData.price !== undefined ? setData.price : undefined,
-          trialQuestions: setData.isPaid && setData.trialQuestions !== undefined ? setData.trialQuestions : undefined
+          trialQuestions: setData.isPaid && setData.trialQuestions !== undefined ? setData.trialQuestions : undefined,
         });
         
         // 如果提供了题目，则更新题目
@@ -406,36 +406,36 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           console.log(`处理题库 ${setData.id} 的题目，数量: ${setData.questions.length}`);
           
           // 分类出有ID和无ID的题目
-          const questionsWithId = setData.questions.filter(q => q.id);
-          const questionsWithoutId = setData.questions.filter(q => !q.id);
+          const questionsWithId = setData.questions.filter((q) => q.id);
+          const questionsWithoutId = setData.questions.filter((q) => !q.id);
           
           console.log(`题库 ${setData.id}: 有ID的题目: ${questionsWithId.length}, 无ID的题目（新增）: ${questionsWithoutId.length}`);
           
           // 获取当前题库的所有题目ID，用于检查哪些需要保留
           const existingQuestions = await Question.findAll({
             where: { questionSetId: setData.id },
-            attributes: ['id']
+            attributes: ['id'],
           });
           
-          const existingIds = existingQuestions.map(q => q.id);
-          const idsToKeep = questionsWithId.map(q => q.id);
+          const existingIds = existingQuestions.map((q) => q.id);
+          const idsToKeep = questionsWithId.map((q) => q.id);
           
           // 删除不在更新列表中的题目
-          const idsToDelete = existingIds.filter(id => !idsToKeep.includes(id));
+          const idsToDelete = existingIds.filter((id) => !idsToKeep.includes(id));
           if (idsToDelete.length > 0) {
             console.log(`将删除题库 ${setData.id} 中的 ${idsToDelete.length} 个题目`);
             await Question.destroy({
               where: { 
                 id: idsToDelete,
-                questionSetId: setData.id 
-              }
+                questionSetId: setData.id, 
+              },
             });
           }
           
           // 更新有ID的题目
           for (const q of questionsWithId) {
             const existingQuestion = await Question.findOne({
-              where: { id: q.id, questionSetId: setData.id }
+              where: { id: q.id, questionSetId: setData.id },
             });
             
             if (existingQuestion) {
@@ -445,14 +445,14 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
                 text: q.text || '',
                 explanation: q.explanation || '',
                 questionType: q.questionType || 'single',
-                orderIndex: q.orderIndex !== undefined ? q.orderIndex : existingQuestion.orderIndex
+                orderIndex: q.orderIndex !== undefined ? q.orderIndex : existingQuestion.orderIndex,
               });
               
               // 更新选项
               if (q.options && q.options.length > 0) {
                 // 先删除现有选项
                 await Option.destroy({
-                  where: { questionId: q.id }
+                  where: { questionId: q.id },
                 });
                 
                 // 创建新选项
@@ -461,7 +461,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
                     questionId: q.id!,  // 使用非空断言，因为在这个上下文中我们已经确认q.id存在
                     text: option.text || '',
                     isCorrect: option.isCorrect,
-                    optionIndex: option.optionIndex || option.id || ''
+                    optionIndex: option.optionIndex || option.id || '',
                   });
                 }
               }
@@ -475,7 +475,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
                 explanation: q.explanation,
                 questionSetId: setData.id,
                 questionType: q.questionType || 'single',
-                orderIndex: q.orderIndex !== undefined ? q.orderIndex : 0
+                orderIndex: q.orderIndex !== undefined ? q.orderIndex : 0,
               });
               
               // 创建选项
@@ -485,7 +485,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
                     questionId: newQuestion.id,
                     text: option.text || '',
                     isCorrect: option.isCorrect,
-                    optionIndex: option.optionIndex || option.id || ''
+                    optionIndex: option.optionIndex || option.id || '',
                   });
                 }
               }
@@ -503,7 +503,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
               explanation: q.explanation,
               questionSetId: setData.id,
               questionType: q.questionType || 'single',
-              orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+              orderIndex: q.orderIndex !== undefined ? q.orderIndex : i,
             });
             
             // 创建选项
@@ -513,7 +513,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
                   questionId: newQuestion.id,
                   text: option.text || '',
                   isCorrect: option.isCorrect,
-                  optionIndex: option.optionIndex || option.id || ''
+                  optionIndex: option.optionIndex || option.id || '',
                 });
               }
             }
@@ -527,8 +527,8 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           message: '题库更新成功',
           questions: {
             added: questionsAdded,
-            updated: questionsUpdated
-          }
+            updated: questionsUpdated,
+          },
         });
       } else {
         // 如果不存在则创建
@@ -541,7 +541,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           icon: setData.icon,
           isPaid: setData.isPaid || false,
           price: setData.isPaid && setData.price !== undefined ? setData.price : 0,
-          trialQuestions: setData.isPaid && setData.trialQuestions !== undefined ? setData.trialQuestions : 0
+          trialQuestions: setData.isPaid && setData.trialQuestions !== undefined ? setData.trialQuestions : 0,
         });
         
         // 如果提供了题目，则创建题目
@@ -556,7 +556,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
               text: q.text,
               explanation: q.explanation,
               questionType: q.questionType || 'single',
-              orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+              orderIndex: q.orderIndex !== undefined ? q.orderIndex : i,
             };
             
             // 创建题目
@@ -577,7 +577,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
                   questionId: question.id,
                   text: option.text || '',
                   isCorrect: option.isCorrect,
-                  optionIndex: option.optionIndex || option.id || ''
+                  optionIndex: option.optionIndex || option.id || '',
                 });
               }
             }
@@ -591,8 +591,8 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           message: '题库创建成功',
           questions: {
             added: questionsAdded,
-            updated: 0
-          }
+            updated: 0,
+          },
         });
       }
     }
@@ -614,10 +614,10 @@ export const getQuestionSetCategories = async (req: Request, res: Response) => {
     const categories = await QuestionSet.findAll({
       attributes: ['category'],
       group: ['category'],
-      order: [['category', 'ASC']]
+      order: [['category', 'ASC']],
     });
     
-    const categoryList = categories.map(row => row.category);
+    const categoryList = categories.map((row) => row.category);
     
     sendResponse(res, 200, categoryList);
   } catch (error) {
@@ -643,10 +643,10 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
     try {
       // 使用原始 SQL 查询获取分类题库
       const [results] = await sequelize.query(
-        `SELECT * FROM question_sets WHERE category = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        'SELECT * FROM question_sets WHERE category = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
         {
           replacements: [decodedCategory, parseInt(req.query.limit as string) || 10, parseInt(req.query.page as string) || 1],
-          type: QueryTypes.SELECT
+          type: QueryTypes.SELECT,
         }
       ) as any[];
       
@@ -656,10 +656,10 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
         for (const set of results) {
           // 获取题目数量
           const [questions] = await sequelize.query(
-            `SELECT * FROM questions WHERE questionSetId = ?`,
+            'SELECT * FROM questions WHERE questionSetId = ?',
             {
               replacements: [set.id],
-              type: QueryTypes.SELECT
+              type: QueryTypes.SELECT,
             }
           ) as any[];
           
@@ -671,16 +671,16 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
           for (const question of questionsArray) {
             if (question && question.id) {
               const [options] = await sequelize.query(
-                `SELECT * FROM options WHERE questionId = ?`,
+                'SELECT * FROM options WHERE questionId = ?',
                 {
                   replacements: [question.id],
-                  type: QueryTypes.SELECT
+                  type: QueryTypes.SELECT,
                 }
               ) as any[];
               
               questionsWithOptions.push({
                 ...question,
-                options: Array.isArray(options) ? options : [options].filter(Boolean)
+                options: Array.isArray(options) ? options : [options].filter(Boolean),
               });
             }
           }
@@ -688,7 +688,7 @@ export const getQuestionSetsByCategory = async (req: Request, res: Response) => 
           formattedQuestionSets.push({
             ...set,
             questionCount: questionsArray.length,
-            questions: questionsWithOptions
+            questions: questionsWithOptions,
           });
         }
       }
@@ -742,7 +742,7 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       text: questionData.text,
       explanation: questionData.explanation || '',
       questionType: questionData.questionType || 'single',
-      orderIndex: questionData.orderIndex || 0
+      orderIndex: questionData.orderIndex || 0,
     };
     
     console.log('准备创建题目:', JSON.stringify(questionObj, null, 2));
@@ -761,9 +761,9 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
             questionData.text,
             questionData.explanation || '',
             questionData.questionType || 'single',
-            questionData.orderIndex || 0
+            questionData.orderIndex || 0,
           ],
-          type: QueryTypes.INSERT
+          type: QueryTypes.INSERT,
         }
       );
       
@@ -802,9 +802,9 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
               questionId,
               option.text || '',
               option.isCorrect ? 1 : 0,
-              optionIndex
+              optionIndex,
             ],
-            type: QueryTypes.INSERT
+            type: QueryTypes.INSERT,
           }
         );
         
@@ -814,7 +814,7 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
           questionId,
           text: option.text || '',
           isCorrect: !!option.isCorrect,
-          optionIndex
+          optionIndex,
         });
       }
     } catch (error: any) {
@@ -822,10 +822,10 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       // 如果创建选项失败，删除已创建的题目
       if (question) {
         await sequelize.query(
-          `DELETE FROM questions WHERE id = ?`,
+          'DELETE FROM questions WHERE id = ?',
           {
             replacements: [questionId],
-            type: QueryTypes.DELETE
+            type: QueryTypes.DELETE,
           }
         );
       }
@@ -835,10 +835,10 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
     if (createdOptions.length === 0) {
       // 如果没有创建任何选项，删除题目
       await sequelize.query(
-        `DELETE FROM questions WHERE id = ?`,
+        'DELETE FROM questions WHERE id = ?',
         {
           replacements: [questionId],
-          type: QueryTypes.DELETE
+          type: QueryTypes.DELETE,
         }
       );
       return sendError(res, 500, '未能创建任何选项');
@@ -849,8 +849,8 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       const completeQuestion = await Question.findByPk(questionId, {
         include: [{
           model: Option,
-          as: 'options'
-        }]
+          as: 'options',
+        }],
       });
       
       if (!completeQuestion) {
@@ -860,7 +860,7 @@ export const addQuestionToQuestionSet = async (req: Request, res: Response) => {
       // 不尝试直接访问options属性，直接使用简单日志
       console.log('成功检索完整题目:', {
         id: completeQuestion.id,
-        text: completeQuestion.text
+        text: completeQuestion.text,
       });
       
       return sendResponse(res, 201, completeQuestion, '题目添加成功');

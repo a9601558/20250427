@@ -3,7 +3,7 @@ const {
   registerUser, 
   loginUser, 
   getUserProfile,
-  updateUser
+  updateUser,
 } = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 

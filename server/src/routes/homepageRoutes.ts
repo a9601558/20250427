@@ -5,7 +5,7 @@ import {
   getFeaturedCategories, 
   updateFeaturedCategories, 
   getFeaturedQuestionSets, 
-  updateQuestionSetFeaturedStatus 
+  updateQuestionSetFeaturedStatus, 
 } from '../controllers/homepageController';
 import { protect, admin } from '../middleware/authMiddleware';
 

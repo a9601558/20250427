@@ -18,7 +18,7 @@ const dbConfig = {
   host: 'localhost',
   user: 'root',
   password: 'yourpassword',  // 替换为你的数据库密码
-  database: 'quizdb'
+  database: 'quizdb',
 };
 
 async function migrateData() {
@@ -31,12 +31,12 @@ async function migrateData() {
     
     // 1. 备份表
     console.log('备份购买表...');
-    await connection.execute(`CREATE TABLE purchases_backup LIKE purchases`);
-    await connection.execute(`INSERT INTO purchases_backup SELECT * FROM purchases`);
+    await connection.execute('CREATE TABLE purchases_backup LIKE purchases');
+    await connection.execute('INSERT INTO purchases_backup SELECT * FROM purchases');
     console.log('备份完成。');
     
     // 2. 获取并打印当前的购买记录数量
-    const [rows] = await connection.execute(`SELECT COUNT(*) as count FROM purchases`);
+    const [rows] = await connection.execute('SELECT COUNT(*) as count FROM purchases');
     console.log(`当前有 ${rows[0].count} 条购买记录需要迁移。`);
     
     // 3. 对 MySQL 版本，如果表已修改结构，则复制数据
@@ -44,7 +44,7 @@ async function migrateData() {
     
     try {
       // 首先检查 questionSetId 字段是否存在，如果不存在则SQL会抛出错误
-      await connection.execute(`SELECT questionSetId FROM purchases LIMIT 1`);
+      await connection.execute('SELECT questionSetId FROM purchases LIMIT 1');
       
       // 如果上面没抛错，则字段已存在，我们来更新数据
       await connection.execute(`
@@ -78,8 +78,8 @@ async function migrateData() {
     
     // 如果出错，提供回滚指南
     console.log('\n如需回滚，请执行以下SQL:');
-    console.log(`DROP TABLE IF EXISTS purchases;`);
-    console.log(`RENAME TABLE purchases_backup TO purchases;`);
+    console.log('DROP TABLE IF EXISTS purchases;');
+    console.log('RENAME TABLE purchases_backup TO purchases;');
     
     throw error;
   } finally {
@@ -95,7 +95,7 @@ migrateData()
     console.log('迁移脚本执行完毕。');
     process.exit(0);
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('迁移失败，请查看错误信息并修复:', err);
     process.exit(1);
   }); 

@@ -30,11 +30,11 @@ const dbConfig = {
         max: 5,
         min: 0,
         acquire: 30000,
-        idle: 10000
+        idle: 10000,
     },
     dialectOptions: {
         connectTimeout: 10000, // 10 秒连接超时
-    }
+    },
 };
 // 创建 Sequelize 实例 - 修复初始化参数
 const sequelize = new sequelize_1.Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
@@ -43,7 +43,7 @@ const sequelize = new sequelize_1.Sequelize(dbConfig.database, dbConfig.username
     dialect: dbConfig.dialect,
     logging: dbConfig.logging,
     pool: dbConfig.pool,
-    dialectOptions: dbConfig.dialectOptions
+    dialectOptions: dbConfig.dialectOptions,
 });
 // 测试数据库连接
 const testConnection = async () => {

@@ -22,10 +22,10 @@ const models = [
     RedeemCode_1.default,
     Option_1.default,
     HomepageSettings_1.default,
-    UserProgress_1.default
+    UserProgress_1.default,
 ];
 console.log(`将同步以下 ${models.length} 个模型:`);
-models.forEach(model => {
+models.forEach((model) => {
     console.log(` - ${model.name}`);
 });
 async function syncAllModels() {
@@ -46,8 +46,8 @@ async function syncAllModels() {
                     announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
                     footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
                     banner_image: '/images/banner.jpg',
-                    theme: 'light'
-                }
+                    theme: 'light',
+                },
             });
             if (created) {
                 console.log('✅ 默认首页设置已创建！');

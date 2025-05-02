@@ -8,16 +8,16 @@ const featuredCategoriesFilePath = path.join(__dirname, '../data/featuredCategor
 
 // 默认数据
 const defaultHomeContent = {
-  welcomeTitle: "ExamTopics 模拟练习",
-  welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-  featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-  announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-  footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-  bannerImage: "/images/banner.jpg",
-  theme: 'light'
+  welcomeTitle: 'ExamTopics 模拟练习',
+  welcomeDescription: '选择以下任一题库开始练习，测试您的知识水平',
+  featuredCategories: ['网络协议', '编程语言', '计算机基础'],
+  announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
+  footerText: '© 2023 ExamTopics 在线题库系统 保留所有权利',
+  bannerImage: '/images/banner.jpg',
+  theme: 'light',
 };
 
-const defaultFeaturedCategories = ["网络协议", "编程语言", "计算机基础"];
+const defaultFeaturedCategories = ['网络协议', '编程语言', '计算机基础'];
 
 // 确保数据文件存在
 async function ensureDataFilesExist() {
@@ -46,7 +46,7 @@ async function ensureDataFilesExist() {
 }
 
 // 初始化数据文件
-ensureDataFilesExist().catch(error => {
+ensureDataFilesExist().catch((error) => {
   logger.error('Failed to ensure data files exist:', error);
 });
 
@@ -62,7 +62,7 @@ const homepageController = {
       
       return res.status(200).json({
         success: true,
-        data: homeContent
+        data: homeContent,
       });
     } catch (error) {
       logger.error('Error getting home content:', error);
@@ -71,7 +71,7 @@ const homepageController = {
       return res.status(200).json({
         success: true,
         data: defaultHomeContent,
-        message: '使用默认首页内容'
+        message: '使用默认首页内容',
       });
     }
   },
@@ -83,7 +83,7 @@ const homepageController = {
       if (!req.body) {
         return res.status(400).json({
           success: false,
-          message: '请求体为空'
+          message: '请求体为空',
         });
       }
       
@@ -102,7 +102,7 @@ const homepageController = {
       // 更新数据
       const updatedContent = {
         ...homeContent,
-        ...req.body
+        ...req.body,
       };
       
       // 保存数据
@@ -118,7 +118,7 @@ const homepageController = {
       return res.status(200).json({
         success: true,
         data: updatedContent,
-        message: '首页内容更新成功'
+        message: '首页内容更新成功',
       });
     } catch (error) {
       logger.error('Error updating home content:', error);
@@ -126,7 +126,7 @@ const homepageController = {
       return res.status(500).json({
         success: false,
         message: '更新首页内容失败',
-        error: error.message
+        error: error.message,
       });
     }
   },
@@ -141,7 +141,7 @@ const homepageController = {
       
       return res.status(200).json({
         success: true,
-        data: featuredCategories
+        data: featuredCategories,
       });
     } catch (error) {
       logger.error('Error getting featured categories:', error);
@@ -150,7 +150,7 @@ const homepageController = {
       return res.status(200).json({
         success: true,
         data: defaultFeaturedCategories,
-        message: '使用默认分类'
+        message: '使用默认分类',
       });
     }
   },
@@ -162,7 +162,7 @@ const homepageController = {
       if (!req.body || !req.body.featuredCategories || !Array.isArray(req.body.featuredCategories)) {
         return res.status(400).json({
           success: false,
-          message: '无效的请求体，需要包含featuredCategories数组'
+          message: '无效的请求体，需要包含featuredCategories数组',
         });
       }
       
@@ -181,7 +181,7 @@ const homepageController = {
         
         const updatedHomeContent = {
           ...homeContent,
-          featuredCategories: featuredCategories
+          featuredCategories: featuredCategories,
         };
         
         await fs.writeFile(homeContentFilePath, JSON.stringify(updatedHomeContent, null, 2), 'utf8');
@@ -195,7 +195,7 @@ const homepageController = {
       return res.status(200).json({
         success: true,
         data: featuredCategories,
-        message: '精选分类更新成功'
+        message: '精选分类更新成功',
       });
     } catch (error) {
       logger.error('Error updating featured categories:', error);
@@ -203,10 +203,10 @@ const homepageController = {
       return res.status(500).json({
         success: false,
         message: '更新精选分类失败',
-        error: error.message
+        error: error.message,
       });
     }
-  }
+  },
 };
 
 module.exports = homepageController; 

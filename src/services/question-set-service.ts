@@ -1,4 +1,5 @@
 import { QuestionSet } from '../types';
+import { logger } from '../utils/logger';
 
 // Using an interface that matches the ApiResponse in api.ts
 interface ApiResponse<T> {
@@ -23,14 +24,14 @@ export const questionSetService = {
             const count = await this.getQuestionCount(set.id);
             return {
               ...set,
-              questionCount: count
+              questionCount: count,
             };
           })
         );
         
         return {
           success: true,
-          data: questionSetsWithCounts
+          data: questionSetsWithCounts,
         };
       }
       
@@ -106,8 +107,8 @@ export const questionSetService = {
       const response = await fetch(`/api/question-sets/${questionSetId}/count`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
       
       const data = await response.json();
@@ -124,10 +125,8 @@ export const questionSetService = {
       const data = await response.json();
       return data.count || 0;
     } catch (error) {
-      console.error('Error getting question count:', error);
+      logger.error('Error getting question count:', error);
       return 0;
     }
-  }
-};
-
-export default questionSetService; 
+  },
+}; 

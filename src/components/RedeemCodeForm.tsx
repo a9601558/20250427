@@ -67,12 +67,12 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
         // 查找已兑换的题库信息
         if (result.questionSetId) {
           console.log('[RedeemCodeForm] 找到题库ID:', result.questionSetId);
-          const set = questionSets.find(s => s.id === result.questionSetId);
+          const set = questionSets.find((s) => s.id === result.questionSetId);
           
           if (set) {
             setRedeemedSet({
               ...set,
-              title: result.quizTitle || set.title
+              title: result.quizTitle || set.title,
             });
             
             // 全局发送兑换成功事件，强制刷新
@@ -83,18 +83,18 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               const eventDetail = { 
                 questionSetId: result.questionSetId,
                 forceRefresh: true,
-                timestamp: Date.now()
+                timestamp: Date.now(),
               };
               
               // 分发事件
               window.dispatchEvent(new CustomEvent('redeem:success', { 
-                detail: eventDetail
+                detail: eventDetail,
               }));
               
               // 确保事件被处理 - 延迟再次分发以防止事件丢失
               setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('redeem:success', { 
-                  detail: eventDetail
+                  detail: eventDetail,
                 }));
               }, 500);
             }
@@ -113,7 +113,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
             setRedeemedSet({
               id: result.questionSetId,
               title: result.quizTitle || '已兑换的题库',
-              icon: '📚'
+              icon: '📚',
             });
             
             // 全局发送兑换成功事件，强制刷新
@@ -123,8 +123,8 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
                 detail: { 
                   questionSetId: result.questionSetId,
                   forceRefresh: true, 
-                  timestamp: Date.now()
-                } 
+                  timestamp: Date.now(),
+                }, 
               }));
             }
             

@@ -31,7 +31,7 @@ const payload = {
   id: userId,
   username: 'test-user',
   iat: Math.floor(Date.now() / 1000),
-  exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 7 // 7天过期
+  exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 7, // 7天过期
 };
 
 // 不同时限的令牌
@@ -40,7 +40,7 @@ const tokens = {
   '1天': Math.floor(Date.now() / 1000) + 3600 * 24,
   '7天': Math.floor(Date.now() / 1000) + 3600 * 24 * 7,
   '30天': Math.floor(Date.now() / 1000) + 3600 * 24 * 30,
-  '永不过期': undefined
+  '永不过期': undefined,
 };
 
 console.log('生成不同时效的令牌:');
@@ -78,7 +78,7 @@ console.log('3. 刷新页面测试');
 console.log('\nSocket.io 连接测试:');
 console.log(`const socket = io('${process.env.CLIENT_URL || 'http://localhost:5000'}', {`);
 console.log('  auth: {');
-console.log(`    token: "<上面7天令牌值>",`);
+console.log('    token: "<上面7天令牌值>",');
 console.log(`    userId: "${userId}"`);
 console.log('  }');
 console.log('});'); 

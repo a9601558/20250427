@@ -17,7 +17,7 @@ export const getQuestions = async (req: Request, res: Response) => {
     const includeOptions = include === 'options' ? [{
       model: Option,
       as: 'options',
-      attributes: ['id', 'text', 'isCorrect', 'optionIndex']
+      attributes: ['id', 'text', 'isCorrect', 'optionIndex'],
     }] : [];
 
     const { count, rows: questions } = await Question.findAndCountAll({
@@ -25,7 +25,7 @@ export const getQuestions = async (req: Request, res: Response) => {
       include: includeOptions,
       limit: Number(limit),
       offset,
-      order: [['orderIndex', 'ASC']]
+      order: [['orderIndex', 'ASC']],
     });
 
     console.log(`Found ${questions.length} questions with options: ${include === 'options' ? 'yes' : 'no'}`);
@@ -36,14 +36,14 @@ export const getQuestions = async (req: Request, res: Response) => {
     // Return response in the format expected by the frontend
     res.status(200).json({
       success: true,
-      data: questions
+      data: questions,
     });
   } catch (error) {
     console.error('获取问题列表失败:', error);
     res.status(500).json({
       success: false,
       message: '获取问题列表失败',
-      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
     });
   }
 };
@@ -81,7 +81,7 @@ export const createQuestion = async (req: Request, res: Response) => {
         text,
       questionType,
       explanation,
-      orderIndex: orderIndex || 0
+      orderIndex: orderIndex || 0,
     });
 
     sendResponse(res, 201, '创建问题成功', question);
@@ -106,7 +106,7 @@ export const updateQuestion = async (req: Request, res: Response) => {
       text,
       questionType,
       explanation,
-      orderIndex
+      orderIndex,
     });
 
     sendResponse(res, 200, '更新问题成功', question);
@@ -152,7 +152,7 @@ export const getRandomQuestion = async (req: Request, res: Response) => {
     const randomOffset = Math.floor(Math.random() * count);
     const question = await Question.findOne({
       where: { questionSetId: String(questionSetId) },
-      offset: randomOffset
+      offset: randomOffset,
     });
 
     sendResponse(res, 200, '获取随机问题成功', question);
@@ -179,14 +179,14 @@ export const getQuestionCount = async (req: Request, res: Response) => {
     return res.status(200).json({ 
       success: true, 
       count,
-      message: `题库 ${questionSetId} 包含 ${count} 个问题`
+      message: `题库 ${questionSetId} 包含 ${count} 个问题`,
     });
   } catch (error) {
     console.error('获取题目数量失败:', error);
     return res.status(500).json({ 
       success: false, 
       message: '获取题目数量失败',
-      error: (error as Error).message
+      error: (error as Error).message,
     });
   }
 }; 

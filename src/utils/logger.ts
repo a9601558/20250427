@@ -70,5 +70,5 @@ export const logger = {
    */
   log: (message: string, ...args: any[]): void => {
     logger.info(message, ...args);
-  }
+  },
 }; 

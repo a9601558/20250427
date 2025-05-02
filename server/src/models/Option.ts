@@ -41,29 +41,29 @@ Option.init(
       allowNull: false,
       references: {
         model: 'questions',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     text: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     },
     isCorrect: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
     },
     optionIndex: {
       type: DataTypes.STRING(5),
-      allowNull: false
-    }
+      allowNull: false,
+    },
   },
   {
     sequelize,
     tableName: 'options',
     indexes: [
-      { fields: ['questionId'] }
-    ]
+      { fields: ['questionId'] },
+    ],
   }
 );
 

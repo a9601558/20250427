@@ -23,19 +23,19 @@ const useStudySuggestions = (questionSets: QuestionSet[]) => {
   // 如果用户没有进度记录，推荐一些入门题库
   if (!progressStats || Object.keys(progressStats).length === 0) {
     const beginnerSets = questionSets
-      .filter(qs => !qs.isPaid || (user.purchases && user.purchases.some(p => p.questionSetId === qs.id)))
+      .filter((qs) => !qs.isPaid || (user.purchases && user.purchases.some((p) => p.questionSetId === qs.id)))
       .slice(0, 3);
     
     return {
       type: 'beginner',
       title: '新手入门推荐',
       message: '这些题库适合初学者开始学习',
-      questionSets: beginnerSets
+      questionSets: beginnerSets,
     };
   }
 
   // 查找未完成的题库
-  const incompleteQuestionSets = questionSets.filter(qs => {
+  const incompleteQuestionSets = questionSets.filter((qs) => {
     const progress = progressStats[qs.id];
     return progress && progress.completedQuestions < progress.totalQuestions;
   }).sort((a, b) => {
@@ -53,15 +53,15 @@ const useStudySuggestions = (questionSets: QuestionSet[]) => {
       type: 'continue',
       title: '继续学习',
       message: '这些题库您已经开始学习，建议继续完成',
-      questionSets: incompleteQuestionSets
+      questionSets: incompleteQuestionSets,
     };
   }
 
   // 如果所有开始的题库都完成了，推荐新的题库
   const completedIds = Object.keys(progressStats);
   const newSuggestions = questionSets
-    .filter(qs => !completedIds.includes(qs.id) && 
-      (!qs.isPaid || (user.purchases && user.purchases.some(p => p.questionSetId === qs.id))))
+    .filter((qs) => !completedIds.includes(qs.id) && 
+      (!qs.isPaid || (user.purchases && user.purchases.some((p) => p.questionSetId === qs.id))))
     .slice(0, 3);
 
   if (newSuggestions.length > 0) {
@@ -69,13 +69,13 @@ const useStudySuggestions = (questionSets: QuestionSet[]) => {
       type: 'new',
       title: '推荐新题库',
       message: '尝试这些您尚未学习的题库，拓展知识面',
-      questionSets: newSuggestions
+      questionSets: newSuggestions,
     };
   }
 
   // 如果用户已经学习了所有题库，推荐复习得分较低的题库
   const reviewSuggestions = questionSets
-    .filter(qs => {
+    .filter((qs) => {
       const score = getQuizScore(qs.id);
       return score !== null && score < 80;
     })
@@ -91,7 +91,7 @@ const useStudySuggestions = (questionSets: QuestionSet[]) => {
       type: 'review',
       title: '建议复习',
       message: '这些题库的得分较低，建议重新学习以提高成绩',
-      questionSets: reviewSuggestions
+      questionSets: reviewSuggestions,
     };
   }
 
@@ -102,13 +102,13 @@ const useStudySuggestions = (questionSets: QuestionSet[]) => {
     message: '这些题库可能适合您继续深入学习',
     questionSets: questionSets
       .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
+      .slice(0, 3),
   };
 };
 
 const StudySuggestions: React.FC<StudySuggestionsProps> = ({
   questionSets,
-  theme = 'light'
+  theme = 'light',
 }) => {
   const { user } = useUser();
   const { progressStats } = useUserProgress();
@@ -138,7 +138,7 @@ const StudySuggestions: React.FC<StudySuggestionsProps> = ({
       </div>
 
       <div className="space-y-3">
-        {suggestions.questionSets.map(set => {
+        {suggestions.questionSets.map((set) => {
           const progress = progressStats[set.id];
           const progressPercentage = progress?.totalQuestions
             ? Math.round((progress.completedQuestions / progress.totalQuestions) * 100)

@@ -101,9 +101,9 @@ export const getUserProgress = async (req: Request, res: Response): Promise<Resp
         {
           model: QuestionSet,
           as: 'questionSet',
-          attributes: ['id', 'title']
-        }
-      ]
+          attributes: ['id', 'title'],
+        },
+      ],
     });
     return sendResponse(res, 200, '获取用户进度成功', progress);
   } catch (error) {
@@ -129,8 +129,8 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
       where: { userId, questionSetId },
       include: [
         { model: QuestionSet, as: 'questionSet' },
-        { model: Question, as: 'question' }
-      ]
+        { model: Question, as: 'question' },
+      ],
     });
     if (!progress || progress.length === 0) {
       return sendError(res, 404, 'Progress not found');
@@ -161,7 +161,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       where: {
         userId,
         questionSetId,
-        questionId
+        questionId,
       },
       defaults: {
         userId,
@@ -169,8 +169,8 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
         questionId,
         isCorrect,
         timeSpent: timeSpent || 0,
-        lastAccessed: new Date()
-      }
+        lastAccessed: new Date(),
+      },
     });
 
     // 如果记录已存在，更新它
@@ -178,7 +178,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       await progress.update({
         isCorrect,
         timeSpent: timeSpent || progress.timeSpent,
-        lastAccessed: new Date()
+        lastAccessed: new Date(),
       });
     }
 
@@ -189,7 +189,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     const updateEvent: ProgressUpdateEvent = {
       questionSetId,
       questionSet: progress.get('questionSet') as { id: string; title: string } | undefined,
-      stats
+      stats,
     };
     
     io.to(userId).emit('progress:update', updateEvent);
@@ -236,7 +236,7 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     // 打印请求信息，便于调试
     console.log('Create Detailed Progress Request:', {
       body: req.body,
-      userId: userId
+      userId: userId,
     });
 
     // 尝试从不同的请求字段获取数据，增加兼容性
@@ -284,7 +284,7 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
       questionSetId,
       questionId,
       isCorrect,
-      timeSpent
+      timeSpent,
     });
 
     if (missingParams.length > 0) {
@@ -298,7 +298,7 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
       questionId,
       isCorrect,
       timeSpent,
-      lastAccessed: new Date()
+      lastAccessed: new Date(),
     });
 
     // 获取最新的统计数据
@@ -308,7 +308,7 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     const updateEvent: ProgressUpdateEvent = {
       questionSetId,
       questionSet: newProgress.get('questionSet') as { id: string; title: string } | undefined,
-      stats
+      stats,
     };
     
     io.to(userId).emit('progress:update', updateEvent);
@@ -334,7 +334,7 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
     if (questionSetId) where.questionSetId = questionSetId;
     if (startDate && endDate) {
       where.createdAt = {
-        [Op.between]: [new Date(startDate as string), new Date(endDate as string)]
+        [Op.between]: [new Date(startDate as string), new Date(endDate as string)],
       };
     }
 
@@ -343,11 +343,11 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
       order: [['createdAt', 'DESC']],
       include: [
         { model: QuestionSet, as: 'questionSet' },
-        { model: Question, as: 'question' }
-      ]
+        { model: Question, as: 'question' },
+      ],
     });
 
-    return sendResponse(res, 200, '获取学习进度成功', progress.map(p => p.toJSON()));
+    return sendResponse(res, 200, '获取学习进度成功', progress.map((p) => p.toJSON()));
   } catch (error) {
     console.error('获取学习进度失败:', error);
     return sendError(res, 500, '获取学习进度失败', error);
@@ -369,8 +369,8 @@ export const getProgressStats = async (req: Request, res: Response) => {
       include: [{
         model: Question,
         as: 'questionSetQuestions',
-        attributes: ['id']
-      }]
+        attributes: ['id'],
+      }],
     });
 
     // 2. 查所有答题记录，包含关联的题库信息
@@ -379,8 +379,8 @@ export const getProgressStats = async (req: Request, res: Response) => {
       include: [{
         model: QuestionSet,
         as: 'questionSet',
-        attributes: ['id', 'title']
-      }]
+        attributes: ['id', 'title'],
+      }],
     });
 
     // 3. 整理成 Map，包含最后访问时间
@@ -391,7 +391,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
       lastAccessed?: Date 
     }>();
 
-    userProgressRecords.forEach(record => {
+    userProgressRecords.forEach((record) => {
       // 确保 questionSetId 是有效的
       if (!record.questionSetId) {
         console.warn('发现缺少 questionSetId 的记录:', record.id);
@@ -404,7 +404,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
           completed: 0, 
           correct: 0, 
           totalTime: 0,
-          lastAccessed: undefined
+          lastAccessed: undefined,
         });
       }
       const stats = progressMap.get(qsId)!;
@@ -421,7 +421,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
     });
 
     // 4. 生成最终统计
-    const stats = questionSets.map(qs => {
+    const stats = questionSets.map((qs) => {
       // 确保 qs.id 是有效的
       if (!qs || !qs.id) {
         console.warn('发现缺少 id 的题库');
@@ -435,7 +435,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
         completed: 0, 
         correct: 0, 
         totalTime: 0,
-        lastAccessed: new Date(0)
+        lastAccessed: new Date(0),
       };
 
       const completedQuestions = progress.completed;
@@ -452,7 +452,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
         questionSetId: qs.id,
         questionSet: {
           id: qs.id,
-          title: qs.get('title') || 'Unknown'
+          title: qs.get('title') || 'Unknown',
         },
         totalQuestions,
         completedQuestions,
@@ -463,7 +463,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
         lastAccessed,
         total: totalQuestions,
         correct: correctAnswers,
-        timeSpent: totalTimeSpent
+        timeSpent: totalTimeSpent,
       };
     }).filter(Boolean); // 过滤掉 null 值
 
@@ -485,7 +485,7 @@ export const deleteProgressRecord = async (req: Request, res: Response) => {
     const userId = req.user.id;
 
     const progress = await UserProgress.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
 
     if (!progress) {
@@ -522,19 +522,19 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
         {
           model: QuestionSet,
           as: 'questionSet',
-          attributes: ['id', 'title']
+          attributes: ['id', 'title'],
         },
         {
           model: Question,
           as: 'question',
-          attributes: ['id', 'questionType']
-        }
-      ]
+          attributes: ['id', 'questionType'],
+        },
+      ],
     });
 
     // 计算总体统计
     const totalQuestions = progressRecords.length;
-    const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
+    const correctAnswers = progressRecords.filter((p) => p.isCorrect).length;
     const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
     const averageTimeSpent = totalQuestions > 0 
       ? progressRecords.reduce((sum, p) => sum + (p.timeSpent || 0), 0) / totalQuestions 
@@ -556,7 +556,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
           total: 0,
           correct: 0,
           timeSpent: 0,
-          lastAccessed: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString()
+          lastAccessed: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString(),
         };
       }
       
@@ -589,7 +589,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
           total: 0,
           correct: 0,
           timeSpent: 0,
-          lastAccessed: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString()
+          lastAccessed: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString(),
         };
       }
       
@@ -626,10 +626,10 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
         totalQuestions,
         correctAnswers,
         accuracy,
-        averageTimeSpent
+        averageTimeSpent,
       },
       bySet: setStats,
-      byType: typeStats
+      byType: typeStats,
     });
   } catch (error) {
     console.error('Error getting user progress stats:', error);
@@ -653,8 +653,8 @@ export const getUserProgressRecords = async (req: Request, res: Response) => {
       include: [{
         model: QuestionSet,
         as: 'questionSet',
-        attributes: ['id', 'title']
-      }]
+        attributes: ['id', 'title'],
+      }],
     });
 
     return sendResponse(res, 200, '获取进度记录成功', progressRecords);
@@ -678,27 +678,27 @@ export const getProgressSummary = async (req: Request, res: Response) => {
       include: [{
         model: Question,
         as: 'question',
-        attributes: ['id', 'questionSetId']
-      }]
+        attributes: ['id', 'questionSetId'],
+      }],
     });
     
     // 按题库分组计算统计信息
-    const summary = questionSets.map(qs => {
-      const progressRecords = userProgress.filter(p => {
+    const summary = questionSets.map((qs) => {
+      const progressRecords = userProgress.filter((p) => {
         const question = p.get('question') as { questionSetId: string } | undefined;
         return question?.questionSetId === qs.id;
       });
       
       const totalQuestions = qs.questionSetQuestions?.length || 0;
       const completedQuestions = progressRecords.length;
-      const correctAnswers = progressRecords.filter(p => p.isCorrect).length;
+      const correctAnswers = progressRecords.filter((p) => p.isCorrect).length;
       const totalTimeSpent = progressRecords.reduce((sum, p) => sum + (p.timeSpent || 0), 0);
       const averageTimeSpent = completedQuestions > 0 ? totalTimeSpent / completedQuestions : 0;
       const accuracy = completedQuestions > 0 ? (correctAnswers / completedQuestions) * 100 : 0;
       
       // 获取最后访问时间
       const lastAccessed = progressRecords.length > 0 
-        ? new Date(Math.max(...progressRecords.map(p => new Date(p.updatedAt).getTime())))
+        ? new Date(Math.max(...progressRecords.map((p) => new Date(p.updatedAt).getTime())))
         : null;
       
       return {
@@ -710,19 +710,19 @@ export const getProgressSummary = async (req: Request, res: Response) => {
         totalTimeSpent,
         averageTimeSpent,
         accuracy,
-        lastAccessed: lastAccessed?.toISOString() || null
+        lastAccessed: lastAccessed?.toISOString() || null,
       };
     });
     
     res.json({
       success: true,
-      data: summary
+      data: summary,
     });
   } catch (error) {
     console.error('获取进度汇总统计失败:', error);
     res.status(500).json({
       success: false,
-      error: '获取进度汇总统计失败'
+      error: '获取进度汇总统计失败',
     });
   }
 }; 

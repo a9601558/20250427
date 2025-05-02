@@ -18,17 +18,17 @@ const getHomepageContent = async (req, res) => {
         // 如果没有配置，返回默认配置
         if (!settings) {
             const defaultContent = {
-                welcomeTitle: "ExamTopics 模拟练习",
-                welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-                featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-                announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-                footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-                bannerImage: "/images/banner.jpg",
-                theme: 'light'
+                welcomeTitle: 'ExamTopics 模拟练习',
+                welcomeDescription: '选择以下任一题库开始练习，测试您的知识水平',
+                featuredCategories: ['网络协议', '编程语言', '计算机基础'],
+                announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
+                footerText: '© 2023 ExamTopics 在线题库系统 保留所有权利',
+                bannerImage: '/images/banner.jpg',
+                theme: 'light',
             };
             return res.status(200).json({
                 success: true,
-                data: defaultContent
+                data: defaultContent,
             });
         }
         // 将配置转换为HomeContent格式
@@ -39,11 +39,11 @@ const getHomepageContent = async (req, res) => {
             announcements: settings.announcements,
             footerText: settings.footer_text,
             bannerImage: settings.banner_image,
-            theme: settings.theme
+            theme: settings.theme,
         };
         res.status(200).json({
             success: true,
-            data: content
+            data: content,
         });
     }
     catch (error) {
@@ -51,7 +51,7 @@ const getHomepageContent = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '获取首页配置失败',
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -63,7 +63,7 @@ exports.getHomepageContent = getHomepageContent;
  */
 const updateHomepageContent = async (req, res) => {
     try {
-        const { welcomeTitle, welcomeDescription, featuredCategories, announcements, footerText, bannerImage, theme } = req.body;
+        const { welcomeTitle, welcomeDescription, featuredCategories, announcements, footerText, bannerImage, theme, } = req.body;
         // 查找是否已存在配置
         let settings = await HomepageSettings_1.default.findByPk(1);
         if (!settings) {
@@ -76,7 +76,7 @@ const updateHomepageContent = async (req, res) => {
                 announcements: announcements,
                 footer_text: footerText,
                 banner_image: bannerImage || null,
-                theme: theme || 'light'
+                theme: theme || 'light',
             });
         }
         else {
@@ -88,12 +88,12 @@ const updateHomepageContent = async (req, res) => {
                 announcements: announcements,
                 footer_text: footerText,
                 banner_image: bannerImage || null,
-                theme: theme || 'light'
+                theme: theme || 'light',
             });
         }
         res.status(200).json({
             success: true,
-            message: '首页配置更新成功'
+            message: '首页配置更新成功',
         });
     }
     catch (error) {
@@ -101,7 +101,7 @@ const updateHomepageContent = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '更新首页配置失败',
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -121,7 +121,7 @@ const getFeaturedCategories = async (req, res) => {
         }
         res.status(200).json({
             success: true,
-            data: featuredCategories
+            data: featuredCategories,
         });
     }
     catch (error) {
@@ -129,7 +129,7 @@ const getFeaturedCategories = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '获取精选分类失败',
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -145,7 +145,7 @@ const updateFeaturedCategories = async (req, res) => {
         if (!Array.isArray(featuredCategories)) {
             return res.status(400).json({
                 success: false,
-                message: '精选分类必须是一个数组'
+                message: '精选分类必须是一个数组',
             });
         }
         // 查找是否已存在配置
@@ -160,18 +160,18 @@ const updateFeaturedCategories = async (req, res) => {
                 announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
                 footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
                 banner_image: '/images/banner.jpg',
-                theme: 'light'
+                theme: 'light',
             });
         }
         else {
             // 更新现有配置
             await settings.update({
-                featured_categories: featuredCategories
+                featured_categories: featuredCategories,
             });
         }
         res.status(200).json({
             success: true,
-            message: '精选分类更新成功'
+            message: '精选分类更新成功',
         });
     }
     catch (error) {
@@ -179,7 +179,7 @@ const updateFeaturedCategories = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '更新精选分类失败',
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -194,12 +194,12 @@ const getFeaturedQuestionSets = async (req, res) => {
         // 查询所有标记为精选的题库
         const featuredSets = await QuestionSet_1.default.findAll({
             where: {
-                isFeatured: true
-            }
+                isFeatured: true,
+            },
         });
         res.status(200).json({
             success: true,
-            data: featuredSets
+            data: featuredSets,
         });
     }
     catch (error) {
@@ -207,7 +207,7 @@ const getFeaturedQuestionSets = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '获取精选题库失败',
-            error: error.message
+            error: error.message,
         });
     }
 };
@@ -226,7 +226,7 @@ const updateQuestionSetFeaturedStatus = async (req, res) => {
         if (!questionSet) {
             return res.status(404).json({
                 success: false,
-                message: '题库不存在'
+                message: '题库不存在',
             });
         }
         // 准备更新数据对象
@@ -247,7 +247,7 @@ const updateQuestionSetFeaturedStatus = async (req, res) => {
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({
                 success: false,
-                message: '需要提供 isFeatured 或 featuredCategory 参数'
+                message: '需要提供 isFeatured 或 featuredCategory 参数',
             });
         }
         // 更新题库
@@ -262,7 +262,7 @@ const updateQuestionSetFeaturedStatus = async (req, res) => {
         }
         res.status(200).json({
             success: true,
-            message
+            message,
         });
     }
     catch (error) {
@@ -270,7 +270,7 @@ const updateQuestionSetFeaturedStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             message: '更新题库精选状态失败',
-            error: error.message
+            error: error.message,
         });
     }
 };

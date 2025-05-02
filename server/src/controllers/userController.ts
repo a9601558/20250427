@@ -17,7 +17,7 @@ const sendResponse = <T>(res: Response, status: number, data: T, message?: strin
   res.status(status).json({
     success: status >= 200 && status < 300,
     data,
-    message
+    message,
   });
 };
 
@@ -26,7 +26,7 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
   res.status(status).json({
     success: false,
     message,
-    error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+    error: process.env.NODE_ENV === 'development' ? error?.message : undefined,
   });
 };
 
@@ -49,7 +49,7 @@ export const registerUser = async (req: Request, res: Response) => {
 
     // 检查用户是否已存在
     const existingUser = await User.findOne({
-      where: { email }
+      where: { email },
     });
     
     if (existingUser) {
@@ -71,7 +71,7 @@ export const registerUser = async (req: Request, res: Response) => {
       redeemCodes: [] as IRedeemCode[],
       progress: {},
       socket_id: null,
-      isAdmin: false
+      isAdmin: false,
     };
 
     const user = await User.unscoped().create(userData);
@@ -86,12 +86,12 @@ export const registerUser = async (req: Request, res: Response) => {
       email: user.email,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      isAdmin: user.isAdmin
+      isAdmin: user.isAdmin,
     };
 
     sendResponse(res, 201, {
       user: userResponse,
-      token
+      token,
     }, '注册成功');
   } catch (error) {
     console.error('注册用户时出错:', error);
@@ -113,13 +113,13 @@ export const loginUser = async (req: Request, res: Response) => {
 
     // 先尝试按用户名查找，使用withPassword作用域以包含密码字段
     let user = await User.scope('withPassword').findOne({
-      where: { username: username }
+      where: { username: username },
     });
 
     // 如果按用户名找不到，再按邮箱查找
     if (!user) {
       user = await User.scope('withPassword').findOne({
-        where: { email: username }
+        where: { email: username },
       });
     }
 
@@ -148,12 +148,12 @@ export const loginUser = async (req: Request, res: Response) => {
           email: user.email,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          isAdmin: user.isAdmin
+          isAdmin: user.isAdmin,
         };
 
         sendResponse(res, 200, {
           user: userResponse,
-          token: generateToken(user.id)
+          token: generateToken(user.id),
         }, '登录成功');
       } else {
         // 密码不匹配
@@ -245,12 +245,12 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt,
         isAdmin: updatedUser.isAdmin,
-        examCountdowns: updatedUser.examCountdowns // 添加examCountdowns到响应中
+        examCountdowns: updatedUser.examCountdowns, // 添加examCountdowns到响应中
       };
 
       sendResponse(res, 200, {
         user: userResponse,
-        token: generateToken(updatedUser.id)
+        token: generateToken(updatedUser.id),
       }, '用户信息更新成功');
     } else {
       sendError(res, 404, '用户不存在');
@@ -267,7 +267,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 export const getUsers = async (req: Request, res: Response) => {
   try {
     const users = await User.findAll({
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password'] },
     });
     
     sendResponse(res, 200, users);
@@ -283,7 +283,7 @@ export const getUsers = async (req: Request, res: Response) => {
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const user = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password'] },
     });
 
     if (user) {
@@ -326,7 +326,7 @@ export const updateUser = async (req: Request, res: Response) => {
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt,
         isAdmin: updatedUser.isAdmin,
-        examCountdowns: updatedUser.examCountdowns // 添加examCountdowns到响应中
+        examCountdowns: updatedUser.examCountdowns, // 添加examCountdowns到响应中
       };
 
       sendResponse(res, 200, userResponse, '用户信息更新成功');

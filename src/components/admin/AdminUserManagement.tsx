@@ -14,7 +14,7 @@ const AdminUserManagement: React.FC = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    isAdmin: false
+    isAdmin: false,
   });
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
 
@@ -26,7 +26,7 @@ const AdminUserManagement: React.FC = () => {
         const usersList = await getAllUsers();
         setUsers(usersList);
       } catch (error) {
-        console.error("加载用户失败:", error);
+        console.error('加载用户失败:', error);
         setStatusMessage({ type: 'error', message: '加载用户列表失败' });
       } finally {
         setIsLoading(false);
@@ -37,7 +37,7 @@ const AdminUserManagement: React.FC = () => {
   }, [getAllUsers]);
 
   // 搜索过滤用户
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter((user) => 
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -48,7 +48,7 @@ const AdminUserManagement: React.FC = () => {
       try {
         const result = await deleteUser(userId);
         if (result.success) {
-          setUsers(users.filter(user => user.id !== userId));
+          setUsers(users.filter((user) => user.id !== userId));
           setStatusMessage({ type: 'success', message: '用户删除成功' });
         } else {
           setStatusMessage({ type: 'error', message: result.message || '删除用户失败' });
@@ -68,7 +68,7 @@ const AdminUserManagement: React.FC = () => {
       await updateUser(updates); // 更新只需要传入包含id的userData
       
       // 更新本地用户列表
-      setUsers(users.map(user => 
+      setUsers(users.map((user) => 
         user.id === userId ? { ...user, ...updates } : user
       ));
       setStatusMessage({ type: 'success', message: '用户信息更新成功' });
@@ -85,14 +85,14 @@ const AdminUserManagement: React.FC = () => {
     const { name, value, type } = e.target;
     setNewUser({
       ...newUser,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     });
     
     // 清除对应的错误消息
     if (formErrors[name]) {
       setFormErrors({
         ...formErrors,
-        [name]: ''
+        [name]: '',
       });
     }
   };
@@ -136,7 +136,7 @@ const AdminUserManagement: React.FC = () => {
         username: newUser.username,
         email: newUser.email,
         password: newUser.password,
-        isAdmin: newUser.isAdmin
+        isAdmin: newUser.isAdmin,
       };
       
       const result = await adminRegister(userData);
@@ -154,7 +154,7 @@ const AdminUserManagement: React.FC = () => {
           email: '',
           password: '',
           confirmPassword: '',
-          isAdmin: false
+          isAdmin: false,
         });
       } else {
         setStatusMessage({ type: 'error', message: result.message || '创建失败，邮箱可能已被注册' });
@@ -361,7 +361,7 @@ const AdminUserManagement: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map(user => (
+                filteredUsers.map((user) => (
                   <tr key={user.id}>
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
                       {user.username}

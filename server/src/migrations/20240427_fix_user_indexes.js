@@ -20,13 +20,13 @@ module.exports = {
       await queryInterface.addIndex('users', ['username'], {
         unique: true,
         name: 'users_username_unique',
-        transaction
+        transaction,
       });
       
       await queryInterface.addIndex('users', ['email'], {
         unique: true,
         name: 'users_email_unique',
-        transaction
+        transaction,
       });
       
       await transaction.commit();
@@ -51,5 +51,5 @@ module.exports = {
       console.error('Migration rollback failed:', error);
       throw error;
     }
-  }
+  },
 }; 

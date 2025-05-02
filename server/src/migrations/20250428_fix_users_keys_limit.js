@@ -33,7 +33,7 @@ module.exports = {
       
       // 记录所有需要移除的索引名称（除了PRIMARY主键）
       const indexesToRemove = new Set();
-      indexes.forEach(index => {
+      indexes.forEach((index) => {
         if (index.Key_name !== 'PRIMARY') {
           indexesToRemove.add(index.Key_name);
         }
@@ -71,13 +71,13 @@ module.exports = {
       await queryInterface.addIndex('users', ['username'], {
         unique: true,
         name: 'users_username_idx',
-        transaction
+        transaction,
       });
       
       await queryInterface.addIndex('users', ['email'], {
         unique: true,
         name: 'users_email_idx',
-        transaction
+        transaction,
       });
       
       console.log('users 表索引修复完成');
@@ -92,5 +92,5 @@ module.exports = {
   down: async (queryInterface, Sequelize) => {
     // 不提供回滚操作，因为这是修复操作
     console.log('此迁移不提供回滚操作');
-  }
+  },
 }; 

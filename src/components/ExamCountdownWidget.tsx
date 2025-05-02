@@ -21,7 +21,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
   const [newExam, setNewExam] = useState<Omit<CountdownItem, 'id'>>({
     examType: '',
     examCode: '',
-    examDate: new Date().toISOString().split('T')[0]
+    examDate: new Date().toISOString().split('T')[0],
   });
   const [examTypes, setExamTypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -107,8 +107,8 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
           if (serverCountdowns.length > 0) {
             // 复杂合并逻辑 - 保留本地删除状态
             // 提取所有本地和服务器数据的ID
-            const localIds = new Set(localCountdowns.map(item => item.id));
-            const serverIds = new Set(serverCountdowns.map(item => item.id));
+            const localIds = new Set(localCountdowns.map((item) => item.id));
+            const serverIds = new Set(serverCountdowns.map((item) => item.id));
             
             // 如果服务器有本地没有的ID，可能是从其他设备添加的，需要保留
             for (const countdown of serverCountdowns) {
@@ -130,7 +130,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         
         // 过滤掉已过期的考试
         const now = new Date();
-        mergedCountdowns = (mergedCountdowns || []).filter(item => {
+        mergedCountdowns = (mergedCountdowns || []).filter((item) => {
           const examDate = new Date(item.examDate);
           return examDate > now;
         });
@@ -182,7 +182,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         console.log('保存的数据:', examCountdownsJson);
         
         const userData = {
-          examCountdowns: examCountdownsJson
+          examCountdowns: examCountdownsJson,
         };
         
         // 调用更新用户API
@@ -230,7 +230,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     
     const newCountdown: CountdownItem = {
       id: uuidv4(),
-      ...newExam
+      ...newExam,
     };
     
     const updatedCountdowns = [...countdowns, newCountdown];
@@ -245,7 +245,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
     setNewExam({
       examType: '',
       examCode: '',
-      examDate: new Date().toISOString().split('T')[0]
+      examDate: new Date().toISOString().split('T')[0],
     });
     setShowAddForm(false);
   };
@@ -260,7 +260,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
       console.log(`正在删除考试倒计时，ID: ${id}`);
       
       // 过滤删除项目
-      const updatedCountdowns = countdowns.filter(item => item.id !== id);
+      const updatedCountdowns = countdowns.filter((item) => item.id !== id);
       
       // 1. 立即更新UI状态
       setCountdowns(updatedCountdowns);
@@ -274,7 +274,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         
         // 准备要更新的用户数据，确保stringfy
         const userData = {
-          examCountdowns: JSON.stringify(updatedCountdowns)
+          examCountdowns: JSON.stringify(updatedCountdowns),
         };
         
         try {
@@ -405,11 +405,11 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
             <div>
               <label className="block text-sm font-medium mb-1">考试类型</label>
               <div className="flex flex-wrap gap-2 mb-2">
-                {examTypes.map(type => (
+                {examTypes.map((type) => (
                   <button
                     key={type}
                     type="button"
-                    onClick={() => setNewExam({...newExam, examType: type})}
+                    onClick={() => setNewExam({ ...newExam, examType: type })}
                     className={`px-3 py-1 text-sm rounded-full ${
                       newExam.examType === type
                         ? 'bg-blue-600 text-white'
@@ -423,7 +423,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               <input
                 type="text"
                 value={newExam.examType}
-                onChange={(e) => setNewExam({...newExam, examType: e.target.value})}
+                onChange={(e) => setNewExam({ ...newExam, examType: e.target.value })}
                 placeholder="输入考试类型"
                 className={`w-full px-3 py-2 border rounded-md ${
                   theme === 'dark' 
@@ -437,7 +437,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               <input
                 type="text"
                 value={newExam.examCode}
-                onChange={(e) => setNewExam({...newExam, examCode: e.target.value})}
+                onChange={(e) => setNewExam({ ...newExam, examCode: e.target.value })}
                 placeholder="如：2025年第1回"
                 className={`w-full px-3 py-2 border rounded-md ${
                   theme === 'dark' 
@@ -451,7 +451,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               <input
                 type="date"
                 value={newExam.examDate}
-                onChange={(e) => setNewExam({...newExam, examDate: e.target.value})}
+                onChange={(e) => setNewExam({ ...newExam, examDate: e.target.value })}
                 className={`w-full px-3 py-2 border rounded-md ${
                   theme === 'dark' 
                     ? 'bg-gray-700 border-gray-600 text-white' 

@@ -32,8 +32,8 @@ const ManageQuestionSets: React.FC = () => {
         const response = await axios.get('/api/question-sets', {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
         });
         
         // 检查响应格式
@@ -84,12 +84,12 @@ const ManageQuestionSets: React.FC = () => {
       await axios.delete(`/api/question-sets/${id}`, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
       
       // 更新状态，移除已删除的题库
-      setQuestionSets(prev => prev.filter(set => set.id !== id));
+      setQuestionSets((prev) => prev.filter((set) => set.id !== id));
       setSuccessMessage('题库已成功删除');
       
       // 3秒后清除成功消息
@@ -130,16 +130,16 @@ const ManageQuestionSets: React.FC = () => {
         options: question.options.map((opt, index) => ({
           text: opt.text,
           isCorrect: opt.isCorrect,
-          optionIndex: opt.optionIndex || String.fromCharCode(65 + index) // A, B, C...
-        }))
+          optionIndex: opt.optionIndex || String.fromCharCode(65 + index), // A, B, C...
+        })),
       };
       
       // 使用新的API端点直接添加题目
       const response = await axios.post(`/api/question-sets/${currentQuestionSet.id}/questions`, newQuestion, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
       
       // 获取添加的题目
@@ -154,14 +154,14 @@ const ManageQuestionSets: React.FC = () => {
           
         const updatedCurrentSet = {
           ...currentQuestionSet,
-          questions: updatedQuestions
+          questions: updatedQuestions,
         };
         
         setCurrentQuestionSet(updatedCurrentSet);
         
         // 2. 更新题库列表中的对应题库
-      setQuestionSets(prev => 
-        prev.map(set => 
+      setQuestionSets((prev) => 
+        prev.map((set) => 
             set.id === currentQuestionSet.id ? updatedCurrentSet : set
         )
       );
@@ -216,22 +216,22 @@ const ManageQuestionSets: React.FC = () => {
     
     try {
       // 更新题目数组
-      const updatedQuestions = currentQuestionSet.questions.map(q => 
+      const updatedQuestions = currentQuestionSet.questions.map((q) => 
         q.id === editingQuestion.id ? updatedQuestion : q
       );
       
       // 创建更新后的题库对象
       const updatedQuestionSet = {
         ...currentQuestionSet,
-        questions: updatedQuestions
+        questions: updatedQuestions,
       };
       
       // 发送更新请求
       const response = await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
       
       let updatedData = updatedQuestionSet;
@@ -246,8 +246,8 @@ const ManageQuestionSets: React.FC = () => {
       }
       
       // 更新本地状态
-      setQuestionSets(prev => 
-        prev.map(set => 
+      setQuestionSets((prev) => 
+        prev.map((set) => 
           set.id === currentQuestionSet.id ? updatedData : set
         )
       );
@@ -283,25 +283,25 @@ const ManageQuestionSets: React.FC = () => {
     
     try {
       // 更新题目数组，移除要删除的题目
-      const updatedQuestions = currentQuestionSet.questions.filter(q => q.id !== question.id);
+      const updatedQuestions = currentQuestionSet.questions.filter((q) => q.id !== question.id);
       
       // 创建更新后的题库对象
       const updatedQuestionSet = {
         ...currentQuestionSet,
-        questions: updatedQuestions
+        questions: updatedQuestions,
       };
       
       // 发送更新请求
       await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
       });
       
       // 更新本地状态
-      setQuestionSets(prev => 
-        prev.map(set => 
+      setQuestionSets((prev) => 
+        prev.map((set) => 
           set.id === currentQuestionSet.id ? updatedQuestionSet : set
         )
       );
@@ -379,7 +379,7 @@ const ManageQuestionSets: React.FC = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {questionSets.map(questionSet => (
+        {questionSets.map((questionSet) => (
           <div 
             key={questionSet.id}
             className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"

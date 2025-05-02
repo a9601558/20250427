@@ -17,7 +17,7 @@ const possibleUserJsPaths = [
   path.join(__dirname, 'dist/server/src/models/User.js'),
   path.join(__dirname, 'dist/src/models/User.js'),
   path.join(__dirname, 'dist/models/User.js'),
-  path.join(__dirname, 'server/dist/models/User.js')
+  path.join(__dirname, 'server/dist/models/User.js'),
 ];
 
 let userJsPath = null;
@@ -112,7 +112,7 @@ try {
   fs.writeFileSync(dbJsPath, dbJsContent, 'utf8');
   console.log(`成功: 已创建数据库配置文件 ${dbJsPath}`);
 } catch (error) {
-  console.error(`错误: 创建数据库配置文件失败:`, error);
+  console.error('错误: 创建数据库配置文件失败:', error);
   process.exit(1);
 }
 

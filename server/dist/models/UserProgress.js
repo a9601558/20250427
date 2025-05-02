@@ -35,33 +35,33 @@ UserProgress.init({
         allowNull: false,
         references: {
             model: 'users',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     questionSetId: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
         references: {
             model: 'question_sets',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     questionId: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
         references: {
             model: 'questions',
-            key: 'id'
-        }
+            key: 'id',
+        },
     },
     isCorrect: {
         type: sequelize_1.DataTypes.BOOLEAN,
-        allowNull: false
+        allowNull: false,
     },
     timeSpent: {
         type: sequelize_1.DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 0
+        defaultValue: 0,
     },
     completedQuestions: {
         type: sequelize_1.DataTypes.INTEGER,
@@ -82,7 +82,7 @@ UserProgress.init({
     lastAccessed: {
         type: sequelize_1.DataTypes.DATE,
         allowNull: false,
-        defaultValue: sequelize_1.DataTypes.NOW
+        defaultValue: sequelize_1.DataTypes.NOW,
     },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,
@@ -93,7 +93,7 @@ UserProgress.init({
         type: sequelize_1.DataTypes.DATE,
         allowNull: false,
         defaultValue: sequelize_1.DataTypes.NOW,
-    }
+    },
 }, {
     sequelize: database_1.default,
     modelName: 'UserProgress',
@@ -103,7 +103,7 @@ UserProgress.init({
         { fields: ['userId'] },
         { fields: ['questionSetId'] },
         { fields: ['questionId'] },
-        { fields: ['userId', 'questionSetId'] }
-    ]
+        { fields: ['userId', 'questionSetId'] },
+    ],
 });
 exports.default = UserProgress;

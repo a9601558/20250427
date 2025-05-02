@@ -61,14 +61,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
           fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
           fontSmoothing: 'antialiased',
           '::placeholder': {
-            color: '#aab7c4'
-          }
+            color: '#aab7c4',
+          },
         },
         invalid: {
           color: '#fa755a',
-          iconColor: '#fa755a'
-        }
-      }
+          iconColor: '#fa755a',
+        },
+      },
     });
 
     // 等待下一个渲染周期挂载DOM
@@ -103,7 +103,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       // 为了演示，我们模拟一个成功的支付过程
 
       // 模拟支付处理延迟
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // 模拟交易ID
       const transactionId = `tr_${Math.random().toString(36).substring(2, 12)}`;
@@ -123,32 +123,32 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
         transactionId: transactionId,
         paymentMethod: 'card',
         status: 'active', // 确保状态是active
-        amount: questionSet.price || 0
+        amount: questionSet.price || 0,
       };
 
-      console.log(`[支付] 创建购买记录:`, purchase);
+      console.log('[支付] 创建购买记录:', purchase);
       
       // 添加购买记录
       await addPurchase(purchase);
-      console.log(`[支付] 购买记录已添加到用户状态`);
+      console.log('[支付] 购买记录已添加到用户状态');
       
       // 通过socket发送实时通知
       const socket = (window as any).socket;
       if (socket) {
-        console.log(`[支付] 通过socket发送购买成功通知`);
+        console.log('[支付] 通过socket发送购买成功通知');
         // 发送购买成功事件
         socket.emit('purchase:success', {
           userId: user.id,
           questionSetId: purchase.questionSetId,
           purchaseId: purchase.id,
-          expiryDate: purchase.expiryDate
+          expiryDate: purchase.expiryDate,
         });
         
         // 发送访问权限更新事件
         socket.emit('questionSet:accessUpdate', {
           userId: user.id,
           questionSetId: purchase.questionSetId,
-          hasAccess: true
+          hasAccess: true,
         });
       }
       
@@ -157,11 +157,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       
       // 如果提供了成功回调，则延迟调用以确保状态已更新
       if (onSuccess) {
-        console.log(`[支付] 调用onSuccess回调`);
+        console.log('[支付] 调用onSuccess回调');
         setTimeout(() => {
           const purchaseInfo = {
             questionSetId: purchase.questionSetId,
-            remainingDays: Math.ceil((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+            remainingDays: Math.ceil((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
           };
           onSuccess(purchaseInfo);
         }, 300);

@@ -68,7 +68,7 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
       const updatedCategories = [...featuredCategories, newCategory.trim()];
       const response = await fetchWithAuth('/homepage/featured-categories', {
         method: 'PUT',
-        body: JSON.stringify({ featuredCategories: updatedCategories })
+        body: JSON.stringify({ featuredCategories: updatedCategories }),
       });
 
       if (response.success) {
@@ -90,24 +90,24 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
   const handleDeleteCategory = async (category: string) => {
     try {
       // 检查是否有题库使用该分类
-      const hasQuestionSets = questionSets.some(qs => qs.featuredCategory === category);
+      const hasQuestionSets = questionSets.some((qs) => qs.featuredCategory === category);
       if (hasQuestionSets) {
         // 提示用户有题库使用该分类
-        if (!window.confirm(`有题库正在使用该分类，删除将会清除这些题库的分类设置。确定删除？`)) {
+        if (!window.confirm('有题库正在使用该分类，删除将会清除这些题库的分类设置。确定删除？')) {
           return;
         }
 
         // 清除使用该分类的题库分类设置
-        const updatedQuestionSets = questionSets.map(qs => 
+        const updatedQuestionSets = questionSets.map((qs) => 
           qs.featuredCategory === category ? { ...qs, featuredCategory: '' } : qs
         );
         setQuestionSets(updatedQuestionSets);
       }
 
-      const updatedCategories = featuredCategories.filter(c => c !== category);
+      const updatedCategories = featuredCategories.filter((c) => c !== category);
       const response = await fetchWithAuth('/homepage/featured-categories', {
         method: 'PUT',
-        body: JSON.stringify({ featuredCategories: updatedCategories })
+        body: JSON.stringify({ featuredCategories: updatedCategories }),
       });
 
       if (response.success) {
@@ -172,7 +172,7 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
             <h3 className="text-lg font-medium mb-3">当前分类列表</h3>
             {featuredCategories.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {featuredCategories.map(category => (
+                {featuredCategories.map((category) => (
                   <div key={category} className="flex justify-between items-center p-3 bg-gray-50 rounded border">
                     <span className="font-medium text-gray-700">{category}</span>
                     <button

@@ -11,10 +11,10 @@ interface HomeContent {
 // 假设这个函数从API或localStorage获取首页内容
 const getHomeContent = (): HomeContent => {
   const defaultContent: HomeContent = {
-    title: "在线题库系统",
-    description: "提供多种类别的题库，帮助用户进行学习和测试",
-    welcomeMessage: "欢迎使用在线题库系统",
-    footerText: "© 2023 在线题库系统 保留所有权利"
+    title: '在线题库系统',
+    description: '提供多种类别的题库，帮助用户进行学习和测试',
+    welcomeMessage: '欢迎使用在线题库系统',
+    footerText: '© 2023 在线题库系统 保留所有权利',
   };
   
   const savedContent = localStorage.getItem('homeContent');
@@ -44,9 +44,9 @@ const AdminHomeContentEditor: React.FC = () => {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setContent(prev => ({
+    setContent((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
   

@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
   filename: function (req: any, file: any, cb: any) {
     const uniqueSuffix = Date.now() + '-' + uuidv4();
     cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+  },
 });
 
 export const upload = multer({
@@ -44,8 +44,8 @@ export const upload = multer({
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB max file size
-  }
+    fileSize: 10 * 1024 * 1024, // 10MB max file size
+  },
 });
 
 /**
@@ -58,7 +58,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: '请上传文件'
+        message: '请上传文件',
       });
     }
 
@@ -75,18 +75,18 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
       // CSV处理逻辑
       return res.status(200).json({
         success: true,
-        message: 'CSV文件解析功能开发中，请使用JSON格式'
+        message: 'CSV文件解析功能开发中，请使用JSON格式',
       });
     } else if (fileExt === '.xlsx' || fileExt === '.xls') {
       // Excel处理逻辑
       return res.status(200).json({
         success: true,
-        message: 'Excel文件解析功能开发中，请使用JSON格式'
+        message: 'Excel文件解析功能开发中，请使用JSON格式',
       });
     } else {
       return res.status(400).json({
         success: false,
-        message: '不支持的文件类型'
+        message: '不支持的文件类型',
       });
     }
 
@@ -94,7 +94,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
     if (!questionSetData || !questionSetData.id || !questionSetData.title) {
       return res.status(400).json({
         success: false,
-        message: '题库数据格式不正确，必须包含id和title字段'
+        message: '题库数据格式不正确，必须包含id和title字段',
       });
     }
 
@@ -112,14 +112,14 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
         isPaid: questionSetData.isPaid !== undefined ? questionSetData.isPaid : existingSet.isPaid,
         price: questionSetData.isPaid && questionSetData.price !== undefined ? questionSetData.price : undefined,
         trialQuestions: questionSetData.isPaid && questionSetData.trialQuestions !== undefined ? questionSetData.trialQuestions : undefined,
-        isFeatured: questionSetData.isFeatured !== undefined ? questionSetData.isFeatured : existingSet.isFeatured
+        isFeatured: questionSetData.isFeatured !== undefined ? questionSetData.isFeatured : existingSet.isFeatured,
       });
 
       // 如果提供了题目，则更新题目
       if (questionSetData.questions && questionSetData.questions.length > 0) {
         // 先删除所有旧题目
         await Question.destroy({
-          where: { questionSetId: questionSetData.id }
+          where: { questionSetId: questionSetData.id },
         });
 
         // 添加新题目
@@ -132,7 +132,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
             explanation: q.explanation || '暂无解析',
             questionSetId: questionSetData.id,
             questionType: q.questionType || 'single',
-            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i,
           });
 
           // 创建问题的选项
@@ -149,7 +149,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
                 questionId: question.id,
                 text: option.text,
                 isCorrect: option.isCorrect ? true : false,
-                optionIndex: optionIndex
+                optionIndex: optionIndex,
               });
             }
           }
@@ -160,7 +160,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
         id: questionSetData.id,
         status: 'updated',
         message: '题库更新成功',
-        questionCount: questionSetData.questions ? questionSetData.questions.length : 0
+        questionCount: questionSetData.questions ? questionSetData.questions.length : 0,
       };
     } else {
       // 如果不存在则创建
@@ -173,7 +173,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
         isPaid: questionSetData.isPaid || false,
         price: questionSetData.isPaid && questionSetData.price !== undefined ? questionSetData.price : 0,
         trialQuestions: questionSetData.isPaid && questionSetData.trialQuestions !== undefined ? questionSetData.trialQuestions : 0,
-        isFeatured: questionSetData.isFeatured || false
+        isFeatured: questionSetData.isFeatured || false,
       });
 
       // 如果提供了题目，则创建题目
@@ -187,7 +187,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
             explanation: q.explanation || '暂无解析',
             questionSetId: questionSetData.id,
             questionType: q.questionType || 'single',
-            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
+            orderIndex: q.orderIndex !== undefined ? q.orderIndex : i,
           });
 
           // 创建问题的选项
@@ -204,7 +204,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
                 questionId: question.id,
                 text: option.text,
                 isCorrect: option.isCorrect ? true : false,
-                optionIndex: optionIndex
+                optionIndex: optionIndex,
               });
             }
           }
@@ -215,7 +215,7 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
         id: questionSetData.id,
         status: 'created',
         message: '题库创建成功',
-        questionCount: questionSetData.questions ? questionSetData.questions.length : 0
+        questionCount: questionSetData.questions ? questionSetData.questions.length : 0,
       };
     }
 
@@ -225,13 +225,13 @@ export const uploadQuestionSetFile = async (req: MulterRequest, res: Response) =
     res.status(201).json({
       success: true,
       data: response,
-      message: '题库上传成功'
+      message: '题库上传成功',
     });
   } catch (error: any) {
     console.error('上传题库文件错误:', error);
     res.status(500).json({
       success: false,
-      message: error.message || '服务器错误'
+      message: error.message || '服务器错误',
     });
   }
 }; 

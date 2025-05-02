@@ -10,7 +10,7 @@ async function createDatabase() {
     DB_PORT, 
     DB_NAME, 
     DB_USER, 
-    DB_PASSWORD
+    DB_PASSWORD,
   } = process.env;
   
   console.log(`数据库配置: HOST=${DB_HOST}, PORT=${DB_PORT}, DB=${DB_NAME}, USER=${DB_USER}`);
@@ -23,7 +23,7 @@ async function createDatabase() {
       host: DB_HOST,
       port: DB_PORT,
       user: DB_USER,
-      password: DB_PASSWORD
+      password: DB_PASSWORD,
     });
     
     console.log('已成功连接到MySQL服务器');
@@ -56,7 +56,7 @@ createDatabase()
     console.log('脚本执行完成');
     process.exit(0);
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('运行脚本时出现未处理的错误:', err);
     process.exit(1);
   }); 

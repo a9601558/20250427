@@ -7,7 +7,7 @@ module.exports = {
     database: process.env.DB_NAME || 'exam_practice',
     host: process.env.DB_HOST || '127.0.0.1',
     dialect: 'mysql',
-    logging: console.log
+    logging: console.log,
   },
   test: {
     username: process.env.DB_USER || 'root',
@@ -15,7 +15,7 @@ module.exports = {
     database: process.env.DB_NAME || 'exam_practice_test',
     host: process.env.DB_HOST || '127.0.0.1',
     dialect: 'mysql',
-    logging: false
+    logging: false,
   },
   production: {
     username: process.env.DB_USER,
@@ -23,6 +23,6 @@ module.exports = {
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
     dialect: 'mysql',
-    logging: false
-  }
+    logging: false,
+  },
 }; 

@@ -5,11 +5,11 @@ module.exports = {
     await queryInterface.addColumn('user_progress', 'lastQuestionIndex', {
       type: Sequelize.INTEGER,
       allowNull: true,
-      after: 'correctAnswers'
+      after: 'correctAnswers',
     });
   },
 
   down: async (queryInterface, Sequelize) => {
     await queryInterface.removeColumn('user_progress', 'lastQuestionIndex');
-  }
+  },
 }; 

@@ -22,18 +22,18 @@ const AdminQuizManagement: React.FC = () => {
   }, []);
   
   const deleteQuizSet = (id: string) => {
-    setQuestionSets(prevSets => prevSets.filter(set => set.id !== id));
+    setQuestionSets((prevSets) => prevSets.filter((set) => set.id !== id));
     return true;
   };
   
   const addQuizSet = (newSet: QuestionSet) => {
-    setQuestionSets(prevSets => [...prevSets, newSet]);
+    setQuestionSets((prevSets) => [...prevSets, newSet]);
     return true;
   };
   
   const updateQuizSet = (updatedSet: QuestionSet) => {
-    setQuestionSets(prevSets => 
-      prevSets.map(set => set.id === updatedSet.id ? updatedSet : set)
+    setQuestionSets((prevSets) => 
+      prevSets.map((set) => set.id === updatedSet.id ? updatedSet : set)
     );
     return true;
   };
@@ -44,7 +44,7 @@ const AdminQuizManagement: React.FC = () => {
     title: '',
     description: '',
     category: '',
-    questions: []
+    questions: [],
   });
   const [showNewQuizForm, setShowNewQuizForm] = useState(false);
   
@@ -59,7 +59,7 @@ const AdminQuizManagement: React.FC = () => {
   
   // 处理编辑题库
   const handleEditQuizSet = (quizSet: QuestionSet) => {
-    setEditingQuizSet({...quizSet});
+    setEditingQuizSet({ ...quizSet });
   };
   
   // 保存编辑
@@ -95,7 +95,7 @@ const AdminQuizManagement: React.FC = () => {
         title: '',
         description: '',
         category: '',
-        questions: []
+        questions: [],
       });
       setShowNewQuizForm(false);
     } else {
@@ -132,7 +132,7 @@ const AdminQuizManagement: React.FC = () => {
                 id="name"
                 className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={newQuizSet.title}
-                onChange={(e) => setNewQuizSet({...newQuizSet, title: e.target.value})}
+                onChange={(e) => setNewQuizSet({ ...newQuizSet, title: e.target.value })}
               />
             </div>
             
@@ -143,7 +143,7 @@ const AdminQuizManagement: React.FC = () => {
                 id="category"
                 className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={newQuizSet.category}
-                onChange={(e) => setNewQuizSet({...newQuizSet, category: e.target.value})}
+                onChange={(e) => setNewQuizSet({ ...newQuizSet, category: e.target.value })}
               />
             </div>
             
@@ -154,7 +154,7 @@ const AdminQuizManagement: React.FC = () => {
                 rows={3}
                 className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={newQuizSet.description}
-                onChange={(e) => setNewQuizSet({...newQuizSet, description: e.target.value})}
+                onChange={(e) => setNewQuizSet({ ...newQuizSet, description: e.target.value })}
               />
             </div>
           </div>
@@ -189,7 +189,7 @@ const AdminQuizManagement: React.FC = () => {
                 id="edit-name"
                 className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={editingQuizSet.title}
-                onChange={(e) => setEditingQuizSet({...editingQuizSet, title: e.target.value})}
+                onChange={(e) => setEditingQuizSet({ ...editingQuizSet, title: e.target.value })}
               />
             </div>
             
@@ -200,7 +200,7 @@ const AdminQuizManagement: React.FC = () => {
                 id="edit-category"
                 className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={editingQuizSet.category}
-                onChange={(e) => setEditingQuizSet({...editingQuizSet, category: e.target.value})}
+                onChange={(e) => setEditingQuizSet({ ...editingQuizSet, category: e.target.value })}
               />
             </div>
             
@@ -211,7 +211,7 @@ const AdminQuizManagement: React.FC = () => {
                 rows={3}
                 className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={editingQuizSet.description}
-                onChange={(e) => setEditingQuizSet({...editingQuizSet, description: e.target.value})}
+                onChange={(e) => setEditingQuizSet({ ...editingQuizSet, description: e.target.value })}
               />
             </div>
           </div>
@@ -324,5 +324,4 @@ const AdminQuizManagement: React.FC = () => {
 };
 
 export default AdminQuizManagement;
-
  

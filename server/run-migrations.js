@@ -46,7 +46,7 @@ async function runMigrations() {
       // 运行所有迁移
       const migrations = await umzug.up();
       console.log('已成功运行以下迁移:');
-      migrations.forEach(migration => {
+      migrations.forEach((migration) => {
         console.log(`- ${migration.name}`);
       });
     } else {

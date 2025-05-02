@@ -10,8 +10,8 @@ export const getCurrentUser = async (): Promise<IUser | null> => {
 
     const response = await fetch('/api/users/me', {
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        'Authorization': `Bearer ${token}`,
+      },
     });
 
     if (!response.ok) {
