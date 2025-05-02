@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -9,15 +42,24 @@ const morgan_1 = __importDefault(require("morgan"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-const database_1 = __importDefault(require("./config/database"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const http_1 = require("http");
 const socket_1 = require("./config/socket");
 const associations_1 = require("./models/associations");
 const appstate_1 = require("./utils/appstate");
-const HomepageSettings_1 = __importDefault(require("./models/HomepageSettings"));
 const applyFieldMappings_1 = require("./utils/applyFieldMappings");
-// Load environment variables
-dotenv_1.default.config();
+const database_validator_1 = require("./utils/database-validator");
+const logger_1 = require("./utils/logger");
+// 确保在一开始就加载环境变量
+const envPath = path_1.default.join(process.cwd(), '.env');
+if (fs_1.default.existsSync(envPath)) {
+    logger_1.logger.info(`加载环境变量文件: ${envPath}`);
+    dotenv_1.default.config({ path: envPath });
+}
+else {
+    logger_1.logger.warn(`警告: 环境变量文件不存在: ${envPath}`);
+}
 // Import models to ensure they are initialized
 require("./models/User");
 require("./models/QuestionSet");
@@ -80,28 +122,61 @@ appstate_1.appState.associationsInitialized = true;
 console.log('模型关联初始化完成');
 // 应用字段映射修复
 (0, applyFieldMappings_1.applyGlobalFieldMappings)();
-// 同步数据库并启动服务器
-database_1.default.sync({ alter: true }).then(() => {
-    console.log('数据库同步完成');
-    // 确保 HomepageSettings 表有初始数据
-    HomepageSettings_1.default.findByPk(1).then((homepageSettings) => {
-        if (!homepageSettings) {
-            console.log('创建 HomepageSettings 初始数据...');
-            return HomepageSettings_1.default.create({
-                id: 1,
-                welcome_title: 'ExamTopics 模拟练习',
-                welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
-                featured_categories: ['网络协议', '编程语言', '计算机基础'],
-                announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-                footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-                banner_image: '/images/banner.jpg',
-                theme: 'light',
+// 启动验证和主程序
+async function bootstrap() {
+    try {
+        // 首先验证数据库连接
+        logger_1.logger.info('正在验证数据库连接...');
+        const isDbValid = await (0, database_validator_1.validateDatabaseConnection)();
+        if (!isDbValid) {
+            logger_1.logger.error('数据库连接验证失败，尝试使用紧急恢复措施...');
+            // 尝试应急措施，但继续启动应用
+        }
+        else {
+            logger_1.logger.info('数据库连接验证成功！');
+        }
+        // 在验证之后导入主应用，确保数据库已准备就绪
+        const { default: server, syncDatabase } = await Promise.resolve().then(() => __importStar(require('./app')));
+        // 同步数据库
+        await syncDatabase();
+        // 获取PORT
+        const PORT = process.env.PORT || 3001;
+        // 启动服务器
+        server.listen(PORT, () => {
+            logger_1.logger.info(`服务器在端口 ${PORT} 上运行`);
+        });
+        // 处理未捕获的异常
+        process.on('uncaughtException', (err) => {
+            logger_1.logger.error('未捕获的异常:', err);
+        });
+        // 处理未处理的Promise拒绝
+        process.on('unhandledRejection', (reason) => {
+            logger_1.logger.error('未处理的Promise拒绝:', reason);
+        });
+        // 确保 HomepageSettings 表有初始数据
+        const homepageSettingsModule = await Promise.resolve().then(() => __importStar(require('./models/HomepageSettings')));
+        const HomepageSettings = homepageSettingsModule.default;
+        const settingsCount = await HomepageSettings.count();
+        if (settingsCount === 0) {
+            logger_1.logger.info('创建默认首页设置...');
+            await HomepageSettings.create({
+                featuredCategories: [],
+                siteTitle: '考试平台',
+                welcomeMessage: '欢迎使用我们的考试平台！',
+                footerText: '© 2024 考试平台 版权所有',
             });
         }
-    }).then(() => {
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    });
+        // 导出server实例以便测试
+        return server;
+    }
+    catch (error) {
+        logger_1.logger.error('服务器启动失败:', error);
+        process.exit(1);
+    }
+}
+// 启动应用
+bootstrap().catch(err => {
+    logger_1.logger.error('启动过程中出错:', err);
+    process.exit(1);
 });
 exports.default = app;

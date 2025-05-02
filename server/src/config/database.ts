@@ -2,16 +2,17 @@ import { Sequelize, Dialect } from 'sequelize';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { logger } from '../utils/logger';
 
 // 使用相对路径指向项目根目录的.env文件
 const envPath = path.join(process.cwd(), '.env');
 
 // 检查并加载 .env 文件
 if (fs.existsSync(envPath)) {
-  console.log(`加载环境变量文件: ${envPath}`);
+  logger.info(`加载环境变量文件: ${envPath}`);
   dotenv.config({ path: envPath });
 } else {
-  console.warn(`警告: 环境变量文件不存在: ${envPath}`);
+  logger.warn(`警告: 环境变量文件不存在: ${envPath}`);
 }
 
 // 数据库配置
@@ -22,7 +23,7 @@ const dbConfig = {
   username: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'quiz_app',
-  logging: console.log, // 启用日志以便调试
+  logging: (msg: string) => logger.debug(msg), // 使用logger进行日志记录
   pool: {
     max: 5,
     min: 0,
@@ -49,28 +50,39 @@ const sequelize = new Sequelize(
   }
 );
 
+// 验证连接是否有效
+let connectionVerified = false;
+
 // 测试数据库连接
 const testConnection = async () => {
   try {
     await sequelize.authenticate();
-    console.log('数据库连接成功！');
+    connectionVerified = true;
+    logger.info('数据库连接成功！');
   } catch (error) {
-    console.error('无法连接到数据库:', error);
+    logger.error('无法连接到数据库:', error);
     // 不要立即退出进程，以防止应用程序无法启动
-    console.error('将尝试继续运行，但可能出现数据库相关的错误');
+    logger.error('将尝试继续运行，但可能出现数据库相关的错误');
   }
 };
 
 // 立即测试连接
 testConnection();
 
-// 为了兼容性，同时支持 CommonJS 和 ES Module
-// @ts-ignore
-if (typeof module !== 'undefined') {
-  // @ts-ignore
-  module.exports = sequelize;
-  // @ts-ignore
-  module.exports.default = sequelize;
+// 为兼容CommonJS和ES模块，确保导出格式正确
+type ExtendedSequelize = Sequelize & { 
+  isValid: () => boolean 
+};
+
+const databaseModule = sequelize as ExtendedSequelize;
+
+// 添加检查方法
+databaseModule.isValid = () => connectionVerified;
+
+// 确保模块可以被CommonJS和ES模块系统同时使用
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = databaseModule;
+  module.exports.default = databaseModule;
 }
 
-export default sequelize; 
+export default databaseModule; 

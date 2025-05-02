@@ -3,13 +3,10 @@ import HomepageSettings from '../models/HomepageSettings';
 import QuestionSet from '../models/QuestionSet';
 
 interface HomeContent {
-  welcomeTitle: string;
-  welcomeDescription: string;
+  siteTitle: string;
+  welcomeMessage: string;
   featuredCategories: string[];
-  announcements: string;
   footerText: string;
-  bannerImage?: string | null;
-  theme?: 'light' | 'dark' | 'auto';
 }
 
 /**
@@ -25,13 +22,10 @@ export const getHomepageContent = async (req: Request, res: Response) => {
     // 如果没有配置，返回默认配置
     if (!settings) {
       const defaultContent: HomeContent = {
-        welcomeTitle: 'ExamTopics 模拟练习',
-        welcomeDescription: '选择以下任一题库开始练习，测试您的知识水平',
-        featuredCategories: ['网络协议', '编程语言', '计算机基础'],
-        announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-        footerText: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-        bannerImage: '/images/banner.jpg',
-        theme: 'light',
+        siteTitle: '考试平台',
+        welcomeMessage: '欢迎使用我们的考试平台！',
+        featuredCategories: [],
+        footerText: '© 2024 考试平台 版权所有',
       };
       
       return res.status(200).json({
@@ -42,13 +36,10 @@ export const getHomepageContent = async (req: Request, res: Response) => {
 
     // 将配置转换为HomeContent格式
     const content: HomeContent = {
-      welcomeTitle: settings.welcome_title,
-      welcomeDescription: settings.welcome_description,
-      featuredCategories: settings.featured_categories || [],
-      announcements: settings.announcements,
-      footerText: settings.footer_text,
-      bannerImage: settings.banner_image,
-      theme: settings.theme,
+      siteTitle: settings.siteTitle,
+      welcomeMessage: settings.welcomeMessage,
+      featuredCategories: settings.featuredCategories || [],
+      footerText: settings.footerText,
     };
 
     res.status(200).json({
@@ -73,13 +64,10 @@ export const getHomepageContent = async (req: Request, res: Response) => {
 export const updateHomepageContent = async (req: Request, res: Response) => {
   try {
     const {
-      welcomeTitle,
-      welcomeDescription,
+      siteTitle,
+      welcomeMessage,
       featuredCategories,
-      announcements,
       footerText,
-      bannerImage,
-      theme,
     } = req.body;
 
     // 查找是否已存在配置
@@ -89,24 +77,18 @@ export const updateHomepageContent = async (req: Request, res: Response) => {
       // 不存在，创建新配置
       settings = await HomepageSettings.create({
         id: 1,
-        welcome_title: welcomeTitle,
-        welcome_description: welcomeDescription,
-        featured_categories: featuredCategories,
-        announcements: announcements,
-        footer_text: footerText,
-        banner_image: bannerImage || null,
-        theme: theme || 'light',
+        siteTitle,
+        welcomeMessage,
+        featuredCategories,
+        footerText,
       });
     } else {
       // 更新现有配置
       await settings.update({
-        welcome_title: welcomeTitle,
-        welcome_description: welcomeDescription,
-        featured_categories: featuredCategories,
-        announcements: announcements,
-        footer_text: footerText,
-        banner_image: bannerImage || null,
-        theme: theme || 'light',
+        siteTitle,
+        welcomeMessage,
+        featuredCategories,
+        footerText,
       });
     }
 
@@ -135,8 +117,8 @@ export const getFeaturedCategories = async (req: Request, res: Response) => {
     const settings = await HomepageSettings.findByPk(1);
 
     let featuredCategories: string[] = [];
-    if (settings && settings.featured_categories) {
-      featuredCategories = settings.featured_categories || [];
+    if (settings && settings.featuredCategories) {
+      featuredCategories = settings.featuredCategories || [];
     }
 
     res.status(200).json({
@@ -176,18 +158,15 @@ export const updateFeaturedCategories = async (req: Request, res: Response) => {
       // 不存在，创建新配置
       settings = await HomepageSettings.create({
         id: 1,
-        welcome_title: 'ExamTopics 模拟练习',
-        welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
-        featured_categories: featuredCategories,
-        announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-        footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-        banner_image: '/images/banner.jpg',
-        theme: 'light',
+        siteTitle: '考试平台',
+        welcomeMessage: '欢迎使用我们的考试平台！',
+        featuredCategories,
+        footerText: '© 2024 考试平台 版权所有',
       });
     } else {
       // 更新现有配置
       await settings.update({
-        featured_categories: featuredCategories,
+        featuredCategories,
       });
     }
 
