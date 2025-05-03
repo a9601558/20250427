@@ -114,6 +114,84 @@ const HomePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
 
+  // 切换分类
+  const handleCategoryChange = (category: string) => {
+    setActiveCategory(category);
+  };
+
+  // Add helper functions for localStorage access status cache
+  const getLocalAccessCache = () => {
+    try {
+      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('[HomePage] 读取缓存失败:', e);
+      return {};
+    }
+  };
+
+  // 获取过滤后的题库列表，按分类组织
+  const getFilteredQuestionSets = useCallback(() => {
+    // 先根据搜索词过滤
+    let filteredSets = searchTerm.trim() ? 
+      questionSets.filter(set => 
+        set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        set.category.toLowerCase().includes(searchTerm.toLowerCase())
+      ) : 
+      questionSets;
+    
+    // 再根据分类过滤
+    if (activeCategory !== 'all') {
+      // 直接按选中的分类筛选
+      filteredSets = filteredSets.filter(set => set.category === activeCategory);
+    } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+      // 在全部模式，且有精选分类时，只显示精选分类或标记为精选的题库
+      filteredSets = filteredSets.filter(set => 
+        // 属于精选分类
+        homeContent.featuredCategories.includes(set.category) || 
+        // 或者本身被标记为精选
+        set.isFeatured === true || 
+        // 或者精选分类与题库精选分类匹配
+        (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory))
+      );
+      
+      console.log(`[HomePage] 精选分类过滤: 共${filteredSets.length}个符合条件的题库`);
+    }
+    
+    return filteredSets;
+  }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
+
+  // 获取推荐题库的函数
+  const getRecommendedSets = useCallback(() => {
+    return questionSets.filter(set => set.isFeatured).slice(0, 3);
+  }, [questionSets]);
+
+  // 缓存访问权限到本地存储
+  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
+    try {
+      // 仅在用户登录时缓存，确保权限与用户绑定
+      if (!user?.id) return;
+      
+      const cache = getLocalAccessCache();
+      
+      // 使用用户ID组织缓存，避免用户切换后错用缓存
+      if (!cache[user.id]) cache[user.id] = {};
+      
+      // Update the cache with fresh data
+      cache[user.id][questionSetId] = {
+        hasAccess,
+        remainingDays,
+        timestamp: Date.now()
+      };
+      
+      // Save back to localStorage
+      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
+      console.log(`[HomePage] 已保存题库 ${questionSetId} 的访问权限到缓存，用户: ${user.id}`);
+    } catch (error) {
+      console.error('[HomePage] 保存访问权限缓存失败:', error);
+    }
+  }, [user?.id]);
+
   // 获取题库列表的函数 - 统一缓存策略
   const fetchQuestionSets = useCallback(async () => {
     try {
@@ -152,64 +230,24 @@ const HomePage: React.FC = () => {
     }
   }, [user?.id, socket]);
 
-  // 监听 Socket 事件，更新题库访问状态
+  // 监听来自ProfilePage的刷新通知 - 超简化版本，避免无限循环
   useEffect(() => {
-    if (!socket) return;
-
-    const handleBatchAccessUpdate = (data: { 
-      updates: Array<{
-        questionSetId: string;
-        hasAccess: boolean;
-        remainingDays: number | null;
-      }>
-    }) => {
-      if (!data.updates || !Array.isArray(data.updates)) return;
-      
-      setQuestionSets(prevSets => {
-        const newSets = [...prevSets];
-        let hasUpdates = false;
-        
-        data.updates.forEach(update => {
-          const setIndex = newSets.findIndex(set => set.id === update.questionSetId);
-          if (setIndex !== -1) {
-            const set = newSets[setIndex];
-            let accessType: AccessType = set.accessType;
-            
-            if (update.hasAccess) {
-              accessType = set.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
-            } else if (update.remainingDays !== null && update.remainingDays <= 0) {
-              accessType = 'expired';
-            }
-            
-            newSets[setIndex] = {
-              ...set,
-              hasAccess: update.hasAccess,
-              remainingDays: update.remainingDays,
-              accessType
-            };
-            hasUpdates = true;
-          }
-        });
-        
-        return hasUpdates ? newSets : prevSets;
-      });
+    // 只在组件挂载时刷新一次题库列表
+    fetchQuestionSets();
+    
+    // 添加一个简单的事件监听器来处理ProfilePage的刷新通知
+    const handleRefreshRequest = () => {
+      console.log('[HomePage] 收到刷新请求');
+      fetchQuestionSets();
     };
-
-    socket.on('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
+    
+    // 使用自定义事件而不是socket
+    window.addEventListener('questionSets:refresh', handleRefreshRequest);
     
     return () => {
-      socket.off('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
+      window.removeEventListener('questionSets:refresh', handleRefreshRequest);
     };
-  }, [socket]);
-
-  // 定期刷新题库列表（改为10分钟，与缓存时间一致）
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      fetchQuestionSets();
-    }, 600000); // 10分钟，与缓存时间一致
-    
-    return () => clearInterval(intervalId);
-  }, [fetchQuestionSets]);
+  }, []); // 空依赖数组，只在挂载时执行
 
   // 页面加载时获取题库列表
   useEffect(() => {
@@ -221,423 +259,55 @@ const HomePage: React.FC = () => {
     if (user?.id) {
       console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
       fetchQuestionSets();
-      
-      // 用户登录后主动检查题库访问权限 - 确保跨设备登录时能正确识别已购买的题库
-      if (socket) {
-        const checkAccessRights = () => {
-          // 如果socket尚未连接，等待连接
-          if (!socket.connected) {
-            console.log('[HomePage] Socket尚未连接，等待连接后检查访问权限');
-            setTimeout(checkAccessRights, 500);
-            return;
-          }
-          
-          // 获取所有付费题库ID
-          const paidSets = questionSets.filter(set => set.isPaid);
-          if (paidSets.length > 0) {
-            console.log('[HomePage] 用户登录后主动检查题库访问权限:', paidSets.length, '个付费题库');
-            socket.emit('questionSet:checkAccessBatch', {
-              userId: user.id,
-              questionSetIds: paidSets.map(set => set.id)
-            });
-          }
-        };
-        
-        // 执行检查
-        checkAccessRights();
-      }
     }
-  }, [user?.id, fetchQuestionSets, socket, questionSets]);
+  }, [user?.id, fetchQuestionSets]);
 
-  // 获取过滤后的题库列表，按分类组织
-  const getFilteredQuestionSets = useCallback(() => {
-    // 先根据搜索词过滤
-    let filteredSets = searchTerm.trim() ? 
-      questionSets.filter(set => 
-        set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        set.category.toLowerCase().includes(searchTerm.toLowerCase())
-      ) : 
-      questionSets;
-    
-    // 再根据分类过滤
-    if (activeCategory !== 'all') {
-      // 直接按选中的分类筛选
-      filteredSets = filteredSets.filter(set => set.category === activeCategory);
-    } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-      // 在全部模式，且有精选分类时，只显示精选分类或标记为精选的题库
-      filteredSets = filteredSets.filter(set => 
-        // 属于精选分类
-        homeContent.featuredCategories.includes(set.category) || 
-        // 或者本身被标记为精选
-        set.isFeatured === true || 
-        // 或者精选分类与题库精选分类匹配
-        (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory))
-      );
-      
-      console.log(`[HomePage] 精选分类过滤: 共${filteredSets.length}个符合条件的题库`);
-    }
-    
-    return filteredSets;
-  }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
-
-  // 将题库按类型分组
-  const getCategorizedQuestionSets = useCallback(() => {
-    const filtered = getFilteredQuestionSets();
-    
-    // 检查localStorage中的兑换记录
-    const getRedeemedQuestionSetIds = () => {
-      try {
-        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-        if (redeemedStr) {
-          return JSON.parse(redeemedStr) || [];
-        }
-      } catch (e) {
-        console.error('解析localStorage兑换记录失败', e);
-      }
-      return [];
-    };
-    
-    const redeemedIds = getRedeemedQuestionSetIds();
-    
-    // 按访问类型分组，添加对兑换记录的检查
-    const freeQuestionSets = filtered.filter(set => !set.isPaid);
-    const purchasedQuestionSets = filtered.filter(set => {
-      // 已购买的情况
-      const isPurchasedAndValid = (set.accessType === 'paid' || set.accessType === 'redeemed') && 
-                                  set.remainingDays && set.remainingDays > 0;
-      
-      // 检查是否在兑换记录中
-      const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
-        String(id).trim() === String(set.id).trim()
-      );
-      
-      return isPurchasedAndValid || isRedeemed;
-    });
-    
-    // 排除已归类为purchased的题库，避免重复显示
-    const purchasedIds = purchasedQuestionSets.map(set => set.id);
-    const paidQuestionSets = filtered.filter(set => 
-      set.isPaid && set.accessType === 'trial' && !purchasedIds.includes(set.id)
-    );
-    
-    const expiredQuestionSets = filtered.filter(set => 
-      set.accessType === 'expired' || (set.remainingDays !== null && set.remainingDays <= 0)
-    );
-    
-    return {
-      free: freeQuestionSets,
-      paid: paidQuestionSets,
-      purchased: purchasedQuestionSets,
-      expired: expiredQuestionSets
-    };
-  }, [getFilteredQuestionSets]);
-
-  // 获取推荐题库的函数
-  const getRecommendedSets = useCallback(() => {
-    return questionSets.filter(set => set.isFeatured).slice(0, 3);
-  }, [questionSets]);
-
-  // 获取首页设置、分类和题库列表
+  // 添加函数来清除本地存储中过期的缓存数据
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setErrorMessage(null);
-
-        // 并行请求首页数据，减少请求阻塞
-        const [settingsData, categoriesData] = await Promise.all([
-          // 获取首页设置 - 增加重试机制，无缓存确保实时数据
-          apiClient.get('/api/homepage/content', undefined, { 
-            cacheDuration: 0,
-            retries: 2
-          }),
-          
-          // 获取精选分类 - 增加重试机制，无缓存确保实时数据
-          apiClient.get('/api/homepage/featured-categories', undefined, { 
-            cacheDuration: 0,
-            retries: 2
-          })
-        ]);
-
-        // 处理首页设置数据
-        if (settingsData.success && settingsData.data) {
-          const contentData = settingsData.data;
-          console.log('[HomePage] 成功获取首页设置:', contentData);
-          setHomeContent(contentData);
-          
-          // 更新active category
-          if (activeCategory === 'all' && contentData.featuredCategories?.length > 0) {
-            setActiveCategory('all'); // 保持全部选中，但更新分类列表
-          }
-        } else {
-          console.error('[HomePage] 获取首页设置失败:', 
-            settingsData.message || '未知错误'
-          );
-        }
-
-        // 处理分类数据
-        if (categoriesData.success && categoriesData.data) {
-          console.log('[HomePage] 成功获取精选分类:', categoriesData.data);
-          // 确保更新所有地方
-          setHomeContent(prev => ({
-            ...prev,
-            featuredCategories: categoriesData.data
-          }));
-        } else {
-          console.error('[HomePage] 获取精选分类失败:', 
-            categoriesData.message || '未知错误'
-          );
-        }
-
-      } catch (error) {
-        console.error('[HomePage] 获取数据失败:', error);
-        setErrorMessage('获取数据失败，请稍后重试');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // 请求数据
-    fetchData();
+    if (!user?.id) return;
     
-    // 设置定期刷新 - 每10分钟刷新一次首页设置和分类
-    const interval = setInterval(fetchData, 600000);
-    return () => clearInterval(interval);
-  }, [activeCategory]);
-
-  // 异步处理题库列表数据 - 经过封装的函数
-  const processQuestionSets = async (data: BaseQuestionSet[]) => {
-    if (!data || data.length === 0) return;
+    console.log('[HomePage] 用户登录，清除本地过期缓存');
     
-    const updatedData = prepareQuestionSets(data);
-    setQuestionSets(updatedData);
-  };
-
-  // Add helper functions for localStorage access status cache at the top of the component
-  const getLocalAccessCache = () => {
+    // 清除过期的访问权限缓存
     try {
-      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
-      return JSON.parse(raw);
-    } catch (e) {
-      console.error('[HomePage] 读取缓存失败:', e);
-      return {};
-    }
-  };
-
-  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
-    try {
-      // 仅在用户登录时缓存，确保权限与用户绑定
-      if (!user?.id) return;
+      const cacheKey = 'questionSetAccessCache';
+      const cache = localStorage.getItem(cacheKey);
       
-      const cache = getLocalAccessCache();
-      
-      // 使用用户ID组织缓存，避免用户切换后错用缓存
-      if (!cache[user.id]) cache[user.id] = {};
-      
-      // Update the cache with fresh data
-      cache[user.id][questionSetId] = {
-        hasAccess,
-        remainingDays,
-        timestamp: Date.now()
-      };
-      
-      // Save back to localStorage
-      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
-      console.log(`[HomePage] 已保存题库 ${questionSetId} 的访问权限到缓存，用户: ${user.id}`);
-    } catch (error) {
-      console.error('[HomePage] 保存访问权限缓存失败:', error);
-    }
-  }, [user?.id]);
-
-  const getAccessFromLocalStorage = useCallback((questionSetId: string) => {
-    try {
-      // 仅在用户登录时获取缓存
-      if (!user?.id) return null;
-      
-      const cache = getLocalAccessCache();
-      
-      // 检查该用户的缓存数据
-      const userCache = cache[user.id];
-      if (!userCache) return null;
-      
-      // Check if we have cached data for this question set
-      if (userCache[questionSetId]) {
-        const cacheAge = Date.now() - userCache[questionSetId].timestamp;
-        const remainingDays = userCache[questionSetId].remainingDays;
-        
-        // 缓存失效情况：
-        // 1. 缓存超过24小时 (86400000 ms)
-        // 2. 缓存的剩余天数 <= 0（题库已过期）
-        if (cacheAge > 86400000 || (remainingDays !== null && remainingDays <= 0)) {
-          console.log(`[HomePage] 缓存已失效 ${questionSetId}`, 
-            cacheAge > 86400000 ? '缓存超时' : '题库已过期');
-          return null;
-        }
-        
-        console.log(`[HomePage] 从缓存读取题库 ${questionSetId} 的访问权限，用户: ${user.id}`);
-        return userCache[questionSetId];
-      }
-      return null;
-    } catch (error) {
-      console.error('[HomePage] 读取访问权限缓存失败:', error);
-      return null;
-    }
-  }, [user?.id]);
-
-  // Add useEffect to load cached access status when component mounts
-  useEffect(() => {
-    if (!questionSets.length) return;
-    
-    console.log('[HomePage] 检查缓存的题库访问权限');
-    
-    // 仅当用户登录时加载缓存
-    if (user?.id) {
-      setQuestionSets(prevSets => {
-        const newSets = [...prevSets];
+      if (cache) {
+        const cacheData = JSON.parse(cache);
         let hasUpdates = false;
         
-        newSets.forEach((set, index) => {
-          const cachedAccess = getAccessFromLocalStorage(set.id);
-          if (cachedAccess) {
-            // Update from cache only if not already set
-            if (set.hasAccess !== cachedAccess.hasAccess || set.remainingDays !== cachedAccess.remainingDays) {
-        newSets[index] = {
-          ...newSets[index],
-                hasAccess: cachedAccess.hasAccess,
-                remainingDays: cachedAccess.remainingDays
-              };
+        // 遍历所有用户的缓存
+        Object.keys(cacheData).forEach(userId => {
+          // 如果不是当前用户的缓存，跳过
+          if (userId !== user.id) return;
+          
+          const userCache = cacheData[userId];
+          
+          // 遍历该用户的所有题库缓存
+          Object.keys(userCache).forEach(qsId => {
+            const record = userCache[qsId];
+            const cacheAge = Date.now() - (record.timestamp || 0);
+            
+            // 缓存超过2小时视为过期，确保从服务器获取最新状态
+            if (cacheAge > 7200000) {
+              console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟`);
+              delete userCache[qsId];
               hasUpdates = true;
             }
-          }
+          });
         });
         
-        return hasUpdates ? newSets : prevSets;
-      });
-    }
-  }, [questionSets.length, getAccessFromLocalStorage, user?.id]);
-  
-  // 新增：用户登录后主动获取题库访问权限（不依赖socket）
-  useEffect(() => {
-    // 仅当用户已登录且题库列表已加载时执行
-    if (!user?.id || !questionSets.length) return;
-    
-    console.log('[HomePage] 用户已登录，主动获取题库访问权限');
-    
-    const fetchAccessStatusFromServer = async () => {
-      try {
-        // 仅查询付费题库的访问权限
-        const paidQuestionSets = questionSets.filter(set => set.isPaid);
-        
-        // 没有付费题库，不需要查询
-        if (paidQuestionSets.length === 0) return;
-        
-        console.log(`[HomePage] 主动获取 ${paidQuestionSets.length} 个付费题库的访问权限`);
-        
-        // 方式一：使用RESTful API（如果有的话）
-        // const response = await apiClient.post('/api/user/access-status', {
-        //   questionSetIds: paidQuestionSets.map(q => q.id),
-        // });
-        
-        // if (response.success && Array.isArray(response.data)) {
-        //   updateQuestionSetsAccess(response.data);
-        // }
-        
-        // 方式二：使用Socket（当前实现）
-        if (socket) {
-          // 确保socket已连接
-          if (socket.connected) {
-            socket.emit('questionSet:checkAccessBatch', {
-              userId: user.id,
-              questionSetIds: paidQuestionSets.map(set => set.id)
-            });
-          } else {
-            // 如果socket未连接，等待连接后再发送
-            console.log('[HomePage] Socket未连接，等待连接后获取权限');
-            const checkConnection = () => {
-              if (socket.connected) {
-                socket.emit('questionSet:checkAccessBatch', {
-                  userId: user.id,
-                  questionSetIds: paidQuestionSets.map(set => set.id)
-                });
-                clearInterval(connectionTimer);
-              }
-            };
-            
-            const connectionTimer = setInterval(checkConnection, 1000);
-            
-            // 最多等待10秒
-            setTimeout(() => {
-              clearInterval(connectionTimer);
-              console.log('[HomePage] Socket连接超时，无法获取题库权限');
-            }, 10000);
-          }
+        // 如果有更新，保存回localStorage
+        if (hasUpdates) {
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+          console.log('[HomePage] 已清理过期缓存');
         }
-      } catch (error) {
-        console.error('[HomePage] 获取题库访问权限失败:', error);
       }
-    };
-    
-    // 执行获取
-    fetchAccessStatusFromServer();
-    
-    // 用户更改时清除定时器
-  }, [user?.id, questionSets.length, socket]);
-  
-  // 统一处理批量更新题库访问状态的逻辑
-  const updateQuestionSetsAccess = useCallback((updates: Array<{
-      questionSetId: string;
-      hasAccess: boolean;
-      remainingDays: number | null;
-  }>) => {
-    if (!updates || !Array.isArray(updates) || updates.length === 0) return;
-    
-    console.log('[updateQuestionSetsAccess] 收到批量更新:', updates);
-    
-    setQuestionSets(prevSets => {
-        const newSets = [...prevSets];
-      let updatedCount = 0;
-      
-      // 批量更新题库状态
-      updates.forEach(update => {
-        // 标准化ID格式，避免类型不匹配
-        const normalizedUpdateId = String(update.questionSetId).trim();
-        console.log(`[updateQuestionSetsAccess] 处理更新: questionSetId=${normalizedUpdateId}, hasAccess=${update.hasAccess}, remainingDays=${update.remainingDays}`);
-        
-        const index = newSets.findIndex(set => String(set.id).trim() === normalizedUpdateId);
-        if (index !== -1) {
-          console.log(`[updateQuestionSetsAccess] 找到匹配题库 index=${index}, 旧值:`, {
-            id: newSets[index].id,
-            title: newSets[index].title,
-            hasAccess: newSets[index].hasAccess,
-            remainingDays: newSets[index].remainingDays
-          });
-          
-        newSets[index] = {
-          ...newSets[index],
-            hasAccess: update.hasAccess,
-            remainingDays: update.remainingDays
-          };
-          
-          console.log(`[updateQuestionSetsAccess] 更新后的题库:`, {
-            id: newSets[index].id,
-            title: newSets[index].title,
-            hasAccess: newSets[index].hasAccess, 
-            remainingDays: newSets[index].remainingDays
-          });
-          
-          updatedCount++;
-          
-          // 保存到localStorage缓存
-          saveAccessToLocalStorage(update.questionSetId, update.hasAccess, update.remainingDays);
-        } else {
-          console.warn(`[updateQuestionSetsAccess] 未找到匹配的题库ID: ${normalizedUpdateId}`);
-        }
-      });
-      
-      console.log(`[updateQuestionSetsAccess] 完成更新 ${updatedCount}/${updates.length} 个题库`);
-      return updatedCount > 0 ? newSets : prevSets;
-    });
-  }, [saveAccessToLocalStorage]);
+    } catch (error) {
+      console.error('[HomePage] 清除缓存失败:', error);
+    }
+  }, [user?.id]);
 
   // 监听全局兑换码成功事件
   useEffect(() => {
@@ -821,107 +491,6 @@ const HomePage: React.FC = () => {
     // 稍后会通过API/Socket更新访问权限
     return { hasAccess: false, remainingDays: null };
   };
-
-  // 添加Socket监听，使用依赖更少的方式
-  useEffect(() => {
-    if (!socket) return;
-
-    // 监听批量题库访问状态更新
-    const handleBatchAccessUpdate = (data: { 
-      updates: Array<{
-        questionSetId: string;
-        hasAccess: boolean;
-        remainingDays: number | null;
-      }>
-    }) => {
-      if (!data.updates || !Array.isArray(data.updates) || data.updates.length === 0) return;
-      
-      console.log('[Socket] batchAccessUpdate 返回:', data);
-      console.log('[HomePage] 收到批量题库访问状态更新:', data.updates);
-      
-      // 使用统一的更新函数处理
-      updateQuestionSetsAccess(data.updates);
-    };
-
-    // 只监听批量更新事件
-    socket.on('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
-    
-    // 监听单个题库访问状态更新（兼容现有API）
-    const handleAccessUpdate = (data: { 
-      questionSetId: string;
-      hasAccess: boolean;
-      remainingDays: number | null;
-    }) => {
-      console.log('[Socket] accessUpdate 返回:', data);
-      console.log('[HomePage] 收到单个题库访问状态更新:', data);
-      
-      // 转换为批量更新格式并使用统一的更新函数
-      updateQuestionSetsAccess([{
-        questionSetId: data.questionSetId,
-        hasAccess: data.hasAccess,
-        remainingDays: data.remainingDays
-      }]);
-    };
-
-    socket.on('questionSet:accessUpdate', handleAccessUpdate);
-
-    return () => {
-      socket.off('questionSet:batchAccessUpdate', handleBatchAccessUpdate);
-      socket.off('questionSet:accessUpdate', handleAccessUpdate);
-    };
-  }, [socket, updateQuestionSetsAccess]);
-
-  // 监听来自ProfilePage的刷新通知
-  useEffect(() => {
-    const handleRefreshAccess = () => {
-      console.log('[HomePage] 收到刷新题库访问权限的通知');
-      
-      // 检查用户和socket是否可用
-      if (!user?.id || !socket) return;
-      
-      // 只检查付费题库
-      const paidQuestionSets = questionSets.filter(set => set.isPaid);
-      if (paidQuestionSets.length === 0) return;
-      
-      // 发送批量检查请求
-      socket.emit('questionSet:checkAccessBatch', {
-        userId: user.id,
-        questionSetIds: paidQuestionSets.map(set => set.id)
-      });
-    };
-    
-    // 监听自定义事件
-    window.addEventListener('questionSets:refreshAccess', handleRefreshAccess);
-    
-    return () => {
-      window.removeEventListener('questionSets:refreshAccess', handleRefreshAccess);
-    };
-  }, [user?.id, socket, questionSets]);
-  
-  // 定期检查题库访问状态（每2小时），处理长时间不刷新页面的情况
-  useEffect(() => {
-    if (!user?.id || !socket || questionSets.length === 0) return;
-    
-    // 获取付费题库
-    const paidQuestionSets = questionSets.filter(set => set.isPaid);
-    if (paidQuestionSets.length === 0) return;
-    
-    console.log('[HomePage] 设置定期检查题库访问状态');
-    
-    // 从1小时改为2小时检查一次，减少服务器负载
-    const checkTimer = setInterval(() => {
-      console.log('[HomePage] 定期检查题库访问状态');
-      
-      socket.emit('questionSet:checkAccessBatch', {
-        userId: user.id,
-        questionSetIds: paidQuestionSets.map(set => set.id)
-      });
-    }, 7200000); // 2小时
-    
-    return () => {
-      clearInterval(checkTimer);
-    };
-  }, [user?.id, socket, questionSets]);
 
   // 在现有的useEffect中添加对推荐题库的处理
   useEffect(() => {
@@ -1174,56 +743,57 @@ const HomePage: React.FC = () => {
     );
   };
 
-  const handleCategoryChange = (category: string) => {
-    setActiveCategory(category);
-  };
-
-  // 添加函数来清除本地存储中过期的缓存数据
-  useEffect(() => {
-    if (!user?.id) return;
+  // 将题库按类型分组
+  const getCategorizedQuestionSets = useCallback(() => {
+    const filtered = getFilteredQuestionSets();
     
-    console.log('[HomePage] 用户登录，清除本地过期缓存');
-    
-    // 清除过期的访问权限缓存
-    try {
-      const cacheKey = 'questionSetAccessCache';
-      const cache = localStorage.getItem(cacheKey);
-      
-      if (cache) {
-        const cacheData = JSON.parse(cache);
-        let hasUpdates = false;
-        
-        // 遍历所有用户的缓存
-        Object.keys(cacheData).forEach(userId => {
-          // 如果不是当前用户的缓存，跳过
-          if (userId !== user.id) return;
-          
-          const userCache = cacheData[userId];
-          
-          // 遍历该用户的所有题库缓存
-          Object.keys(userCache).forEach(qsId => {
-            const record = userCache[qsId];
-            const cacheAge = Date.now() - (record.timestamp || 0);
-            
-            // 缓存超过2小时视为过期，确保从服务器获取最新状态
-            if (cacheAge > 7200000) {
-              console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟`);
-              delete userCache[qsId];
-              hasUpdates = true;
-            }
-          });
-        });
-        
-        // 如果有更新，保存回localStorage
-        if (hasUpdates) {
-          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-          console.log('[HomePage] 已清理过期缓存');
+    // 检查localStorage中的兑换记录
+    const getRedeemedQuestionSetIds = () => {
+      try {
+        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+        if (redeemedStr) {
+          return JSON.parse(redeemedStr) || [];
         }
+      } catch (e) {
+        console.error('解析localStorage兑换记录失败', e);
       }
-    } catch (error) {
-      console.error('[HomePage] 清除缓存失败:', error);
-    }
-  }, [user?.id]);
+      return [];
+    };
+    
+    const redeemedIds = getRedeemedQuestionSetIds();
+    
+    // 按访问类型分组，添加对兑换记录的检查
+    const freeQuestionSets = filtered.filter((set: any) => !set.isPaid);
+    const purchasedQuestionSets = filtered.filter((set: any) => {
+      // 已购买的情况
+      const isPurchasedAndValid = (set.accessType === 'paid' || set.accessType === 'redeemed') && 
+                                  set.remainingDays && set.remainingDays > 0;
+      
+      // 检查是否在兑换记录中
+      const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
+        String(id).trim() === String(set.id).trim()
+      );
+      
+      return isPurchasedAndValid || isRedeemed;
+    });
+    
+    // 排除已归类为purchased的题库，避免重复显示
+    const purchasedIds = purchasedQuestionSets.map((set: any) => set.id);
+    const paidQuestionSets = filtered.filter((set: any) => 
+      set.isPaid && set.accessType === 'trial' && !purchasedIds.includes(set.id)
+    );
+    
+    const expiredQuestionSets = filtered.filter((set: any) => 
+      set.accessType === 'expired' || (set.remainingDays !== null && set.remainingDays <= 0)
+    );
+    
+    return {
+      free: freeQuestionSets,
+      paid: paidQuestionSets,
+      purchased: purchasedQuestionSets,
+      expired: expiredQuestionSets
+    };
+  }, [getFilteredQuestionSets]);
 
   if (loading) {
     return (
@@ -1568,7 +1138,7 @@ const HomePage: React.FC = () => {
                     </span>
                     <button 
                       onClick={() => {
-                        const refreshEvent = new CustomEvent('questionSets:refreshAccess');
+                        const refreshEvent = new CustomEvent('questionSets:refresh');
                         window.dispatchEvent(refreshEvent);
                       }}
                       className="ml-auto px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded flex items-center"
