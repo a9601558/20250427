@@ -1619,6 +1619,7 @@ function QuizPage(): JSX.Element {
   // 初始化访问状态 - 在题库信息加载后执行
   useEffect(() => {
     if (questionSet?.id && !loading) {
+      // 首先从localStorage检查访问权限
       const hasStoredAccess = getAccessFromLocalStorage(questionSet.id);
       console.log(`[QuizPage] 题库 ${questionSet.id} 完成加载，检查本地存储访问权限: ${hasStoredAccess}`);
       
@@ -1626,12 +1627,50 @@ function QuizPage(): JSX.Element {
         console.log(`[QuizPage] 本地存储显示题库 ${questionSet.id} 有访问权限，设置状态`);
         setHasAccessToFullQuiz(true);
         setTrialEnded(false);
+      }
+      
+      // 检查是否有localStorage中保存的已兑换记录
+      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedQuestionSetIds) {
+        try {
+          const redeemedIds = JSON.parse(redeemedQuestionSetIds);
+          const normalizedCurrentId = String(questionSet.id).trim();
+          
+          if (Array.isArray(redeemedIds)) {
+            const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedCurrentId);
+            console.log(`[QuizPage] 题库 ${normalizedCurrentId} 是否已兑换: ${isRedeemed}`);
+            
+            if (isRedeemed) {
+              console.log(`[QuizPage] 题库已兑换，设置状态`);
+              setHasRedeemed(true);
+              setHasAccessToFullQuiz(true);
+              setTrialEnded(false);
+            }
+          }
+        } catch (e) {
+          console.error('[QuizPage] 检查localStorage兑换状态失败', e);
+        }
+      }
+      
+      // 始终向服务器请求最新访问权限状态，确保跨设备同步
+      if (socket && user) {
+        console.log(`[QuizPage] 向服务器请求题库 ${questionSet.id} 的最新访问权限状态`);
         
-        // 通知服务器确认访问权限
-        if (socket && user) {
+        // 使用标准化的ID格式
+        const normalizedId = String(questionSet.id).trim();
+        
+        // 发送请求检查访问权限
+        socket.emit('questionSet:checkAccess', {
+          userId: user.id,
+          questionSetId: normalizedId,
+          source: 'quiz_page_init'
+        });
+        
+        // 如果本地存储表明有访问权限，也通知服务器更新
+        if (hasStoredAccess) {
           socket.emit('questionSet:accessUpdate', {
             userId: user.id,
-            questionSetId: String(questionSet.id).trim(),
+            questionSetId: normalizedId,
             hasAccess: true,
             source: 'localStorage'
           });

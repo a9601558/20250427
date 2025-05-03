@@ -1035,6 +1035,11 @@ const ProfilePage: React.FC = () => {
   const calculateProgressStats = (records: ProgressRecord[], questionSets: Map<string, QuestionSet>): ProgressStats[] => {
     console.log('[ProfilePage] 开始计算进度统计，记录数:', records.length, '题库数:', questionSets.size);
     
+    if (!Array.isArray(records) || records.length === 0) {
+      console.warn('[ProfilePage] 没有进度记录数据，返回空数组');
+      return [];
+    }
+    
     // 验证记录格式
     const validRecords = records.filter(record => {
       const isValid = record && record.questionSetId && record.questionId;
@@ -1051,8 +1056,9 @@ const ProfilePage: React.FC = () => {
     
     // 处理每条记录，按题库和题目分组，保留最后一次作答
     validRecords.forEach(record => {
-      const qsId = record.questionSetId;
-      const qId = record.questionId;
+      // 标准化ID格式
+      const qsId = String(record.questionSetId).trim();
+      const qId = String(record.questionId).trim();
       
       if (!progressMap.has(qsId)) {
         progressMap.set(qsId, new Map<string, ProgressRecord>());
@@ -1061,9 +1067,10 @@ const ProfilePage: React.FC = () => {
       const questionMap = progressMap.get(qsId)!;
       
       // 如果题目不存在或当前记录更新，则更新记录
-      if (!questionMap.has(qId) || 
-          (record.createdAt && questionMap.get(qId)!.createdAt && 
-           new Date(record.createdAt) > new Date(questionMap.get(qId)!.createdAt!))) {
+      const existingRecord = questionMap.get(qId);
+      if (!existingRecord || 
+          (record.createdAt && existingRecord.createdAt && 
+           new Date(record.createdAt) > new Date(existingRecord.createdAt))) {
         questionMap.set(qId, record);
       }
     });
@@ -1111,7 +1118,10 @@ const ProfilePage: React.FC = () => {
       }
     });
     
-    console.log('[ProfilePage] 最终生成统计数据数量:', stats.length);
+    // 按完成数量降序排序，显示已完成题目最多的题库在前面
+    stats.sort((a, b) => b.completedQuestions - a.completedQuestions);
+    
+    console.log('[ProfilePage] 最终生成统计数据数量:', stats.length, stats);
     
     return stats;
   };
@@ -1189,15 +1199,7 @@ const ProfilePage: React.FC = () => {
 
   // 优化初始数据加载逻辑
   useEffect(() => {
-    if (!user) {
-      console.log('[ProfilePage] 用户未登录，跳过数据加载');
-      return;
-    }
-    
-    if (!socket) {
-      console.log('[ProfilePage] Socket 未连接，等待连接后加载数据');
-      return;
-    }
+    if (!user || !socket) return;
     
     console.log('[ProfilePage] 用户ID:', user.id, '，Socket已连接:', socket.connected);
     
@@ -1220,16 +1222,19 @@ const ProfilePage: React.FC = () => {
       try {
         console.log('[ProfilePage] 开始加载所有数据');
         
-        // 并行获取所有数据，包括题库数据
+        // 先获取题库数据，以便后续处理进度数据时使用
+        await questionSetService.getAllQuestionSets().then(response => {
+          if (response.success && response.data) {
+            console.log('[ProfilePage] 题库数据加载成功:', response.data.length);
+          } else {
+            console.error('[ProfilePage] 加载题库数据失败:', response.message);
+          }
+        }).catch(error => {
+          console.error('[ProfilePage] 加载题库数据失败:', error);
+        });
+        
+        // 然后获取其他数据
         await Promise.all([
-          // 直接使用服务而不是函数引用
-          questionSetService.getAllQuestionSets().then(response => {
-            if (response.success && response.data) {
-              console.log('[ProfilePage] 题库数据加载成功:', response.data.length);
-            }
-          }).catch(error => {
-            console.error('[ProfilePage] 加载题库数据失败:', error);
-          }),
           fetchProgressData(),
           fetchPurchases(),
           fetchRedeemCodes(),

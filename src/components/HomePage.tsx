@@ -219,9 +219,35 @@ const HomePage: React.FC = () => {
   // 用户登录状态改变时重新获取题库列表
   useEffect(() => {
     if (user?.id) {
+      console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
       fetchQuestionSets();
+      
+      // 用户登录后主动检查题库访问权限 - 确保跨设备登录时能正确识别已购买的题库
+      if (socket) {
+        const checkAccessRights = () => {
+          // 如果socket尚未连接，等待连接
+          if (!socket.connected) {
+            console.log('[HomePage] Socket尚未连接，等待连接后检查访问权限');
+            setTimeout(checkAccessRights, 500);
+            return;
+          }
+          
+          // 获取所有付费题库ID
+          const paidSets = questionSets.filter(set => set.isPaid);
+          if (paidSets.length > 0) {
+            console.log('[HomePage] 用户登录后主动检查题库访问权限:', paidSets.length, '个付费题库');
+            socket.emit('questionSet:checkAccessBatch', {
+              userId: user.id,
+              questionSetIds: paidSets.map(set => set.id)
+            });
+          }
+        };
+        
+        // 执行检查
+        checkAccessRights();
+      }
     }
-  }, [user?.id, fetchQuestionSets]);
+  }, [user?.id, fetchQuestionSets, socket, questionSets]);
 
   // 获取过滤后的题库列表，按分类组织
   const getFilteredQuestionSets = useCallback(() => {
@@ -1151,6 +1177,53 @@ const HomePage: React.FC = () => {
   const handleCategoryChange = (category: string) => {
     setActiveCategory(category);
   };
+
+  // 添加函数来清除本地存储中过期的缓存数据
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    console.log('[HomePage] 用户登录，清除本地过期缓存');
+    
+    // 清除过期的访问权限缓存
+    try {
+      const cacheKey = 'questionSetAccessCache';
+      const cache = localStorage.getItem(cacheKey);
+      
+      if (cache) {
+        const cacheData = JSON.parse(cache);
+        let hasUpdates = false;
+        
+        // 遍历所有用户的缓存
+        Object.keys(cacheData).forEach(userId => {
+          // 如果不是当前用户的缓存，跳过
+          if (userId !== user.id) return;
+          
+          const userCache = cacheData[userId];
+          
+          // 遍历该用户的所有题库缓存
+          Object.keys(userCache).forEach(qsId => {
+            const record = userCache[qsId];
+            const cacheAge = Date.now() - (record.timestamp || 0);
+            
+            // 缓存超过2小时视为过期，确保从服务器获取最新状态
+            if (cacheAge > 7200000) {
+              console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟`);
+              delete userCache[qsId];
+              hasUpdates = true;
+            }
+          });
+        });
+        
+        // 如果有更新，保存回localStorage
+        if (hasUpdates) {
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+          console.log('[HomePage] 已清理过期缓存');
+        }
+      }
+    } catch (error) {
+      console.error('[HomePage] 清除缓存失败:', error);
+    }
+  }, [user?.id]);
 
   if (loading) {
     return (
