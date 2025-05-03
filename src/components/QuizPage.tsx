@@ -2142,12 +2142,21 @@ function QuizPage(): JSX.Element {
       // 提示用户
       toast.success('进度已重置，开始新的测试！');
       
-      // 清除本地存储
+      // 更彻底地清除本地存储
       try {
         if (questionSet) {
+          // 清除所有与进度相关的本地存储
           const localProgressKey = `quiz_progress_${questionSet.id}`;
           localStorage.removeItem(localProgressKey);
           sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
+          
+          // 清除其他可能存在的相关数据
+          localStorage.removeItem(`quiz_state_${questionSet.id}`);
+          localStorage.removeItem(`last_question_${questionSet.id}`);
+          localStorage.removeItem(`answered_questions_${questionSet.id}`);
+          
+          // 确保重置未同步状态标记
+          unsyncedChangesRef.current = false;
         }
       } catch (e) {
         console.error('清除本地进度失败:', e);

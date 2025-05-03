@@ -840,91 +840,98 @@ const ProfilePage: React.FC = () => {
   // 错误状态
   const [error, setError] = useState<string | null>(null);
 
+  // 获取题库数据
+  const fetchQuestionSets = useCallback(async () => {
+    try {
+      console.log('[ProfilePage] 开始获取题库数据');
+      const response = await questionSetService.getAllQuestionSets();
+      
+      if (response.success) {
+        console.log('[ProfilePage] 题库数据获取成功，数量:', response.data?.length || 0);
+        return response.data || [];
+      } else {
+        console.error('[ProfilePage] 获取题库数据失败:', response.error);
+        return [];
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 获取题库数据异常:', error);
+      return [];
+    }
+  }, []);
+
   // 前向声明这些函数
   const fetchProgressData = async () => {
     if (!user) return;
+    
     try {
       setIsLoading(true);
-      console.log('[ProfilePage] 开始获取用户进度数据');
+      console.log('[ProfilePage] Starting to fetch progress data');
       
-      // 直接从API获取数据并添加详细日志
-      const response = await userProgressService.getUserProgressRecords();
-      console.log('[ProfilePage] 进度数据响应状态:', response.success);
-      console.log('[ProfilePage] 进度数据类型:', typeof response.data);
+      // Get progress records from API
+      const progressResponse = await userProgressService.getUserProgressRecords();
+      console.log('[ProfilePage] Progress API response:', progressResponse);
       
-      if (response.success && response.data) {
-        // 尝试获取更多有关响应数据的信息
-        if (Array.isArray(response.data)) {
-          console.log('[ProfilePage] 进度记录数量:', response.data.length);
-          
-          // 检查数据格式
-          if (response.data.length > 0) {
-            console.log('[ProfilePage] 进度记录示例:', JSON.stringify(response.data[0]));
-          } else {
-            console.warn('[ProfilePage] 进度记录为空数组 - 用户没有任何进度记录');
-          }
-        } else {
-          console.error('[ProfilePage] 响应数据不是数组:', response.data);
-          setError('进度数据格式错误');
+      if (progressResponse.success) {
+        console.log('[ProfilePage] Progress data fetch successful');
+        
+        // Log the type of data received to help debug
+        console.log('[ProfilePage] Progress data type:', Array.isArray(progressResponse.data) ? 'array' : typeof progressResponse.data);
+        
+        // Check if response data is valid
+        if (!progressResponse.data || !Array.isArray(progressResponse.data)) {
+          console.error('[ProfilePage] Invalid progress data format:', progressResponse.data);
+          setError('无法加载进度数据');
           setIsLoading(false);
           return;
         }
         
-        // 获取题库信息，用于显示标题
-        console.log('[ProfilePage] 获取题库信息开始');
-        const questionSetsResponse = await questionSetService.getAllQuestionSets();
-        console.log('[ProfilePage] 题库数据响应状态:', questionSetsResponse.success);
-        console.log('[ProfilePage] 题库数据类型:', typeof questionSetsResponse.data);
+        // Log the number of progress records
+        console.log('[ProfilePage] Number of progress records:', progressResponse.data.length);
         
-        if (questionSetsResponse.success && questionSetsResponse.data) {
-          // 检查题库数据
-          if (Array.isArray(questionSetsResponse.data)) {
-            console.log('[ProfilePage] 题库数量:', questionSetsResponse.data.length);
-            
-            if (questionSetsResponse.data.length > 0) {
-              console.log('[ProfilePage] 题库示例:', JSON.stringify(questionSetsResponse.data[0]));
-            } else {
-              console.warn('[ProfilePage] 题库数据为空数组 - 系统中没有任何题库');
-            }
-          } else {
-            console.error('[ProfilePage] 题库响应数据不是数组');
-          }
+        // Log a sample progress record if available
+        if (progressResponse.data.length > 0) {
+          console.log('[ProfilePage] Sample progress record:', progressResponse.data[0]);
+        }
+        
+        // Get question sets from API
+        const questionSets = await fetchQuestionSets();
+        console.log('[ProfilePage] Question sets fetch result:', questionSets.length);
+        
+        if (questionSets.length > 0) {
+          console.log('[ProfilePage] Question sets fetch successful. Count:', questionSets.length);
           
+          // Create mapping for question sets
           const questionSetsMap = new Map<string, QuestionSet>();
+          questionSets.forEach((set: any) => {
+            questionSetsMap.set(set.id, { id: set.id, title: set.title });
+          });
+          console.log('[ProfilePage] Created question sets map with', questionSetsMap.size, 'items');
           
-          // 创建题库映射
-          if (Array.isArray(questionSetsResponse.data)) {
-            questionSetsResponse.data.forEach(qs => {
-              questionSetsMap.set(qs.id, { id: qs.id, title: qs.title });
-            });
-            console.log('[ProfilePage] 创建题库映射:', Array.from(questionSetsMap.keys()));
-          }
+          // Calculate progress statistics
+          console.log('[ProfilePage] Calculating progress statistics...');
+          const stats = calculateProgressStats(progressResponse.data, questionSetsMap);
+          console.log('[ProfilePage] Calculated progress stats:', stats);
           
-          // 计算进度统计
-          const stats = calculateProgressStats(response.data, questionSetsMap);
-          console.log('[ProfilePage] 计算得到的进度统计:', JSON.stringify(stats));
+          // Set the progress stats in state
+          setProgressStats(stats);
           
-          // 更新状态
-          if (stats.length > 0) {
-            console.log('[ProfilePage] 设置进度统计状态，数量:', stats.length);
-            setProgressStats(stats);
-          } else {
-            console.warn('[ProfilePage] 计算后没有有效的进度统计数据');
-            setProgressStats([]);
+          // Log specific progress details to help debug
+          console.log('[ProfilePage] Number of progress stats generated:', stats.length);
+          if (stats.length === 0 && progressResponse.data.length > 0) {
+            console.warn('[ProfilePage] Warning: Progress records exist but no stats were generated');
+            console.log('[ProfilePage] Progress records:', progressResponse.data);
           }
         } else {
-          console.error('[ProfilePage] 获取题库数据失败:', questionSetsResponse.message);
-          // 尝试使用只有进度数据的方式计算统计
-          const stats = calculateProgressStats(response.data, new Map());
-          setProgressStats(stats);
+          console.error('[ProfilePage] Failed to fetch question sets');
+          setError('无法加载题库信息');
         }
       } else {
-        console.error('[ProfilePage] 获取进度数据失败:', response.message || '未知错误');
-        setError(response.message || '获取进度数据失败');
+        console.error('[ProfilePage] Failed to fetch progress data:', progressResponse);
+        setError('无法加载进度数据');
       }
     } catch (error) {
-      console.error('[ProfilePage] 加载进度数据失败:', error);
-      setError('数据加载出错，请刷新页面重试');
+      console.error('[ProfilePage] Error fetching progress data:', error);
+      setError('加载进度时发生错误');
     } finally {
       setIsLoading(false);
     }
@@ -1774,19 +1781,6 @@ const ProfilePage: React.FC = () => {
       navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
     }
   };
-
-  // 定义其他缺失的函数
-  const fetchQuestionSets = useCallback(async () => {
-    try {
-      const response = await questionSetService.getAllQuestionSets();
-      if (response.success && response.data) {
-        // 处理题库数据
-        console.log('[ProfilePage] 题库数据加载成功:', response.data.length);
-      }
-    } catch (error) {
-      console.error('[ProfilePage] 加载题库数据失败:', error);
-    }
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
