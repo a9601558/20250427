@@ -105,6 +105,7 @@ interface QuestionSetAccessCache {
       remainingDays?: number | null;
       timestamp: number;
       forceCheck?: boolean;
+      source?: string;
     }
   }
 }
@@ -220,7 +221,7 @@ function QuizPage(): JSX.Element {
       
       // 检查是否匹配当前题库
       if (String(data.questionSetId).trim() === String(questionSet.id).trim()) {
-        console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}`);
+        console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}, 来源: ${data.source || 'server'}`);
         
         // 更新组件状态
         setHasAccessToFullQuiz(data.hasAccess);
@@ -228,10 +229,27 @@ function QuizPage(): JSX.Element {
         // 保存到本地存储，确保跨设备同步
         saveAccessToLocalStorage(questionSet.id, data.hasAccess, data.remainingDays);
         
-        // 确保在localStorage中保存兑换记录，以便HomePage能够识别
+        // 确保在localStorage中保存兑换记录和访问权限，以便在所有设备上访问
         if (data.hasAccess) {
           try {
-            // 保存到redeemed记录中，确保HomePage能识别
+            // 1. 保存到 quizAccessRights 记录中 - 主要访问权限存储
+            const accessRightsStr = localStorage.getItem('quizAccessRights');
+            let accessRights = {};
+            if (accessRightsStr) {
+              accessRights = JSON.parse(accessRightsStr);
+            }
+            
+            // 设置访问权限
+            accessRights[questionSet.id] = {
+              hasAccess: true,
+              remainingDays: data.remainingDays,
+              timestamp: Date.now(),
+              source: data.source || 'server'
+            };
+            localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
+            console.log(`[Socket事件] 已保存到quizAccessRights: ${questionSet.id}`);
+            
+            // 2. 保存到redeemed记录中，确保HomePage能识别
             const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
             let redeemedIds = [];
             if (redeemedStr) {
@@ -245,13 +263,18 @@ function QuizPage(): JSX.Element {
               console.log(`[Socket事件] 已将题库ID添加到兑换记录: ${questionSet.id}`);
             }
             
-            // 同时更新questionSetAccessCache，确保HomePage能够显示正确状态
+            // 3. 同时更新questionSetAccessCache，确保HomePage能够显示正确状态
             const cacheKey = 'questionSetAccessCache';
             const cacheStr = localStorage.getItem(cacheKey);
             let cache: QuestionSetAccessCache = {};
             
             if (cacheStr) {
-              cache = JSON.parse(cacheStr);
+              try {
+                cache = JSON.parse(cacheStr);
+              } catch (e) {
+                console.error('[Socket事件] 解析缓存失败，将创建新缓存', e);
+                cache = {};
+              }
             }
             
             // 确保用户ID键存在
@@ -264,14 +287,15 @@ function QuizPage(): JSX.Element {
               cache[user.id][questionSet.id] = {
                 hasAccess: true,
                 remainingDays: data.remainingDays || 180, // 默认180天
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                source: data.source || 'server'
               };
               
               localStorage.setItem(cacheKey, JSON.stringify(cache));
-              console.log(`[Socket事件] 已更新题库访问缓存: ${questionSet.id}`);
+              console.log(`[Socket事件] 已更新题库访问缓存: ${questionSet.id}, 用户: ${user.id}`);
             }
           } catch (e) {
-            console.error('[Socket事件] 保存兑换记录或访问缓存失败:', e);
+            console.error('[Socket事件] 保存权限记录失败:', e);
           }
           
           // 权限开启后，确保试用结束状态重置
@@ -280,7 +304,7 @@ function QuizPage(): JSX.Element {
           // 如果更新来自另一设备，触发提示
           if (data.source === 'otherDevice') {
             console.log('[Socket事件] 来自其他设备的权限更新');
-            // 可以选择显示一个通知给用户
+            // TODO: 显示一个通知给用户，告知权限已从其他设备同步
           }
           
           // 更新题库对象的hasAccess属性
