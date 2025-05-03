@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { IQuestionSet, Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import PaymentModal from './PaymentModal';
@@ -100,6 +100,7 @@ interface ProgressData {
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, hasAccessToQuestionSet } = useUser();
   const { socket } = useSocket();
   const { fetchUserProgress } = useUserProgress();
@@ -888,7 +889,99 @@ function QuizPage(): JSX.Element {
     }
   };
   
-  // 处理答案提交 - 使用节流机制避免频繁请求
+  // 在QuizPage组件内部，在state声明区域添加一个同步状态标识
+  const [lastSyncTime, setLastSyncTime] = useState<number>(0);
+  const [pendingSync, setPendingSync] = useState<boolean>(false);
+  const unsyncedChangesRef = useRef<boolean>(false);
+
+  // 添加同步进度到服务器的函数
+  const syncProgressToServer = useCallback(async (force: boolean = false) => {
+    if (!user?.id || !questionSetId || !socket) return;
+    
+    // 如果没有未同步的更改且不是强制同步，则跳过
+    if (!force && !unsyncedChangesRef.current) {
+      console.log('[QuizPage] 没有未同步的进度数据');
+      return;
+    }
+    
+    // 防止频繁同步 - 如果距离上次同步不到10秒且不是强制同步，则跳过
+    const now = Date.now();
+    if (!force && (now - lastSyncTime < 10000)) {
+      console.log('[QuizPage] 距离上次同步时间不足10秒，跳过');
+      setPendingSync(true);
+      return;
+    }
+    
+    try {
+      console.log('[QuizPage] 开始同步进度数据到服务器');
+      setPendingSync(false);
+      
+      // 准备要发送的进度数据包
+      const progressBundle = {
+        userId: user.id,
+        questionSetId,
+        lastQuestionIndex: currentQuestionIndex,
+        answeredQuestions,
+        timeSpent: quizTotalTime,
+        timestamp: new Date().toISOString()
+      };
+      
+      // 通过socket将打包的进度数据同步到服务器
+      socket.emit('progress:update', progressBundle);
+      
+      // 更新同步状态
+      setLastSyncTime(now);
+      unsyncedChangesRef.current = false;
+      
+      console.log('[QuizPage] 进度数据同步完成');
+    } catch (error) {
+      console.error('[QuizPage] 同步进度数据异常:', error);
+      unsyncedChangesRef.current = true; // 标记为未同步
+    }
+  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, lastSyncTime]);
+
+  // 在组件挂载时检查是否有待同步的进度数据
+  useEffect(() => {
+    if (!user?.id || !questionSetId || !socket) return;
+    
+    // 检查localStorage中是否有待同步的数据
+    try {
+      const localProgressKey = `quiz_progress_${questionSetId}`;
+      const localProgressStr = localStorage.getItem(localProgressKey);
+      
+      if (localProgressStr) {
+        const localProgress = JSON.parse(localProgressStr);
+        if (localProgress.pendingSync === true) {
+          console.log('[QuizPage] 检测到上次会话有未同步的进度数据，尝试同步');
+          
+          // 准备要发送的进度数据包
+          const progressBundle = {
+            userId: user.id,
+            questionSetId,
+            lastQuestionIndex: localProgress.lastQuestionIndex,
+            answeredQuestions: localProgress.answeredQuestions,
+            timeSpent: quizTotalTime,
+            timestamp: new Date().toISOString()
+          };
+          
+          // 通过socket将打包的进度数据同步到服务器
+          socket.emit('progress:update', progressBundle);
+          console.log('[QuizPage] 已发送进度同步请求');
+          
+          // 清除pendingSync标记
+          localStorage.setItem(localProgressKey, JSON.stringify({
+            ...localProgress,
+            pendingSync: false,
+            lastSynced: new Date().toISOString()
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('[QuizPage] 检查待同步数据失败:', error);
+    }
+  }, [user?.id, questionSetId, socket, quizTotalTime]);
+
+  // 修改handleAnswerSubmit函数，只在本地保存进度
   const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
     if (isSubmittingRef.current) {
       console.log('已在提交答案中，忽略重复请求');
@@ -935,51 +1028,43 @@ function QuizPage(): JSX.Element {
 
     setAnsweredQuestions(updatedAnsweredQuestions);
 
-    // 更新进度 - 简化为占位函数
-    const updateProgress = (answeredQuestions: AnsweredQuestion[]) => {
-      console.log("[QuizPage] 更新进度:", answeredQuestions.length);
-    };
-    updateProgress(updatedAnsweredQuestions);
+    // 仅更新本地进度
+    console.log("[QuizPage] 更新本地进度:", updatedAnsweredQuestions.length);
+    
+    // 更新本地存储
+    const localProgressKey = `quiz_progress_${questionSetId}`;
+    localStorage.setItem(localProgressKey, JSON.stringify({
+      lastQuestionIndex: currentQuestionIndex,
+      answeredQuestions: updatedAnsweredQuestions,
+      lastUpdated: new Date().toISOString()
+    }));
 
-    // 更新本地存储 - 简化为占位函数
-    const saveProgressToLocalStorage = (answeredQuestions: AnsweredQuestion[]) => {
-      const localProgressKey = `quiz_progress_${questionSetId}`;
-      localStorage.setItem(localProgressKey, JSON.stringify({
-        lastQuestionIndex: currentQuestionIndex,
-        answeredQuestions,
-        lastUpdated: new Date().toISOString()
-      }));
-    };
-    saveProgressToLocalStorage(updatedAnsweredQuestions);
-
-    // 发送Socket.IO事件
-    if (socket && user?.id && currentQuestion) {
-      socket.emit('progress:update', {
-        questionId: currentQuestion.id,
-        questionSetId: questionSetId,
-        isCorrect,
-        timeSpent,
-        selectedOption: optionIds[0],
-      });
-    }
-
+    // 标记有未同步的更改
+    unsyncedChangesRef.current = true;
+    
     // 答题完成后更新总时间
     if (isTimerActive && updatedAnsweredQuestions.length === questions.length) {
       setIsTimerActive(false);
       setQuizTotalTime(timeSpent);
       
-      // 发送完成事件
+      // 全部完成时同步进度
       if (socket && user?.id) {
-        socket.emit('quiz:complete', {
-          questionSetId,
-          totalTime: timeSpent,
-          correctCount: updatedAnsweredQuestions.filter(q => q.isCorrect).length,
-          totalCount: questions.length
-        });
+        // 延迟一点执行，确保状态已更新
+        setTimeout(() => {
+          syncProgressToServer(true);
+          
+          // 发送完成事件
+          socket.emit('quiz:complete', {
+            questionSetId,
+            totalTime: timeSpent,
+            correctCount: updatedAnsweredQuestions.filter(q => q.isCorrect).length,
+            totalCount: questions.length
+          });
+        }, 300);
       }
     }
 
-    // 重置提交状态 - 更短的时间，用于提高用户体验
+    // 重置提交状态
     setTimeout(() => {
       isSubmittingRef.current = false;
     }, 800);
@@ -991,8 +1076,59 @@ function QuizPage(): JSX.Element {
     user?.id,
     quizStartTime,
     questions.length,
-    isTimerActive
+    isTimerActive,
+    syncProgressToServer
   ]);
+
+  // 在handleNextQuestion函数后添加定期同步逻辑
+  const handleNextQuestion = useCallback(() => {
+    // 如果有未同步的数据且已经累积了多个回答，定期同步
+    if (unsyncedChangesRef.current && answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
+      // 每答完5题同步一次
+      syncProgressToServer();
+    }
+    
+    // 如果已经是最后一题，标记为完成并同步所有数据
+    if (currentQuestionIndex === questions.length - 1) {
+      syncProgressToServer(true).then(() => {
+        setQuizComplete(true);
+      });
+      return;
+    }
+    
+    // 否则跳转到下一题
+    setCurrentQuestionIndex(prevIndex => prevIndex + 1);
+    setSelectedOptions([]);
+    setShowExplanation(false);
+  }, [currentQuestionIndex, questions.length, answeredQuestions.length, syncProgressToServer]);
+
+  // 添加定期同步逻辑
+  useEffect(() => {
+    // 如果有未同步的更改且之前因为时间间隔太短而跳过了同步
+    if (pendingSync && unsyncedChangesRef.current) {
+      const syncTimer = setTimeout(() => {
+        syncProgressToServer();
+      }, 10000); // 10秒后再次尝试同步
+      
+      return () => clearTimeout(syncTimer);
+    }
+  }, [pendingSync, syncProgressToServer]);
+
+  // 添加定期同步的定时器
+  useEffect(() => {
+    // 如果用户已登录且有题目数据，设置定期同步
+    if (user?.id && questions.length > 0) {
+      // 每5分钟同步一次未同步的进度
+      const syncInterval = setInterval(() => {
+        if (unsyncedChangesRef.current) {
+          console.log('[QuizPage] 定期同步进度数据');
+          syncProgressToServer();
+        }
+      }, 5 * 60 * 1000); // 5分钟
+      
+      return () => clearInterval(syncInterval);
+    }
+  }, [user?.id, questions.length, syncProgressToServer]);
 
   // 处理跳转到特定题目
   const handleJumpToQuestion = useCallback((index: number) => {
@@ -1147,11 +1283,11 @@ function QuizPage(): JSX.Element {
               重新开始
             </button>
             <button 
-              onClick={() => navigate('/')} 
+              onClick={handleNavigateHome} 
               className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition flex items-center"
             >
               <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               返回首页
             </button>
@@ -1165,7 +1301,7 @@ function QuizPage(): JSX.Element {
         {/* 顶部导航栏 */}
         <div className="flex justify-between items-center mb-6">
           <button 
-            onClick={() => navigate('/')} 
+            onClick={handleNavigateHome} 
             className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
           >
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1198,19 +1334,8 @@ function QuizPage(): JSX.Element {
             question={currentQuestion}
             questionNumber={currentQuestionIndex + 1}
             totalQuestions={questions.length}
-            onAnswerSubmitted={(isCorrect, selectedOption) => handleAnswerSubmit(isCorrect, selectedOption)}
-            onNext={() => {
-              // 如果已经是最后一题，标记为完成
-              if (currentQuestionIndex === questions.length - 1) {
-                setQuizComplete(true);
-                return;
-              }
-              
-              // 否则跳转到下一题
-              setCurrentQuestionIndex(prevIndex => prevIndex + 1);
-              setSelectedOptions([]);
-              setShowExplanation(false);
-            }}
+            onAnswerSubmitted={handleAnswerSubmit}
+            onNext={handleNextQuestion}
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
             hasFullAccess={hasAccessToFullQuiz}
@@ -1265,6 +1390,16 @@ function QuizPage(): JSX.Element {
     if (timeoutId.current) {
       clearTimeout(timeoutId.current);
       timeoutId.current = undefined;
+    }
+
+    // 首先同步当前进度（如果有未同步的更改）
+    if (unsyncedChangesRef.current) {
+      try {
+        await syncProgressToServer(true);
+        unsyncedChangesRef.current = false;
+      } catch (error) {
+        console.error('[QuizPage] 同步进度失败:', error);
+      }
     }
 
     // 清除所有可能存储进度的缓存
@@ -1880,10 +2015,111 @@ function QuizPage(): JSX.Element {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 修改handleResetQuiz函数，重置计时器
-  const handleResetQuiz = async () => {
+  // 重新添加页面刷新/关闭事件处理
+  useEffect(() => {
+    // 处理页面刷新或关闭
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (unsyncedChangesRef.current) {
+        // 尝试同步进度（这个场景下可能不会完全同步，主要确保数据保存到localStorage）
+        const localProgressKey = `quiz_progress_${questionSetId}`;
+        localStorage.setItem(localProgressKey, JSON.stringify({
+          lastQuestionIndex: currentQuestionIndex,
+          answeredQuestions,
+          lastUpdated: new Date().toISOString(),
+          pendingSync: true // 标记为待同步
+        }));
+        
+        // 显示确认对话框
+        const message = '你有未保存的进度，确定要离开吗？';
+        event.preventDefault();
+        event.returnValue = message;
+        return message;
+      }
+    };
+    
+    // 处理页面可见性变化
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && unsyncedChangesRef.current) {
+        // 页面隐藏时（切换标签、最小化窗口等）同步数据
+        console.log('[QuizPage] 页面隐藏，保存进度到localStorage');
+        
+        // 同步到localStorage
+        const localProgressKey = `quiz_progress_${questionSetId}`;
+        localStorage.setItem(localProgressKey, JSON.stringify({
+          lastQuestionIndex: currentQuestionIndex,
+          answeredQuestions,
+          lastUpdated: new Date().toISOString(),
+          pendingSync: true
+        }));
+        
+        // 尝试同步到服务器
+        // 使用navigator.sendBeacon确保数据发送，即使页面关闭
+        if (navigator.sendBeacon && socket) {
+          const progressData = JSON.stringify({
+            userId: user?.id,
+            questionSetId,
+            lastQuestionIndex: currentQuestionIndex,
+            answeredQuestions,
+            timeSpent: quizTotalTime
+          });
+          
+          // 使用sendBeacon发送数据
+          navigator.sendBeacon('/api/progress/sync', progressData);
+        }
+      }
+    };
+    
+    // 添加事件监听器
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // 组件卸载时清理
+    return () => {
+      // 组件卸载时同步进度
+      if (unsyncedChangesRef.current) {
+        syncProgressToServer(true);
+      }
+      
+      // 移除事件监听器
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [questionSetId, currentQuestionIndex, answeredQuestions, syncProgressToServer, user?.id, quizTotalTime]);
+
+  // 让quizComplete状态也触发同步进度
+  useEffect(() => {
+    // 当测验完成时，同步所有进度
+    if (quizComplete && unsyncedChangesRef.current) {
+      console.log('[QuizPage] 测验完成，同步所有进度');
+      syncProgressToServer(true);
+    }
+  }, [quizComplete, syncProgressToServer]);
+
+  // 添加页面导航返回主页功能
+  const handleNavigateHome = useCallback(() => {
+    // 导航前先同步进度
+    if (unsyncedChangesRef.current) {
+      syncProgressToServer(true).then(() => {
+        navigate('/');
+      });
+    } else {
+      navigate('/');
+    }
+  }, [navigate, syncProgressToServer]);
+
+  // 在渲染内容中使用以下组件属性和回调：
+  // 1. <QuestionCard onNext={handleNextQuestion} />
+  // 2. "返回首页"按钮: onClick={handleNavigateHome}
+
+  // 确保handleResetQuiz也同步进度
+  const handleResetQuiz = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // 首先同步当前进度
+      if (unsyncedChangesRef.current) {
+        await syncProgressToServer(true);
+      }
       
       // 重置计时器
       setQuizTotalTime(0);
@@ -1921,41 +2157,22 @@ function QuizPage(): JSX.Element {
       if (questionSet) {
         navigate(`/quiz/${questionSet.id}`, { replace: true });
       }
+      
+      // 重置同步状态
+      unsyncedChangesRef.current = false;
     } catch (error) {
       console.error('重置测试失败:', error);
       toast.error('重置测试失败，请刷新页面重试');
     } finally {
       setLoading(false);
     }
-  };
-
-  // 添加格式化有效期的函数
-  const formatExpiryDate = (expiryDateStr: string): string => {
-    try {
-      const expiryDate = new Date(expiryDateStr);
-      const now = new Date();
-      
-      // 计算剩余天数
-      const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-      
-      if (remainingDays <= 0) {
-        return '已过期';
-      } else if (remainingDays === 1) {
-        return '最后1天';
-      } else if (remainingDays < 30) {
-        return `剩余${remainingDays}天`;
-      } else {
-        // 显示具体日期
-        return expiryDate.toLocaleDateString('zh-CN', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      }
-    } catch (e) {
-      return '未知';
-    }
-  };
+  }, [
+    questionSet, 
+    questionSetId, 
+    originalQuestions, 
+    syncProgressToServer, 
+    navigate
+  ]);
   
   if (loading) {
     return (
@@ -1972,7 +2189,7 @@ function QuizPage(): JSX.Element {
           <span className="block sm:inline">{error || '无法加载题库数据'}</span>
         </div>
         <button
-          onClick={() => navigate('/')}
+          onClick={handleNavigateHome}
           className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
           返回首页
@@ -2033,7 +2250,7 @@ function QuizPage(): JSX.Element {
           
           <div className="flex justify-between mt-4">
             <button
-              onClick={() => navigate('/')}
+              onClick={handleNavigateHome}
               className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
             >
               返回首页
@@ -2222,7 +2439,7 @@ function QuizPage(): JSX.Element {
                   重新开始
                 </button>
                 <button 
-                  onClick={() => navigate('/')}
+                  onClick={handleNavigateHome}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center"
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2266,7 +2483,7 @@ function QuizPage(): JSX.Element {
                 </button>
                 
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={handleNavigateHome}
                   className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
                 >
                   返回首页
@@ -2320,7 +2537,7 @@ function QuizPage(): JSX.Element {
                 重新开始
               </button>
               <button 
-                onClick={() => navigate('/')}
+                onClick={handleNavigateHome}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2337,7 +2554,7 @@ function QuizPage(): JSX.Element {
               <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold">{questionSet.title}</h1>
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={handleNavigateHome}
                   className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded text-sm hover:bg-gray-200"
                 >
                   返回首页
@@ -2429,23 +2646,7 @@ function QuizPage(): JSX.Element {
                 questionNumber={currentQuestionIndex + 1}
                 totalQuestions={questions.length}
                 onAnswerSubmitted={handleAnswerSubmit}
-                onNext={() => {
-                  // 如果已经是最后一题，标记为完成
-                  if (currentQuestionIndex === questions.length - 1) {
-                    setQuizComplete(true);
-                    // 如果有计时器活动，停止计时
-                    if (isTimerActive) {
-                      setIsTimerActive(false);
-                      setQuizTotalTime(Math.floor((Date.now() - quizStartTime) / 1000));
-                    }
-                    return;
-                  }
-                  
-                  // 否则跳转到下一题
-                  setCurrentQuestionIndex(prevIndex => prevIndex + 1);
-                  setSelectedOptions([]);
-                  setShowExplanation(false);
-                }}
+                onNext={handleNextQuestion}
                 onJumpToQuestion={handleJumpToQuestion}
                 isPaid={questionSet?.isPaid}
                 hasFullAccess={hasAccessToFullQuiz}
