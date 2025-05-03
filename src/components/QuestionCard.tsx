@@ -848,6 +848,38 @@ const QuestionCard = ({
         <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">→</span>下一题
         <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">1-9</span>选择选项
       </div>
+      
+      {/* 添加清空答题按钮 */}
+      <div className="mt-3 text-center">
+        <button
+          onClick={() => {
+            if (window.confirm('确定要清空当前题目的答题记录吗？')) {
+              try {
+                // 清除当前题目的状态记录
+                if (questionSetId && question.id) {
+                  const storageKey = `quiz_state_${questionSetId}_${question.id}`;
+                  localStorage.removeItem(storageKey);
+                  
+                  // 重置组件状态
+                  setSelectedOption(null);
+                  setSelectedOptions([]);
+                  setIsSubmitted(false);
+                  setShowExplanation(false);
+                  
+                  // 展示成功消息
+                  toast.success('已清空当前题目的答题记录');
+                }
+              } catch (e) {
+                console.error('清空答题记录失败:', e);
+                toast.error('清空答题记录失败');
+              }
+            }
+          }}
+          className="text-gray-500 hover:text-red-600 text-xs underline transition-colors"
+        >
+          清空当前题目答题记录
+        </button>
+      </div>
     </div>
   );
 };

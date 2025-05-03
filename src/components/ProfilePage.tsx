@@ -859,79 +859,65 @@ const ProfilePage: React.FC = () => {
     }
   }, []);
 
-  // 前向声明这些函数
+  // 在fetchProgressData中添加更详细的日志，直接用API获取数据
   const fetchProgressData = async () => {
     if (!user) return;
     
     try {
       setIsLoading(true);
-      console.log('[ProfilePage] Starting to fetch progress data');
+      console.log('[ProfilePage] 开始获取用户进度数据 - 用户ID:', user.id);
       
-      // Get progress records from API
-      const progressResponse = await userProgressService.getUserProgressRecords();
-      console.log('[ProfilePage] Progress API response:', progressResponse);
+      // 直接从API获取详细记录数据
+      const recordsResponse = await userProgressService.getUserProgressRecords();
+      console.log('[ProfilePage] 进度记录API响应:', recordsResponse.success ? '成功' : '失败', 
+        recordsResponse.data ? `获取了${Array.isArray(recordsResponse.data) ? recordsResponse.data.length : 0}条记录` : '无数据');
       
-      if (progressResponse.success) {
-        console.log('[ProfilePage] Progress data fetch successful');
+      if (recordsResponse.success && recordsResponse.data && Array.isArray(recordsResponse.data)) {
+        // 记录实际数据类型和内容
+        console.log('[ProfilePage] 进度记录数据类型:', typeof recordsResponse.data);
+        console.log('[ProfilePage] 进度记录是否为数组:', Array.isArray(recordsResponse.data));
+        console.log('[ProfilePage] 进度记录数量:', recordsResponse.data.length);
         
-        // Log the type of data received to help debug
-        console.log('[ProfilePage] Progress data type:', Array.isArray(progressResponse.data) ? 'array' : typeof progressResponse.data);
-        
-        // Check if response data is valid
-        if (!progressResponse.data || !Array.isArray(progressResponse.data)) {
-          console.error('[ProfilePage] Invalid progress data format:', progressResponse.data);
-          setError('无法加载进度数据');
-          setIsLoading(false);
-          return;
+        if (recordsResponse.data.length > 0) {
+          console.log('[ProfilePage] 进度记录示例:', recordsResponse.data[0]);
+        } else {
+          console.warn('[ProfilePage] 进度记录为空数组 - 用户没有任何进度记录');
         }
         
-        // Log the number of progress records
-        console.log('[ProfilePage] Number of progress records:', progressResponse.data.length);
-        
-        // Log a sample progress record if available
-        if (progressResponse.data.length > 0) {
-          console.log('[ProfilePage] Sample progress record:', progressResponse.data[0]);
-        }
-        
-        // Get question sets from API
+        // 获取题库信息
         const questionSets = await fetchQuestionSets();
-        console.log('[ProfilePage] Question sets fetch result:', questionSets.length);
+        console.log('[ProfilePage] 获取到题库数量:', questionSets.length);
         
         if (questionSets.length > 0) {
-          console.log('[ProfilePage] Question sets fetch successful. Count:', questionSets.length);
-          
-          // Create mapping for question sets
+          // 创建题库映射
           const questionSetsMap = new Map<string, QuestionSet>();
-          questionSets.forEach((set: any) => {
+          questionSets.forEach(set => {
             questionSetsMap.set(set.id, { id: set.id, title: set.title });
           });
-          console.log('[ProfilePage] Created question sets map with', questionSetsMap.size, 'items');
           
-          // Calculate progress statistics
-          console.log('[ProfilePage] Calculating progress statistics...');
-          const stats = calculateProgressStats(progressResponse.data, questionSetsMap);
-          console.log('[ProfilePage] Calculated progress stats:', stats);
+          // 计算进度统计
+          const stats = calculateProgressStats(recordsResponse.data, questionSetsMap);
+          console.log('[ProfilePage] 计算得到的进度统计:', stats);
           
-          // Set the progress stats in state
-          setProgressStats(stats);
-          
-          // Log specific progress details to help debug
-          console.log('[ProfilePage] Number of progress stats generated:', stats.length);
-          if (stats.length === 0 && progressResponse.data.length > 0) {
-            console.warn('[ProfilePage] Warning: Progress records exist but no stats were generated');
-            console.log('[ProfilePage] Progress records:', progressResponse.data);
+          // 确保有数据，并设置状态
+          if (stats.length > 0) {
+            console.log('[ProfilePage] 设置进度统计状态，数量:', stats.length);
+            setProgressStats(stats);
+          } else {
+            console.warn('[ProfilePage] 计算后没有进度统计数据');
+            setProgressStats([]); 
           }
         } else {
-          console.error('[ProfilePage] Failed to fetch question sets');
-          setError('无法加载题库信息');
+          console.error('[ProfilePage] 未找到任何题库信息');
+          setError('找不到题库信息');
         }
       } else {
-        console.error('[ProfilePage] Failed to fetch progress data:', progressResponse);
-        setError('无法加载进度数据');
+        console.error('[ProfilePage] 获取进度记录失败:', recordsResponse.message);
+        setError(recordsResponse.message || '获取进度数据失败');
       }
     } catch (error) {
-      console.error('[ProfilePage] Error fetching progress data:', error);
-      setError('加载进度时发生错误');
+      console.error('[ProfilePage] 加载进度数据异常:', error);
+      setError('加载进度数据失败，请刷新页面重试');
     } finally {
       setIsLoading(false);
     }
@@ -1470,13 +1456,13 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 渲染进度内容
+  // 修改renderProgressContent函数确保正确显示进度卡片
   const renderProgressContent = () => {
     if (isLoading) {
       return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 text-sm">加载学习数据中...</p>
+          <p className="text-gray-500 text-sm">加载学习进度中...</p>
         </div>
       );
     }
@@ -1507,6 +1493,10 @@ const ProfilePage: React.FC = () => {
       );
     }
 
+    // 检查progressStats是否为空，并记录当前状态
+    console.log('[ProfilePage] 渲染进度内容, progressStats:', 
+      progressStats ? `长度: ${progressStats.length}` : 'undefined');
+    
     if (!progressStats || progressStats.length === 0) {
       return (
         <div className="bg-white p-8 rounded-lg text-center flex flex-col items-center">
