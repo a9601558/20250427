@@ -483,47 +483,113 @@ const QuestionCard = ({
     });
   };
 
-  // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
+  // 添加一个更健壮的函数检查本地存储的兑换状态，确保跨设备兑换信息一致
   const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
     try {
+      // 尝试从多个来源获取兑换信息
+      // 1. 首先检查 redeemedQuestionSetIds（常规兑换记录）
+      let isRedeemed = false;
       const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-      if (!redeemedStr) return false;
-      
-      const redeemedIds = JSON.parse(redeemedStr);
-      if (!Array.isArray(redeemedIds)) return false;
-      
-      // 标准化ID
-      const targetId = String(questionSetId).trim();
-      
-      // 使用更宽松的匹配逻辑检查兑换记录
-      return redeemedIds.some(id => {
-        const redeemedId = String(id || '').trim();
-        // 精确匹配
-        const exactMatch = redeemedId === targetId;
-        // 部分匹配 - 处理ID可能带前缀或后缀的情况
-        const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
-          && Math.abs(redeemedId.length - targetId.length) <= 3
-          && redeemedId.length > 5 && targetId.length > 5;
+      if (redeemedStr) {
+        const redeemedIds = JSON.parse(redeemedStr);
+        if (Array.isArray(redeemedIds)) {
+          // 标准化ID
+          const targetId = String(questionSetId).trim();
           
-        return exactMatch || partialMatch;
-      });
+          // 使用更宽松的匹配逻辑检查兑换记录
+          isRedeemed = redeemedIds.some(id => {
+            const redeemedId = String(id || '').trim();
+            // 精确匹配
+            const exactMatch = redeemedId === targetId;
+            // 部分匹配 - 处理ID可能带前缀或后缀的情况
+            const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
+              && Math.abs(redeemedId.length - targetId.length) <= 3
+              && redeemedId.length > 5 && targetId.length > 5;
+              
+            return exactMatch || partialMatch;
+          });
+        }
+      }
+      
+      // 2. 然后检查 questionSetAccessCache（从HomePage共享的跨设备缓存）
+      if (!isRedeemed) {
+        const accessCacheStr = localStorage.getItem('questionSetAccessCache');
+        if (accessCacheStr) {
+          const accessCache = JSON.parse(accessCacheStr);
+          
+          // 检查所有用户的缓存（可能存在多个用户登录过同一设备的情况）
+          for (const userId in accessCache) {
+            const userCache = accessCache[userId];
+            // 检查当前题库是否在缓存中且有权限
+            if (userCache[questionSetId] && userCache[questionSetId].hasAccess) {
+              isRedeemed = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      // 3. 最后检查 quizAccessRights（从QuizPage保存的权限记录）
+      if (!isRedeemed) {
+        const accessRightsStr = localStorage.getItem('quizAccessRights');
+        if (accessRightsStr) {
+          const accessRights = JSON.parse(accessRightsStr);
+          isRedeemed = !!accessRights[questionSetId];
+        }
+      }
+      
+      return isRedeemed;
     } catch (e) {
       console.error('检查兑换状态失败', e);
       return false;
     }
   };
   
-  // 检查access权限
+  // 增强版的访问权限检查，整合多个数据源
   const checkLocalAccessRights = (questionSetId: string): boolean => {
     try {
+      // 1. 首先检查 quizAccessRights（QuizPage保存的权限）
+      let hasAccess = false;
       const accessRightsStr = localStorage.getItem('quizAccessRights');
-      if (!accessRightsStr) return false;
+      if (accessRightsStr) {
+        const accessRights = JSON.parse(accessRightsStr);
+        hasAccess = !!accessRights[questionSetId];
+      }
       
-      const accessRights = JSON.parse(accessRightsStr);
-      return !!accessRights[questionSetId];
+      // 2. 然后检查 questionSetAccessCache（HomePage保存的跨设备缓存）
+      if (!hasAccess) {
+        const accessCacheStr = localStorage.getItem('questionSetAccessCache');
+        if (accessCacheStr) {
+          const accessCache = JSON.parse(accessCacheStr);
+          
+          // 遍历所有用户缓存
+          for (const userId in accessCache) {
+            const userCache = accessCache[userId];
+            // 检查当前题库是否在缓存中且有权限
+            if (userCache[questionSetId] && userCache[questionSetId].hasAccess) {
+              // 检查是否已过期
+              const isExpired = userCache[questionSetId].remainingDays !== null && 
+                                userCache[questionSetId].remainingDays <= 0;
+              
+              if (!isExpired) {
+                hasAccess = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // 3. 额外检查题库是否为免费题库（从props获取）
+      if (!hasAccess && !isPaid) {
+        hasAccess = true;
+      }
+      
+      return hasAccess;
     } catch (e) {
       console.error('检查访问权限失败', e);
-      return false;
+      // 如果无法检查权限，但我们知道题库是免费的，允许访问
+      return !isPaid;
     }
   };
   
