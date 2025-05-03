@@ -845,9 +845,15 @@ const ProfilePage: React.FC = () => {
     if (!user) return;
     try {
       setIsLoading(true);
+      console.log('[ProfilePage] 开始获取用户进度数据');
       const response = await userProgressService.getUserProgressRecords();
+      console.log('[ProfilePage] 进度数据响应:', response);
+      
       if (response.success && response.data) {
+        // 获取题库信息，用于显示标题
         const questionSetsResponse = await questionSetService.getAllQuestionSets();
+        console.log('[ProfilePage] 题库数据响应:', questionSetsResponse);
+        
         const questionSetsMap = new Map<string, QuestionSet>();
         
         if (questionSetsResponse.success && questionSetsResponse.data) {
@@ -856,11 +862,22 @@ const ProfilePage: React.FC = () => {
           });
         }
         
-        const stats = calculateProgressStats(response.data, questionSetsMap);
-        setProgressStats(stats);
+        // 确保 response.data 是数组
+        if (Array.isArray(response.data)) {
+          const stats = calculateProgressStats(response.data, questionSetsMap);
+          console.log('[ProfilePage] 计算得到的进度统计:', stats);
+          setProgressStats(stats);
+        } else {
+          console.error('[ProfilePage] 响应数据不是数组:', response.data);
+          setError('进度数据格式错误');
+        }
+      } else {
+        console.error('[ProfilePage] 获取进度数据失败:', response.message || '未知错误');
+        setError(response.message || '获取进度数据失败');
       }
     } catch (error) {
       console.error('[ProfilePage] 加载进度数据失败:', error);
+      setError('数据加载出错，请刷新页面重试');
     } finally {
       setIsLoading(false);
     }
@@ -1154,7 +1171,7 @@ const ProfilePage: React.FC = () => {
     return () => {
       clearInterval(pollInterval);
     };
-  }, [user, socket, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers]);
+  }, [user, socket, fetchProgressData, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers]);
 
   // 添加定期检查题库有效期的功能
   useEffect(() => {
@@ -1353,7 +1370,33 @@ const ProfilePage: React.FC = () => {
       );
     }
 
-    if (progressStats.length === 0) {
+    if (error) {
+      return (
+        <div className="bg-white p-8 rounded-lg text-center flex flex-col items-center">
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">加载失败</h3>
+          <p className="text-gray-600 mb-6 max-w-md">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              fetchProgressData();
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-5 rounded-lg transition-colors duration-300 flex items-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            重试
+          </button>
+        </div>
+      );
+    }
+
+    if (!progressStats || progressStats.length === 0) {
       return (
         <div className="bg-white p-8 rounded-lg text-center flex flex-col items-center">
           <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
@@ -1629,7 +1672,7 @@ const ProfilePage: React.FC = () => {
   };
 
   // 定义其他缺失的函数
-  const fetchQuestionSets = async () => {
+  const fetchQuestionSets = useCallback(async () => {
     try {
       const response = await questionSetService.getAllQuestionSets();
       if (response.success && response.data) {
@@ -1639,7 +1682,7 @@ const ProfilePage: React.FC = () => {
     } catch (error) {
       console.error('[ProfilePage] 加载题库数据失败:', error);
     }
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
