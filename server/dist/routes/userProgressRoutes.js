@@ -14,7 +14,7 @@ router.post('/record', userProgressController_1.default.createDetailedProgress);
 router.get('/detailed', userProgressController_1.default.getDetailedProgress);
 router.get('/stats', userProgressController_1.default.getProgressStats);
 router.get('/stats/:userId', userProgressController_1.default.getUserProgressStats);
-router.get('/records', userProgressController_1.default.getUserProgressRecords);
+router.get('/records/:userId', userProgressController_1.default.getUserProgressRecords);
 router.delete('/record/:id', userProgressController_1.default.deleteProgressRecord);
 // Beacon API endpoint for reliable sync during page unload
 router.post('/sync', userProgressController_1.default.syncProgressViaBeacon);
