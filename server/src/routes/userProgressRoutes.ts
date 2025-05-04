@@ -15,6 +15,7 @@ router.get('/stats/:userId', userProgressController.getUserProgressStats);
 router.get('/records', userProgressController.getUserProgressRecords);
 router.get('/records/:userId', userProgressController.getUserProgressRecords);
 router.delete('/record/:id', userProgressController.deleteProgressRecord);
+router.get('/summary', userProgressController.getProgressSummary);
 
 // Beacon API endpoint for reliable sync during page unload
 router.post('/sync', userProgressController.syncProgressViaBeacon);
@@ -29,7 +30,5 @@ router.post('/:questionSetId', userProgressController.updateProgress);
 router.get('/:userId', userProgressController.getUserProgress);
 router.get('/:userId/:questionSetId', userProgressController.getProgressByQuestionSetId);
 router.delete('/:userId/:questionSetId', userProgressController.resetProgress);
-
-router.get('/summary', userProgressController.getProgressSummary);
 
 export default router; 

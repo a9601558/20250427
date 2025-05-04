@@ -68,6 +68,9 @@ app.use('/api/redeem-codes', redeemCodeRoutes);
 app.use('/api/homepage', homepageRoutes);
 app.use('/api/wrong-answers', wrongAnswerRoutes);
 
+// 添加路由别名，解决旧路径问题
+app.use('/api/progress', userProgressRoutes);
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);

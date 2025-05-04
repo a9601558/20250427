@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // Extend Express Request interface to include user
 declare global {
@@ -44,7 +47,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'User not found or token invalid'
+          message: '用户不存在或令牌无效'
         });
       }
 
@@ -61,7 +64,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         } else {
           return res.status(401).json({
             success: false,
-            message: 'Account is locked due to too many failed login attempts',
+            message: '账户因多次登录失败已被锁定',
             lockExpires: lockUntil
           });
         }
@@ -69,10 +72,10 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
       return next();
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.error('认证错误:', error);
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed',
+        message: '未授权，令牌验证失败',
         error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
       });
     }
@@ -81,10 +84,16 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized, no token provided'
+      message: '未授权，未提供令牌'
     });
   }
 };
+
+/**
+ * Alternative name for protect middleware to maintain compatibility
+ * with existing code using authenticateJwt
+ */
+export const authenticateJwt = protect;
 
 /**
  * Middleware to verify user has admin role
@@ -94,7 +103,7 @@ export const admin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      message: 'Authentication required'
+      message: '需要身份验证'
     });
   }
 
@@ -103,10 +112,16 @@ export const admin = (req: Request, res: Response, next: NextFunction) => {
   } else {
     res.status(403).json({
       success: false,
-      message: 'Admin privileges required for this operation'
+      message: '此操作需要管理员权限'
     });
   }
 };
+
+/**
+ * Alternative name for admin middleware to maintain compatibility
+ * with existing code using requireAdmin
+ */
+export const requireAdmin = admin;
 
 /**
  * Generate JWT token for authentication
@@ -115,6 +130,6 @@ export const generateToken = (id: string, isAdmin: boolean = false): string => {
   const secret = process.env.JWT_SECRET || 'default_secret';
   const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
   
-  // @ts-ignore - Type issues with JWT sign
+  // @ts-ignore - Type issues with JWT sign options
   return jwt.sign({ id, isAdmin }, secret, { expiresIn });
 }; 

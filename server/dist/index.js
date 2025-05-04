@@ -60,6 +60,8 @@ app.use('/api/purchases', purchaseRoutes_1.default);
 app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
 app.use('/api/homepage', homepageRoutes_1.default);
 app.use('/api/wrong-answers', wrongAnswerRoutes_1.default);
+// 添加路由别名，解决旧路径问题
+app.use('/api/progress', userProgressRoutes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

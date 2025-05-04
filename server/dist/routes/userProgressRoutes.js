@@ -17,6 +17,7 @@ router.get('/stats/:userId', userProgressController_1.default.getUserProgressSta
 router.get('/records', userProgressController_1.default.getUserProgressRecords);
 router.get('/records/:userId', userProgressController_1.default.getUserProgressRecords);
 router.delete('/record/:id', userProgressController_1.default.deleteProgressRecord);
+router.get('/summary', userProgressController_1.default.getProgressSummary);
 // Beacon API endpoint for reliable sync during page unload
 router.post('/sync', userProgressController_1.default.syncProgressViaBeacon);
 // 通用更新进度路由
@@ -27,5 +28,4 @@ router.post('/:questionSetId', userProgressController_1.default.updateProgress);
 router.get('/:userId', userProgressController_1.default.getUserProgress);
 router.get('/:userId/:questionSetId', userProgressController_1.default.getProgressByQuestionSetId);
 router.delete('/:userId/:questionSetId', userProgressController_1.default.resetProgress);
-router.get('/summary', userProgressController_1.default.getProgressSummary);
 exports.default = router;
