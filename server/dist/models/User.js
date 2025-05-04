@@ -7,8 +7,14 @@ exports.User = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const crypto_1 = require("crypto");
 class User extends sequelize_1.Model {
+    /**
+     * Compare candidate password with stored hashed password
+     * @param candidatePassword - The plain text password to compare
+     * @returns A promise that resolves to a boolean indicating if passwords match
+     */
     async comparePassword(candidatePassword) {
         try {
             if (!this.password) {
@@ -19,9 +25,10 @@ class User extends sequelize_1.Model {
                 console.error('Cannot compare password: Candidate password is empty or undefined');
                 return false;
             }
-            console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
+            if (process.env.NODE_ENV === 'development') {
+                console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
+            }
             const isMatch = await bcryptjs_1.default.compare(candidatePassword, this.password);
-            console.log('Password comparison result:', isMatch);
             return isMatch;
         }
         catch (error) {
@@ -29,15 +36,15 @@ class User extends sequelize_1.Model {
             return false;
         }
     }
-    // 用于安全地返回用户数据（不包含敏感信息）
+    // Return user data without sensitive information
     toSafeObject() {
         const { password, ...safeUser } = this.toJSON();
         return safeUser;
     }
     // Generate JWT token
     generateAuthToken() {
-        // 简化实现，暂时返回固定令牌
-        return `token_${this.id}_${Date.now()}`;
+        const secret = process.env.JWT_SECRET || 'default_secret';
+        return jsonwebtoken_1.default.sign({ id: this.id, isAdmin: this.isAdmin }, secret, { expiresIn: '30d' });
     }
     // Generate verification token
     generateVerificationToken() {
@@ -58,6 +65,28 @@ class User extends sequelize_1.Model {
         expiration.setHours(expiration.getHours() + 1);
         this.resetPasswordExpires = expiration;
         return token;
+    }
+    // Record failed login attempt
+    async recordFailedLoginAttempt() {
+        // Increment failed login attempts
+        this.failedLoginAttempts = (this.failedLoginAttempts || 0) + 1;
+        // Lock account after 5 failed attempts
+        if (this.failedLoginAttempts >= 5) {
+            this.accountLocked = true;
+            // Lock for 30 minutes
+            const lockUntil = new Date();
+            lockUntil.setMinutes(lockUntil.getMinutes() + 30);
+            this.lockUntil = lockUntil;
+        }
+        await this.save();
+    }
+    // Reset failed login attempts after successful login
+    async resetFailedLoginAttempts() {
+        this.failedLoginAttempts = 0;
+        this.accountLocked = false;
+        this.lockUntil = undefined;
+        this.lastLoginAt = new Date();
+        await this.save();
     }
 }
 exports.User = User;
@@ -126,10 +155,31 @@ User.init({
         defaultValue: {},
     },
     examCountdowns: {
-        type: sequelize_1.DataTypes.JSON,
+        type: sequelize_1.DataTypes.JSONB, // Using JSONB for better performance with JSON data
         allowNull: true,
         defaultValue: '[]',
         comment: '用户保存的考试倒计时数据',
+        get() {
+            const value = this.getDataValue('examCountdowns');
+            if (typeof value === 'string') {
+                try {
+                    return JSON.parse(value);
+                }
+                catch (e) {
+                    console.error('Error parsing examCountdowns:', e);
+                    return [];
+                }
+            }
+            return value;
+        },
+        set(value) {
+            if (typeof value === 'object') {
+                this.setDataValue('examCountdowns', JSON.stringify(value));
+            }
+            else {
+                this.setDataValue('examCountdowns', value);
+            }
+        }
     },
     role: {
         type: sequelize_1.DataTypes.ENUM('user', 'admin'),
@@ -192,19 +242,42 @@ User.init({
         { unique: true, fields: ['email'] }
     ],
     defaultScope: {
-        attributes: { exclude: ['password'] }
+        attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
     },
     scopes: {
         withPassword: {
             attributes: { include: ['password'] }
+        },
+        withSensitiveInfo: {
+            attributes: { include: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
         }
     },
     hooks: {
-        beforeSave: async (user) => {
-            // Only hash password if it has been modified
-            if (user.changed('password')) {
+        beforeCreate: async (user, options) => {
+            // Always hash password on creation
+            if (user.password) {
                 const salt = await bcryptjs_1.default.genSalt(10);
                 user.password = await bcryptjs_1.default.hash(user.password, salt);
+            }
+            else {
+                throw new Error('Password is required');
+            }
+            // Process examCountdowns if it's an object
+            const examCountdowns = user.getDataValue('examCountdowns');
+            if (typeof examCountdowns === 'object' && examCountdowns !== null) {
+                user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
+            }
+        },
+        beforeUpdate: async (user, options) => {
+            // Only hash password if it has been modified
+            if (user.changed('password') && user.password) {
+                const salt = await bcryptjs_1.default.genSalt(10);
+                user.password = await bcryptjs_1.default.hash(user.password, salt);
+            }
+            // Process examCountdowns if it's an object
+            const examCountdowns = user.getDataValue('examCountdowns');
+            if (typeof examCountdowns === 'object' && examCountdowns !== null) {
+                user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
             }
         }
     }

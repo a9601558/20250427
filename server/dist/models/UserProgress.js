@@ -19,6 +19,7 @@ class UserProgress extends sequelize_1.Model {
     correctAnswers;
     lastQuestionIndex;
     metadata;
+    recordType;
     // 时间戳
     createdAt;
     updatedAt;
@@ -89,6 +90,11 @@ UserProgress.init({
         type: sequelize_1.DataTypes.TEXT,
         allowNull: true,
         comment: '存储任意额外数据，例如已回答问题列表等JSON格式'
+    },
+    recordType: {
+        type: sequelize_1.DataTypes.TEXT,
+        allowNull: true,
+        comment: '存储记录类型'
     },
     createdAt: {
         type: sequelize_1.DataTypes.DATE,

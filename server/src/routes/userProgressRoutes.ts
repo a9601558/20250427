@@ -1,18 +1,5 @@
 import express from 'express';
-import { 
-  getUserProgress, 
-  updateProgress, 
-  getProgressByQuestionSetId,
-  resetProgress,
-  createDetailedProgress,
-  getDetailedProgress,
-  getProgressStats,
-  deleteProgressRecord,
-  getUserProgressStats,
-  getUserProgressRecords,
-  getProgressSummary,
-  syncProgressViaBeacon
-} from '../controllers/userProgressController';
+import userProgressController from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -21,27 +8,27 @@ const router = express.Router();
 router.use(protect);
 
 // 详细进度记录路由 - 需要放在前面以避免和通用路由冲突
-router.post('/record', createDetailedProgress);
-router.get('/detailed', getDetailedProgress);
-router.get('/stats', getProgressStats);
-router.get('/stats/:userId', getUserProgressStats);
-router.get('/records', getUserProgressRecords);
-router.delete('/record/:id', deleteProgressRecord);
+router.post('/record', userProgressController.createDetailedProgress);
+router.get('/detailed', userProgressController.getDetailedProgress);
+router.get('/stats', userProgressController.getProgressStats);
+router.get('/stats/:userId', userProgressController.getUserProgressStats);
+router.get('/records', userProgressController.getUserProgressRecords);
+router.delete('/record/:id', userProgressController.deleteProgressRecord);
 
 // Beacon API endpoint for reliable sync during page unload
-router.post('/sync', syncProgressViaBeacon);
+router.post('/sync', userProgressController.syncProgressViaBeacon);
 
 // 通用更新进度路由
-router.post('/', updateProgress);
+router.post('/', userProgressController.updateProgress);
 
 // 特定题库进度路由
-router.post('/:questionSetId', updateProgress);
+router.post('/:questionSetId', userProgressController.updateProgress);
 
 // 用户整体进度路由 - 需要放在最后
-router.get('/:userId', getUserProgress);
-router.get('/:userId/:questionSetId', getProgressByQuestionSetId);
-router.delete('/:userId/:questionSetId', resetProgress);
+router.get('/:userId', userProgressController.getUserProgress);
+router.get('/:userId/:questionSetId', userProgressController.getProgressByQuestionSetId);
+router.delete('/:userId/:questionSetId', userProgressController.resetProgress);
 
-router.get('/summary', getProgressSummary);
+router.get('/summary', userProgressController.getProgressSummary);
 
 export default router; 

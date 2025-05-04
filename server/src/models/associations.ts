@@ -15,6 +15,13 @@ export const setupAssociations = () => {
     onDelete: 'CASCADE'
   });
 
+  // Also add the 'questions' alias for QuestionSet to Question relationship
+  QuestionSet.hasMany(Question, {
+    foreignKey: 'questionSetId',
+    as: 'questions',
+    onDelete: 'CASCADE'
+  });
+
   Question.belongsTo(QuestionSet, {
     foreignKey: 'questionSetId',
     as: 'questionSetInfo'

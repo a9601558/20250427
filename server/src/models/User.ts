@@ -1,4 +1,4 @@
-import { Model, DataTypes, Optional } from 'sequelize';
+import { Model, DataTypes, Optional, ValidationError } from 'sequelize';
 import sequelize from '../config/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -33,6 +33,11 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 
+  /**
+   * Compare candidate password with stored hashed password
+   * @param candidatePassword - The plain text password to compare
+   * @returns A promise that resolves to a boolean indicating if passwords match
+   */
   async comparePassword(candidatePassword: string): Promise<boolean> {
     try {
       if (!this.password) {
@@ -45,10 +50,11 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
         return false;
       }
       
-      console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Comparing passwords, user password exists:', !!this.password, 'length:', this.password.length);
+      }
       
       const isMatch = await bcrypt.compare(candidatePassword, this.password);
-      console.log('Password comparison result:', isMatch);
       return isMatch;
     } catch (error) {
       console.error('Password comparison error:', error);
@@ -56,7 +62,7 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
     }
   }
 
-  // 用于安全地返回用户数据（不包含敏感信息）
+  // Return user data without sensitive information
   toSafeObject(): Omit<IUser, 'password'> {
     const { password, ...safeUser } = this.toJSON();
     return safeUser;
@@ -64,8 +70,12 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
 
   // Generate JWT token
   generateAuthToken(): string {
-    // 简化实现，暂时返回固定令牌
-    return `token_${this.id}_${Date.now()}`;
+    const secret = process.env.JWT_SECRET || 'default_secret';
+    return jwt.sign(
+      { id: this.id, isAdmin: this.isAdmin }, 
+      secret, 
+      { expiresIn: '30d' }
+    );
   }
 
   // Generate verification token
@@ -92,6 +102,34 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
     this.resetPasswordExpires = expiration;
     
     return token;
+  }
+  
+  // Record failed login attempt
+  async recordFailedLoginAttempt(): Promise<void> {
+    // Increment failed login attempts
+    this.failedLoginAttempts = (this.failedLoginAttempts || 0) + 1;
+    
+    // Lock account after 5 failed attempts
+    if (this.failedLoginAttempts >= 5) {
+      this.accountLocked = true;
+      
+      // Lock for 30 minutes
+      const lockUntil = new Date();
+      lockUntil.setMinutes(lockUntil.getMinutes() + 30);
+      this.lockUntil = lockUntil;
+    }
+    
+    await this.save();
+  }
+  
+  // Reset failed login attempts after successful login
+  async resetFailedLoginAttempts(): Promise<void> {
+    this.failedLoginAttempts = 0;
+    this.accountLocked = false;
+    this.lockUntil = undefined;
+    this.lastLoginAt = new Date();
+    
+    await this.save();
   }
 }
 
@@ -161,10 +199,29 @@ User.init(
       defaultValue: {},
     },
     examCountdowns: {
-      type: DataTypes.JSON,
+      type: DataTypes.JSONB, // Using JSONB for better performance with JSON data
       allowNull: true,
       defaultValue: '[]',
       comment: '用户保存的考试倒计时数据',
+      get() {
+        const value = this.getDataValue('examCountdowns');
+        if (typeof value === 'string') {
+          try {
+            return JSON.parse(value);
+          } catch (e) {
+            console.error('Error parsing examCountdowns:', e);
+            return [];
+          }
+        }
+        return value;
+      },
+      set(value: any) {
+        if (typeof value === 'object') {
+          this.setDataValue('examCountdowns', JSON.stringify(value));
+        } else {
+          this.setDataValue('examCountdowns', value);
+        }
+      }
     },
     role: {
       type: DataTypes.ENUM('user', 'admin'),
@@ -228,19 +285,43 @@ User.init(
       { unique: true, fields: ['email'] }
     ],
     defaultScope: {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
     },
     scopes: {
       withPassword: {
         attributes: { include: ['password'] }
+      },
+      withSensitiveInfo: {
+        attributes: { include: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
       }
     },
     hooks: {
-      beforeSave: async (user: User) => {
-        // Only hash password if it has been modified
-        if (user.changed('password')) {
+      beforeCreate: async (user: User, options) => {
+        // Always hash password on creation
+        if (user.password) {
           const salt = await bcrypt.genSalt(10);
           user.password = await bcrypt.hash(user.password, salt);
+        } else {
+          throw new Error('Password is required');
+        }
+        
+        // Process examCountdowns if it's an object
+        const examCountdowns = user.getDataValue('examCountdowns');
+        if (typeof examCountdowns === 'object' && examCountdowns !== null) {
+          user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
+        }
+      },
+      beforeUpdate: async (user: User, options) => {
+        // Only hash password if it has been modified
+        if (user.changed('password') && user.password) {
+          const salt = await bcrypt.genSalt(10);
+          user.password = await bcrypt.hash(user.password, salt);
+        }
+        
+        // Process examCountdowns if it's an object
+        const examCountdowns = user.getDataValue('examCountdowns');
+        if (typeof examCountdowns === 'object' && examCountdowns !== null) {
+          user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
         }
       }
     }

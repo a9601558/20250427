@@ -3,8 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.setupQuestionSetAssociations = void 0;
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
+const Question_1 = __importDefault(require("./Question"));
 // 题集模型类
 class QuestionSet extends sequelize_1.Model {
     id;
@@ -83,4 +85,15 @@ QuestionSet.init({
     createdAt: 'created_at',
     updatedAt: 'updated_at',
 });
+// After the QuestionSet init, add model associations
+const setupQuestionSetAssociations = () => {
+    // Add the hasMany relationship from QuestionSet to Question
+    QuestionSet.hasMany(Question_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'questions',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+    });
+};
+exports.setupQuestionSetAssociations = setupQuestionSetAssociations;
 exports.default = QuestionSet;

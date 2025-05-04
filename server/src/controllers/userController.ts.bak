@@ -235,7 +235,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
         userData.purchases = [];
       }
       
-      console.log(`[用户资料] 返回用户数据，购买记录 ${userData.purchases?.length || 0}条`);
+      console.log(`[用户资料] 返回用户数据，购买记录: ${userData.purchases?.length || 0}条`);
       
       // Return complete user data
       sendResponse(res, 200, userData);
@@ -465,3 +465,13 @@ export const deleteUser = async (req: Request, res: Response) => {
     sendError(res, 500, '删除用户失败', error);
   }
 };
+
+// Reset failed login attempts after successful login
+async resetFailedLoginAttempts(): Promise<void> {
+  this.failedLoginAttempts = 0;
+  this.accountLocked = false;
+  this.lockUntil = undefined;
+  this.lastLoginAt = new Date();
+  
+  await this.save();
+} 

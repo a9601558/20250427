@@ -17,6 +17,7 @@ export interface QuestionSetAttributes {
   createdAt?: Date;
   updatedAt?: Date;
   questionSetQuestions?: Question[];
+  questions?: Question[];
 }
 
 // 创建时可选的属性
@@ -106,5 +107,16 @@ QuestionSet.init(
     updatedAt: 'updated_at',
   }
 );
+
+// After the QuestionSet init, add model associations
+export const setupQuestionSetAssociations = () => {
+  // Add the hasMany relationship from QuestionSet to Question
+  QuestionSet.hasMany(Question, {
+    foreignKey: 'questionSetId',
+    as: 'questions',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE'
+  });
+};
 
 export default QuestionSet; 
