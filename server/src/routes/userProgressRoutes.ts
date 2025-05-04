@@ -10,7 +10,8 @@ import {
   deleteProgressRecord,
   getUserProgressStats,
   getUserProgressRecords,
-  getProgressSummary
+  getProgressSummary,
+  syncProgressViaBeacon
 } from '../controllers/userProgressController';
 import { protect } from '../middleware/authMiddleware';
 
@@ -26,6 +27,9 @@ router.get('/stats', getProgressStats);
 router.get('/stats/:userId', getUserProgressStats);
 router.get('/records', getUserProgressRecords);
 router.delete('/record/:id', deleteProgressRecord);
+
+// Beacon API endpoint for reliable sync during page unload
+router.post('/sync', syncProgressViaBeacon);
 
 // 通用更新进度路由
 router.post('/', updateProgress);

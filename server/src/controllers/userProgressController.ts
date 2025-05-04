@@ -8,6 +8,9 @@ import { IUserProgress } from '../types';
 import { Op } from 'sequelize';
 import { io } from '../config/socket';
 import { getUserQuestionSetProgress, calculateProgressStats } from '../services/progressService';
+import { getSocketIO } from '../socket';
+import { v4 as uuidv4 } from 'uuid';
+import Purchase from '../models/Purchase';
 
 interface ProgressStats {
   total: number;
@@ -739,6 +742,152 @@ export const getProgressSummary = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: '获取进度汇总统计失败'
+    });
+  }
+};
+
+/**
+ * Handle progress sync requests sent via navigator.sendBeacon API
+ * This endpoint is designed to be more reliable for sync operations during page unload
+ * @route POST /api/progress/sync
+ * @access Private
+ */
+export const syncProgressViaBeacon = async (req: Request, res: Response) => {
+  try {
+    let data;
+    
+    // Check content type and parse accordingly (sendBeacon can use different content types)
+    const contentType = req.headers['content-type'] || '';
+    
+    if (contentType.includes('application/json')) {
+      data = req.body;
+    } else if (contentType.includes('text/plain')) {
+      // Parse text/plain as JSON (some browsers use this with sendBeacon)
+      try {
+        data = JSON.parse(req.body);
+      } catch (e) {
+        throw new Error('Invalid JSON in text/plain body');
+      }
+    } else {
+      // Try to parse as JSON as a fallback
+      try {
+        data = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      } catch (e) {
+        throw new Error(`Unsupported content type: ${contentType}`);
+      }
+    }
+    
+    // Validate required fields
+    if (!data || !data.userId || !data.questionSetId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+    
+    // Find the user
+    const user = await User.findByPk(data.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Find the question set
+    const questionSet = await QuestionSet.findByPk(data.questionSetId);
+    if (!questionSet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Question set not found'
+      });
+    }
+    
+    // Handle the unique ID for this progress record
+    // We'll use the questionId if provided, or generate a record ID for summary progress
+    const questionId = data.questionId || `summary-${data.questionSetId}`;
+    
+    // Calculate completed statistics
+    const completedQuestions = data.answeredQuestions ? data.answeredQuestions.length : 0;
+    const correctAnswers = data.answeredQuestions ? 
+      data.answeredQuestions.filter((q: any) => q.isCorrect).length : 0;
+    
+    // Store answered questions as metadata (JSON)
+    const metadata = data.answeredQuestions ? 
+      JSON.stringify({ answeredQuestions: data.answeredQuestions }) : "{}";
+    
+    // Update or create progress record
+    const [progress, created] = await UserProgress.findOrCreate({
+      where: {
+        userId: data.userId,
+        questionSetId: data.questionSetId,
+        questionId
+      },
+      defaults: {
+        id: uuidv4(),
+        userId: data.userId,
+        questionSetId: data.questionSetId,
+        questionId,
+        isCorrect: correctAnswers > 0, // Default to true if any correct answers
+        timeSpent: data.timeSpent || 0,
+        lastAccessed: new Date(),
+        lastQuestionIndex: data.lastQuestionIndex,
+        completedQuestions,
+        totalQuestions: questionSet.trialQuestions || completedQuestions,
+        correctAnswers,
+        metadata
+      }
+    });
+    
+    if (!created) {
+      // Update existing record
+      await progress.update({
+        lastQuestionIndex: data.lastQuestionIndex,
+        isCorrect: correctAnswers > 0,
+        timeSpent: data.timeSpent || progress.timeSpent,
+        lastAccessed: new Date(),
+        completedQuestions,
+        totalQuestions: questionSet.trialQuestions || completedQuestions,
+        correctAnswers,
+        metadata
+      });
+    }
+    
+    // Send notification via socket if available
+    try {
+      const socketIo = getSocketIO();
+      if (socketIo && user.socket_id) {
+        const updateEvent = {
+          questionSetId: data.questionSetId,
+          progress: {
+            answeredQuestions: completedQuestions,
+            totalQuestions: questionSet.trialQuestions || completedQuestions,
+            lastUpdated: new Date().toISOString(),
+            timeSpent: data.timeSpent || 0
+          }
+        };
+        
+        socketIo.to(user.socket_id).emit('progress:update', updateEvent);
+      }
+    } catch (e) {
+      console.error('Error sending socket notification:', e);
+      // Don't fail the request if socket notification fails
+    }
+    
+    // Return success response
+    // We keep this minimal since sendBeacon doesn't process the response
+    return res.status(200).json({
+      success: true
+    });
+  } catch (error) {
+    // Log the error but return a 200 status
+    // This is important because sendBeacon can't process the response
+    console.error('Error processing beacon progress update:', error);
+    
+    // Still return 200 to avoid browser warnings
+    return res.status(200).json({
+      success: false,
+      message: 'Error processing update, but request received'
     });
   }
 }; 
