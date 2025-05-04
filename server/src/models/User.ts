@@ -199,7 +199,7 @@ User.init(
       defaultValue: {},
     },
     examCountdowns: {
-      type: DataTypes.JSONB, // Using JSONB for better performance with JSON data
+      type: DataTypes.JSON,
       allowNull: true,
       defaultValue: '[]',
       comment: '用户保存的考试倒计时数据',

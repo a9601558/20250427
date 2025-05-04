@@ -155,7 +155,7 @@ User.init({
         defaultValue: {},
     },
     examCountdowns: {
-        type: sequelize_1.DataTypes.JSONB, // Using JSONB for better performance with JSON data
+        type: sequelize_1.DataTypes.JSON,
         allowNull: true,
         defaultValue: '[]',
         comment: '用户保存的考试倒计时数据',
