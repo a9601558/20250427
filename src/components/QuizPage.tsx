@@ -692,8 +692,14 @@ function QuizPage(): JSX.Element {
     if (user && user.purchases) {
       console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
-    checkAccess();
-  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, hasRedeemed]);
+    
+    // 使用setTimeout避免循环依赖
+    const timer = setTimeout(() => {
+      checkAccess();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [questionSet, user, hasRedeemed]);
   
   // 获取题库和题目数据
   useEffect(() => {
@@ -2428,21 +2434,26 @@ function QuizPage(): JSX.Element {
     
     console.log(`[QuizPage] 用户登录状态变化，重新检查题库 ${questionSet.id} 的权限`);
     
-    // 立即进行全面权限检查
-    const hasFullAccess = checkFullAccessFromAllSources();
+    // 延迟执行，避免循环依赖
+    const timer = setTimeout(() => {
+      // 立即进行全面权限检查
+      const hasFullAccess = checkFullAccessFromAllSources();
+      
+      // 更新组件状态
+      if (hasFullAccess) {
+        setHasAccessToFullQuiz(true);
+        setTrialEnded(false);
+      }
+      
+      // 确保本地存储也得到更新
+      if (hasFullAccess && saveAccessToLocalStorage) {
+        saveAccessToLocalStorage(questionSet.id, true);
+      }
+    }, 100);
     
-    // 更新组件状态
-    if (hasFullAccess) {
-      setHasAccessToFullQuiz(true);
-      setTrialEnded(false);
-    }
+    return () => clearTimeout(timer);
     
-    // 确保本地存储也得到更新
-    if (hasFullAccess && saveAccessToLocalStorage) {
-      saveAccessToLocalStorage(questionSet.id, true);
-    }
-    
-  }, [user?.id, questionSet?.id, checkFullAccessFromAllSources, saveAccessToLocalStorage]);
+  }, [user?.id, questionSet]);
 
   // 在useEffect中初始化计时器
   useEffect(() => {
