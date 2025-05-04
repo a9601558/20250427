@@ -4,7 +4,10 @@ import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// All progress routes require authentication
+// Beacon API endpoint - 将其放在protect前面，无需认证
+router.post('/sync', userProgressController.syncProgressViaBeacon);
+
+// 其他所有进度路由需要认证
 router.use(protect);
 
 // 详细进度记录路由 - 需要放在前面以避免和通用路由冲突
@@ -16,9 +19,6 @@ router.get('/records', userProgressController.getUserProgressRecords);
 router.get('/records/:userId', userProgressController.getUserProgressRecords);
 router.delete('/record/:id', userProgressController.deleteProgressRecord);
 router.get('/summary', userProgressController.getProgressSummary);
-
-// Beacon API endpoint for reliable sync during page unload
-router.post('/sync', userProgressController.syncProgressViaBeacon);
 
 // 通用更新进度路由
 router.post('/', userProgressController.updateProgress);
