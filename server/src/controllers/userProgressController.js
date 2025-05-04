@@ -62,14 +62,14 @@ const checkPermission = (req, targetUserId) => {
 
 /**
  * @desc    重置用户特定题库的进度
- * @route   DELETE /api/user-progress/:userId/:questionSetId
+ * @route   DELETE /api/user-progress/reset/:userId/:questionSetId
  * @access  Private
  */
-const resetUserProgress = async (req, res) => {
+const resetProgress = async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
-    const { userId, questionSetId } = req.body;
+    const { userId, questionSetId } = req.params;
     
     // 校验参数
     if (!userId || !questionSetId) {
@@ -78,7 +78,7 @@ const resetUserProgress = async (req, res) => {
     
     // 权限检查
     if (!checkPermission(req, userId)) {
-      return res.status(403).json({ success: false, message: '无权执行此操作' });
+      return res.status(403).json({ success: false, message: '无权重置此用户的进度' });
     }
     
     // 删除该用户该题库的所有进度记录
@@ -92,6 +92,18 @@ const resetUserProgress = async (req, res) => {
     
     await transaction.commit();
     
+    // 通过Socket.IO发送更新通知
+    const io = getSocketIO();
+    if (io) {
+      io.to(`user_${userId}`).emit('progressUpdate', {
+        type: 'progressReset',
+        userId,
+        questionSetId,
+        timestamp: new Date().toISOString(),
+        source: 'api'
+      });
+    }
+    
     console.log(`[UserProgressController] 已重置用户 ${userId} 在题库 ${questionSetId} 的进度，删除了 ${deletedCount} 条记录`);
     
     return res.json({
@@ -101,7 +113,7 @@ const resetUserProgress = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('[UserProgressController] 重置进度失败:', error);
+    console.error('[UserProgressController] 重置进度失败:', error.stack);
     return res.status(500).json({ 
       success: false, 
       message: '重置进度失败', 
@@ -213,10 +225,10 @@ const getProgressByQuestionSetId = async (req, res) => {
 
 /**
  * @desc    更新用户进度
- * @route   POST /api/user-progress
+ * @route   POST /api/user-progress/update
  * @access  Private
  */
-const updateProgress = async (req, res) => {
+const updateUserProgress = async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
@@ -229,6 +241,11 @@ const updateProgress = async (req, res) => {
         success: false, 
         message: '缺少必要参数或参数类型错误' 
       });
+    }
+    
+    // 检查用户权限
+    if (!checkPermission(req, userId)) {
+      return res.status(403).json({ success: false, message: '无权更新此用户的进度' });
     }
     
     // 创建或更新进度记录
@@ -271,7 +288,7 @@ const updateProgress = async (req, res) => {
       }, { transaction });
     }
     
-    // 计算最新的统计数据
+    // 在更新记录后计算最新的统计数据
     const stats = await calculateProgressStats(userId, questionSetId, transaction);
     
     await transaction.commit();
@@ -281,18 +298,18 @@ const updateProgress = async (req, res) => {
       const io = getSocketIO();
       if (io) {
         const progressUpdateEvent = {
+          type: 'progressUpdate',
           userId,
           questionSetId,
-          progress: {
-            questionId,
-            isCorrect,
-            timeSpent: timeSpent || 0,
-            stats,
-            updatedAt: new Date().toISOString()
-          }
+          questionId,
+          isCorrect,
+          timeSpent: timeSpent || 0,
+          stats,
+          timestamp: new Date().toISOString(),
+          source: 'api'
         };
         
-        io.to(userId).emit('progress:update', progressUpdateEvent);
+        io.to(`user_${userId}`).emit('progressUpdate', progressUpdateEvent);
       }
     } catch (socketError) {
       console.error('[UserProgressController] 发送socket更新失败:', socketError.stack);
@@ -302,7 +319,8 @@ const updateProgress = async (req, res) => {
     return res.json({
       success: true,
       message: '进度更新成功',
-      data: progress
+      data: progress,
+      stats
     });
   } catch (error) {
     await transaction.rollback();
@@ -310,7 +328,92 @@ const updateProgress = async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: '进度更新失败', 
-      error: error.message 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+/**
+ * @desc    更新特定进度记录
+ * @route   PUT /api/user-progress/:id
+ * @access  Private
+ */
+const updateProgress = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const { isCorrect, timeSpent, metadata, lastAccessed } = req.body;
+    
+    // 校验参数
+    if (!id) {
+      return res.status(400).json({ success: false, message: '缺少记录ID参数' });
+    }
+    
+    // 查找记录
+    const record = await UserProgress.findByPk(id);
+    
+    if (!record) {
+      return res.status(404).json({ success: false, message: '记录不存在' });
+    }
+    
+    // 权限检查
+    if (!checkPermission(req, record.userId)) {
+      return res.status(403).json({ success: false, message: '无权更新此记录' });
+    }
+    
+    // 准备更新数据
+    const updateData = {};
+    
+    if (isCorrect !== undefined) updateData.isCorrect = isCorrect;
+    if (timeSpent !== undefined) updateData.timeSpent = timeSpent;
+    if (lastAccessed !== undefined) updateData.lastAccessed = lastAccessed;
+    
+    // 处理元数据
+    if (metadata !== undefined) {
+      // 如果元数据是对象，将其转换为字符串
+      updateData.metadata = typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
+    }
+    
+    // 更新记录
+    await record.update(updateData, { transaction });
+    
+    // 更新后计算统计数据
+    const stats = await calculateProgressStats(record.userId, record.questionSetId, transaction);
+    
+    await transaction.commit();
+    
+    // 通过Socket.IO发送更新通知
+    const io = getSocketIO();
+    if (io) {
+      io.to(`user_${record.userId}`).emit('progressUpdate', {
+        type: 'progressUpdated',
+        userId: record.userId,
+        questionSetId: record.questionSetId,
+        questionId: record.questionId,
+        progressId: id,
+        isCorrect: record.isCorrect,
+        stats,
+        timestamp: new Date().toISOString(),
+        source: 'api'
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: '记录更新成功',
+      data: await UserProgress.findByPk(id),
+      stats
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('[UserProgressController] 更新进度记录失败:', error.stack);
+    return res.status(500).json({ 
+      success: false, 
+      message: '更新进度记录失败', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -712,25 +815,30 @@ const getProgressSummary = async (req, res) => {
       return res.status(403).json({ success: false, message: '无权访问此用户的进度摘要' });
     }
     
-    // 使用原生SQL查询聚合数据（确保表名和字段名与实际数据库匹配）
+    // 使用Sequelize模型名称和字段名进行查询，确保与数据库结构一致
+    // 注意：请确认以下表名和字段名与实际数据库模型定义匹配
     const query = `
       SELECT 
-        qs.id as "questionSetId",
-        qs.title as "questionSetTitle",
+        "QuestionSets".id AS "questionSetId",
+        "QuestionSets".title AS "questionSetTitle",
         (
           SELECT COUNT(*)
-          FROM "Questions" q
-          WHERE q."questionSetId" = qs.id
-        ) as "totalQuestions",
-        COUNT(DISTINCT up."questionId") as "completedQuestions",
-        SUM(CASE WHEN up."isCorrect" = true THEN 1 ELSE 0 END) as "correctAnswers",
-        SUM(up."timeSpent") as "totalTimeSpent",
-        AVG(up."timeSpent") as "avgTimeSpent",
-        MAX(up."lastAccessed") as "lastActivity"
-      FROM "QuestionSets" qs
-      LEFT JOIN "UserProgress" up ON qs.id = up."questionSetId" AND up."userId" = :userId
-      GROUP BY qs.id, qs.title
-      ORDER BY qs.title
+          FROM "Questions"
+          WHERE "Questions"."questionSetId" = "QuestionSets".id
+        ) AS "totalQuestions",
+        COUNT(DISTINCT "UserProgress"."questionId") AS "completedQuestions",
+        SUM(CASE WHEN "UserProgress"."isCorrect" = true THEN 1 ELSE 0 END) AS "correctAnswers",
+        SUM("UserProgress"."timeSpent") AS "totalTimeSpent",
+        AVG("UserProgress"."timeSpent") AS "avgTimeSpent",
+        MAX("UserProgress"."lastAccessed") AS "lastActivity"
+      FROM 
+        "QuestionSets"
+      LEFT JOIN 
+        "UserProgress" ON "QuestionSets".id = "UserProgress"."questionSetId" AND "UserProgress"."userId" = :userId
+      GROUP BY 
+        "QuestionSets".id, "QuestionSets".title
+      ORDER BY 
+        "QuestionSets".title
     `;
     
     const summaries = await sequelize.query(query, {
@@ -816,10 +924,17 @@ const getUserProgressRecords = async (req, res) => {
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
     
-    // 构建排序条件
-    const sortField = ['lastAccessed', 'createdAt', 'updatedAt', 'timeSpent'].includes(sort) 
-      ? sort 
-      : 'lastAccessed';
+    // 安全的排序映射
+    const sortFieldMap = {
+      'lastAccessed': 'lastAccessed',
+      'createdAt': 'createdAt',
+      'updatedAt': 'updatedAt',
+      'timeSpent': 'timeSpent',
+      'isCorrect': 'isCorrect'
+    };
+    
+    // 使用映射获取排序字段，提供默认值
+    const sortField = sortFieldMap[sort] || 'lastAccessed';
     const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     
     // 查询进度记录
@@ -866,151 +981,196 @@ const getUserProgressRecords = async (req, res) => {
 };
 
 /**
- * @desc    更新进度
- * @route   PUT /api/user-progress/:id
- * @access  Private
+ * @desc    通过Beacon API同步用户进度
+ * @route   POST /api/user-progress/beacon
+ * @access  Public
  */
-const updateProgress = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  
+const syncProgressViaBeacon = async (req, res) => {
+  // 由于这是通过Navigator.sendBeacon发送的请求，我们可能不能标准响应
+  // Beacon API是单向通信，浏览器不期望响应
   try {
-    const { id } = req.params;
-    const { isCorrect, timeSpent, metadata, lastAccessed } = req.body;
+    let data;
+    const contentType = req.headers['content-type'] || '';
     
-    // 校验参数
-    if (!id) {
-      return res.status(400).json({ success: false, message: '缺少记录ID参数' });
+    // 根据内容类型解析数据
+    if (contentType.includes('application/json')) {
+      data = req.body;
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      data = req.body.data ? JSON.parse(req.body.data) : req.body;
+    } else {
+      // 尝试解析为JSON，如果失败则使用原始body
+      try {
+        data = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      } catch (e) {
+        data = req.body;
+      }
     }
     
-    // 查找记录
-    const record = await UserProgress.findByPk(id);
-    
-    if (!record) {
-      return res.status(404).json({ success: false, message: '记录不存在' });
+    // 记录接收到的数据（开发环境）
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[UserProgressController] 收到beacon数据:', JSON.stringify(data, null, 2));
     }
     
-    // 权限检查
-    if (!checkPermission(req, record.userId)) {
-      return res.status(403).json({ success: false, message: '无权更新此记录' });
+    // 校验必要字段
+    if (!data || !data.userId || !data.questionSetId || !data.progress) {
+      console.error('[UserProgressController] Beacon数据缺少必要字段');
+      return res.status(400).end();
     }
     
-    // 准备更新数据
-    const updateData = {};
+    const { userId, questionSetId, progress, sessionId } = data;
     
-    if (isCorrect !== undefined) updateData.isCorrect = isCorrect;
-    if (timeSpent !== undefined) updateData.timeSpent = timeSpent;
-    if (lastAccessed !== undefined) updateData.lastAccessed = lastAccessed;
-    
-    // 处理元数据
-    if (metadata !== undefined) {
-      // 如果元数据是对象，将其转换为字符串
-      updateData.metadata = typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
+    // 验证用户是否存在（可选，Beacon可能允许匿名）
+    let user = null;
+    if (userId) {
+      user = await User.findByPk(userId);
+      if (!user) {
+        console.warn(`[UserProgressController] 用户ID不存在: ${userId}`);
+      }
     }
     
-    // 更新记录
-    await record.update(updateData, { transaction });
+    // 获取题库信息以及计算总题目数
+    const questionSet = await QuestionSet.findByPk(questionSetId, {
+      include: [
+        {
+          model: Question,
+          as: 'questions', // 确保这里的关联名称与Sequelize模型定义一致
+          attributes: ['id']
+        }
+      ]
+    });
     
-    await transaction.commit();
+    if (!questionSet) {
+      console.error(`[UserProgressController] 题库不存在: ${questionSetId}`);
+      return res.status(404).end();
+    }
     
-    // 通过Socket.IO发送更新通知
-    const io = getSocketIO();
-    if (io) {
-      io.to(`user_${record.userId}`).emit('progressUpdate', {
-        type: 'progressUpdated',
-        userId: record.userId,
-        questionSetId: record.questionSetId,
-        questionId: record.questionId,
-        progressId: id,
-        isCorrect: record.isCorrect,
-        timestamp: new Date().toISOString(),
-        source: 'api'
+    // 获取题库中的总题目数 - 从关联中计算，而不是依赖questionSet.totalQuestions字段
+    const totalQuestions = questionSet.questions ? questionSet.questions.length : 0;
+    
+    // 获取已完成的题目数量和正确的题目数量
+    const completedQuestions = progress.length;
+    const correctAnswers = progress.filter(p => p.isCorrect).length;
+    
+    // 事务处理
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // 创建或更新进度汇总记录
+      const recordId = uuidv4();
+      const summaryRecord = await UserProgress.findOrCreate({
+        where: {
+          userId,
+          questionSetId,
+          recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY
+        },
+        defaults: {
+          id: recordId,
+          userId,
+          questionSetId,
+          questionId: recordId, // 使用生成的UUID作为虚拟questionId
+          isCorrect: null, // 不适用于汇总记录
+          timeSpent: progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
+          lastAccessed: new Date(),
+          recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY,
+          metadata: JSON.stringify({
+            sessionId,
+            timestamp: new Date().toISOString(),
+            progressDetails: progress
+          }),
+          completedQuestions,
+          totalQuestions,
+          correctAnswers
+        },
+        transaction
       });
+      
+      // 如果记录已存在，则更新它
+      if (!summaryRecord[1]) {
+        const [existingRecord] = summaryRecord;
+        
+        // 解析现有元数据
+        let metadata = {};
+        try {
+          metadata = JSON.parse(existingRecord.metadata || '{}');
+        } catch (e) {
+          metadata = {};
+        }
+        
+        // 更新元数据
+        metadata.progressDetails = metadata.progressDetails || [];
+        metadata.progressDetails.push(...progress);
+        metadata.timestamp = new Date().toISOString();
+        metadata.sessionId = sessionId;
+        
+        // 更新记录
+        await existingRecord.update({
+          timeSpent: (existingRecord.timeSpent || 0) + progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
+          lastAccessed: new Date(),
+          metadata: JSON.stringify(metadata),
+          completedQuestions: Math.max(completedQuestions, existingRecord.completedQuestions || 0),
+          totalQuestions,
+          correctAnswers: Math.max(correctAnswers, existingRecord.correctAnswers || 0)
+        }, { transaction });
+      }
+      
+      // 保存详细的进度记录
+      for (const item of progress) {
+        // 生成唯一ID
+        const progressId = uuidv4();
+        
+        await UserProgress.create({
+          id: progressId,
+          userId,
+          questionSetId,
+          questionId: item.questionId,
+          isCorrect: item.isCorrect,
+          timeSpent: item.timeSpent || 0,
+          lastAccessed: new Date(),
+          recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
+          metadata: JSON.stringify({
+            sessionId,
+            timestamp: new Date().toISOString(),
+            answerDetails: item.answerDetails || {},
+            selectedOptions: item.selectedOptions || []
+          })
+        }, { transaction });
+      }
+      
+      await transaction.commit();
+      
+      // 通过Socket.IO发送更新通知 - 使用标准格式
+      const io = getSocketIO();
+      if (io) {
+        io.to(`user_${userId}`).emit('progressUpdate', {
+          type: 'beaconSync',
+          userId,
+          questionSetId,
+          completedQuestions,
+          totalQuestions,
+          correctAnswers,
+          timestamp: new Date().toISOString(),
+          source: 'beacon'
+        });
+      }
+      
+      // 由于是Beacon请求，我们简单地结束响应
+      return res.status(200).end();
+      
+    } catch (error) {
+      await transaction.rollback();
+      console.error('[UserProgressController] Beacon同步失败:', error.stack);
+      return res.status(500).end();
     }
-    
-    return res.json({
-      success: true,
-      message: '记录更新成功',
-      data: await UserProgress.findByPk(id)
-    });
   } catch (error) {
-    await transaction.rollback();
-    console.error('[UserProgressController] 更新进度记录失败:', error.stack);
-    return res.status(500).json({ 
-      success: false, 
-      message: '更新进度记录失败', 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-};
-
-/**
- * @desc    重置进度
- * @route   DELETE /api/user-progress/reset/:userId/:questionSetId
- * @access  Private
- */
-const resetProgress = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  
-  try {
-    const { userId, questionSetId } = req.params;
-    
-    // 校验参数
-    if (!userId || !questionSetId) {
-      return res.status(400).json({ success: false, message: '缺少必要参数' });
-    }
-    
-    // 权限检查
-    if (!checkPermission(req, userId)) {
-      return res.status(403).json({ success: false, message: '无权重置此用户的进度' });
-    }
-    
-    // 删除该用户该题库的所有进度记录
-    const deletedCount = await UserProgress.destroy({
-      where: {
-        userId,
-        questionSetId
-      },
-      transaction
-    });
-    
-    await transaction.commit();
-    
-    // 通过Socket.IO发送更新通知
-    const io = getSocketIO();
-    if (io) {
-      io.to(`user_${userId}`).emit('progressUpdate', {
-        type: 'progressReset',
-        userId,
-        questionSetId,
-        timestamp: new Date().toISOString(),
-        source: 'api'
-      });
-    }
-    
-    console.log(`[UserProgressController] 已重置用户 ${userId} 在题库 ${questionSetId} 的进度，删除了 ${deletedCount} 条记录`);
-    
-    return res.json({
-      success: true,
-      message: `成功重置进度，共删除${deletedCount}条记录`,
-      deletedCount
-    });
-  } catch (error) {
-    await transaction.rollback();
-    console.error('[UserProgressController] 重置进度失败:', error.stack);
-    return res.status(500).json({ 
-      success: false, 
-      message: '重置进度失败', 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('[UserProgressController] Beacon处理失败:', error.stack);
+    return res.status(500).end();
   }
 };
 
 module.exports = {
-  // 确保保留现有的导出
   getUserProgress,
   getProgressByQuestionSetId,
+  updateUserProgress,
   updateProgress,
   resetProgress,
   createDetailedProgress,
@@ -1019,9 +1179,11 @@ module.exports = {
   deleteProgressRecord,
   getUserProgressRecords,
   getProgressSummary,
-  resetUserProgress,
+  syncProgressViaBeacon,
   // 导出常量供其他模块使用
   PROGRESS_RECORD_TYPES,
   // 导出工具函数供其他控制器使用
-  checkPermission
+  checkPermission,
+  // 工具函数
+  calculateProgressStats
 }; 
