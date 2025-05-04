@@ -940,7 +940,8 @@ const calculateProgressStats = async (userId, questionSetId, transaction) => {
  */
 const getUserProgressRecords = async (req, res) => {
     try {
-        const { userId } = req.params;
+        // 优先从URL参数获取userId，如果没有则使用当前登录用户的ID
+        const userId = req.params.userId || req.user?.id;
         const { page = 1, limit = 10, sort = 'lastAccessed', order = 'desc', questionSetId, isCorrect, recordType } = req.query;
         // Validate params
         if (!userId) {

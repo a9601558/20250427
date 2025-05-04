@@ -1080,7 +1080,8 @@ const calculateProgressStats = async (
  */
 export const getUserProgressRecords = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { userId } = req.params;
+    // 优先从URL参数获取userId，如果没有则使用当前登录用户的ID
+    const userId = req.params.userId || req.user?.id;
     const { 
       page = 1, 
       limit = 10, 

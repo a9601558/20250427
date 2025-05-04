@@ -12,6 +12,7 @@ router.post('/record', userProgressController.createDetailedProgress);
 router.get('/detailed', userProgressController.getDetailedProgress);
 router.get('/stats', userProgressController.getProgressStats);
 router.get('/stats/:userId', userProgressController.getUserProgressStats);
+router.get('/records', userProgressController.getUserProgressRecords);
 router.get('/records/:userId', userProgressController.getUserProgressRecords);
 router.delete('/record/:id', userProgressController.deleteProgressRecord);
 
