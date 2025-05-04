@@ -294,16 +294,37 @@ const QuestionCard = ({
   };
 
   const handleSubmit = () => {
-    // 防重复提交机制
-    if (isSubmittingRef.current || isSubmitted) return;
+    if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
     try {
+      // 添加对question对象的有效性检查
+      if (!question || !question.id) {
+        console.error('无效的题目数据:', question);
+        toast?.('题目加载失败，请刷新页面重试', { type: 'error' });
+        return;
+      }
+      
       if (question.questionType === 'single' && selectedOption) {
         setIsSubmitted(true);
         
+        // 确保question.options存在
+        if (!question.options || !Array.isArray(question.options)) {
+          console.error('题目选项数据无效:', question);
+          toast?.('题目选项加载失败，请刷新页面重试', { type: 'error' });
+          return;
+        }
+        
         // 修改判断逻辑，找到正确选项的ID比较
         const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+        
+        // 如果找不到正确选项，记录错误并返回
+        if (!correctOptionId) {
+          console.error('无法找到正确选项:', question);
+          toast?.('题目数据异常，请联系管理员', { type: 'error' });
+          return;
+        }
+        
         const isCorrect = selectedOption === correctOptionId;
         
         if (onAnswerSubmitted) {
@@ -347,10 +368,24 @@ const QuestionCard = ({
       } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
         setIsSubmitted(true);
         
+        // 确保question.options存在
+        if (!question.options || !Array.isArray(question.options)) {
+          console.error('题目选项数据无效:', question);
+          toast?.('题目选项加载失败，请刷新页面重试', { type: 'error' });
+          return;
+        }
+        
         // 修改多选题判断逻辑
         const correctOptionIds = question.options
           .filter(opt => opt.isCorrect)
           .map(opt => opt.id);
+        
+        // 如果找不到正确选项，记录错误并返回
+        if (!correctOptionIds || correctOptionIds.length === 0) {
+          console.error('无法找到正确选项:', question);
+          toast?.('题目数据异常，请联系管理员', { type: 'error' });
+          return;
+        }
         
         const lengthMatch = selectedOptions.length === correctOptionIds.length;
         const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));

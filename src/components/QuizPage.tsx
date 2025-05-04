@@ -153,16 +153,31 @@ function QuizPage(): JSX.Element {
   
   // Handle answer submission
   const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
+    // 检查currentQuestionIndex是否有效
+    if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) {
+      console.error('无效的题目索引:', currentQuestionIndex);
+      toast.error('题目索引无效，请刷新页面');
+      return;
+    }
+    
+    // 确保当前题目存在
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion || !currentQuestion.id) {
+      console.error('无效的题目数据:', currentQuestion);
+      toast.error('题目数据无效，请刷新页面');
+      return;
+    }
+    
     dispatch({
       type: 'SUBMIT_ANSWER',
-        isCorrect,
+      isCorrect,
       selectedOption,
       questionIndex: currentQuestionIndex
     });
     
     // Save progress locally
     saveProgressToLocalStorage(
-    currentQuestionIndex, 
+      currentQuestionIndex, 
       [...answeredQuestions, {
         index: answeredQuestions.length,
         questionIndex: currentQuestionIndex,
@@ -171,7 +186,7 @@ function QuizPage(): JSX.Element {
       }],
       elapsedTime
     );
-  }, [currentQuestionIndex, answeredQuestions, dispatch, saveProgressToLocalStorage, elapsedTime]);
+  }, [currentQuestionIndex, questions, answeredQuestions, dispatch, saveProgressToLocalStorage, elapsedTime]);
   
   // Handle next question
   const handleNextQuestion = useCallback(() => {
