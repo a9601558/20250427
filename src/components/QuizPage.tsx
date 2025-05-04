@@ -158,13 +158,13 @@ function QuizPage(): JSX.Element {
       
       // 获取当前访问权限列表
       const accessRightsStr = localStorage.getItem('quizAccessRights');
-      let accessRights: {[key: string]: boolean} = {};
+      let accessRights: {[questionSetId: string]: any} = {};
       
       if (accessRightsStr) {
         try {
           accessRights = JSON.parse(accessRightsStr);
         } catch (e) {
-          console.error('[QuizPage] 解析访问权限记录失败，将创建新记录', e);
+          console.error('[QuizPage] 解析访问权限记录失败', e);
         }
       }
       
@@ -217,105 +217,124 @@ function QuizPage(): JSX.Element {
       remainingDays?: number;
       source?: string;
     }) => {
-      console.log(`[Socket事件] 收到访问权限更新: questionSetId=${data.questionSetId}, hasAccess=${data.hasAccess}, source=${data.source || 'server'}`);
+      console.log(`[Socket事件] 收到题库访问权限更新:`, data);
       
-      // 检查是否匹配当前题库
-      if (String(data.questionSetId).trim() === String(questionSet.id).trim()) {
-        console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}, 来源: ${data.source || 'server'}`);
-        
-        // 更新组件状态
-        setHasAccessToFullQuiz(data.hasAccess);
-        
-        // 保存到本地存储，确保跨设备同步
-        saveAccessToLocalStorage(questionSet.id, data.hasAccess, data.remainingDays);
-        
-        // 确保在localStorage中保存兑换记录和访问权限，以便在所有设备上访问
-        if (data.hasAccess) {
-          try {
-            // 1. 保存到 quizAccessRights 记录中 - 主要访问权限存储
-            const accessRightsStr = localStorage.getItem('quizAccessRights');
-            let accessRights = {};
-            if (accessRightsStr) {
+      // 忽略与当前题库无关的更新
+      if (!questionSet || data.questionSetId !== questionSet.id) {
+        return;
+      }
+      
+      console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}, 来源: ${data.source || 'server'}`);
+      
+      // 更新组件状态
+      setHasAccessToFullQuiz(data.hasAccess);
+      
+      // 保存到本地存储，确保跨设备同步
+      saveAccessToLocalStorage(questionSet.id, data.hasAccess, data.remainingDays);
+      
+      // 确保在localStorage中保存兑换记录和访问权限，以便在所有设备上访问
+      if (data.hasAccess) {
+        try {
+          // 1. 保存到 quizAccessRights 记录中 - 主要访问权限存储
+          const accessRightsStr = localStorage.getItem('quizAccessRights');
+          let accessRights: {[key: string]: any} = {};
+          if (accessRightsStr) {
+            try {
               accessRights = JSON.parse(accessRightsStr);
+            } catch (e) {
+              console.error('[Socket事件] 解析quizAccessRights失败，创建新对象', e);
+            }
+          }
+          
+          // 设置访问权限
+          accessRights[questionSet.id] = {
+            hasAccess: true,
+            remainingDays: data.remainingDays,
+            timestamp: Date.now(),
+            source: data.source || 'server'
+          };
+          localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
+          console.log(`[Socket事件] 已保存到quizAccessRights: ${questionSet.id}`);
+          
+          // 2. 保存到redeemed记录中，确保HomePage能识别
+          const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+          let redeemedIds = [];
+          if (redeemedStr) {
+            redeemedIds = JSON.parse(redeemedStr);
+          }
+          
+          // 如果ID不在列表中，添加它
+          if (Array.isArray(redeemedIds) && !redeemedIds.includes(questionSet.id)) {
+            redeemedIds.push(questionSet.id);
+            localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(redeemedIds));
+            console.log(`[Socket事件] 已将题库ID添加到兑换记录: ${questionSet.id}`);
+          }
+          
+          // 3. 保存到 questionSetAccessCache - 用户特定的缓存
+          try {
+            const accessCacheStr = localStorage.getItem('questionSetAccessCache');
+            let accessCache: {[userId: string]: {[questionSetId: string]: any}} = {};
+            
+            if (accessCacheStr) {
+              accessCache = JSON.parse(accessCacheStr);
             }
             
-            // 设置访问权限
-            accessRights[questionSet.id] = {
-              hasAccess: true,
-              remainingDays: data.remainingDays,
-              timestamp: Date.now(),
-              source: data.source || 'server'
-            };
-            localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
-            console.log(`[Socket事件] 已保存到quizAccessRights: ${questionSet.id}`);
-            
-            // 2. 保存到redeemed记录中，确保HomePage能识别
-            const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-            let redeemedIds = [];
-            if (redeemedStr) {
-              redeemedIds = JSON.parse(redeemedStr);
+            // 确保用户ID存在
+            if (user && !accessCache[user.id]) {
+              accessCache[user.id] = {};
             }
             
-            // 如果ID不在列表中，添加它
-            if (Array.isArray(redeemedIds) && !redeemedIds.includes(questionSet.id)) {
-              redeemedIds.push(questionSet.id);
-              localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(redeemedIds));
-              console.log(`[Socket事件] 已将题库ID添加到兑换记录: ${questionSet.id}`);
-            }
-            
-            // 3. 同时更新questionSetAccessCache，确保HomePage能够显示正确状态
-            const cacheKey = 'questionSetAccessCache';
-            const cacheStr = localStorage.getItem(cacheKey);
-            let cache: QuestionSetAccessCache = {};
-            
-            if (cacheStr) {
-              try {
-                cache = JSON.parse(cacheStr);
-              } catch (e) {
-                console.error('[Socket事件] 解析缓存失败，将创建新缓存', e);
-                cache = {};
-              }
-            }
-            
-            // 确保用户ID键存在
-            if (user?.id && !cache[user.id]) {
-              cache[user.id] = {};
-            }
-            
-            // 更新缓存
-            if (user?.id) {
-              cache[user.id][questionSet.id] = {
+            // 添加/更新题库访问权限
+            if (user) {
+              accessCache[user.id][questionSet.id] = {
                 hasAccess: true,
-                remainingDays: data.remainingDays || 180, // 默认180天
+                remainingDays: data.remainingDays,
                 timestamp: Date.now(),
-                source: data.source || 'server'
+                source: data.source || 'server_update'
               };
               
-              localStorage.setItem(cacheKey, JSON.stringify(cache));
-              console.log(`[Socket事件] 已更新题库访问缓存: ${questionSet.id}, 用户: ${user.id}`);
+              localStorage.setItem('questionSetAccessCache', JSON.stringify(accessCache));
+              console.log(`[Socket事件] 已将题库访问权限保存到用户缓存, 用户ID: ${user.id}`);
             }
           } catch (e) {
-            console.error('[Socket事件] 保存权限记录失败:', e);
+            console.error('[Socket事件] 保存到questionSetAccessCache失败', e);
           }
           
-          // 权限开启后，确保试用结束状态重置
-          setTrialEnded(false);
-          
-          // 如果更新来自另一设备，触发提示
-          if (data.source === 'otherDevice') {
-            console.log('[Socket事件] 来自其他设备的权限更新');
-            // TODO: 显示一个通知给用户，告知权限已从其他设备同步
+          // 重置试用状态
+          if (trialEnded) {
+            console.log(`[Socket事件] 重置试用结束状态`);
+            setTrialEnded(false);
           }
           
-          // 更新题库对象的hasAccess属性
-          setQuestionSet(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              hasAccess: true,
-              remainingDays: data.remainingDays
+          // 更新题库的access属性
+          if (questionSet && questionSet.hasAccess !== true) {
+            console.log(`[Socket事件] 更新题库对象的访问权限属性`);
+            
+            // 创建并更新题库对象的拷贝以触发重渲染
+            const updatedQuestionSet = {
+              ...questionSet,
+              hasAccess: true
             };
-          });
+            
+            setQuestionSet(updatedQuestionSet);
+          }
+          
+          // 发送全局事件，通知其他组件权限已更新
+          window.dispatchEvent(new CustomEvent('questionSet:accessChanged', {
+            detail: {
+              questionSetId: questionSet.id,
+              hasAccess: true,
+              source: 'socket_event'
+            }
+          }));
+        } catch (e) {
+          console.error('[Socket事件] 保存访问权限到本地存储失败', e);
+        }
+      } else {
+        // 访问被拒绝，重置状态
+        if (trialEnded !== true && !checkLocalRedeemedStatus(questionSet.id)) {
+          console.log(`[Socket事件] 设置试用结束状态`);
+          setTrialEnded(true);
         }
       }
     };
@@ -861,51 +880,94 @@ function QuizPage(): JSX.Element {
   
   // 保存已兑换的题库ID到localStorage
   const saveRedeemedQuestionSetId = (questionSetId: string) => {
-    console.log(`[QuizPage] 保存已兑换题库ID: ${questionSetId}`);
-    
-    if (!questionSetId) {
-      console.error('[QuizPage] 无法保存空的题库ID');
-      return;
-    }
-    
     try {
       const normalizedId = String(questionSetId).trim();
-      console.log(`[QuizPage] 规范化题库ID: ${normalizedId}`);
       
-      // 获取现有的已兑换题库IDs
-      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
-      console.log(`[QuizPage] 现有的已兑换题库IDs: ${redeemedQuestionSetIds}`);
+      // 获取现有的已兑换ID列表
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      let redeemedIds = [];
       
-      let newList = '';
-      
-      if (redeemedQuestionSetIds) {
-        try {
-          const parsed = JSON.parse(redeemedQuestionSetIds);
-          console.log(`[QuizPage] 解析的已兑换题库IDs:`, parsed);
-          
-          // 检查是否已存在
-          if (Array.isArray(parsed) && !parsed.includes(normalizedId)) {
-            parsed.push(normalizedId);
-            newList = JSON.stringify(parsed);
-          } else if (typeof parsed === 'string' && parsed !== normalizedId) {
-            newList = JSON.stringify([parsed, normalizedId]);
-          } else {
-            newList = JSON.stringify([normalizedId]);
-          }
-        } catch (error) {
-          console.error('[QuizPage] 解析已兑换题库IDs失败:', error);
-          newList = JSON.stringify([normalizedId]);
-        }
-      } else {
-        newList = JSON.stringify([normalizedId]);
+      if (redeemedStr) {
+        redeemedIds = JSON.parse(redeemedStr);
       }
       
-      console.log(`[QuizPage] 保存新的已兑换题库IDs列表:`, newList);
-      localStorage.setItem('redeemedQuestionSetIds', newList);
-    } catch (error) {
-      console.error('[QuizPage] 保存已兑换题库ID失败:', error);
+      // 确保是数组
+      if (!Array.isArray(redeemedIds)) {
+        redeemedIds = [];
+      }
+      
+      // 如果ID不在列表中，添加它
+      if (!redeemedIds.includes(normalizedId)) {
+        redeemedIds.push(normalizedId);
+        localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(redeemedIds));
+        console.log(`[QuizPage] 已将题库ID添加到兑换记录: ${normalizedId}`);
+      }
+    } catch (e) {
+      console.error('[QuizPage] 保存兑换记录失败', e);
     }
   };
+  
+  // 检查本地存储中的兑换状态
+  const checkLocalRedeemedStatus = useCallback((questionSetId: string): boolean => {
+    try {
+      if (!questionSetId) return false;
+      
+      const normalizedId = String(questionSetId).trim();
+      console.log(`[QuizPage] 检查题库 ${normalizedId} 的本地兑换状态`);
+      
+      // 检查redeemedQuestionSetIds
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedStr) {
+        try {
+          const redeemedIds = JSON.parse(redeemedStr);
+          if (Array.isArray(redeemedIds)) {
+            const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedId);
+            console.log(`[QuizPage] 题库 ${normalizedId} 在redeemedQuestionSetIds中的兑换状态: ${isRedeemed}`);
+            return isRedeemed;
+          }
+        } catch (e) {
+          console.error('[QuizPage] 解析redeemedQuestionSetIds失败', e);
+        }
+      }
+      
+      // 检查quizAccessRights
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (accessRightsStr) {
+        try {
+          const accessRights = JSON.parse(accessRightsStr);
+          if (accessRights[normalizedId] && accessRights[normalizedId].hasAccess) {
+            console.log(`[QuizPage] 题库 ${normalizedId} 在quizAccessRights中有访问权限`);
+            return true;
+          }
+        } catch (e) {
+          console.error('[QuizPage] 解析quizAccessRights失败', e);
+        }
+      }
+      
+      // 检查questionSetAccessCache
+      if (user?.id) {
+        const accessCacheStr = localStorage.getItem('questionSetAccessCache');
+        if (accessCacheStr) {
+          try {
+            const accessCache = JSON.parse(accessCacheStr);
+            if (accessCache[user.id] && 
+                accessCache[user.id][normalizedId] && 
+                accessCache[user.id][normalizedId].hasAccess) {
+              console.log(`[QuizPage] 题库 ${normalizedId} 在questionSetAccessCache中有访问权限`);
+              return true;
+            }
+          } catch (e) {
+            console.error('[QuizPage] 解析questionSetAccessCache失败', e);
+          }
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      console.error('[QuizPage] 检查本地兑换状态失败', e);
+      return false;
+    }
+  }, [user?.id]);
   
   // 监听兑换码成功事件
   useEffect(() => {
@@ -2121,95 +2183,131 @@ function QuizPage(): JSX.Element {
     
     // 用户切换设备事件处理
     const handleDeviceSync = (data: any) => {
-      console.log(`[QuizPage] 收到设备同步事件`, data);
-      
-      // 生成或获取设备ID
-      let deviceId = localStorage.getItem('deviceId');
-      if (!deviceId) {
-        deviceId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        localStorage.setItem('deviceId', deviceId);
-      }
-      
-      // 如果收到同步事件，强制重新检查权限
-      if (questionSet) {
-        console.log(`[QuizPage] 设备同步后强制检查访问权限: ${questionSet.id}`);
+      try {
+        console.log('[QuizPage] 收到设备同步请求:', data);
         
-        // 清除可能存在的过期缓存 - 确保最新状态
-        try {
-          // 清除所有访问权限缓存，确保重新获取最新数据
-          const cacheList = [
-            'quizAccessRights',
-            'questionSetAccessCache',
-            'redeemedQuestionSetIds'
-          ];
-          
-          // 对于每个可能的缓存源，如果包含当前题库ID，则清除该条目
-          for (const cacheKey of cacheList) {
-            const cacheStr = localStorage.getItem(cacheKey);
-            if (!cacheStr) continue;
-            
-            if (cacheKey === 'quizAccessRights') {
-              try {
-                const accessRights = JSON.parse(cacheStr);
-                // 移除当前题库的缓存，强制重新获取
-                if (accessRights[questionSet.id]) {
-                  console.log(`[QuizPage] 清除 ${cacheKey} 中题库访问权限缓存: ${questionSet.id}`);
-                  delete accessRights[questionSet.id];
-                  localStorage.setItem(cacheKey, JSON.stringify(accessRights));
-                }
-              } catch (e) {
-                console.error(`[QuizPage] 清除 ${cacheKey} 访问权限缓存失败`, e);
-              }
-            } else if (cacheKey === 'questionSetAccessCache') {
-              try {
-                const accessCache: QuestionSetAccessCache = JSON.parse(cacheStr);
-                // 对于每个用户，检查是否有当前题库的缓存
-                for (const userId in accessCache) {
-                  const userCache = accessCache[userId];
-                  if (userCache[questionSet.id]) {
-                    console.log(`[QuizPage] 清除 ${cacheKey} 中用户 ${userId} 的题库访问权限缓存: ${questionSet.id}`);
-                    // 标记为强制重新检查
-                    userCache[questionSet.id].forceCheck = true;
-                    userCache[questionSet.id].timestamp = Date.now();
-                  }
-                }
-                localStorage.setItem(cacheKey, JSON.stringify(accessCache));
-              } catch (e) {
-                console.error(`[QuizPage] 清除 ${cacheKey} 访问权限缓存失败`, e);
-              }
-            } else if (cacheKey === 'redeemedQuestionSetIds') {
-              // 不清除兑换记录，只是记录日志
-              console.log(`[QuizPage] 设备同步时保留兑换记录`);
-            }
-          }
-          
-          console.log(`[QuizPage] 设备同步后缓存清理完成，将向服务器请求最新权限`);
-        } catch (e) {
-          console.error('[QuizPage] 清除访问权限缓存失败', e);
+        // 检查设备ID
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+          // 如果没有设备ID，生成一个
+          deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          localStorage.setItem('deviceId', deviceId);
+          console.log(`[QuizPage] 生成新设备ID: ${deviceId}`);
         }
         
-        // 立即向服务器请求最新访问权限状态 - 明确告知是设备同步请求
-        socket.emit('questionSet:checkAccess', {
-          userId: user.id,
-          questionSetId: String(questionSet.id).trim(),
-          deviceId: deviceId,
-          requestSource: 'deviceSync'
-        });
-        
-        // 稍后再次检查
-        setTimeout(() => {
-          // 检查所有可能的权限来源
-          const hasFullAccess = checkFullAccessFromAllSources();
-          console.log(`[QuizPage] 设备同步后全面权限检查结果: ${hasFullAccess}`);
+        // 强制进行访问权限检查 - 清除可能过时的缓存权限
+        if (questionSet?.id && user?.id) {
+          console.log(`[QuizPage] 设备同步触发强制访问权限检查: ${questionSet.id}`);
           
-          if (hasFullAccess) {
-            setHasAccessToFullQuiz(true);
-            setTrialEnded(false);
-            console.log(`[QuizPage] 设备同步后更新题库 ${questionSet.id} 状态: hasAccess=true`);
+          // 清除题库的访问权限缓存，确保获取最新权限
+          try {
+            // 从 questionSetAccessCache 清除
+            const accessCacheStr = localStorage.getItem('questionSetAccessCache');
+            if (accessCacheStr) {
+              const accessCache = JSON.parse(accessCacheStr);
+              if (accessCache[user.id] && accessCache[user.id][questionSet.id]) {
+                console.log(`[QuizPage] 清除 questionSetAccessCache 中的权限缓存`);
+                delete accessCache[user.id][questionSet.id];
+                localStorage.setItem('questionSetAccessCache', JSON.stringify(accessCache));
+              }
+            }
+          } catch (e) {
+            console.error('[QuizPage] 清除缓存权限失败:', e);
           }
-        }, 300);
+          
+          // 请求最新权限
+          if (socket) {
+            socket.emit('questionSet:checkAccess', {
+              userId: user.id,
+              questionSetId: questionSet.id,
+              deviceId,
+              source: 'device_sync_forced',
+              forceCheck: true
+            });
+            
+            console.log(`[QuizPage] 已请求强制检查访问权限`);
+          }
+        }
+        
+        // 发送设备同步响应
+        if (socket && user?.id) {
+          socket.emit('user:requestDeviceSync', {
+            userId: user.id,
+            deviceId: deviceId,
+            deviceInfo: {
+              userAgent: navigator.userAgent,
+              timestamp: Date.now(),
+              page: 'quizPage',
+              questionSetId: questionSet?.id
+            }
+          });
+          
+          console.log(`[QuizPage] 已响应设备同步请求`);
+        }
+      } catch (e) {
+        console.error('[QuizPage] 处理设备同步请求失败:', e);
       }
     };
+    
+    // 添加一个useEffect，在页面加载后检查访问权限
+    useEffect(() => {
+      // 在组件加载完成后，安排一个访问权限检查
+      if (questionSet?.id && user?.id && socket) {
+        console.log(`[QuizPage] 设置延时检查访问权限: ${questionSet.id}`);
+        
+        const timer = setTimeout(() => {
+          // 检查是否有本地访问权限记录
+          try {
+            let hasLocalAccess = false;
+            
+            // 检查 quizAccessRights
+            const accessRightsStr = localStorage.getItem('quizAccessRights');
+            if (accessRightsStr) {
+              const accessRights = JSON.parse(accessRightsStr);
+              if (accessRights[questionSet.id] && accessRights[questionSet.id].hasAccess) {
+                console.log(`[QuizPage] 在quizAccessRights中找到访问权限`);
+                hasLocalAccess = true;
+              }
+            }
+            
+            // 检查 redeemedQuestionSetIds
+            const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+            if (redeemedStr && !hasLocalAccess) {
+              const redeemedIds = JSON.parse(redeemedStr);
+              if (Array.isArray(redeemedIds) && redeemedIds.includes(questionSet.id)) {
+                console.log(`[QuizPage] 在redeemedQuestionSetIds中找到访问权限`);
+                hasLocalAccess = true;
+              }
+            }
+            
+            // 如果本地找不到权限，向服务器请求验证
+            if (!hasLocalAccess) {
+              console.log(`[QuizPage] 本地没有找到访问权限，请求服务器验证`);
+              
+              // 获取设备ID
+              let deviceId = localStorage.getItem('deviceId');
+              if (!deviceId) {
+                deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+                localStorage.setItem('deviceId', deviceId);
+              }
+              
+              // 向服务器请求验证
+              socket.emit('questionSet:checkAccess', {
+                userId: user.id,
+                questionSetId: questionSet.id,
+                deviceId,
+                source: 'page_load_check',
+                forceCheck: true
+              });
+            }
+          } catch (e) {
+            console.error('[QuizPage] 检查本地访问权限失败:', e);
+          }
+        }, 2000); // 延迟2秒，确保组件完全加载
+        
+        return () => clearTimeout(timer);
+      }
+    }, [questionSet?.id, user?.id, socket]);
     
     // 监听设备同步事件
     socket.on('user:deviceSync', handleDeviceSync);
@@ -2245,58 +2343,106 @@ function QuizPage(): JSX.Element {
     const timer = setTimeout(() => {
       // 确认权限检查已完成，但如果本地没找到权限，主动向服务器请求
       try {
-        // 内部检查是否有访问权限
-        let hasAccess = false;
-        
-        // 检查本地存储中的访问权限
-        const accessRightsStr = localStorage.getItem('quizAccessRights');
-        if (accessRightsStr) {
-          const accessRights = JSON.parse(accessRightsStr);
-          hasAccess = !!accessRights[questionSet.id];
-        }
-        
-        // 检查兑换记录
-        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-        if (redeemedStr && !hasAccess) {
-          try {
-            const redeemedIds = JSON.parse(redeemedStr);
-            if (Array.isArray(redeemedIds)) {
-              hasAccess = redeemedIds.some(id => 
-                String(id).trim() === String(questionSet.id).trim()
-              );
-            }
-          } catch (e) {
-            console.error('[QuizPage] 解析兑换记录失败', e);
-          }
-        }
-        
-        // 为确保跨设备同步，每次页面加载时都检查一次权限
         console.log('[QuizPage] 页面加载后主动向服务器请求权限检查');
+        
+        // 全面检查访问权限 - 从多个来源
+        const hasFullAccess = checkFullAccessFromAllSources();
+        console.log(`[QuizPage] 全面检查访问权限结果: ${hasFullAccess}`);
+        
+        // 如果本地检查发现已有权限，更新组件状态并通知服务器
+        if (hasFullAccess && !hasAccessToFullQuiz) {
+          console.log('[QuizPage] 本地检查发现访问权限，更新状态');
+          setHasAccessToFullQuiz(true);
+          setTrialEnded(false);
+          
+          // 通知服务器更新权限状态
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: String(questionSet.id).trim(),
+            hasAccess: true,
+            source: 'localCheck',
+            deviceId: localStorage.getItem('deviceId') || navigator.userAgent
+          });
+        }
+        
+        // 无论本地状态如何，都主动请求一次权限检查 - 确保最新状态
         // 获取或生成设备ID
         const deviceId = localStorage.getItem('deviceId') || 
           `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             
-        // 无论本地状态如何，都主动请求一次权限检查
+        // 向服务器请求检查
         socket.emit('questionSet:checkAccess', {
           userId: user.id,
           questionSetId: String(questionSet.id).trim(),
           deviceId: deviceId,
-          requestSource: 'pageInit'
+          requestSource: 'pageInit',
+          timestamp: Date.now()
         });
         
-        // 同时检查一次全面权限
-        const hasFullAccess = checkFullAccessFromAllSources();
-        if (hasFullAccess) {
-          setHasAccessToFullQuiz(true);
-          setTrialEnded(false);
-        }
+        console.log('[QuizPage] 已向服务器发送权限检查请求');
       } catch (e) {
-        console.error('[QuizPage] 检查访问权限失败', e);
+        console.error('[QuizPage] 请求权限检查失败', e);
       }
-    }, 500); // 给予足够时间让其他useEffect完成
+    }, 500); // 短暂延迟，确保组件已完全加载
     
     return () => clearTimeout(timer);
-  }, [socket, user?.id, questionSet, checkFullAccessFromAllSources]);
+  }, [user?.id, questionSet?.id, socket, checkFullAccessFromAllSources, hasAccessToFullQuiz]);
+  
+  // 监听全局事件 - 检测其他页面的权限更新
+  useEffect(() => {
+    if (!questionSet) return;
+    
+    // 监听全局权限变更事件
+    const handleAccessChanged = (e: Event) => {
+      try {
+        const customEvent = e as CustomEvent;
+        const { questionSetId, hasAccess, remainingDays } = customEvent.detail || {};
+        
+        if (questionSetId && String(questionSetId).trim() === String(questionSet.id).trim()) {
+          console.log(`[QuizPage] 收到全局权限变更事件: ${questionSetId}, hasAccess=${hasAccess}`);
+          setHasAccessToFullQuiz(!!hasAccess);
+          
+          if (hasAccess) {
+            setTrialEnded(false);
+            console.log('[QuizPage] 重置试用结束状态');
+            
+            // 保存到localStorage
+            saveAccessToLocalStorage(questionSet.id, true, remainingDays);
+          }
+        }
+      } catch (e) {
+        console.error('[QuizPage] 处理全局权限变更事件失败', e);
+      }
+    };
+    
+    window.addEventListener('questionSet:accessChanged', handleAccessChanged);
+    
+    return () => {
+      window.removeEventListener('questionSet:accessChanged', handleAccessChanged);
+    };
+  }, [questionSet, saveAccessToLocalStorage]);
+  
+  // 确保登录后立即检查权限 - 优先级高
+  useEffect(() => {
+    if (!user?.id || !questionSet) return;
+    
+    console.log(`[QuizPage] 用户登录状态变化，重新检查题库 ${questionSet.id} 的权限`);
+    
+    // 立即进行全面权限检查
+    const hasFullAccess = checkFullAccessFromAllSources();
+    
+    // 更新组件状态
+    if (hasFullAccess) {
+      setHasAccessToFullQuiz(true);
+      setTrialEnded(false);
+    }
+    
+    // 确保本地存储也得到更新
+    if (hasFullAccess && saveAccessToLocalStorage) {
+      saveAccessToLocalStorage(questionSet.id, true);
+    }
+    
+  }, [user?.id, questionSet?.id, checkFullAccessFromAllSources, saveAccessToLocalStorage]);
 
   // 在useEffect中初始化计时器
   useEffect(() => {
