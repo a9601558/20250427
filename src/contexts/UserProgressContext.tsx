@@ -87,6 +87,84 @@ const processSingleProgressRecord = (key: string, value: any): ProgressStats => 
   };
 };
 
+// 从本地存储获取缓存的进度数据
+const getLocalProgressData = (): Record<string, any> | null => {
+  try {
+    const cachedDataStr = localStorage.getItem('userProgressCache');
+    if (!cachedDataStr) return null;
+    
+    const cachedData = JSON.parse(cachedDataStr);
+    if (!cachedData.timestamp || Date.now() - cachedData.timestamp > 3600000) {
+      // 缓存过期（1小时），返回null
+      localStorage.removeItem('userProgressCache');
+      return null;
+    }
+    
+    return cachedData.data;
+  } catch (e) {
+    console.error('读取本地进度缓存失败:', e);
+    return null;
+  }
+};
+
+// 保存进度数据到本地存储
+const saveLocalProgressData = (data: Record<string, any>): void => {
+  try {
+    const cacheData = {
+      timestamp: Date.now(),
+      data: data
+    };
+    localStorage.setItem('userProgressCache', JSON.stringify(cacheData));
+  } catch (e) {
+    console.error('保存进度数据到本地缓存失败:', e);
+  }
+};
+
+// 解析进度数据并确保其格式正确
+const parseProgressData = (data: any): Record<string, any> => {
+  if (!data) return {};
+  
+  // 尝试读取不同格式的数据结构
+  let result: Record<string, any> = {};
+  
+  // 第一种格式: 直接包含题库ID作为键的对象
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    const keys = Object.keys(data).filter(key => 
+      !['completedQuestionSets', 'inProgressQuestionSets', 'totalQuestions', 'totalCompleted', 'lastActivity'].includes(key)
+    );
+    
+    if (keys.length > 0) {
+      keys.forEach(key => {
+        result[key] = processSingleProgressRecord(key, data[key]);
+      });
+      return result;
+    }
+  }
+  
+  // 第二种格式: 包含completedQuestionSets数组
+  if (data.completedQuestionSets && Array.isArray(data.completedQuestionSets)) {
+    data.completedQuestionSets.forEach((item: any) => {
+      if (item && item.questionSetId) {
+        result[item.questionSetId] = processSingleProgressRecord(item.questionSetId, item);
+      }
+    });
+  }
+  
+  // 第三种格式: 包含inProgressQuestionSets数组
+  if (data.inProgressQuestionSets && Array.isArray(data.inProgressQuestionSets)) {
+    data.inProgressQuestionSets.forEach((item: any) => {
+      if (item && item.questionSetId) {
+        // 只在结果中不存在该键时才添加
+        if (!result[item.questionSetId]) {
+          result[item.questionSetId] = processSingleProgressRecord(item.questionSetId, item);
+        }
+      }
+    });
+  }
+  
+  return result;
+};
+
 export const UserProgressProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, userChangeEvent } = useUser();
   const { socket } = useSocket();
@@ -99,6 +177,18 @@ export const UserProgressProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [isRequesting, setIsRequesting] = useState(false);
   // 添加请求计数器，用于调试
   const requestCountRef = useRef(0);
+  // 跟踪API端点尝试状态
+  const apiEndpointStatus = useRef<{
+    primary: boolean;
+    backup: boolean;
+    lastPrimaryFail: number;
+    lastBackupFail: number;
+  }>({
+    primary: true,
+    backup: true,
+    lastPrimaryFail: 0,
+    lastBackupFail: 0
+  });
   
   // 添加缓存以减少API调用
   const progressCache = React.useRef<{
@@ -123,11 +213,29 @@ export const UserProgressProvider: React.FC<{ children: ReactNode }> = ({ childr
       user,
       lastUserId,
       reset: () => setProgressStats(null),
-      requestCount: requestCountRef.current
+      requestCount: requestCountRef.current,
+      apiStatus: apiEndpointStatus.current
     };
   }
 
   const resetError = () => setError(null);
+
+  // 创建一个通用的API请求函数，支持多个备用端点
+  const safeApiRequest = async (endpoints: string[]): Promise<[any, string | null]> => {
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        const response = await apiClient.get(endpoints[i]);
+        if (response && response.success) {
+          return [response.data, null];
+        } else {
+          console.warn(`API端点 ${endpoints[i]} 返回错误:`, response?.message);
+        }
+      } catch (err) {
+        console.warn(`API端点 ${endpoints[i]} 请求失败:`, err);
+      }
+    }
+    return [null, "所有API端点请求失败"];
+  };
 
   const fetchUserProgress = async (): Promise<void> => {
     if (!user || !user.id) return;
@@ -137,80 +245,119 @@ export const UserProgressProvider: React.FC<{ children: ReactNode }> = ({ childr
       setProgressStats(progressCache.current.data);
       return;
     }
+
+    // 如果已经在请求中，避免重复请求
+    if (isRequesting) {
+      console.log("已有请求进行中，跳过");
+      return;
+    }
     
+    setIsRequesting(true);
     setLoading(true);
     setLastFetchTime(Date.now());
     
     try {
-      // 修改：首先尝试新的API端点
+      // 初始化数据和错误消息
       let statsData = null;
       let errorMessage = null;
       
-      // 尝试新的进度API端点
-      try {
-        const response = await apiClient.get(`/api/user-progress/stats/${user.id}`);
-        if (response && response.success) {
-          statsData = response.data;
-        } else {
-          errorMessage = response?.message || '获取用户进度统计失败';
-          console.warn('首选API端点返回错误:', errorMessage);
-        }
-      } catch (err) {
-        console.warn('首选API端点请求失败，尝试备用端点');
+      // 准备尝试的API端点列表
+      const now = Date.now();
+      const endpoints = [];
+      
+      // 动态确定要请求的端点顺序
+      if (apiEndpointStatus.current.primary && (now - apiEndpointStatus.current.lastPrimaryFail > 300000)) {
+        endpoints.push(`/api/user-progress/stats/${user.id}`);
       }
       
-      // 如果第一个端点失败，尝试备用端点
-      if (!statsData) {
-        try {
-          const backupResponse = await apiClient.get(`/api/users/${user.id}/progress`);
-          if (backupResponse && backupResponse.success) {
-            statsData = backupResponse.data;
-          } else {
-            errorMessage = backupResponse?.message || '所有进度API端点都失败';
-          }
-        } catch (backupErr) {
-          console.warn('备用API端点也失败');
-          
-          // 如果所有API调用都失败，生成默认空数据
-          statsData = {
-            completedQuestionSets: [],
-            inProgressQuestionSets: [],
-            totalQuestions: 0,
-            totalCompleted: 0,
-            lastActivity: null
-          };
-          errorMessage = '无法连接到进度服务，使用本地数据';
-        }
+      if (apiEndpointStatus.current.backup && (now - apiEndpointStatus.current.lastBackupFail > 300000)) {
+        endpoints.push(`/api/users/${user.id}/progress`);
       }
       
-      if (statsData) {
-        setProgressStats(statsData);
-        // 更新缓存
+      // 再添加一个可能的备用端点
+      endpoints.push(`/api/users/progress/${user.id}`);
+      
+      // 尝试本地缓存 - 优先使用缓存，即使API请求也会进行
+      const localData = getLocalProgressData();
+      if (localData) {
+        console.log("从本地缓存加载用户进度");
+        // 继续发送API请求，但先渲染本地数据
+        const parsedLocalData = parseProgressData(localData);
+        setProgressStats(parsedLocalData);
+        // 更新内存缓存
         progressCache.current = {
-          data: statsData,
-          timestamp: Date.now()
+          data: parsedLocalData,
+          timestamp: now - 15000 // 设置为略旧，这样API结果返回时会更新
         };
-        // 清除错误
-        setError(null);
+      }
+      
+      // 执行API请求
+      if (endpoints.length > 0) {
+        const [data, error] = await safeApiRequest(endpoints);
+        
+        if (data) {
+          // 处理数据成正确的格式
+          statsData = parseProgressData(data);
+          
+          setProgressStats(statsData);
+          // 更新缓存
+          progressCache.current = {
+            data: statsData,
+            timestamp: Date.now()
+          };
+          // 保存到本地存储
+          saveLocalProgressData(data);
+          // 清除错误
+          setError(null);
+          
+          // 更新API端点状态 - 成功
+          apiEndpointStatus.current = {
+            ...apiEndpointStatus.current,
+            primary: true,
+            backup: true
+          };
+        } else {
+          errorMessage = error || '获取进度数据失败';
+          
+          // 如果API失败但有本地数据，继续使用本地数据
+          if (localData) {
+            // 不设置错误，因为我们有本地数据可用
+            console.warn('API请求失败，但使用了本地缓存数据:', errorMessage);
+          } else {
+            // 设置一个非阻断性错误提示
+            setError('获取进度数据时出现问题，但不影响测验功能');
+            console.error('获取用户进度失败且无本地缓存:', errorMessage);
+            
+            // 仍提供空数据以避免UI错误
+            const emptyData = {};
+            setProgressStats(emptyData);
+          }
+          
+          // 更新API端点状态 - 失败
+          apiEndpointStatus.current = {
+            ...apiEndpointStatus.current,
+            lastPrimaryFail: Date.now(),
+            lastBackupFail: Date.now()
+          };
+        }
       } else {
-        // 设置错误但不阻止应用继续运行
-        setError(errorMessage || '获取进度数据失败');
-        console.error('获取用户进度失败:', errorMessage);
+        console.warn('所有API端点暂时不可用，仅使用本地数据');
+        
+        if (!localData) {
+          // 仍提供空数据以避免UI错误
+          setProgressStats({});
+          setError('暂时无法连接到服务器');
+        }
       }
     } catch (err) {
       console.error('获取用户进度时出错:', err);
       setError('获取进度数据时发生错误，但不影响测验功能');
       
       // 即使出错也设置一个空的进度数据以避免UI错误
-      setProgressStats({
-        completedQuestionSets: [],
-        inProgressQuestionSets: [],
-        totalQuestions: 0,
-        totalCompleted: 0,
-        lastActivity: null
-      });
+      setProgressStats({});
     } finally {
       setLoading(false);
+      setIsRequesting(false);
     }
   };
 
@@ -275,8 +422,8 @@ export const UserProgressProvider: React.FC<{ children: ReactNode }> = ({ childr
       console.log("组件挂载，初始化进度");
       const timer = setTimeout(() => {
         fetchUserProgress().catch(err => {
-        console.error("初始化进度失败:", err);
-      });
+          console.error("初始化进度失败:", err);
+        });
       }, 500);
       
       return () => clearTimeout(timer);
