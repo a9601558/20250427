@@ -37,6 +37,7 @@ import purchaseRoutes from './routes/purchaseRoutes';
 import redeemCodeRoutes from './routes/redeemCodeRoutes';
 import homepageRoutes from './routes/homepageRoutes';
 import wrongAnswerRoutes from './routes/wrongAnswerRoutes';
+import quizRoutes from './routes/quizRoutes';
 
 // Initialize express app
 const app = express();
@@ -67,6 +68,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/redeem-codes', redeemCodeRoutes);
 app.use('/api/homepage', homepageRoutes);
 app.use('/api/wrong-answers', wrongAnswerRoutes);
+app.use('/api/quiz', quizRoutes);
 
 // 添加路由别名，解决旧路径问题
 app.use('/api/progress', userProgressRoutes);

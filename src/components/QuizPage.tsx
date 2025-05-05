@@ -591,6 +591,13 @@ const QuizPage: React.FC = () => {
       time_spent: totalTime,
       completion_date: new Date().toISOString(),
       
+      // 添加额外的字段以增强兼容性
+      progress: 100, // 假设已完成
+      score: results.totalCorrect,
+      accuracy: results.accuracyPercentage,
+      quizId: questionSetId,
+      testId: questionSetId,
+      
       // 详细答题记录 - 提供两种格式的字段名称
       answerDetails: results.questionResults.map(result => ({
         questionId: result.questionId,
@@ -606,12 +613,46 @@ const QuizPage: React.FC = () => {
     
     console.log('提交测验结果数据:', payload);
     
+    // 本地存储一份结果数据作为额外备份
+    try {
+      const quizResultsKey = `quizResults_${questionSetId}_${user.id}`;
+      localStorage.setItem(quizResultsKey, JSON.stringify({
+        results,
+        timeSpent,
+        completedAt: new Date().toISOString()
+      }));
+    } catch (err) {
+      console.error('保存结果到本地存储失败:', err);
+    }
+    
     // 提交进度数据 - 在后台进行，不等待结果
     // 这样即使API失败，用户体验也不会受影响
     if (isMounted.current) {
       setTimeout(async () => {
         try {
           const signal = createAbortController();
+          
+          // 注册认证错误监听器，用于重试逻辑
+          const handleAuthRefresh = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            
+            if (customEvent.detail?.success) {
+              console.log('认证令牌已刷新，尝试重新提交测验结果');
+              
+              // 延迟一秒，确保令牌已更新到axios默认头部
+              setTimeout(async () => {
+                try {
+                  await apiClient.post('/api/user-progress/update', payload, { signal });
+                  console.log('认证刷新后重新提交成功');
+                } catch (retryErr) {
+                  console.error('认证刷新后重新提交仍然失败:', retryErr);
+                }
+              }, 1000);
+            }
+          };
+          
+          // 添加认证刷新事件监听器
+          window.addEventListener('auth:tokenRefreshed', handleAuthRefresh);
           
           try {
             const response = await apiClient.post(
@@ -621,6 +662,9 @@ const QuizPage: React.FC = () => {
             );
             
             if (isMounted.current) {
+              // 清除事件监听器
+              window.removeEventListener('auth:tokenRefreshed', handleAuthRefresh);
+              
               if (response && response.success) {
                 console.log('测验结果已保存');
                 // 安全获取用户进度
@@ -636,6 +680,9 @@ const QuizPage: React.FC = () => {
               }
             }
           } catch (err) {
+            // 清除事件监听器
+            window.removeEventListener('auth:tokenRefreshed', handleAuthRefresh);
+            
             // 尝试使用备用端点
             if (!isMounted.current) return;
             
@@ -652,6 +699,23 @@ const QuizPage: React.FC = () => {
               } else if (isMounted.current) {
                 console.warn('备用提交也失败:', backupResponse?.message);
                 // 即使失败也存储到本地以备后续恢复
+                try {
+                  // 尝试使用第三个通用端点
+                  console.log('尝试通用提交端点...');
+                  const genericResponse = await apiClient.post(
+                    '/api/submissions',
+                    payload,
+                    { signal }
+                  );
+                  
+                  if (genericResponse && genericResponse.success) {
+                    console.log('测验结果已通过通用端点保存');
+                    return;
+                  }
+                } catch (genericError) {
+                  console.warn('通用端点提交失败:', genericError);
+                }
+                
                 try {
                   const localResults = localStorage.getItem('pendingQuizResults') || '[]';
                   const pendingResults = JSON.parse(localResults);

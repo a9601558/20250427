@@ -35,6 +35,7 @@ const purchaseRoutes_1 = __importDefault(require("./routes/purchaseRoutes"));
 const redeemCodeRoutes_1 = __importDefault(require("./routes/redeemCodeRoutes"));
 const homepageRoutes_1 = __importDefault(require("./routes/homepageRoutes"));
 const wrongAnswerRoutes_1 = __importDefault(require("./routes/wrongAnswerRoutes"));
+const quizRoutes_1 = __importDefault(require("./routes/quizRoutes"));
 // Initialize express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -60,6 +61,7 @@ app.use('/api/purchases', purchaseRoutes_1.default);
 app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
 app.use('/api/homepage', homepageRoutes_1.default);
 app.use('/api/wrong-answers', wrongAnswerRoutes_1.default);
+app.use('/api/quiz', quizRoutes_1.default);
 // 添加路由别名，解决旧路径问题
 app.use('/api/progress', userProgressRoutes_1.default);
 // Error handling middleware

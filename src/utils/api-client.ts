@@ -54,7 +54,8 @@ class ApiClient {
     '/api/user-progress/records',
     '/access-check',
     '/api/users/',
-    '/api/quiz/submit'
+    '/api/quiz/submit',
+    '/api/user-progress/update' // 添加这个端点，因为它现在返回401未授权
   ];
   
   // 特定SQL错误模式和对应的修复
@@ -86,6 +87,42 @@ class ApiClient {
         analyzeBackendIssues: () => this.analyzeBackendIssues()
       };
     }
+    
+    // 添加全局事件监听，处理认证刷新
+    this.setupAuthEventListeners();
+  }
+
+  /**
+   * 设置认证事件监听器
+   */
+  private setupAuthEventListeners(): void {
+    // 监听认证刷新事件
+    window.addEventListener('auth:tokenRefreshed', (event: Event) => {
+      try {
+        const customEvent = event as CustomEvent;
+        const { token } = customEvent.detail || {};
+        
+        if (token) {
+          // 更新认证头
+          this.setAuthHeader(token);
+          console.log('[API] 认证令牌已更新');
+          
+          // 尝试恢复待处理的更新
+          setTimeout(() => {
+            this.recoverPendingUpdates();
+          }, 1000);
+        }
+      } catch (e) {
+        console.error('[API] 处理认证刷新事件出错:', e);
+      }
+    });
+    
+    // 监听认证过期事件
+    window.addEventListener('auth:logout', () => {
+      // 清除认证头
+      this.setAuthHeader(null);
+      console.log('[API] 用户已登出，认证头已清除');
+    });
   }
 
   /**
@@ -375,9 +412,15 @@ class ApiClient {
       question_set_id: body.questionSetId || body.question_set_id, 
       user_id: body.userId || body.user_id,
       completed_questions: body.completedQuestions || body.completed_questions || body.total_questions,
-      correct_answers: body.correctAnswers || body.correct_answers || body.correct_count,
+      correct_count: body.correctAnswers || body.correct_answers || body.correct_count,
       time_spent: body.timeSpent || body.time_spent,
       completion_date: body.lastCompletedAt || body.completion_date || new Date().toISOString(),
+      
+      // 添加更多可能需要的字段
+      progress: 100, // 假设已完成
+      score: body.correctAnswers || body.correct_count || 0,
+      testId: body.questionSetId || body.question_set_id, // 有些API可能使用testId字段
+      quizId: body.questionSetId || body.question_set_id, // 有些API可能使用quizId字段
       
       // 添加诊断字段，方便调试
       _diagnostic: {
@@ -392,22 +435,67 @@ class ApiClient {
     // 确保答题详情有正确的格式
     if (body.answerDetails && Array.isArray(body.answerDetails)) {
       fixed.answers = body.answerDetails.map((detail: any) => ({
-        questionId: detail.questionId,
-        isCorrect: detail.isCorrect,
-        selectedOptions: detail.userSelectedOptionIds || detail.selectedOptionIds,
-        correctOptions: detail.correctOptionIds,
+        questionId: detail.questionId || detail.question_id,
+        isCorrect: detail.isCorrect || detail.is_correct,
+        selectedOptions: detail.userSelectedOptionIds || detail.selectedOptionIds || detail.selected_option_ids,
+        correctOptions: detail.correctOptionIds || detail.correct_option_ids,
         
         // 添加字段别名以增加兼容性
-        question_id: detail.questionId,
-        is_correct: detail.isCorrect,
-        selected_options: detail.userSelectedOptionIds || detail.selectedOptionIds,
-        correct_options: detail.correctOptionIds
+        question_id: detail.questionId || detail.question_id,
+        is_correct: detail.isCorrect || detail.is_correct,
+        selected_options: detail.userSelectedOptionIds || detail.selectedOptionIds || detail.selected_option_ids,
+        correct_options: detail.correctOptionIds || detail.correct_option_ids,
+        
+        // 添加额外可能需要的字段
+        answerText: '', // 一些系统可能需要答案文本
+        timeTaken: 0 // 一些系统可能需要每题用时
       }));
     }
     
     return fixed;
   }
 
+  /**
+   * 添加一个处理认证错误的方法
+   */
+  private handleAuthError(url: string, method: string, status: number): void {
+    // 记录认证错误
+    this.addDiagnostic({
+      url,
+      method,
+      status,
+      timestamp: Date.now(),
+      errorMessage: '用户认证失败，可能是令牌过期或无效',
+      errorType: 'AUTH_ERROR'
+    });
+    
+    // 尝试触发重新登录
+    try {
+      // 检查是否已经多次触发认证错误，防止无限循环
+      const authErrorCount = this.diagnostics
+        .filter(d => d.errorType === 'AUTH_ERROR' && Date.now() - d.timestamp < 60000)
+        .length;
+      
+      if (authErrorCount <= 2) {
+        // 尝试刷新令牌（如果有刷新机制）
+        const refreshEvent = new CustomEvent('auth:tokenExpired', { 
+          detail: { 
+            source: 'api_client',
+            timestamp: Date.now(),
+            url
+          } 
+        });
+        window.dispatchEvent(refreshEvent);
+        
+        console.warn('[API] 触发令牌刷新事件');
+      } else {
+        console.warn('[API] 多次认证错误，不再自动尝试刷新令牌');
+      }
+    } catch (e) {
+      console.error('[API] 处理认证错误时出错:', e);
+    }
+  }
+  
   /**
    * 执行HTTP请求，带缓存、重试和速率限制
    */
@@ -534,20 +622,30 @@ class ApiClient {
             
             return response.data;
           } catch (error: any) {
-            // 尝试备用端点
-            console.warn("[API] Primary progress update failed, trying backup endpoint");
+            // 检查是否是认证错误
+            if (error.response?.status === 401) {
+              // 处理认证错误
+              this.handleAuthError(url, config.method, 401);
+              
+              // 继续尝试备用方式保存数据，不因认证问题中断用户体验
+              console.warn("[API] 提交进度时发生认证错误，尝试备用方式保存");
+            } else {
+              // 其他错误，记录并继续
+              console.warn("[API] Primary progress update failed, trying backup endpoint");
+              
+              // 记录失败
+              this.addDiagnostic({
+                url,
+                method: config.method,
+                status: error.response?.status || 500,
+                timestamp: Date.now(),
+                errorMessage: error.message || '更新进度失败',
+                errorType: this.detectSqlErrorType(error.message) || 'PROGRESS_UPDATE_FAILED',
+                errorStack: error.stack
+              });
+            }
             
-            // 记录失败
-            this.addDiagnostic({
-              url,
-              method: config.method,
-              status: error.response?.status || 500,
-              timestamp: Date.now(),
-              errorMessage: error.message || '更新进度失败',
-              errorType: this.detectSqlErrorType(error.message) || 'PROGRESS_UPDATE_FAILED',
-              errorStack: error.stack
-            });
-            
+            // 不管什么错误，都尝试备用端点
             try {
               // 修改URL为备用端点
               const backupConfig = { ...axiosConfig, url: '/api/quiz/submit' };
@@ -570,7 +668,12 @@ class ApiClient {
               // 返回成功状态
               return { success: true, message: '进度保存成功' } as any;
             } catch (backupError: any) {
-              console.error('[API] Backup endpoint also failed:', backupError);
+              // 检查备用端点是否也是认证错误
+              if (backupError.response?.status === 401) {
+                this.handleAuthError('/api/quiz/submit', config.method, 401);
+              } else {
+                console.error('[API] Backup endpoint also failed:', backupError);
+              }
               
               // 记录备用端点失败
               this.addDiagnostic({
@@ -579,10 +682,23 @@ class ApiClient {
                 status: backupError.response?.status || 500,
                 timestamp: Date.now(),
                 errorMessage: backupError.message || '备用端点也失败',
-                errorType: 'BACKUP_ENDPOINT_FAILED',
+                errorType: backupError.response?.status === 401 ? 'AUTH_ERROR' : 
+                         backupError.response?.status === 404 ? 'ENDPOINT_NOT_FOUND' : 'BACKUP_ENDPOINT_FAILED',
                 fixed: true,
                 fixMethod: 'LOCAL_STORAGE'
               });
+              
+              // 检查是否应该尝试第三个备用端点
+              if (backupError.response?.status === 404) {
+                // 如果404（端点不存在），尝试通用提交端点
+                try {
+                  const genericConfig = { ...axiosConfig, url: '/api/submissions' };
+                  await axios.request(genericConfig);
+                  return { success: true, message: '通过通用端点保存成功' } as any;
+                } catch (genericError) {
+                  console.error('[API] Generic endpoint also failed:', genericError);
+                }
+              }
               
               // 在本地存储保存进度数据以备后续恢复
               try {
@@ -598,6 +714,9 @@ class ApiClient {
                 updates.push(progressData);
                 localStorage.setItem('pendingProgressUpdates', JSON.stringify(updates));
                 
+                // 同时保存一个额外的副本，使用不同的键名，增加冗余
+                localStorage.setItem('lastProgressUpdate', progressData);
+                
                 console.log('[API] Saved progress update to local storage for later recovery');
               } catch (storageError) {
                 console.error('[API] Failed to save to local storage:', storageError);
@@ -609,7 +728,8 @@ class ApiClient {
                 message: '进度已保存到本地',
                 _diagnostic: {
                   source: 'frontend_fix',
-                  errorType: 'BACKUP_ENDPOINT_FAILED',
+                  errorType: backupError.response?.status === 401 ? 'AUTH_ERROR' : 
+                            backupError.response?.status === 404 ? 'ENDPOINT_NOT_FOUND' : 'BACKUP_ENDPOINT_FAILED',
                   timestamp: Date.now()
                 }
               } as any;
@@ -809,46 +929,113 @@ class ApiClient {
    */
   public recoverPendingUpdates(): void {
     try {
+      // 尝试恢复普通的进度更新
       const pendingUpdatesStr = localStorage.getItem('pendingProgressUpdates');
-      if (!pendingUpdatesStr) return;
-      
-      const pendingUpdates = JSON.parse(pendingUpdatesStr);
-      if (!Array.isArray(pendingUpdates) || pendingUpdates.length === 0) return;
-      
-      console.log(`[API] Found ${pendingUpdates.length} pending progress updates, attempting recovery`);
-      
-      // 清空列表以避免重复恢复
-      localStorage.removeItem('pendingProgressUpdates');
-      
-      // 逐一尝试重新提交
-      pendingUpdates.forEach(async (updateStr: string) => {
-        try {
-          const update = JSON.parse(updateStr);
-          const { url, method, data } = update;
+      if (pendingUpdatesStr) {
+        const pendingUpdates = JSON.parse(pendingUpdatesStr);
+        if (Array.isArray(pendingUpdates) && pendingUpdates.length > 0) {
+          console.log(`[API] Found ${pendingUpdates.length} pending progress updates, attempting recovery`);
           
-          // 添加诊断记录
-          this.addDiagnostic({
-            url,
-            method,
-            status: 0, // 未知
-            timestamp: Date.now(),
-            errorMessage: 'Attempting to recover from local storage',
-            errorType: 'RECOVERY_ATTEMPT'
-          });
+          // 清空列表以避免重复恢复
+          localStorage.removeItem('pendingProgressUpdates');
           
-          // 尝试提交
-          if (method === 'POST' && url === '/api/user-progress/update') {
+          // 逐一尝试重新提交
+          pendingUpdates.forEach(async (updateStr: string) => {
             try {
-              await this.post(url, data);
-              console.log('[API] Successfully recovered progress update');
+              const update = JSON.parse(updateStr);
+              const { url, method, data } = update;
+              
+              // 添加诊断记录
+              this.addDiagnostic({
+                url,
+                method,
+                status: 0, // 未知
+                timestamp: Date.now(),
+                errorMessage: 'Attempting to recover from local storage',
+                errorType: 'RECOVERY_ATTEMPT'
+              });
+              
+              // 尝试提交
+              if (method === 'POST' && url === '/api/user-progress/update') {
+                try {
+                  await this.post(url, data);
+                  console.log('[API] Successfully recovered progress update');
+                } catch (e) {
+                  console.error('[API] Failed to recover progress update:', e);
+                }
+              }
             } catch (e) {
-              console.error('[API] Failed to recover progress update:', e);
+              console.error('[API] Failed to parse pending update:', e);
             }
+          });
+        }
+      }
+      
+      // 尝试恢复测验结果
+      const pendingQuizResultsStr = localStorage.getItem('pendingQuizResults');
+      if (pendingQuizResultsStr) {
+        try {
+          const pendingResults = JSON.parse(pendingQuizResultsStr);
+          if (Array.isArray(pendingResults) && pendingResults.length > 0) {
+            console.log(`[API] Found ${pendingResults.length} pending quiz results, attempting recovery`);
+            
+            // 清空列表以避免重复恢复
+            localStorage.removeItem('pendingQuizResults');
+            
+            // 逐一尝试重新提交
+            pendingResults.forEach(async (result) => {
+              try {
+                // 首先尝试主要端点
+                await this.post('/api/user-progress/update', result);
+                console.log('[API] Successfully recovered quiz result');
+              } catch (e) {
+                // 如果失败，尝试备用端点
+                try {
+                  await this.post('/api/quiz/submit', result);
+                  console.log('[API] Successfully recovered quiz result via backup endpoint');
+                } catch (backupErr) {
+                  // 如果仍然失败，保存回本地存储
+                  console.error('[API] Failed to recover quiz result:', e);
+                  
+                  const remainingResults = localStorage.getItem('pendingQuizResults') || '[]';
+                  const results = JSON.parse(remainingResults);
+                  results.push(result);
+                  localStorage.setItem('pendingQuizResults', JSON.stringify(results));
+                }
+              }
+            });
           }
         } catch (e) {
-          console.error('[API] Failed to parse pending update:', e);
+          console.error('[API] Error processing pending quiz results:', e);
         }
-      });
+      }
+      
+      // 尝试恢复单个最后进度更新
+      const lastProgressUpdateStr = localStorage.getItem('lastProgressUpdate');
+      if (lastProgressUpdateStr) {
+        try {
+          const update = JSON.parse(lastProgressUpdateStr);
+          const { url, method, data } = update;
+          
+          // 创建异步的自执行函数来处理进度更新恢复
+          (async () => {
+            // 尝试提交
+            if (method === 'POST' && url === '/api/user-progress/update') {
+              try {
+                await this.post(url, data);
+                console.log('[API] Successfully recovered last progress update');
+                localStorage.removeItem('lastProgressUpdate');
+              } catch (e) {
+                console.error('[API] Failed to recover last progress update:', e);
+              }
+            }
+          })().catch(e => {
+            console.error('[API] Error in async recovery:', e);
+          });
+        } catch (e) {
+          console.error('[API] Failed to parse last progress update:', e);
+        }
+      }
     } catch (e) {
       console.error('[API] Error recovering pending updates:', e);
     }
