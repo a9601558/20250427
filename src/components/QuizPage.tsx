@@ -196,31 +196,142 @@ const QuizPage: React.FC = () => {
         // 修改: 直接获取题库数据，不再调用不存在的access-check端点
         const response = await apiClient.get(`/api/question-sets/${questionSetId}`, undefined, { signal });
         
-        console.log('题库加载结果:', {
-          success: response?.success,
-          hasData: !!response?.data,
-          title: response?.data?.title,
-          questionsCount: response?.data?.questions?.length || 0
-        });
+        // 原始JSON字符串，用于诊断数据结构
+        console.log('原始API响应:', JSON.stringify(response?.data).substring(0, 500) + '...');
+        
+        // 查找可能的题目数据来源
+        const findQuestionsInResponse = (data: any) => {
+          if (!data) return null;
+          
+          // 记录所有可能包含题目的字段
+          const potentialQuestionFields = [];
+          
+          // 直接检查questions字段
+          if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+            potentialQuestionFields.push({
+              field: 'questions',
+              count: data.questions.length,
+              sample: data.questions[0]
+            });
+          }
+          
+          // 检查questionSetQuestions字段(ORM关联名称可能不同)
+          if (data.questionSetQuestions && Array.isArray(data.questionSetQuestions) && data.questionSetQuestions.length > 0) {
+            potentialQuestionFields.push({
+              field: 'questionSetQuestions',
+              count: data.questionSetQuestions.length,
+              sample: data.questionSetQuestions[0]
+            });
+          }
+          
+          // 检查其他可能包含"question"关键字的字段
+          Object.keys(data).forEach(key => {
+            if (key.toLowerCase().includes('question') && 
+                key !== 'questions' && 
+                key !== 'questionSetQuestions' &&
+                Array.isArray(data[key]) && 
+                data[key].length > 0) {
+              potentialQuestionFields.push({
+                field: key,
+                count: data[key].length,
+                sample: data[key][0]
+              });
+            }
+          });
+          
+          return potentialQuestionFields;
+        };
+        
+        const potentialQuestions = findQuestionsInResponse(response?.data);
+        console.log('可能的题目数据来源:', potentialQuestions);
         
         if (isMounted.current) {
           if (response && response.success && response.data) {
+            // 保存原始数据，用于调试
+            const originalData = { ...response.data };
+            
+            // 检查是否有替代的题目数据来源
+            if (potentialQuestions && potentialQuestions.length > 0) {
+              // 使用第一个找到的题目数据源
+              const alternativeSource = potentialQuestions[0];
+              console.log(`使用替代题目来源: ${alternativeSource.field}，包含 ${alternativeSource.count} 个题目`);
+              
+              // 将替代数据源复制到标准questions字段
+              response.data.questions = response.data[alternativeSource.field];
+            }
+            
+            // 检查题库是否实际包含题目
+            const hasStandardQuestions = response.data.questions && 
+                                Array.isArray(response.data.questions) && 
+                                response.data.questions.length > 0;
+                                
+            // 如果没有找到任何题目，尝试从嵌套结构中提取
+            if (!hasStandardQuestions && response.data.questionSetQuestions) {
+              // 尝试将questionSetQuestions转换为标准questions格式
+              try {
+                const extractedQuestions = [];
+                // 收集所有嵌套的题目
+                if (Array.isArray(response.data.questionSetQuestions)) {
+                  response.data.questionSetQuestions.forEach(item => {
+                    if (item && typeof item === 'object') {
+                      // 复制必要的字段
+                      const question = {
+                        id: item.id,
+                        text: item.text,
+                        questionType: item.questionType,
+                        explanation: item.explanation,
+                        options: []
+                      };
+                      
+                      // 如果有选项，添加选项
+                      if (item.options && Array.isArray(item.options)) {
+                        question.options = item.options;
+                      }
+                      
+                      extractedQuestions.push(question);
+                    }
+                  });
+                }
+                
+                if (extractedQuestions.length > 0) {
+                  console.log(`从嵌套结构提取了 ${extractedQuestions.length} 个题目`);
+                  response.data.questions = extractedQuestions;
+                }
+              } catch (err) {
+                console.error('提取题目时出错:', err);
+              }
+            }
+            
+            // 再次检查是否有题目
+            const hasQuestions = response.data.questions && 
+                               Array.isArray(response.data.questions) && 
+                               response.data.questions.length > 0;
+            
             // 直接保存题库数据
             setQuestionSet(response.data);
             
-            // *** 强制授予权限 ***
-            // 即使题库是付费的，也强制授予权限 - 因为后端数据不完整或格式异常
+            // 强制授予权限，跳过权限检查
             setHasAccess(true);
-            
-            console.log('【强制授权】已强制授予题库访问权限，绕过权限检查', {
-              id: response.data.id,
-              title: response.data.title,
-              questionsAvailable: (response.data.questions && response.data.questions.length > 0)
-            });
             
             // 设置开始时间
             const newStartTime = new Date();
             setStartTime(newStartTime);
+            
+            // 关键逻辑：检查题库是否为空
+            if (!hasQuestions) {
+              console.error('无法找到任何有效题目数据:', {
+                id: response.data.id,
+                title: response.data.title,
+                originalStructure: Object.keys(originalData).join(',')
+              });
+              
+              // 加载完成但显示明确的空题库错误，而不是权限错误
+              setError('此题库的题目数据格式异常，无法正常显示。请联系管理员检查题库数据结构。');
+              setLoading(false);
+              return;
+            }
+            
+            console.log('题库加载成功，共包含题目：', response.data.questions.length);
             
             // 尝试恢复保存的进度
             const restored = restoreProgress();
@@ -230,8 +341,12 @@ const QuizPage: React.FC = () => {
               saveProgressToLocalStorage();
             }
           } else {
-            setError(response?.message || '无法加载题库数据');
-            console.error('加载题库失败:', response);
+            const errorMsg = response?.message || '无法加载题库数据';
+            console.error('加载题库失败:', {
+              error: errorMsg,
+              response: response
+            });
+            setError(errorMsg);
           }
           
           setLoading(false);
@@ -516,7 +631,8 @@ const QuizPage: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
           <p className="font-bold">题库为空</p>
-          <p>此题库没有题目，请返回首页选择其他题库。</p>
+          <p>此题库没有任何题目内容，请联系管理员或选择其他题库。</p>
+          <p className="text-xs mt-2 text-gray-500">诊断信息：ID={questionSet.id}, 标题={questionSet.title}</p>
           <button 
             onClick={handleBackToHome}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
