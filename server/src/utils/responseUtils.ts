@@ -4,24 +4,30 @@ interface ResponseData<T = any> {
   success: boolean;
   data?: T;
   message?: string;
+  [key: string]: any; // 添加额外字段支持
 }
 
 export const sendResponse = <T = any>(
   res: Response,
   statusCode: number,
-  message?: string,
+  messageOrData?: string | any,
   data?: T
 ): Response => {
   const response: ResponseData<T> = {
     success: true,
   };
 
-  if (message) {
-    response.message = message;
-  }
-
-  if (data !== undefined) {
-    response.data = data;
+  // 支持两种调用方式：
+  // 1. sendResponse(res, 200, "消息", data)
+  // 2. sendResponse(res, 200, { message: "消息", ...otherFields })
+  if (typeof messageOrData === 'string') {
+    response.message = messageOrData;
+    if (data !== undefined) {
+      response.data = data;
+    }
+  } else if (typeof messageOrData === 'object' && messageOrData !== null) {
+    // 将整个对象合并到响应中
+    Object.assign(response, messageOrData);
   }
 
   return res.status(statusCode).json(response);

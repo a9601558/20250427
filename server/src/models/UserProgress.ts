@@ -75,7 +75,7 @@ UserProgress.init(
     },
     questionId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'questions',
         key: 'id'

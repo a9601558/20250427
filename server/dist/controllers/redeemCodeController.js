@@ -4,7 +4,7 @@ exports.getRedeemCode = exports.useRedeemCode = exports.createRedeemCode = expor
 const models_1 = require("../models");
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
-const socket_1 = require("../socket"); // Import the getSocketIO function
+const socket_1 = require("../socket"); // Import the getSocketIO function and safeEmit
 // @desc    Generate redeem codes
 // @route   POST /api/redeem-codes/generate
 // @access  Private/Admin
@@ -205,17 +205,32 @@ const redeemCode = async (req, res) => {
         if (userSocket && userSocket.socket_id) {
             try {
                 const io = (0, socket_1.getSocketIO)();
-                // 发送题库访问权限更新
-                io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
-                    questionSetId: questionSet.id,
-                    hasAccess: true
-                });
-                // 发送兑换成功事件
-                io.to(userSocket.socket_id).emit('redeem:success', {
-                    questionSetId: questionSet.id,
-                    purchaseId: purchaseId,
-                    expiryDate: expiryDate
-                });
+                // 使用safeEmit函数替代直接调用
+                if (io) {
+                    // 发送题库访问权限更新
+                    io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
+                        questionSetId: questionSet.id,
+                        hasAccess: true
+                    });
+                    // 发送兑换成功事件
+                    io.to(userSocket.socket_id).emit('redeem:success', {
+                        questionSetId: questionSet.id,
+                        purchaseId: purchaseId,
+                        expiryDate: expiryDate
+                    });
+                }
+                else {
+                    // 使用safeEmit作为备选
+                    (0, socket_1.safeEmit)(`user_${userSocket.id}`, 'questionSet:accessUpdate', {
+                        questionSetId: questionSet.id,
+                        hasAccess: true
+                    });
+                    (0, socket_1.safeEmit)(`user_${userSocket.id}`, 'redeem:success', {
+                        questionSetId: questionSet.id,
+                        purchaseId: purchaseId,
+                        expiryDate: expiryDate
+                    });
+                }
                 console.log(`已通过Socket发送兑换成功事件到客户端`);
             }
             catch (error) {

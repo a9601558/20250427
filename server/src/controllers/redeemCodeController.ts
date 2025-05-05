@@ -3,7 +3,7 @@ import { sequelize, RedeemCode, QuestionSet, User, Purchase } from '../models';
 import { Transaction, Op, QueryTypes } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { IPurchase } from '../types';
-import { getSocketIO } from '../socket'; // Import the getSocketIO function
+import { getSocketIO, safeEmit } from '../socket'; // Import the getSocketIO function and safeEmit
 
 // @desc    Generate redeem codes
 // @route   POST /api/redeem-codes/generate
@@ -250,18 +250,33 @@ export const redeemCode = async (req: Request, res: Response) => {
     if (userSocket && userSocket.socket_id) {
       try {
         const io = getSocketIO();
-        // 发送题库访问权限更新
-        io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
-          questionSetId: questionSet.id,
-          hasAccess: true
-        });
+        // 使用safeEmit函数替代直接调用
+        if (io) {
+          // 发送题库访问权限更新
+          io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
+            questionSetId: questionSet.id,
+            hasAccess: true
+          });
 
-        // 发送兑换成功事件
-        io.to(userSocket.socket_id).emit('redeem:success', {
-          questionSetId: questionSet.id,
-          purchaseId: purchaseId,
-          expiryDate: expiryDate
-        });
+          // 发送兑换成功事件
+          io.to(userSocket.socket_id).emit('redeem:success', {
+            questionSetId: questionSet.id,
+            purchaseId: purchaseId,
+            expiryDate: expiryDate
+          });
+        } else {
+          // 使用safeEmit作为备选
+          safeEmit(`user_${userSocket.id}`, 'questionSet:accessUpdate', {
+            questionSetId: questionSet.id,
+            hasAccess: true
+          });
+
+          safeEmit(`user_${userSocket.id}`, 'redeem:success', {
+            questionSetId: questionSet.id,
+            purchaseId: purchaseId,
+            expiryDate: expiryDate
+          });
+        }
         
         console.log(`已通过Socket发送兑换成功事件到客户端`);
       } catch (error) {

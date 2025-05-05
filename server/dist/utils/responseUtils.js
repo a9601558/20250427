@@ -1,15 +1,22 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendError = exports.sendResponse = void 0;
-const sendResponse = (res, statusCode, message, data) => {
+const sendResponse = (res, statusCode, messageOrData, data) => {
     const response = {
         success: true,
     };
-    if (message) {
-        response.message = message;
+    // 支持两种调用方式：
+    // 1. sendResponse(res, 200, "消息", data)
+    // 2. sendResponse(res, 200, { message: "消息", ...otherFields })
+    if (typeof messageOrData === 'string') {
+        response.message = messageOrData;
+        if (data !== undefined) {
+            response.data = data;
+        }
     }
-    if (data !== undefined) {
-        response.data = data;
+    else if (typeof messageOrData === 'object' && messageOrData !== null) {
+        // 将整个对象合并到响应中
+        Object.assign(response, messageOrData);
     }
     return res.status(statusCode).json(response);
 };

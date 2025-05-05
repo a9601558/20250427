@@ -50,7 +50,7 @@ UserProgress.init({
     },
     questionId: {
         type: sequelize_1.DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         references: {
             model: 'questions',
             key: 'id'
