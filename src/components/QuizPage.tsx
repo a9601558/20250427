@@ -1,488 +1,600 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useUser } from '../contexts/UserContext';
-import PaymentModal from './PaymentModal';
-import { useSocket } from '../contexts/SocketContext';
-import RedeemCodeForm from './RedeemCodeForm';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import QuestionCard from './QuestionCard';
-import { toast } from 'react-toastify';
-
-// Import custom hooks
-import { useQuizReducer } from '../hooks/useQuizReducer';
-import { useQuizAccess } from '../hooks/useQuizAccess';
-import { useQuizProgress } from '../hooks/useQuizProgress';
-import { useQuizTimer } from '../hooks/useQuizTimer';
-import { useQuestionSetData } from '../hooks/useQuestionSetData';
-
-// Import UI components
-import QuizHeader from './quiz/QuizHeader';
+import { useUser } from '../contexts/UserContext';
+import apiClient from '../utils/api-client';
+import { useUserProgress } from '../contexts/UserProgressContext';
 import QuizCompletionSummary from './quiz/QuizCompletionSummary';
-import PurchasePrompt from './quiz/PurchasePrompt';
-import AnswerCard from './quiz/AnswerCard';
+import { Question, Option, QuestionSet } from '../types';
+import { AnsweredQuestion } from '../hooks/useQuizReducer';
 
-// Import constants
-import { MESSAGES } from '../constants/quiz';
+// 定义QuizCompletionSummary真实Props接口
+interface QuizCompletionSummaryProps {
+  questionSet: {
+    title: string;
+    id: string;
+    isPaid: boolean;
+  };
+  correctAnswers: number;
+  totalQuestions: number;
+  answeredQuestions: AnsweredQuestion[];
+  questions: Question[];
+  timeSpent: number;
+  onRestart: () => void;
+  onNavigateHome: () => void;
+  hasAccess?: boolean;
+}
 
-function QuizPage(): JSX.Element {
+// 为测验结果定义明确的类型接口
+interface QuizResults {
+  totalCorrect: number;
+  totalQuestions: number;
+  accuracyPercentage: number;
+  questionResults: QuestionResult[];
+}
+
+interface QuestionResult {
+  questionId: string;
+  isCorrect: boolean;
+  userSelectedOptionIds: string[];
+  correctOptionIds: string[];
+}
+
+// 本地存储键名
+const LOCAL_STORAGE_KEYS = {
+  QUIZ_PROGRESS: 'quizProgress',
+  QUIZ_ANSWERS: 'quizAnswers',
+  QUIZ_START_TIME: 'quizStartTime'
+};
+
+// 将QuizResults转换为QuizCompletionSummary所需的数据结构
+function convertResultsToSummaryProps(results: QuizResults, questionSet: QuestionSet, questions: Question[], timeSpent: number, hasAccess: boolean, onRestart: () => void, onNavigateHome: () => void): QuizCompletionSummaryProps {
+  const answeredQuestions: AnsweredQuestion[] = results.questionResults.map((result, index) => ({
+    index: index,
+    questionIndex: index,
+    isCorrect: result.isCorrect,
+    selectedOption: result.userSelectedOptionIds
+  }));
+  
+  return {
+    questionSet: {
+      title: questionSet.title,
+      id: questionSet.id,
+      isPaid: questionSet.isPaid
+    },
+    correctAnswers: results.totalCorrect,
+    totalQuestions: results.totalQuestions,
+    answeredQuestions,
+    questions,
+    timeSpent,
+    onRestart,
+    onNavigateHome,
+    hasAccess
+  };
+}
+
+const QuizPage: React.FC = () => {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const { user } = useUser();
-  const { socket } = useSocket();
+  const { progressStats, fetchUserProgress } = useUserProgress();
   
-  // State for modals
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
+  const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<Record<string, string[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [timeSpent, setTimeSpent] = useState<number>(0);
   
-  // Use custom hooks
-  const { quizState, dispatch } = useQuizReducer();
-  const { 
-    questionSet, 
-    questions, 
-    originalQuestions, 
-    loading, 
-    error, 
-    shuffleQuestions, 
-    restoreOriginalOrder, 
-    isRandomMode 
-  } = useQuestionSetData(questionSetId);
+  // 使用useRef创建一个标志，以避免在组件卸载后更新状态
+  const isMounted = useRef(true);
+  // 用于取消请求的AbortController
+  const abortControllerRef = useRef<AbortController | null>(null);
   
-  const {
-    hasAccess,
-    isLoading: accessLoading,
-    trialEnded,
-    hasRedeemed,
-    isPaid,
-    trialQuestions,
-    updateAnsweredCount,
-    checkAccess
-  } = useQuizAccess(questionSetId, questionSet);
+  // 保存进度到localStorage的辅助函数
+  const saveProgressToLocalStorage = useCallback(() => {
+    if (!questionSetId || !questionSet) return;
+    
+    const progressData = {
+      questionSetId,
+      currentQuestionIndex,
+      userAnswers,
+      startTime: startTime ? startTime.toISOString() : null,
+      lastSaved: new Date().toISOString()
+    };
+    
+    try {
+      localStorage.setItem(
+        `${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`,
+        JSON.stringify(progressData)
+      );
+      console.log('进度已保存到本地存储');
+    } catch (e) {
+      console.error('保存进度到本地存储失败:', e);
+    }
+  }, [questionSetId, questionSet, currentQuestionIndex, userAnswers, startTime]);
   
-  const {
-    saveProgressToLocalStorage,
-    syncProgressToServer,
-    resetProgress,
-    loadBestProgressSource,
-    isSyncing
-  } = useQuizProgress({ 
-    questionSetId, 
-    userId: user?.id 
-  });
-  
-  const {
-    isTimerActive,
-    elapsedTime,
-    startTimer,
-    stopTimer,
-    resetTimer,
-    formatTime
-  } = useQuizTimer();
-  
-  // Destructure quiz state for convenience
-  const {
-    currentQuestionIndex,
-    selectedOptions,
-    answeredQuestions,
-    correctAnswers,
-    quizComplete,
-    showExplanation
-  } = quizState;
-  
-  // Update answeredCount in useQuizAccess whenever it changes
-  useEffect(() => {
-    updateAnsweredCount(answeredQuestions.length);
-  }, [answeredQuestions.length, updateAnsweredCount]);
-  
-  // Initialize quiz when questions are loaded
-  useEffect(() => {
-    if (questions.length > 0 && !loading) {
-      // Initialize timer
-      dispatch({ type: 'INITIALIZE_QUIZ', startTime: Date.now() });
-      startTimer();
+  // 恢复保存的进度
+  const restoreProgress = useCallback(() => {
+    if (!questionSetId) return false;
+    
+    try {
+      const savedProgressStr = localStorage.getItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+      if (!savedProgressStr) return false;
       
-      // Load saved progress
-      const loadSavedProgress = async () => {
-        const progress = await loadBestProgressSource();
+      const savedProgress = JSON.parse(savedProgressStr);
+      
+      // 验证保存的数据与当前题库匹配
+      if (savedProgress.questionSetId === questionSetId) {
+        setCurrentQuestionIndex(savedProgress.currentQuestionIndex || 0);
+        setUserAnswers(savedProgress.userAnswers || {});
+        setStartTime(savedProgress.startTime ? new Date(savedProgress.startTime) : new Date());
         
-        if (progress && progress.answeredQuestions.length > 0) {
-          // Load answered questions
-          dispatch({ 
-            type: 'LOAD_ANSWERED_QUESTIONS', 
-            answeredQuestions: progress.answeredQuestions 
-          });
-          
-          // Set current question index
-          const allAnswered = progress.answeredQuestions.length >= questions.length;
-          
-          if (allAnswered) {
-            dispatch({ type: 'JUMP_TO_QUESTION', index: 0 });
-          } else if (progress.lastQuestionIndex !== undefined &&
-                    progress.lastQuestionIndex >= 0 &&
-                    progress.lastQuestionIndex < questions.length) {
-            dispatch({ type: 'JUMP_TO_QUESTION', index: progress.lastQuestionIndex });
-          }
-        }
-      };
-      
-      loadSavedProgress();
+        console.log('已恢复上次的测验进度');
+        return true;
+      }
+    } catch (e) {
+      console.error('恢复保存的进度失败:', e);
     }
-  }, [questions, loading, loadBestProgressSource]);
+    
+    return false;
+  }, [questionSetId]);
   
-  // Check access when questionSet changes
+  // 清理组件和AbortController
   useEffect(() => {
-      if (questionSet) {
-          checkAccess();
+    return () => {
+      isMounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+  
+  // 创建新的AbortController
+  const createAbortController = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    return abortControllerRef.current.signal;
+  }, []);
+  
+  // 更新已用时间
+  useEffect(() => {
+    if (!startTime || quizCompleted) return;
+    
+    const updateTimeSpent = () => {
+      const now = new Date();
+      const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+      setTimeSpent(elapsed);
+    };
+    
+    // 每秒更新时间
+    const interval = setInterval(updateTimeSpent, 1000);
+    
+    return () => clearInterval(interval);
+  }, [startTime, quizCompleted]);
+  
+  // 先检查用户是否有权限访问题库
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!questionSetId) {
+        if (isMounted.current) {
+          setError('题库ID无效');
+          setLoading(false);
         }
-  }, [questionSet, checkAccess]);
-  
-  // Handle option selection
-  const handleOptionSelect = useCallback((optionId: string) => {
-    // If trial ended and no access, don't allow answering
-    if (trialEnded && !hasAccess && !hasRedeemed) {
-      return;
-    }
-    
-    const currentQuestion = questions[currentQuestionIndex];
-    const isMultiChoice = currentQuestion.questionType === 'multiple';
-    
-    dispatch({ 
-      type: 'SELECT_OPTION', 
-      optionId, 
-      isMultiChoice 
-    });
-  }, [currentQuestionIndex, dispatch, hasAccess, hasRedeemed, questions, trialEnded]);
-  
-  // Handle answer submission
-  const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
-    // 检查currentQuestionIndex是否有效
-    if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) {
-      console.error('无效的题目索引:', currentQuestionIndex);
-      toast.error('题目索引无效，请刷新页面');
-      return;
-    }
-    
-    // 确保当前题目存在
-    const currentQuestion = questions[currentQuestionIndex];
-    if (!currentQuestion || !currentQuestion.id) {
-      console.error('无效的题目数据:', currentQuestion);
-      toast.error('题目数据无效，请刷新页面');
-      return;
-    }
-    
-    dispatch({
-      type: 'SUBMIT_ANSWER',
-      isCorrect,
-      selectedOption,
-      questionIndex: currentQuestionIndex
-    });
-    
-    // Save progress locally
-    saveProgressToLocalStorage(
-      currentQuestionIndex, 
-      [...answeredQuestions, {
-        index: answeredQuestions.length,
-        questionIndex: currentQuestionIndex,
-        isCorrect,
-        selectedOption
-      }],
-      elapsedTime
-    );
-  }, [currentQuestionIndex, questions, answeredQuestions, dispatch, saveProgressToLocalStorage, elapsedTime]);
-  
-  // Handle next question
-  const handleNextQuestion = useCallback(() => {
-    const isLastQuestion = currentQuestionIndex === questions.length - 1;
-    
-    // If answering every 5 questions, sync progress
-    if (answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
-      syncProgressToServer(currentQuestionIndex, answeredQuestions, elapsedTime);
-    }
-    
-    dispatch({ 
-      type: 'NEXT_QUESTION', 
-      isLastQuestion 
-    });
-    
-    // If it's the last question, complete the quiz
-    if (isLastQuestion) {
-      // Sync progress with server
-      syncProgressToServer(currentQuestionIndex, answeredQuestions, elapsedTime, true);
-      
-      // Stop timer
-      stopTimer();
-      
-      // Update quiz state to complete
-      dispatch({
-        type: 'COMPLETE_QUIZ',
-        timeSpent: elapsedTime
-      });
-    }
-  }, [currentQuestionIndex, questions.length, answeredQuestions, dispatch, syncProgressToServer, elapsedTime, stopTimer]);
-  
-  // Handle jump to question
-  const handleJumpToQuestion = useCallback((index: number) => {
-    // If trial ended and no access, don't allow jumping
-    if (trialEnded && !hasAccess && !hasRedeemed) {
         return;
       }
       
-    // Check if current question is answered before jumping
-    const isCurrentQuestionAnswered = answeredQuestions.some(q => q.questionIndex === currentQuestionIndex);
-    
-    if (!isCurrentQuestionAnswered && currentQuestionIndex !== index) {
-      if (confirm("Current question has not been answered. Are you sure you want to leave?")) {
-        dispatch({ type: 'JUMP_TO_QUESTION', index });
+      try {
+        const signal = createAbortController();
+        
+        // 先发送预检请求，检查用户是否有权访问
+        const accessCheckResponse = await apiClient.get(`/api/question-sets/${questionSetId}/access-check`, undefined, { signal });
+        
+        if (!accessCheckResponse.success) {
+          if (isMounted.current) {
+            setError(accessCheckResponse.message || '无权访问此题库');
+            setLoading(false);
+          }
+          return;
+        }
+        
+        // 如果有权限，再获取完整题库数据
+        const response = await apiClient.get(`/api/question-sets/${questionSetId}`, undefined, { signal });
+        
+        if (isMounted.current) {
+          if (response && response.success) {
+            setQuestionSet(response.data);
+            
+            // 验证后端返回的权限信息
+            const isPaid = response.data.isPaid;
+            const hasAccessRight = !isPaid || (user && response.data.hasAccess);
+            setHasAccess(hasAccessRight);
+            
+            if (!hasAccessRight && user) {
+              console.warn('用户无权访问该题库');
+            }
+            
+            // 设置开始时间
+            const newStartTime = new Date();
+            setStartTime(newStartTime);
+            
+            // 尝试恢复保存的进度
+            const restored = restoreProgress();
+            
+            // 如果没有恢复成功，则自动保存当前状态
+            if (!restored) {
+              saveProgressToLocalStorage();
+            }
+          } else {
+            setError(response?.message || '无法加载题库数据');
+          }
+          
+          setLoading(false);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError' && isMounted.current) {
+          console.error('加载题库失败:', err);
+          setError('加载题库失败，请稍后重试');
+          setLoading(false);
+        }
       }
-            } else {
-      dispatch({ type: 'JUMP_TO_QUESTION', index });
-    }
+    };
     
-    // Save progress to localStorage
-    saveProgressToLocalStorage(index, answeredQuestions, elapsedTime);
-  }, [currentQuestionIndex, answeredQuestions, dispatch, hasAccess, hasRedeemed, trialEnded, saveProgressToLocalStorage, elapsedTime]);
+    checkAccess();
+  }, [questionSetId, user, createAbortController, restoreProgress, saveProgressToLocalStorage]);
   
-  // Handle quiz reset
-  const handleResetQuiz = useCallback(async () => {
-    if (!confirm(MESSAGES.RESET_CONFIRMATION)) {
-            return;
-    }
+  // 定期自动保存进度
+  useEffect(() => {
+    if (!questionSet || !questionSetId || quizCompleted) return;
     
+    // 每30秒自动保存一次
+    const saveInterval = setInterval(() => {
+      saveProgressToLocalStorage();
+    }, 30000);
+    
+    return () => {
+      clearInterval(saveInterval);
+    };
+  }, [questionSet, questionSetId, quizCompleted, saveProgressToLocalStorage]);
+  
+  // 处理答案选择
+  const handleAnswerSelect = (questionId: string, selectedOptionIds: string[]) => {
+    setUserAnswers(prev => {
+      const updated = {
+        ...prev,
+        [questionId]: selectedOptionIds
+      };
+      
+      // 每当用户选择答案时保存进度
+      setTimeout(() => saveProgressToLocalStorage(), 0);
+      
+      return updated;
+    });
+  };
+  
+  // 处理答案提交 - 新增处理QuestionCard的回调
+  const handleAnswerSubmitted = (isCorrect: boolean, selectedOption: string | string[]) => {
+    console.log(`答案提交: 正确=${isCorrect}, 所选=${Array.isArray(selectedOption) ? selectedOption.join(',') : selectedOption}`);
+    // 可以在这里增加额外逻辑，比如即时统计或显示下一题提示
+  };
+  
+  // 移动到下一题
+  const handleNextQuestion = () => {
+    if (!questionSet || !questionSet.questions) return;
+    
+    const totalQuestions = questionSet.questions.length;
+    
+    if (currentQuestionIndex < totalQuestions - 1) {
+      setCurrentQuestionIndex(prev => {
+        const nextIndex = prev + 1;
+        // 切换题目时保存进度
+        setTimeout(() => saveProgressToLocalStorage(), 0);
+        return nextIndex;
+      });
+    } else {
+      // 完成所有题目，结束测验
+      completeQuiz();
+    }
+  };
+  
+  // 移动到上一题
+  const handlePreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => {
+        const nextIndex = prev - 1;
+        // 切换题目时保存进度
+        setTimeout(() => saveProgressToLocalStorage(), 0);
+        return nextIndex;
+      });
+    }
+  };
+  
+  // 完成测验，提交结果
+  const completeQuiz = async () => {
+    if (!questionSet || !questionSet.questions || !user) return;
+    
+    const endTime = new Date();
+    const totalTime = startTime ? Math.floor((endTime.getTime() - startTime.getTime()) / 1000) : 0;
+    setTimeSpent(totalTime);
+    
+    // 计算正确率
+    const results = calculateResults();
+    
+    // 提交进度数据
     try {
-      // Reset progress on server
-      await resetProgress();
+      const signal = createAbortController();
       
-      // Reset local state
-      dispatch({ type: 'RESET_QUIZ', questions });
-      resetTimer();
+      const response = await apiClient.post(
+        '/api/user-progress/update',
+        {
+          userId: user.id,
+          questionSetId,
+          completedQuestions: questionSet.questions.length,
+          correctAnswers: results.totalCorrect,
+          timeSpent: totalTime,
+          lastCompletedAt: new Date().toISOString()
+        },
+        { signal }
+      );
       
-      toast.success('Progress has been reset');
-    } catch (error) {
-      console.error('Failed to reset quiz:', error);
-      toast.error('Failed to reset quiz. Please try again.');
+      if (isMounted.current) {
+        if (response && response.success) {
+          console.log('测验结果已保存');
+          // 重新获取用户进度
+          if (fetchUserProgress) {
+            fetchUserProgress();
+          }
+          
+          // 清除本地存储的进度
+          localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+        } else {
+          console.error('保存测验结果失败:', response?.message);
+        }
+        
+        setQuizCompleted(true);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError' && isMounted.current) {
+        console.error('保存测验结果时出错:', err);
+        setQuizCompleted(true); // 即使保存失败也完成测验
+      }
     }
-  }, [dispatch, questions, resetProgress, resetTimer]);
+  };
   
-  // Navigate to home
-  const handleNavigateHome = useCallback(() => {
-    // Sync progress before navigating
-    if (answeredQuestions.length > 0) {
-      syncProgressToServer(currentQuestionIndex, answeredQuestions, elapsedTime, true);
+  // 计算测验结果 - 修复类型比较问题
+  const calculateResults = (): QuizResults => {
+    if (!questionSet || !questionSet.questions) {
+      return { totalCorrect: 0, totalQuestions: 0, accuracyPercentage: 0, questionResults: [] };
     }
     
+    let totalCorrect = 0;
+    const questionResults = questionSet.questions.map(question => {
+      // 确保所有ID都是字符串类型
+      const userSelectedOptionIds = (userAnswers[question.id] || []).map(id => String(id));
+      const correctOptionIds = question.options
+        .filter(option => option.isCorrect)
+        .map(option => String(option.id));
+      
+      // 使用Set进行集合比较，确保顺序无关
+      const userSelectedSet = new Set(userSelectedOptionIds);
+      const correctSet = new Set(correctOptionIds);
+      
+      // 多选题的正确判断: 用户选择的选项集合与正确答案集合完全相同
+      const isSetEqual = (a: Set<string>, b: Set<string>) => {
+        if (a.size !== b.size) return false;
+        for (const item of a) {
+          if (!b.has(item)) return false;
+        }
+        return true;
+      };
+      
+      const isCorrect = isSetEqual(userSelectedSet, correctSet);
+      
+      if (isCorrect) {
+        totalCorrect++;
+      }
+      
+      return {
+        questionId: String(question.id),
+        isCorrect,
+        userSelectedOptionIds,
+        correctOptionIds
+      };
+    });
+    
+    return {
+      totalCorrect,
+      totalQuestions: questionSet.questions.length,
+      accuracyPercentage: questionSet.questions.length > 0 
+        ? Math.round((totalCorrect / questionSet.questions.length) * 100) 
+        : 0,
+      questionResults
+    };
+  };
+  
+  // 重新开始测验
+  const handleRestartQuiz = () => {
+    setUserAnswers({});
+    setCurrentQuestionIndex(0);
+    setQuizCompleted(false);
+    setStartTime(new Date());
+    setTimeSpent(0);
+    // 清除本地存储的进度
+    if (questionSetId) {
+      localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+    }
+  };
+  
+  // 返回首页
+  const handleBackToHome = () => {
     navigate('/');
-  }, [answeredQuestions, currentQuestionIndex, elapsedTime, navigate, syncProgressToServer]);
+  };
   
-  // Navigate to profile
-  const handleNavigateProfile = useCallback(() => {
-    navigate(user ? '/profile' : '/login');
-  }, [navigate, user]);
-  
-  // Check if we should show purchase prompt
-  const shouldShowPurchasePrompt = useCallback(() => {
-    if (!questionSet || error || loading) return false;
-    
+  if (loading) {
     return (
-      isPaid && 
-      !hasAccess && 
-      trialQuestions !== null && 
-      answeredQuestions.length >= (trialQuestions || 0)
-    );
-  }, [questionSet, error, loading, isPaid, hasAccess, trialQuestions, answeredQuestions.length]);
-  
-  // Render loading state
-  if (loading || accessLoading) {
-    return (
-      <div className="flex justify-center items-center h-96">
+      <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
-   
-  // Render error state
-  if (error || !questionSet || questions.length === 0) {
+  
+  if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          <span className="block sm:inline">{error || 'Unable to load question set data'}</span>
-        </div>
-        <button
-          onClick={handleNavigateHome}
-          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Return to Home
-        </button>
-      </div>
-    );
-  }
-  
-  // Render purchase prompt
-  if (shouldShowPurchasePrompt()) {
-    return (
-      <>
-        <PurchasePrompt
-          questionSet={questionSet}
-          totalQuestions={questions.length}
-          answeredCount={answeredQuestions.length}
-          correctCount={correctAnswers}
-          onShowPaymentModal={() => setShowPaymentModal(true)}
-          onShowRedeemCodeModal={() => setShowRedeemCodeModal(true)}
-          onNavigateHome={handleNavigateHome}
-          onNavigateProfile={handleNavigateProfile}
-          isLoggedIn={!!user}
-          validityPeriod="6 months"
-          currencyCode="CNY"
-        />
-        
-        {/* Payment Modal */}
-        {showPaymentModal && (
-          <PaymentModal
-            isOpen={showPaymentModal}
-            questionSet={questionSet}
-            onClose={() => setShowPaymentModal(false)}
-            onSuccess={() => {
-              setShowPaymentModal(false);
-              checkAccess();
-            }}
-          />
-        )}
-        
-        {/* Redeem Code Modal */}
-        {showRedeemCodeModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Redemption Code</h2>
-                <button
-                  onClick={() => setShowRedeemCodeModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <RedeemCodeForm onRedeemSuccess={(redeemedSetId) => {
-                setShowRedeemCodeModal(false);
-                  checkAccess();
-              }} />
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
-  
-  // Render completion summary
-  if (quizComplete) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="container mx-auto px-4">
-          <QuizCompletionSummary
-            questionSet={{
-              title: questionSet.title,
-              id: questionSet.id,
-              isPaid: questionSet.isPaid || false
-            }}
-            correctAnswers={correctAnswers}
-            totalQuestions={questions.length}
-            answeredQuestions={answeredQuestions}
-            questions={questions}
-            timeSpent={elapsedTime}
-            onRestart={handleResetQuiz}
-            onNavigateHome={handleNavigateHome}
-            hasAccess={hasAccess}
-          />
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p className="font-bold">加载错误</p>
+          <p>{error}</p>
+          <button 
+            onClick={handleBackToHome}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            返回首页
+          </button>
         </div>
       </div>
     );
   }
   
-  // Render quiz
+  if (!questionSet) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+          <p className="font-bold">题库不存在</p>
+          <p>无法找到请求的题库，请返回首页重试。</p>
+          <button 
+            onClick={handleBackToHome}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!hasAccess && user) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+          <p className="font-bold">访问受限</p>
+          <p>您没有访问此题库的权限，请返回首页购买或兑换此题库。</p>
+          <button 
+            onClick={handleBackToHome}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (quizCompleted && questionSet) {
+    const results = calculateResults();
+    
+    // 使用转换函数将QuizResults转换为QuizCompletionSummaryProps格式
+    const summaryProps = convertResultsToSummaryProps(
+      results,
+      questionSet,
+      questionSet.questions || [],
+      timeSpent,
+      hasAccess,
+      handleRestartQuiz,
+      handleBackToHome
+    );
+    
+    return <QuizCompletionSummary {...summaryProps} />;
+  }
+  
+  if (!questionSet.questions || questionSet.questions.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+          <p className="font-bold">题库为空</p>
+          <p>此题库没有题目，请返回首页选择其他题库。</p>
+          <button 
+            onClick={handleBackToHome}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  const currentQuestion = questionSet.questions[currentQuestionIndex];
+  const totalQuestions = questionSet.questions.length;
+  const progress = Math.round(((currentQuestionIndex + 1) / totalQuestions) * 100);
+  
+  // 添加进度恢复/继续UI
+  const renderProgressControls = () => {
+    // 检查是否有进度提示
+    if (userAnswers && Object.keys(userAnswers).length > 0) {
+      const answeredCount = Object.keys(userAnswers).length;
+      return (
+        <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg mb-4">
+          <span className="text-sm text-blue-700">
+            已答 {answeredCount}/{totalQuestions} 题 
+            ({Math.round((answeredCount / totalQuestions) * 100)}%)
+          </span>
+          <button
+            onClick={saveProgressToLocalStorage}
+            className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+          >
+            手动保存进度
+          </button>
+        </div>
+      );
+    }
+    return null;
+  };
+  
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        {/* Header with navigation, timer, etc. */}
-        <QuizHeader
-          title={questionSet.title}
-          onClearProgress={handleResetQuiz}
-          formattedTime={formatTime(elapsedTime)}
-          isTimerActive={isTimerActive}
-        />
-        
-        {/* Only show random mode switch for users with access */}
-        {(!isPaid || hasAccess || hasRedeemed) && (
-          <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center">
-              <span className="mr-2 text-sm font-medium text-gray-700">Random Mode:</span>
-                      <button
-                        onClick={isRandomMode ? restoreOriginalOrder : shuffleQuestions}
-                        className={`px-3 py-1 text-sm rounded-md ${
-                          isRandomMode 
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        } transition-colors`}
-                      >
-                {isRandomMode ? 'Restore Order' : 'Shuffle Questions'}
-                      </button>
-                    </div>
-                    {isRandomMode && (
-              <span className="text-xs text-orange-600">Random mode active: questions have been shuffled</span>
-                    )}
-                  </div>
-        )}
-                  
-        {/* Answer Card */}
-        {(!isPaid || hasAccess || hasRedeemed) && (
-                  <AnswerCard
-                    totalQuestions={questions.length}
-                    answeredQuestions={answeredQuestions}
-                    currentIndex={currentQuestionIndex}
-            onJump={handleJumpToQuestion}
-          />
-        )}
-        
-        {/* Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full" 
-            style={{ width: `${(answeredQuestions.length / questions.length) * 100}%` }}
-                />
-              </div>
-              
-        <div className="flex justify-between text-sm text-gray-500 mb-4">
-          <span>Question {currentQuestionIndex + 1} / {questions.length}</span>
-          <span>Answered {answeredQuestions.length} questions</span>
-            </div>
-            
-        {/* Current Question */}
-            {questions.length > 0 && currentQuestionIndex < questions.length && (
-              <QuestionCard
-                key={`question-${currentQuestionIndex}`}
-                question={questions[currentQuestionIndex]}
-                questionNumber={currentQuestionIndex + 1}
-                totalQuestions={questions.length}
-                onAnswerSubmitted={handleAnswerSubmit}
-                onNext={handleNextQuestion}
-                onJumpToQuestion={handleJumpToQuestion}
-            isPaid={isPaid}
-            hasFullAccess={hasAccess}
-                questionSetId={questionSet?.id || ''}
-                isLast={currentQuestionIndex === questions.length - 1}
-              />
-        )}
-        
-        {/* Syncing indicator */}
-        {isSyncing && (
-          <div className="fixed bottom-4 right-4 bg-blue-100 text-blue-800 px-3 py-1 rounded-md text-sm flex items-center">
-            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-            Syncing progress...
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-center">{questionSet.title}</h1>
+        {renderProgressControls()}
+        <div className="mt-4">
+          <div className="flex justify-between mb-2">
+            <span>进度: {currentQuestionIndex + 1} / {totalQuestions}</span>
+            <span>{progress}%</span>
           </div>
-        )}
+          <div className="h-2 bg-gray-200 rounded-full">
+            <div 
+              className="h-full bg-blue-500 rounded-full" 
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
       </div>
+      
+      {currentQuestion && (
+        <QuestionCard
+          {...{
+            question: currentQuestion,
+            questionSetId: questionSet.id,
+            onAnswerSubmitted: handleAnswerSubmitted,
+            onNext: handleNextQuestion,
+            isFirst: currentQuestionIndex === 0,
+            isLast: currentQuestionIndex === totalQuestions - 1,
+            questionNumber: currentQuestionIndex + 1,
+            totalQuestions: totalQuestions,
+            quizTitle: questionSet.title,
+            isPaid: questionSet.isPaid,
+            hasFullAccess: hasAccess,
+            trialQuestions: questionSet.trialQuestions
+          } as any}
+        />
+      )}
     </div>
   );
-}
+};
 
-export default QuizPage; 
+export default QuizPage;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserProgress, QuestionSet } from '../types';
+import { UserProgress, QuestionSet, Question, Option } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
@@ -11,24 +11,12 @@ import ExamCountdownWidget from './ExamCountdownWidget';
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
 
-// 基础题库类型
-interface BaseQuestionSet {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  icon: string;
-  isPaid: boolean;
+// 扩展题库类型，基于QuestionSet模型
+interface BaseQuestionSet extends Omit<QuestionSet, 'price' | 'trialQuestions'> {
   price: number | null;
   trialQuestions: number | null;
-  questionCount?: number;
-  isFeatured: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  hasAccess?: boolean;
   remainingDays?: number | null;
   paymentMethod?: string;
-  questions?: { id: string }[];
   questionSetQuestions?: { id: string }[];
   validityPeriod?: number; // 题库有效期，以天为单位
 }
@@ -38,10 +26,9 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   accessType: AccessType;
   remainingDays: number | null;
   validityPeriod: number;
-  featuredCategory?: string; // 添加精选分类字段
 }
 
-// 使用本地接口替代
+// 首页内容数据接口
 interface HomeContentData {
   welcomeTitle: string;
   welcomeDescription: string;
@@ -63,7 +50,7 @@ const defaultHomeContent: HomeContentData = {
   theme: 'light'
 };
 
-// Add this helper function after the defaultHomeContent definition
+// 计算题目数量的辅助函数
 const calculateQuestionCount = (set: BaseQuestionSet): number => {
   if (typeof set.questionCount === 'number' && set.questionCount > 0) {
     return set.questionCount;
@@ -71,23 +58,13 @@ const calculateQuestionCount = (set: BaseQuestionSet): number => {
   if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
     return set.questionSetQuestions.length;
   }
+  if (Array.isArray(set.questions) && set.questions.length > 0) {
+    return set.questions.length;
+  }
   return 0; // 不再使用 trialQuestions 作为后备选项
 };
 
-// 使用本地接口替代
-interface HomeContentData {
-  welcomeTitle: string;
-  welcomeDescription: string;
-  featuredCategories: string[];
-  announcements: string;
-  footerText: string;
-  bannerImage?: string;
-  theme?: 'light' | 'dark' | 'auto';
-}
-
-// 删除重复的 QuestionSet 接口，统一使用 BaseQuestionSet
-
-// Add a new interface for purchase data
+// 购买数据接口，使用QuestionSet而非any
 interface PurchaseData {
   id: string;
   questionSetId: string;
@@ -95,16 +72,832 @@ interface PurchaseData {
   expiryDate: string;
   remainingDays: number;
   hasAccess: boolean;
-  questionSet?: any;
+  questionSet?: QuestionSet;
 }
+
+// 修改QuestionSetCacheManager，整合localStorage键
+const QuestionSetCacheManager = {
+  // 缓存TTL，默认10分钟
+  CACHE_TTL: 10 * 60 * 1000,
+  
+  // 缓存键
+  STORAGE_KEY: 'questionSets.cache',
+  
+  // 缓存数据结构
+  /*
+  {
+    meta: {
+      version: 1,
+      lastUpdate: timestamp,
+      ttl: 600000
+    },
+    users: {
+      [userId]: {
+        sets: {
+          [questionSetId]: {
+            hasAccess: boolean,
+            accessType: 'trial' | 'paid' | 'expired' | 'redeemed',
+            remainingDays: number | null,
+            validityPeriod: number,
+            timestamp: number,
+            source: string
+          }
+        },
+        lastSync: timestamp
+      }
+    },
+    redeemed: [questionSetId1, questionSetId2, ...], // 全局兑换记录
+    globalAccess: { // 兼容旧版quizAccessRights
+      [questionSetId]: {
+        hasAccess: boolean,
+        timestamp: number
+      }
+    }
+  }
+  */
+  
+  // 初始化缓存
+  initCache: () => {
+    try {
+      const cache = localStorage.getItem(QuestionSetCacheManager.STORAGE_KEY);
+      if (!cache) {
+        // 创建新的缓存结构
+        const newCache = {
+          meta: {
+            version: 1,
+            lastUpdate: Date.now(),
+            ttl: QuestionSetCacheManager.CACHE_TTL
+          },
+          users: {},
+          redeemed: [],
+          globalAccess: {}
+        };
+        
+        localStorage.setItem(QuestionSetCacheManager.STORAGE_KEY, JSON.stringify(newCache));
+        
+        // 迁移旧数据
+        QuestionSetCacheManager.migrateOldData();
+        
+        return newCache;
+      }
+      
+      return JSON.parse(cache);
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 初始化缓存失败:', e);
+      return {
+        meta: { version: 1, lastUpdate: Date.now(), ttl: QuestionSetCacheManager.CACHE_TTL },
+        users: {},
+        redeemed: [],
+        globalAccess: {}
+      };
+    }
+  },
+  
+  // 迁移旧版数据
+  migrateOldData: () => {
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      let updated = false;
+      
+      // 1. 迁移questionSetAccessCache
+      const accessCacheStr = localStorage.getItem('questionSetAccessCache');
+      if (accessCacheStr) {
+        try {
+          const accessCache = JSON.parse(accessCacheStr);
+          
+          // 遍历用户
+          Object.keys(accessCache).forEach(userId => {
+            if (!cache.users[userId]) {
+              cache.users[userId] = {
+                sets: {},
+                lastSync: Date.now()
+              };
+            }
+            
+            // 遍历题库权限
+            const userCache = accessCache[userId];
+            Object.keys(userCache).forEach(questionSetId => {
+              const entry = userCache[questionSetId];
+              
+              if (!cache.users[userId].sets[questionSetId]) {
+                cache.users[userId].sets[questionSetId] = {
+                  hasAccess: entry.hasAccess,
+                  accessType: entry.source && entry.source.includes('redeem') ? 'redeemed' : 'paid',
+                  remainingDays: entry.remainingDays,
+                  validityPeriod: 180,
+                  timestamp: entry.timestamp || Date.now(),
+                  source: entry.source || 'migration'
+                };
+                updated = true;
+              }
+            });
+          });
+        } catch (e) {
+          console.error('[QuestionSetCacheManager] 迁移questionSetAccessCache失败:', e);
+        }
+      }
+      
+      // 2. 迁移redeemedQuestionSetIds
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedStr) {
+        try {
+          const redeemedIds = JSON.parse(redeemedStr);
+          if (Array.isArray(redeemedIds)) {
+            cache.redeemed = [...new Set([...cache.redeemed, ...redeemedIds])];
+            updated = true;
+          }
+        } catch (e) {
+          console.error('[QuestionSetCacheManager] 迁移redeemedQuestionSetIds失败:', e);
+        }
+      }
+      
+      // 3. 迁移quizAccessRights
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (accessRightsStr) {
+        try {
+          const accessRights = JSON.parse(accessRightsStr);
+          Object.keys(accessRights).forEach(questionSetId => {
+            const entry = accessRights[questionSetId];
+            cache.globalAccess[questionSetId] = {
+              hasAccess: entry.hasAccess,
+              timestamp: entry.timestamp || Date.now()
+            };
+            updated = true;
+          });
+        } catch (e) {
+          console.error('[QuestionSetCacheManager] 迁移quizAccessRights失败:', e);
+        }
+      }
+      
+      // 保存更新后的缓存
+      if (updated) {
+        cache.meta.lastUpdate = Date.now();
+        localStorage.setItem(QuestionSetCacheManager.STORAGE_KEY, JSON.stringify(cache));
+        console.log('[QuestionSetCacheManager] 旧数据迁移完成');
+      }
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 数据迁移失败:', e);
+    }
+  },
+  
+  // 获取缓存
+  getCache: () => {
+    try {
+      const cache = localStorage.getItem(QuestionSetCacheManager.STORAGE_KEY);
+      if (!cache) {
+        return QuestionSetCacheManager.initCache();
+      }
+      return JSON.parse(cache);
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 读取缓存失败:', e);
+      return QuestionSetCacheManager.initCache();
+    }
+  },
+  
+  // 存储访问权限到缓存
+  saveAccessToCache: (userId: string, questionSetId: string, hasAccess: boolean, remainingDays?: number | null, accessType?: AccessType, source?: string) => {
+    try {
+      if (!userId || !questionSetId) return;
+      
+      const cache = QuestionSetCacheManager.getCache();
+      
+      // 确保用户存在
+      if (!cache.users[userId]) {
+        cache.users[userId] = {
+          sets: {},
+          lastSync: Date.now()
+        };
+      }
+      
+      // 确定访问类型
+      const actualAccessType = accessType || 
+        (source && source.includes('redeem') ? 'redeemed' : 'paid') as AccessType;
+      
+      // 更新用户题库权限
+      cache.users[userId].sets[questionSetId] = {
+        hasAccess,
+        accessType: actualAccessType,
+        remainingDays: remainingDays || null,
+        validityPeriod: 180, // 默认值
+        timestamp: Date.now(),
+        source: source || 'direct_save'
+      };
+      
+      // 更新全局访问记录
+      if (actualAccessType === 'redeemed' && !cache.redeemed.includes(questionSetId)) {
+        cache.redeemed.push(questionSetId);
+      }
+      
+      cache.globalAccess[questionSetId] = {
+        hasAccess,
+        timestamp: Date.now()
+      };
+      
+      // 更新元数据
+      cache.meta.lastUpdate = Date.now();
+      
+      // 保存缓存
+      localStorage.setItem(QuestionSetCacheManager.STORAGE_KEY, JSON.stringify(cache));
+      
+      console.log(`[QuestionSetCacheManager] 已缓存题库 ${questionSetId} 的访问权限, 用户: ${userId}`);
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 保存缓存失败:', e);
+    }
+  },
+  
+  // 检查缓存是否过期
+  isCacheExpired: (userId: string, questionSetId: string) => {
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      
+      if (!cache.users[userId] || !cache.users[userId].sets[questionSetId]) {
+        return true;
+      }
+      
+      const entry = cache.users[userId].sets[questionSetId];
+      return !entry.timestamp || (Date.now() - entry.timestamp > QuestionSetCacheManager.CACHE_TTL);
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 检查缓存是否过期失败:', e);
+      return true;
+    }
+  },
+  
+  // 检查题库是否已兑换
+  isQuestionSetRedeemed: (questionSetId: string): boolean => {
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      return cache.redeemed.includes(questionSetId);
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 检查题库是否已兑换失败:', e);
+      return false;
+    }
+  },
+  
+  // 获取题库访问状态，整合所有来源
+  getQuestionSetAccess: (userId: string, questionSetId: string, set: BaseQuestionSet) => {
+    // 如果是免费题库，直接返回有访问权限
+    if (!set.isPaid) {
+      return { hasAccess: true, remainingDays: null, accessType: 'trial' as AccessType };
+    }
+    
+    // 如果用户未登录，返回无访问权限
+    if (!userId) {
+      return { hasAccess: false, remainingDays: null, accessType: 'trial' as AccessType };
+    }
+    
+    // 1. 首先检查题库对象本身的属性
+    if (set.hasAccess !== undefined) {
+      // 检查是否已过期（remainingDays <= 0）
+      if (set.remainingDays !== undefined && set.remainingDays !== null && set.remainingDays <= 0) {
+        return { hasAccess: false, remainingDays: 0, accessType: 'expired' as AccessType };
+      }
+      
+      // 确定访问类型
+      let accessType: AccessType = 'trial';
+      if (set.hasAccess) {
+        // 检查是否是兑换的题库
+        accessType = set.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+      } else if (set.remainingDays !== undefined && set.remainingDays !== null && set.remainingDays <= 0) {
+        accessType = 'expired';
+      }
+      
+      return { 
+        hasAccess: set.hasAccess, 
+        remainingDays: set.remainingDays || null,
+        accessType
+      };
+    }
+    
+    // 2. 从统一缓存中获取访问权限
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      
+      // 检查是否已兑换
+      if (cache.redeemed.includes(questionSetId)) {
+        // 从题库获取有效期或使用默认值
+        return { 
+          hasAccess: true, 
+          remainingDays: set.validityPeriod || 30, 
+          accessType: 'redeemed' as AccessType 
+        };
+      }
+      
+      // 检查用户特定的缓存
+      if (cache.users[userId] && cache.users[userId].sets[questionSetId]) {
+        const entry = cache.users[userId].sets[questionSetId];
+        return {
+          hasAccess: entry.hasAccess,
+          remainingDays: entry.remainingDays,
+          accessType: entry.accessType as AccessType
+        };
+      }
+      
+      // 检查全局访问权限
+      if (cache.globalAccess[questionSetId] && cache.globalAccess[questionSetId].hasAccess) {
+        return {
+          hasAccess: true,
+          remainingDays: set.validityPeriod || 30,
+          accessType: 'paid' as AccessType
+        };
+      }
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 获取访问权限失败:', e);
+    }
+    
+    // 3. 如果都没有找到，返回默认无访问权限
+    return { hasAccess: false, remainingDays: null, accessType: 'trial' as AccessType };
+  },
+  
+  // 收集需要检查访问权限的题库ID
+  collectQuestionSetIdsToCheck: (userId: string) => {
+    const questionSetIdsToCheck = new Set<string>();
+    
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      
+      // 从用户缓存收集
+      if (cache.users[userId]) {
+        Object.keys(cache.users[userId].sets).forEach((id: string) => {
+          const entry = cache.users[userId].sets[id];
+          // 仅收集过期的缓存条目
+          if (!entry.timestamp || (Date.now() - entry.timestamp > QuestionSetCacheManager.CACHE_TTL)) {
+            questionSetIdsToCheck.add(id);
+          }
+        });
+      }
+      
+      // 从全局兑换记录收集
+      cache.redeemed.forEach((id: string) => questionSetIdsToCheck.add(id));
+      
+      // 从全局访问权限收集
+      Object.keys(cache.globalAccess).forEach((id: string) => questionSetIdsToCheck.add(id));
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 收集题库ID失败:', e);
+    }
+    
+    return Array.from(questionSetIdsToCheck);
+  },
+  
+  // 清除特定题库的缓存
+  clearCache: (questionSetId: string) => {
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      
+      // 清除所有用户对该题库的缓存
+      Object.keys(cache.users).forEach(userId => {
+        if (cache.users[userId].sets[questionSetId]) {
+          delete cache.users[userId].sets[questionSetId];
+        }
+      });
+      
+      // 从全局兑换记录中移除
+      cache.redeemed = cache.redeemed.filter((id: string) => id !== questionSetId);
+      
+      // 从全局访问权限中移除
+      if (cache.globalAccess[questionSetId]) {
+        delete cache.globalAccess[questionSetId];
+      }
+      
+      // 更新元数据
+      cache.meta.lastUpdate = Date.now();
+      
+      // 保存缓存
+      localStorage.setItem(QuestionSetCacheManager.STORAGE_KEY, JSON.stringify(cache));
+      
+      console.log(`[QuestionSetCacheManager] 已清除题库 ${questionSetId} 的缓存`);
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 清除缓存失败:', e);
+    }
+  },
+  
+  // 获取缓存状态统计
+  getCacheStats: () => {
+    try {
+      const cache = QuestionSetCacheManager.getCache();
+      const userCount = Object.keys(cache.users).length;
+      
+      let totalEntries = 0;
+      let expiredEntries = 0;
+      const now = Date.now();
+      
+      Object.keys(cache.users).forEach(userId => {
+        const userSets = cache.users[userId].sets;
+        const entries = Object.keys(userSets).length;
+        totalEntries += entries;
+        
+        Object.keys(userSets).forEach(qsId => {
+          const entry = userSets[qsId];
+          if (entry.timestamp && (now - entry.timestamp > QuestionSetCacheManager.CACHE_TTL)) {
+            expiredEntries++;
+          }
+        });
+      });
+      
+      return {
+        version: cache.meta.version,
+        lastUpdate: new Date(cache.meta.lastUpdate).toISOString(),
+        userCount,
+        totalEntries,
+        expiredEntries,
+        freshEntries: totalEntries - expiredEntries,
+        redeemedCount: cache.redeemed.length,
+        globalAccessCount: Object.keys(cache.globalAccess).length
+      };
+    } catch (e) {
+      console.error('[QuestionSetCacheManager] 获取缓存统计失败:', e);
+      return { 
+        version: 1,
+        lastUpdate: new Date().toISOString(),
+        userCount: 0, 
+        totalEntries: 0, 
+        expiredEntries: 0, 
+        freshEntries: 0,
+        redeemedCount: 0,
+        globalAccessCount: 0
+      };
+    }
+  }
+};
+
+// 在HomePage组件中添加useQuestionSets自定义Hook
+const useQuestionSets = (userId: string | undefined, socket: any) => {
+  const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{
+    type: 'API_ERROR' | 'NETWORK_ERROR' | 'UNKNOWN_ERROR' | null;
+    message: string;
+    details?: any;
+    originalError?: string;
+    timestamp: number;
+    usingCache?: boolean;
+  } | null>(null);
+  
+  // 同步访问权限
+  const synchronizeAccess = useCallback((userId: string, sets: PreparedQuestionSet[], socket: any) => {
+    const paidSets = sets.filter(set => set.isPaid);
+    
+    // 如果有付费题库，检查访问权限
+    if (paidSets.length > 0) {
+      console.log('[HomePage] 检查付费题库访问权限');
+      
+      // 获取或创建设备ID
+      let deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        localStorage.setItem('deviceId', deviceId);
+      }
+      
+      // 收集需要检查的题库ID
+      const idsToCheck = new Set<string>();
+      
+      // 1. 添加付费题库ID
+      paidSets.forEach(set => idsToCheck.add(set.id));
+      
+      // 2. 添加来自缓存的ID
+      const cachedIds = QuestionSetCacheManager.collectQuestionSetIdsToCheck(userId);
+      cachedIds.forEach(id => idsToCheck.add(id));
+      
+      const finalIdsToCheck = Array.from(idsToCheck);
+      
+      // 发送批量检查请求
+      if (finalIdsToCheck.length > 0) {
+        console.log(`[HomePage] 发送批量访问权限检查请求, 共 ${finalIdsToCheck.length} 个题库`);
+        socket.emit('questionSet:checkAccessBatch', {
+          userId,
+          questionSetIds: finalIdsToCheck,
+          deviceId,
+          source: 'homepage_sync'
+        });
+      }
+      
+      // 发送设备同步请求
+      socket.emit('user:requestDeviceSync', {
+        userId,
+        deviceId,
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          timestamp: Date.now(),
+          page: 'homePage'
+        }
+      });
+    }
+  }, []);
+  
+  // 预处理题库数据，统一处理访问类型
+  const prepareQuestionSets = useCallback((sets: BaseQuestionSet[]): PreparedQuestionSet[] => {
+    return sets.map(set => {
+      // 使用缓存管理器获取访问状态
+      let { hasAccess, remainingDays, accessType } = userId ?
+        QuestionSetCacheManager.getQuestionSetAccess(userId, set.id, set) :
+        { hasAccess: !set.isPaid, remainingDays: null, accessType: 'trial' as AccessType };
+      
+      // 改进有效期检测逻辑
+      // 1. 首先从题库本身获取有效期
+      let validityPeriod = set.validityPeriod || 180;
+      
+      // 2. 如果题库没有提供，尝试从服务端配置获取
+      if (!validityPeriod) {
+        // 根据题库类型选择合适的默认值
+        if (accessType === 'redeemed') {
+          validityPeriod = (window as any)?.APP_CONFIG?.redeemedValidityPeriod || 30; // 兑换码默认30天
+        } else if (accessType === 'paid') {
+          validityPeriod = (window as any)?.APP_CONFIG?.paidValidityPeriod || 180; // 购买默认180天
+        } else {
+          validityPeriod = 180; // 通用默认值
+        }
+      }
+      
+      // 3. 处理特殊情况 - 过期题库
+      if (remainingDays !== null && remainingDays <= 0) {
+        hasAccess = false;
+        accessType = 'expired';
+      }
+      
+      // 4. 对于永久有效的题库，显示最大天数
+      if (hasAccess && remainingDays === null && (accessType === 'paid' || accessType === 'redeemed')) {
+        const isPermanent = (set as any).metadata?.permanent || false;
+        remainingDays = isPermanent ? 36500 : validityPeriod; // 约100年或使用有效期
+      }
+      
+      return {
+        ...set,
+        hasAccess,
+        accessType,
+        remainingDays,
+        validityPeriod
+      };
+    });
+  }, [userId]);
+  
+  // 获取题库列表
+  const fetchQuestionSets = useCallback(async (forceRefresh = false) => {
+    try {
+      setLoading(true);
+      
+      // 使用cacheDuration策略，默认10分钟缓存
+      const response = await apiClient.get('/api/question-sets', undefined, { 
+        cacheDuration: QuestionSetCacheManager.CACHE_TTL, 
+        forceRefresh 
+      });
+      
+      if (response && response.success) {
+        // 预处理题库数据，使用统一的方法添加访问类型
+        const preparedSets = prepareQuestionSets(response.data);
+        setQuestionSets(preparedSets);
+        setError(null);
+        
+        // 如果用户已登录，并且有socket连接，检查访问权限
+        if (userId && socket) {
+          synchronizeAccess(userId, preparedSets, socket);
+        }
+      } else {
+        // 改进错误处理 - 增加明确的错误类型和描述
+        const errorMessage = response?.message || '获取题库列表失败，请稍后重试';
+        console.error('[HomePage] 获取题库列表错误:', {
+          status: response?.status,
+          message: errorMessage,
+          responseData: response?.data,
+          timestamp: new Date().toISOString()
+        });
+        setError({
+          type: 'API_ERROR',
+          message: errorMessage,
+          details: response?.data,
+          timestamp: Date.now()
+        });
+      }
+    } catch (error) {
+      // 增强错误处理 - 分类网络错误和其他错误
+      const isNetworkError = error instanceof Error && 
+        (error.message.includes('network') || error.message.includes('fetch'));
+      
+      console.error('[HomePage] 获取题库列表失败:', error, isNetworkError ? '网络错误' : '其他错误');
+      
+      setError({
+        type: isNetworkError ? 'NETWORK_ERROR' : 'UNKNOWN_ERROR',
+        message: isNetworkError ? 
+          '网络连接错误，请检查您的网络连接并稍后重试' : 
+          '获取题库列表时出现未知错误，请稍后重试',
+        originalError: error instanceof Error ? error.message : String(error),
+        timestamp: Date.now()
+      });
+      
+      // 如果是网络错误，尝试使用本地缓存数据
+      if (isNetworkError) {
+        try {
+          const cache = QuestionSetCacheManager.getCache();
+          const cachedSets: BaseQuestionSet[] = [];
+          
+          // 从缓存中收集题库数据
+          if (userId && cache.users[userId]) {
+            Object.keys(cache.users[userId].sets).forEach(questionSetId => {
+              const cachedSet = cache.users[userId].sets[questionSetId];
+              if (cachedSet && !cachedSets.some(s => s.id === questionSetId)) {
+                cachedSets.push({
+                  id: questionSetId,
+                  title: `缓存题库 ${questionSetId.substring(0, 8)}...`,
+                  description: '这是从本地缓存加载的题库数据，可能不是最新的。',
+                  category: '缓存数据',
+                  icon: 'default-icon',
+                  isPaid: true,
+                  hasAccess: cachedSet.hasAccess,
+                  price: null,
+                  trialQuestions: null,
+                  remainingDays: cachedSet.remainingDays,
+                  isFeatured: false,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  validityPeriod: 180 // 确保此字段有值
+                });
+              }
+            });
+          }
+          
+          if (cachedSets.length > 0) {
+            const preparedSets = prepareQuestionSets(cachedSets);
+            setQuestionSets(preparedSets);
+            // 修复prev类型错误
+            setError((prev) => {
+              if (!prev) return {
+                type: 'NETWORK_ERROR',
+                message: '网络连接错误 (使用本地缓存数据显示)',
+                timestamp: Date.now(),
+                usingCache: true
+              };
+              
+              return {
+                ...prev,
+                message: prev.message + ' (使用本地缓存数据显示)',
+                usingCache: true
+              };
+            });
+          }
+        } catch (cacheError) {
+          console.error('[HomePage] 使用缓存数据失败:', cacheError);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, socket, prepareQuestionSets, synchronizeAccess]);
+  
+  // 统一的全局事件监听器设置
+  useEffect(() => {
+    // 处理全局权限变更事件
+    const handleAccessChanged = (e: Event) => {
+      try {
+        const customEvent = e as CustomEvent;
+        const { questionSetId, hasAccess, remainingDays, source } = customEvent.detail || {};
+        
+        console.log(`[HomePage] 收到全局访问权限变更事件: ${questionSetId}, hasAccess=${hasAccess}, source=${source}`);
+        
+        if (questionSetId && hasAccess !== undefined) {
+          // 1. 更新题库列表中的访问状态
+          setQuestionSets(prev => 
+            prev.map(set => 
+              String(set.id).trim() === String(questionSetId).trim() 
+                ? { 
+                    ...set, 
+                    hasAccess, 
+                    remainingDays: remainingDays !== undefined ? remainingDays : set.remainingDays,
+                    accessType: source === 'redeem' ? 'redeemed' : 'paid' 
+                  } 
+                : set
+            )
+          );
+          
+          // 2. 如果是当前用户，保存到缓存
+          if (userId) {
+            QuestionSetCacheManager.saveAccessToCache(
+              userId, 
+              questionSetId, 
+              hasAccess, 
+              remainingDays
+            );
+          }
+        }
+      } catch (e) {
+        console.error('[HomePage] 处理全局访问权限变更事件失败:', e);
+      }
+    };
+    
+    // 处理题库刷新事件
+    const handleRefreshRequest = () => {
+      console.log('[HomePage] 收到刷新请求');
+      fetchQuestionSets(true); // 强制刷新
+    };
+    
+    // 注册事件监听器
+    window.addEventListener('questionSet:accessChanged', handleAccessChanged);
+    window.addEventListener('questionSets:refresh', handleRefreshRequest);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('questionSet:accessChanged', handleAccessChanged);
+      window.removeEventListener('questionSets:refresh', handleRefreshRequest);
+    };
+  }, [fetchQuestionSets, userId]);
+  
+  // 修改useQuestionSets hook中的useEffect部分，优化定时刷新
+  // 组件挂载和用户登录状态变化时的数据获取
+  useEffect(() => {
+    // 初始化加载数据
+    fetchQuestionSets();
+    
+    // 配置基于WebSocket的更新策略而非定时轮询
+    if (userId && socket) {
+      // 注册获取题库更新的socket事件处理
+      socket.on('questionSet:updated', (data: any) => {
+        console.log('[HomePage] 收到题库更新通知:', data);
+        if (data && data.questionSetId) {
+          // 选择性更新单个题库而非重新获取全部
+          apiClient.get(`/api/question-sets/${data.questionSetId}`)
+            .then(response => {
+              if (response && response.success) {
+                setQuestionSets(prev => {
+                  return prev.map(set => 
+                    set.id === data.questionSetId 
+                      ? { ...prepareQuestionSets([response.data])[0] } 
+                      : set
+                  );
+                });
+              }
+            })
+            .catch(err => console.error('[HomePage] 更新单个题库失败:', err));
+        }
+      });
+      
+      // 注册批量更新通知
+      socket.on('questionSets:batchUpdated', () => {
+        console.log('[HomePage] 收到批量题库更新通知');
+        fetchQuestionSets(true);
+      });
+      
+      // 定期检查socket连接状态，如果断开则使用备用的轮询策略
+      const connectionChecker = setInterval(() => {
+        if (!socket.connected) {
+          console.log('[HomePage] Socket连接断开，使用备用轮询刷新');
+          fetchQuestionSets(true);
+        }
+      }, QuestionSetCacheManager.CACHE_TTL);
+      
+      // 清理函数
+      return () => {
+        socket.off('questionSet:updated');
+        socket.off('questionSets:batchUpdated');
+        clearInterval(connectionChecker);
+      };
+    } else {
+      // 如果没有socket连接，回退到基础的定时刷新策略
+      // 但使用更智能的刷新间隔（使用缓存TTL的两倍，避免频繁刷新）
+      const refreshInterval = setInterval(() => {
+        console.log('[HomePage] 定时刷新题库列表（备用策略）');
+        fetchQuestionSets(true);
+      }, QuestionSetCacheManager.CACHE_TTL * 2);
+      
+      return () => clearInterval(refreshInterval);
+    }
+  }, [fetchQuestionSets, userId, socket, prepareQuestionSets]);
+  
+  // 设备同步和ID生成
+  useEffect(() => {
+    // 设备ID管理
+    let deviceId = localStorage.getItem('deviceId');
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('deviceId', deviceId);
+    }
+    
+    // 仅在用户登录且有socket时执行
+    if (userId && socket) {
+      // 发送设备同步请求
+      socket.emit('user:requestDeviceSync', {
+        userId,
+        deviceId,
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          timestamp: Date.now(),
+          page: 'homePage',
+          cacheStats: QuestionSetCacheManager.getCacheStats()
+        }
+      });
+    }
+  }, [userId, socket]);
+  
+  return {
+    questionSets,
+    loading,
+    error,
+    refreshQuestionSets: fetchQuestionSets,
+    prepareQuestionSets
+  };
+};
 
 const HomePage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const { socket } = useSocket();
-  const { progressStats, fetchUserProgress } = useUserProgress();
-  const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
+  const { progressStats } = useUserProgress();
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -114,20 +907,107 @@ const HomePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
 
+  // 使用自定义Hook管理题库
+  const { 
+    questionSets, 
+    loading, 
+    error, 
+    refreshQuestionSets 
+  } = useQuestionSets(user?.id, socket);
+
+  // 设置错误信息
+  useEffect(() => {
+    if (error) {
+      setErrorMessage(error.message);
+    }
+  }, [error]);
+
+  // 处理推荐题库
+  useEffect(() => {
+    if (questionSets.length > 0) {
+      setRecommendedSets(getRecommendedSets());
+    }
+  }, [questionSets]);
+
+  // 获取推荐题库
+  const getRecommendedSets = useCallback(() => {
+    return questionSets.filter(set => set.isFeatured).slice(0, 3);
+  }, [questionSets]);
+
+  // 处理兑换成功事件
+  useEffect(() => {
+    const handleRedeemSuccess = (e: Event) => {
+      try {
+        const customEvent = e as CustomEvent;
+        
+        // 优先使用 questionSetId，兼容旧版本的 quizId
+        const questionSetId = customEvent.detail?.questionSetId || customEvent.detail?.quizId;
+        
+        // 从事件中获取剩余天数，如果不存在则使用默认值
+        const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 30;
+        
+        console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
+        
+        if (questionSetId) {
+          // 更新题库列表状态
+          if (user?.id) {
+            // 保存到缓存
+            QuestionSetCacheManager.saveAccessToCache(
+              user.id, 
+              questionSetId, 
+              true, 
+              remainingDays
+            );
+          }
+          
+          // 动画效果处理
+          setRecentlyUpdatedSets(prev => ({
+            ...prev,
+            [questionSetId]: Date.now() 
+          }));
+          
+          // 触发刷新事件
+          const refreshEvent = new CustomEvent('questionSets:refresh');
+          window.dispatchEvent(refreshEvent);
+        }
+      } catch (e) {
+        console.error('[HomePage] 处理兑换成功事件失败:', e);
+      }
+    };
+    
+    // 注册事件监听器
+    window.addEventListener('redeem:success', handleRedeemSuccess);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('redeem:success', handleRedeemSuccess);
+    };
+  }, [user]);
+
+  // 在HomePage组件中添加对应的事件监听
+  useEffect(() => {
+    const handleRecentlyUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { questionSetId, timestamp } = customEvent.detail || {};
+      
+      if (questionSetId) {
+        setRecentlyUpdatedSets((prev) => ({
+          ...prev,
+          [questionSetId]: timestamp || Date.now()
+        }));
+      }
+    };
+    
+    window.addEventListener('questionSet:recentlyUpdated', handleRecentlyUpdated);
+    
+    return () => {
+      window.removeEventListener('questionSet:recentlyUpdated', handleRecentlyUpdated);
+    };
+  }, []);
+
   // 切换分类
   const handleCategoryChange = (category: string) => {
     setActiveCategory(category);
-  };
-
-  // Add helper functions for localStorage access status cache
-  const getLocalAccessCache = () => {
-    try {
-      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
-      return JSON.parse(raw);
-    } catch (e) {
-      console.error('[HomePage] 读取缓存失败:', e);
-      return {};
-    }
   };
 
   // 获取过滤后的题库列表，按分类组织
@@ -161,312 +1041,7 @@ const HomePage: React.FC = () => {
     return filteredSets;
   }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
 
-  // 获取推荐题库的函数
-  const getRecommendedSets = useCallback(() => {
-    return questionSets.filter(set => set.isFeatured).slice(0, 3);
-  }, [questionSets]);
-
-  // 缓存访问权限到本地存储
-  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
-    try {
-      // 仅在用户登录时缓存，确保权限与用户绑定
-      if (!user?.id) return;
-      
-      const cache = getLocalAccessCache();
-      
-      // 使用用户ID组织缓存，避免用户切换后错用缓存
-      if (!cache[user.id]) cache[user.id] = {};
-      
-      // Update the cache with fresh data
-      cache[user.id][questionSetId] = {
-        hasAccess,
-        remainingDays,
-        timestamp: Date.now()
-      };
-      
-      // Save back to localStorage
-      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
-      console.log(`[HomePage] 已保存题库 ${questionSetId} 的访问权限到缓存，用户: ${user.id}`);
-    } catch (error) {
-      console.error('[HomePage] 保存访问权限缓存失败:', error);
-    }
-  }, [user?.id]);
-
-  // 获取题库列表的函数 - 统一缓存策略
-  const fetchQuestionSets = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      // 统一使用cacheDuration策略，允许10分钟缓存，不强制刷新
-      const response = await apiClient.get('/api/question-sets', undefined, { 
-        cacheDuration: 600000, // 10分钟缓存，与初始加载保持一致
-      });
-      
-      if (response && response.success) {
-        // 预处理题库数据，添加 accessType
-        const preparedSets = prepareQuestionSets(response.data);
-        setQuestionSets(preparedSets);
-        
-        // 如果用户已登录，检查访问权限
-        if (user?.id && socket) {
-          const paidSets = preparedSets.filter(set => set.isPaid);
-          if (paidSets.length > 0) {
-            socket.emit('questionSet:checkAccessBatch', {
-              userId: user.id,
-              questionSetIds: paidSets.map(set => set.id)
-            });
-          }
-        }
-      } else {
-        // 明确处理请求成功但返回错误的情况
-        console.error('获取题库列表返回错误:', response?.message || '未知错误');
-        setErrorMessage(response?.message || '获取题库列表失败，请稍后重试');
-      }
-    } catch (error) {
-      console.error('获取题库列表失败:', error);
-      setErrorMessage('获取题库列表失败，请稍后重试');
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, socket]);
-
-  // 监听来自ProfilePage的刷新通知 - 超简化版本，避免无限循环
-  useEffect(() => {
-    // 只在组件挂载时刷新一次题库列表
-    fetchQuestionSets();
-    
-    // 添加一个简单的事件监听器来处理ProfilePage的刷新通知
-    const handleRefreshRequest = () => {
-      console.log('[HomePage] 收到刷新请求');
-      fetchQuestionSets();
-    };
-    
-    // 使用自定义事件而不是socket
-    window.addEventListener('questionSets:refresh', handleRefreshRequest);
-    
-    return () => {
-      window.removeEventListener('questionSets:refresh', handleRefreshRequest);
-    };
-  }, []); // 空依赖数组，只在挂载时执行
-
-  // 页面加载时获取题库列表
-  useEffect(() => {
-    fetchQuestionSets();
-  }, [fetchQuestionSets]);
-
-  // 用户登录状态改变时重新获取题库列表
-  useEffect(() => {
-    if (user?.id) {
-      console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
-      fetchQuestionSets();
-      
-      // 用户登录后立即请求访问权限检查 - 确保跨设备同步
-      if (socket) {
-        console.log('[HomePage] 用户登录后，请求批量检查题库访问权限');
-        
-        // 获取所有已缓存的题库访问权限
-        try {
-          // 1. 从 questionSetAccessCache 获取
-          const accessCacheStr = localStorage.getItem('questionSetAccessCache');
-          let questionSetIds: string[] = [];
-          
-          if (accessCacheStr) {
-            const accessCache = JSON.parse(accessCacheStr);
-            // 收集所有题库ID (包括其他用户的，确保跨设备同步)
-            for (const userId in accessCache) {
-              const userCache = accessCache[userId];
-              Object.keys(userCache).forEach(id => {
-                if (!questionSetIds.includes(id)) {
-                  questionSetIds.push(id);
-                }
-              });
-            }
-          }
-          
-          // 2. 从 redeemedQuestionSetIds 获取
-          const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-          if (redeemedStr) {
-            try {
-              const redeemedIds = JSON.parse(redeemedStr);
-              if (Array.isArray(redeemedIds)) {
-                redeemedIds.forEach(id => {
-                  if (!questionSetIds.includes(id)) {
-                    questionSetIds.push(id);
-                  }
-                });
-              }
-            } catch (e) {
-              console.error('[HomePage] 解析兑换记录失败', e);
-            }
-          }
-          
-          // 3. 从 quizAccessRights 获取
-          const accessRightsStr = localStorage.getItem('quizAccessRights');
-          if (accessRightsStr) {
-            try {
-              const accessRights = JSON.parse(accessRightsStr);
-              Object.keys(accessRights).forEach(id => {
-                if (!questionSetIds.includes(id)) {
-                  questionSetIds.push(id);
-                }
-              });
-            } catch (e) {
-              console.error('[HomePage] 解析quizAccessRights失败', e);
-            }
-          }
-          
-          // 如果收集到题库ID，向服务器请求批量检查访问权限
-          if (questionSetIds.length > 0) {
-            console.log(`[HomePage] 请求检查 ${questionSetIds.length} 个题库的访问权限`);
-            socket.emit('questionSet:checkAccessBatch', {
-              userId: user.id,
-              questionSetIds,
-              deviceId: localStorage.getItem('deviceId') || `device_${Date.now()}`,
-              source: 'login_refresh'
-            });
-          }
-        } catch (e) {
-          console.error('[HomePage] 收集题库ID时出错:', e);
-        }
-      }
-    }
-  }, [user?.id, fetchQuestionSets, socket]);
-  
-  // 在组件挂载时生成或获取设备ID - 用于跨设备同步
-  useEffect(() => {
-    // 设备ID管理
-    let deviceId = localStorage.getItem('deviceId');
-    if (!deviceId) {
-      deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      localStorage.setItem('deviceId', deviceId);
-      console.log('[HomePage] 生成设备ID:', deviceId);
-    }
-    
-    // 存储最后刷新时间，以便其他设备可以知道何时同步
-    localStorage.setItem('lastRefreshTime', Date.now().toString());
-    
-    // 如果用户已登录，发送设备同步请求
-    if (user?.id && socket) {
-      console.log('[HomePage] 组件挂载，发送设备同步请求');
-      socket.emit('user:requestDeviceSync', {
-        userId: user.id,
-        deviceId,
-        deviceInfo: {
-          userAgent: navigator.userAgent,
-          timestamp: Date.now(),
-          page: 'homePage'
-        }
-      });
-    }
-  }, [user?.id, socket]);
-
-  // 监听全局兑换码成功事件
-  useEffect(() => {
-    const handleRedeemSuccess = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      
-      // 优先使用 questionSetId，兼容旧版本的 quizId
-      const questionSetId = customEvent.detail?.questionSetId || customEvent.detail?.quizId;
-      
-      // 从事件中获取剩余天数，如果不存在则使用默认值
-      const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 30;
-      
-      console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
-      
-      if (questionSetId) {
-        setQuestionSets(prevSets => {
-          return prevSets.map(set => {
-            if (set.id === questionSetId) {
-              console.log('[HomePage] 更新题库访问状态:', set.title);
-              
-              // 保存到localStorage缓存，确保用户已登录
-              if (user?.id) {
-                saveAccessToLocalStorage(questionSetId, true, remainingDays);
-              }
-              
-              // Add to recently updated sets for animation
-              setRecentlyUpdatedSets(prev => ({
-                ...prev,
-                [questionSetId]: Date.now() 
-              }));
-              
-              return {
-                ...set,
-                hasAccess: true,
-                remainingDays,
-                accessType: 'redeemed'
-              };
-            }
-            return set;
-          });
-        });
-      }
-    };
-
-    window.addEventListener('redeem:success', handleRedeemSuccess);
-
-    return () => {
-      window.removeEventListener('redeem:success', handleRedeemSuccess);
-    };
-  }, [user?.id, saveAccessToLocalStorage]);
-
-  // 预处理题库数据，添加访问类型
-  const prepareQuestionSets = (sets: BaseQuestionSet[]): PreparedQuestionSet[] => {
-    return sets.map(set => {
-      const { hasAccess, remainingDays } = getQuestionSetAccessStatus(set);
-      
-      let accessType: AccessType = 'trial';
-      
-      if (set.isPaid) {
-        if (hasAccess) {
-          // 检查是否是兑换的题库
-          const isRedeemed = set.paymentMethod === 'redeem';
-          accessType = isRedeemed ? 'redeemed' : 'paid';
-        } else if (remainingDays !== null && remainingDays <= 0) {
-          accessType = 'expired';
-        }
-      }
-      
-      // 从题库数据获取validityPeriod，或使用默认值
-      const validityPeriod = set.validityPeriod || 180; // 从数据中读取或使用默认180天
-      
-      return {
-        ...set,
-        accessType,
-        remainingDays: remainingDays || null,
-        validityPeriod
-      };
-    });
-  };
-
-  // 修改显示进度的部分
-  const renderProgressBar = (set: PreparedQuestionSet) => {
-    if (!set.remainingDays || set.remainingDays <= 0) return null;
-    
-    const percentage = Math.min(100, (set.remainingDays / (set.validityPeriod || 180)) * 100);
-    
-    return (
-      <div className="mt-4 pt-3 border-t border-gray-100">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-xs text-gray-500">有效期</span>
-          <span className="text-xs font-medium text-gray-700">剩余 {set.remainingDays} 天</span>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-          <div 
-            className="bg-gradient-to-r from-green-300 to-green-500 h-2 rounded-full transition-all duration-500" 
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  // 根据主题设置页面背景色
-  const bgClass = homeContent.theme === 'dark' 
-    ? 'min-h-screen bg-gray-800 py-6 flex flex-col justify-center sm:py-12 text-white' 
-    : 'min-h-screen bg-gray-50 py-6 flex flex-col justify-center sm:py-12';
-
-  // Add back the handleStartQuiz function
+  // Start Quiz处理逻辑（保持不变）
   const handleStartQuiz = (questionSet: PreparedQuestionSet) => {
     // 免费题库，直接开始
     if (!questionSet.isPaid) {
@@ -474,12 +1049,10 @@ const HomePage: React.FC = () => {
       return;
     }
     
-    // 未登录用户，显示登录弹窗而非重定向到登录页
+    // 未登录用户，显示登录弹窗
     if (!user) {
-      // 保存当前题库ID，以便登录后返回
       sessionStorage.setItem('redirectQuestionSetId', questionSet.id);
       
-      // 触发登录弹窗
       const loginEvent = new CustomEvent('auth:showLogin', { 
         detail: { 
           redirect: false,
@@ -491,10 +1064,8 @@ const HomePage: React.FC = () => {
       return;
     }
     
-    const { hasAccess } = getQuestionSetAccessStatus(questionSet);
-    
     // 已购买，直接开始
-    if (hasAccess) {
+    if (questionSet.hasAccess) {
       navigate(`/quiz/${questionSet.id}`);
       return;
     }
@@ -510,331 +1081,24 @@ const HomePage: React.FC = () => {
     setShowPaymentModal(true);
   };
 
-  // Add back the getQuestionSetAccessStatus function
-  const getQuestionSetAccessStatus = (questionSet: BaseQuestionSet) => {
-    // 如果是免费题库，直接返回有访问权限
-    if (!questionSet.isPaid) {
-      return { hasAccess: true, remainingDays: null };
-    }
-    
-    // 如果用户未登录，返回无访问权限
-    if (!user) {
-      return { hasAccess: false, remainingDays: null };
-    }
-
-    // 直接使用题库的hasAccess属性(通过API或socket实时更新)
-    if (questionSet.hasAccess !== undefined) {
-      console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 有hasAccess字段:`, questionSet.hasAccess);
-      
-      // 检查是否已过期（remainingDays <= 0）
-      if (questionSet.remainingDays !== undefined && questionSet.remainingDays !== null && questionSet.remainingDays <= 0) {
-        console.log(`[getQuestionSetAccessStatus] 题库 "${questionSet.title}" 已过期:`, questionSet.remainingDays);
-        return { hasAccess: false, remainingDays: 0 };
-      }
-      
-      return { 
-        hasAccess: questionSet.hasAccess, 
-        remainingDays: questionSet.remainingDays || null 
-      };
-    }
-    
-    // 如果仍未设置hasAccess字段，则可能是初始状态，返回无访问权限
-    // 稍后会通过API/Socket更新访问权限
-    return { hasAccess: false, remainingDays: null };
-  };
-
-  // 在现有的useEffect中添加对推荐题库的处理
-  useEffect(() => {
-    if (questionSets.length > 0) {
-      setRecommendedSets(getRecommendedSets());
-    }
-  }, [questionSets, getRecommendedSets]);
-
-  // Add a new function to render the validity period badge
-  const renderValidityBadge = (remainingDays: number | null) => {
-    if (remainingDays === null) return null;
-    
-    const getBadgeColor = (days: number) => {
-      if (days <= 0) return 'bg-red-100 text-red-800';
-      if (days <= 7) return 'bg-orange-100 text-orange-800';
-      return 'bg-green-100 text-green-800';
-    };
-
-    const getBadgeText = (days: number) => {
-      if (days <= 0) return '已过期';
-      if (days <= 7) return `剩余${days}天`;
-      return `剩余${days}天`;
-    };
-
-    return (
-      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getBadgeColor(remainingDays)}`}>
-        {getBadgeText(remainingDays)}
-      </span>
-    );
-  };
-
-  // 基础卡片组件
-  interface BaseCardProps {
-    set: PreparedQuestionSet;
-    onStartQuiz: (set: PreparedQuestionSet) => void;
-  }
-
-  const BaseCard: React.FC<BaseCardProps> = ({ set, onStartQuiz }) => {
-    const stats = progressStats[set.id];
-    const progress = stats ? (stats.completedQuestions / stats.totalQuestions) * 100 : 0;
-    const accuracy = stats ? (stats.correctAnswers / stats.completedQuestions) * 100 : 0;
-    
-    // 检查题库是否是最近更新的（用于添加动画效果）
-    const isRecentlyUpdated = recentlyUpdatedSets[set.id] && 
-      (Date.now() - recentlyUpdatedSets[set.id] < 5000); // 5秒内算最近更新
-    
-    // 检查是否已兑换
-    const isRedeemed = React.useMemo(() => {
-      try {
-        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-        if (!redeemedStr) return false;
-        
-        const redeemedIds = JSON.parse(redeemedStr);
-        if (!Array.isArray(redeemedIds)) return false;
-        
-        return redeemedIds.some(id => 
-          String(id).trim() === String(set.id).trim()
-        );
-      } catch (e) {
-        console.error('检查兑换状态失败:', e);
-        return false;
-      }
-    }, [set.id]);
-    
-    // 根据兑换状态直接修改渲染逻辑，避免类型错误
-    const displayAsRedeemed = isRedeemed && set.isPaid;
-
-    return (
-      <div 
-        className={`bg-white backdrop-blur-sm bg-opacity-80 rounded-xl shadow-lg overflow-hidden 
-        hover:shadow-xl hover:translate-y-[-5px] transition-all duration-300 transform 
-        border border-gray-100 hover:border-blue-200
-        ${isRecentlyUpdated ? 'ring-2 ring-blue-400 scale-[1.02]' : ''}`}
-        style={{
-          animation: isRecentlyUpdated ? 'pulse 2s ease-in-out' : 'none',
-        }}
-      >
-        {/* 闪光效果顶部条 */}
-        <div className="h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500"></div>
-        
-        {isRecentlyUpdated && (
-          <div className="absolute -top-1 -right-1 z-10">
-            <span className="flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-white flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </span>
-            </span>
-          </div>
-        )}
-      
-        <div className="absolute top-3 right-3 flex gap-1 z-10">
-          {set.accessType === 'paid' && (
-            <>
-              <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full shadow-sm backdrop-blur-sm">
-                已购买
-              </span>
-              {renderValidityBadge(set.remainingDays)}
-            </>
-          )}
-          {(set.accessType === 'redeemed' || displayAsRedeemed) && (
-            <>
-              <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
-                已兑换
-              </span>
-              {renderValidityBadge(set.remainingDays)}
-            </>
-          )}
-          {set.accessType === 'expired' && (
-            <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full shadow-sm backdrop-blur-sm">
-              已过期
-            </span>
-          )}
-          {set.accessType === 'trial' && !set.isPaid && (
-            <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
-              免费
-            </span>
-          )}
-          {set.accessType === 'trial' && set.isPaid && !displayAsRedeemed && (
-            <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm backdrop-blur-sm flex items-center">
-              <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {set.price ? `¥${set.price}` : '付费题库'}
-            </span>
-          )}
-        </div>
-
-        <div className="p-6">
-          <div className="mb-4 flex items-center space-x-3">
-            <div className="bg-gradient-to-br from-blue-100 to-indigo-100 p-2 rounded-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-gray-800 flex-1">
-              {set.title}
-            </h3>
-          </div>
-          
-          <p className="text-gray-600 text-sm line-clamp-2 h-10 mb-4">
-            {set.description}
-          </p>
-
-          <div className="flex flex-col space-y-3">
-            <div className="flex items-center justify-between text-sm bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-              <div className="flex items-center">
-                <svg className="h-4 w-4 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-gray-700 font-medium">
-                  题目数量: <b>{calculateQuestionCount(set)}</b>
-                </span>
-              </div>
-              
-              <div className="flex items-center">
-                <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
-                  displayAsRedeemed ? 'bg-blue-500' :
-                  set.accessType === 'paid' ? 'bg-green-500' : 
-                  set.accessType === 'redeemed' ? 'bg-blue-500' : 
-                  'bg-gray-400'
-                }`}></span>
-                <span className="text-gray-600">{set.category}</span>
-              </div>
-            </div>
-
-            {stats && (
-              <div className="mt-2">
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
-                    <span className="text-xs text-gray-500 mb-1">进度</span>
-                    <div className="flex items-center">
-                      <svg className="h-3.5 w-3.5 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                      <span className="text-sm font-bold">{Math.round(progress)}%</span>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
-                    <span className="text-xs text-gray-500 mb-1">正确率</span>
-                    <div className="flex items-center">
-                      <svg className="h-3.5 w-3.5 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-sm font-bold">{Math.round(accuracy)}%</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mt-1">
-                  <div
-                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-1.5 rounded-full transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {renderProgressBar(set)}
-
-            <button
-              onClick={() => {
-                // 如果已经兑换过，就更新set的属性再传给onStartQuiz
-                if (displayAsRedeemed) {
-                  const updatedSet: PreparedQuestionSet = {
-                    ...set,
-                    accessType: 'redeemed',
-                    hasAccess: true
-                  };
-                  onStartQuiz(updatedSet);
-                } else {
-                  onStartQuiz(set);
-                }
-              }}
-              className={`mt-4 w-full py-2.5 px-4 rounded-lg text-white font-medium 
-                flex items-center justify-center transition-all duration-300
-                transform hover:translate-y-[-2px] hover:shadow-md
-                ${
-                  set.accessType === 'expired' && !displayAsRedeemed
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : (set.accessType === 'trial' && set.isPaid && !displayAsRedeemed)
-                    ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
-                    : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
-                }`}
-              disabled={set.accessType === 'expired' && !displayAsRedeemed}
-            >
-              {set.accessType === 'expired' && !displayAsRedeemed ? (
-                '题库已过期'
-              ) : (set.accessType === 'trial' && set.isPaid && !displayAsRedeemed) ? (
-                <>
-                  <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-                  </svg>
-                  免费试用
-                </>
-              ) : (
-                <>
-                  <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {stats ? '继续练习' : '开始练习'}
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // 将题库按类型分组
   const getCategorizedQuestionSets = useCallback(() => {
     const filtered = getFilteredQuestionSets();
     
-    // 检查localStorage中的兑换记录
-    const getRedeemedQuestionSetIds = () => {
-      try {
-        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-        if (redeemedStr) {
-          return JSON.parse(redeemedStr) || [];
-        }
-      } catch (e) {
-        console.error('解析localStorage兑换记录失败', e);
-      }
-      return [];
-    };
-    
-    const redeemedIds = getRedeemedQuestionSetIds();
-    
-    // 按访问类型分组，添加对兑换记录的检查
-    const freeQuestionSets = filtered.filter((set: any) => !set.isPaid);
-    const purchasedQuestionSets = filtered.filter((set: any) => {
-      // 已购买的情况
-      const isPurchasedAndValid = (set.accessType === 'paid' || set.accessType === 'redeemed') && 
-                                  set.remainingDays && set.remainingDays > 0;
-      
-      // 检查是否在兑换记录中
-      const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
-        String(id).trim() === String(set.id).trim()
-      );
-      
-      return isPurchasedAndValid || isRedeemed;
-    });
+    // 按访问类型分组
+    const freeQuestionSets = filtered.filter(set => !set.isPaid);
+    const purchasedQuestionSets = filtered.filter(set => 
+      (set.accessType === 'paid' || set.accessType === 'redeemed') && 
+      set.remainingDays && set.remainingDays > 0
+    );
     
     // 排除已归类为purchased的题库，避免重复显示
-    const purchasedIds = purchasedQuestionSets.map((set: any) => set.id);
-    const paidQuestionSets = filtered.filter((set: any) => 
+    const purchasedIds = purchasedQuestionSets.map(set => set.id);
+    const paidQuestionSets = filtered.filter(set => 
       set.isPaid && set.accessType === 'trial' && !purchasedIds.includes(set.id)
     );
     
-    const expiredQuestionSets = filtered.filter((set: any) => 
+    const expiredQuestionSets = filtered.filter(set => 
       set.accessType === 'expired' || (set.remainingDays !== null && set.remainingDays <= 0)
     );
     
@@ -846,393 +1110,6 @@ const HomePage: React.FC = () => {
     };
   }, [getFilteredQuestionSets]);
 
-  // 在 useEffect 钩子中，添加权限同步代码
-  useEffect(() => {
-    // 确保用户已登录且已加载问题集
-    if (!user?.id || !questionSets || questionSets.length === 0) return;
-    
-    console.log('[HomePage] 用户已登录，开始同步访问权限');
-    
-    // 延迟执行，确保所有组件都已加载
-    const timer = setTimeout(() => {
-      try {
-        // 1. 收集所有需要检查权限的题库ID
-        const questionSetIdsToCheck = new Set<string>();
-        
-        // 从localStorage获取所有可能有权限的题库ID
-        try {
-          // 检查访问权限缓存
-          const accessCacheStr = localStorage.getItem('questionSetAccessCache');
-          if (accessCacheStr) {
-            const accessCache = JSON.parse(accessCacheStr);
-            Object.keys(accessCache).forEach(cacheKey => {
-              if (cacheKey.includes('_')) {
-                const [userId, qsId] = cacheKey.split('_');
-                if (userId === user.id && qsId) {
-                  questionSetIdsToCheck.add(qsId);
-                }
-              }
-            });
-          }
-          
-          // 检查兑换记录
-          const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-          if (redeemedStr) {
-            const redeemedIds = JSON.parse(redeemedStr);
-            if (Array.isArray(redeemedIds)) {
-              redeemedIds.forEach(id => questionSetIdsToCheck.add(String(id).trim()));
-            }
-          }
-          
-          // 检查通用访问权限
-          const accessRightsStr = localStorage.getItem('quizAccessRights');
-          if (accessRightsStr) {
-            const accessRights = JSON.parse(accessRightsStr);
-            Object.keys(accessRights).forEach(qsId => {
-              questionSetIdsToCheck.add(String(qsId).trim());
-            });
-          }
-        } catch (e) {
-          console.error('[HomePage] 解析本地缓存失败', e);
-        }
-        
-        // 将所有可用题库也加入检查列表
-        questionSets.forEach(qs => {
-          questionSetIdsToCheck.add(String(qs.id).trim());
-        });
-        
-        console.log(`[HomePage] 需要检查 ${questionSetIdsToCheck.size} 个题库的权限`);
-        
-        // 2. 向服务器请求检查权限
-        if (socket && questionSetIdsToCheck.size > 0) {
-          // 获取或创建设备ID
-          let deviceId = localStorage.getItem('deviceId');
-          if (!deviceId) {
-            deviceId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            localStorage.setItem('deviceId', deviceId);
-          }
-          
-          // 向服务器请求批量检查权限
-          socket.emit('questionSet:batchCheckAccess', {
-            userId: user.id,
-            questionSetIds: Array.from(questionSetIdsToCheck),
-            deviceId: deviceId,
-            source: 'homepageInit',
-            timestamp: Date.now()
-          });
-          
-          console.log('[HomePage] 已向服务器发送批量权限检查请求');
-          
-          // 3. 发送设备同步请求
-          socket.emit('user:requestDeviceSync', {
-            userId: user.id,
-            deviceId: deviceId,
-            deviceInfo: {
-              userAgent: navigator.userAgent,
-              platform: navigator.platform,
-              language: navigator.language,
-              timestamp: Date.now()
-            }
-          });
-          
-          console.log('[HomePage] 已发送设备同步请求');
-        }
-      } catch (e) {
-        console.error('[HomePage] 同步权限失败', e);
-      }
-    }, 1000); // 给足够时间加载
-    
-    return () => clearTimeout(timer);
-  }, [user?.id, questionSets, socket]);
-
-  // 添加全局事件监听，处理其他页面发来的权限更新
-  useEffect(() => {
-    // 处理全局权限变更事件
-    const handleAccessChanged = (e: Event) => {
-      try {
-        const customEvent = e as CustomEvent;
-        const { questionSetId, hasAccess } = customEvent.detail || {};
-        
-        if (questionSetId && hasAccess) {
-          console.log(`[HomePage] 收到全局权限变更事件: ${questionSetId}, hasAccess=${hasAccess}`);
-          
-          // 更新本地UI状态
-          setQuestionSets(prev => {
-            if (!prev) return prev;
-            return prev.map(qs => {
-              if (String(qs.id).trim() === String(questionSetId).trim()) {
-                return { ...qs, access: hasAccess };
-              }
-              return qs;
-            });
-          });
-        }
-      } catch (e) {
-        console.error('[HomePage] 处理全局权限变更事件失败', e);
-      }
-    };
-    
-    window.addEventListener('questionSet:accessChanged', handleAccessChanged);
-    
-    return () => {
-      window.removeEventListener('questionSet:accessChanged', handleAccessChanged);
-    };
-  }, []);
-
-  // Add this enhanced access checking function after getAccessFromLocalStorage in HomePage.tsx
-  const checkFullAccessFromAllSources = useCallback(async (questionSetId: string) => {
-    if (!questionSetId || !user?.id) return false;
-    
-    try {
-      console.log(`[HomePage] 全面检查题库 ${questionSetId} 的访问权限`);
-      const normalizedId = String(questionSetId).trim();
-      let hasAccess = false;
-      
-      // 1. 首先检查localStorage中的所有可能记录
-      try {
-        // 检查 quizAccessRights
-        const accessRightsStr = localStorage.getItem('quizAccessRights');
-        if (accessRightsStr) {
-          const accessRights = JSON.parse(accessRightsStr);
-          if (accessRights[normalizedId] && accessRights[normalizedId].hasAccess) {
-            console.log(`[HomePage] 在quizAccessRights中找到访问权限`);
-            hasAccess = true;
-          }
-        }
-        
-        // 检查 redeemedQuestionSetIds
-        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-        if (redeemedStr && !hasAccess) {
-          const redeemedIds = JSON.parse(redeemedStr);
-          if (Array.isArray(redeemedIds) && redeemedIds.includes(normalizedId)) {
-            console.log(`[HomePage] 在redeemedQuestionSetIds中找到访问权限`);
-            hasAccess = true;
-          }
-        }
-        
-        // 检查 questionSetAccessCache
-        const accessCacheStr = localStorage.getItem('questionSetAccessCache');
-        if (accessCacheStr && !hasAccess) {
-          const accessCache = JSON.parse(accessCacheStr);
-          // 检查用户特定的缓存
-          if (accessCache[user.id] && 
-              accessCache[user.id][normalizedId] && 
-              accessCache[user.id][normalizedId].hasAccess) {
-            console.log(`[HomePage] 在questionSetAccessCache中找到访问权限`);
-            hasAccess = true;
-          }
-        }
-      } catch (e) {
-        console.error('[HomePage] 检查本地存储访问权限失败', e);
-      }
-      
-      // 2. 如果本地没有找到访问权限，请求服务器检查
-      if (!hasAccess && socket) {
-        console.log(`[HomePage] 本地未找到访问权限，请求服务器检查`);
-        
-        // 获取设备ID用于跨设备同步
-        let deviceId = localStorage.getItem('deviceId');
-        if (!deviceId) {
-          deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-          localStorage.setItem('deviceId', deviceId);
-        }
-        
-        // 发送请求检查访问权限
-        socket.emit('questionSet:checkAccess', {
-          userId: user.id,
-          questionSetId: normalizedId,
-          deviceId,
-          source: 'home_page_full_check',
-          forceCheck: true // 强制服务器查询数据库
-        });
-        
-        // 注意: 这是异步的，结果会通过socket事件返回并更新状态
-        console.log(`[HomePage] 已发送服务器访问权限检查请求`);
-      }
-      
-      return hasAccess;
-    } catch (e) {
-      console.error('[HomePage] 全面检查访问权限失败', e);
-      return false;
-    }
-  }, [user?.id, socket]);
-
-  // 修改现有useEffect来加强登录和页面刷新时的权限检查
-  useEffect(() => {
-    if (user?.id) {
-      console.log('[HomePage] 用户登录状态变化，准备执行全面权限检查');
-      
-      // 延迟执行，确保其他组件已加载完成
-      const timer = setTimeout(async () => {
-        try {
-          // 1. 收集所有可能需要检查的题库ID
-          const questionSetIdsToCheck = new Set<string>();
-          
-          // 从本地存储收集ID
-          try {
-            // 从questionSetAccessCache获取
-            const accessCacheStr = localStorage.getItem('questionSetAccessCache');
-            if (accessCacheStr) {
-              const accessCache = JSON.parse(accessCacheStr);
-              // 收集所有用户的缓存ID
-              Object.keys(accessCache).forEach(userId => {
-                const userCache = accessCache[userId];
-                Object.keys(userCache).forEach(id => {
-                  questionSetIdsToCheck.add(String(id).trim());
-                });
-              });
-            }
-            
-            // 从redeemedQuestionSetIds获取
-            const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-            if (redeemedStr) {
-              const redeemedIds = JSON.parse(redeemedStr);
-              if (Array.isArray(redeemedIds)) {
-                redeemedIds.forEach(id => {
-                  questionSetIdsToCheck.add(String(id).trim());
-                });
-              }
-            }
-            
-            // 从quizAccessRights获取
-            const accessRightsStr = localStorage.getItem('quizAccessRights');
-            if (accessRightsStr) {
-              const accessRights = JSON.parse(accessRightsStr);
-              Object.keys(accessRights).forEach(id => {
-                questionSetIdsToCheck.add(String(id).trim());
-              });
-            }
-            
-            // 添加当前加载的题库ID
-            questionSets.forEach(set => {
-              questionSetIdsToCheck.add(String(set.id).trim());
-            });
-          } catch (e) {
-            console.error('[HomePage] 收集题库ID失败', e);
-          }
-          
-          console.log(`[HomePage] 收集到 ${questionSetIdsToCheck.size} 个题库ID需要检查权限`);
-          
-          // 2. 向服务器发送批量检查请求
-          if (socket && questionSetIdsToCheck.size > 0) {
-            // 获取或创建设备ID
-            let deviceId = localStorage.getItem('deviceId');
-            if (!deviceId) {
-              deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-              localStorage.setItem('deviceId', deviceId);
-            }
-            
-            // 发送批量检查请求
-            socket.emit('questionSet:checkAccessBatch', {
-              userId: user.id,
-              questionSetIds: Array.from(questionSetIdsToCheck),
-              deviceId,
-              source: 'homepage_login_refresh',
-              forceCheck: true  // 强制检查数据库，确保跨设备同步
-            });
-            
-            console.log(`[HomePage] 已发送批量访问权限检查请求`);
-            
-            // 同时发送设备同步请求
-            socket.emit('user:requestDeviceSync', {
-              userId: user.id,
-              deviceId,
-              deviceInfo: {
-                userAgent: navigator.userAgent,
-                timestamp: Date.now(),
-                page: 'HomePage',
-                isRefresh: true
-              }
-            });
-            
-            console.log(`[HomePage] 已发送设备同步请求`);
-          }
-        } catch (e) {
-          console.error('[HomePage] 执行全面权限检查失败', e);
-        }
-      }, 1000); // 延迟1秒执行
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user?.id, questionSets, socket, checkFullAccessFromAllSources]);
-
-  // 添加全局事件监听，处理购买或兑换通知
-  useEffect(() => {
-    // 监听全局访问权限变更事件
-    const handleAccessChanged = (e: Event) => {
-      try {
-        const customEvent = e as CustomEvent;
-        const { questionSetId, hasAccess, source } = customEvent.detail || {};
-        
-        console.log(`[HomePage] 收到全局访问权限变更事件: questionSetId=${questionSetId}, hasAccess=${hasAccess}, source=${source}`);
-        
-        if (questionSetId && hasAccess !== undefined) {
-          // 更新题库列表中的访问状态
-          setQuestionSets(prev => 
-            prev.map(set => 
-              String(set.id).trim() === String(questionSetId).trim() 
-                ? { ...set, hasAccess, accessType: 'paid' } 
-                : set
-            )
-          );
-          
-          // 如果是当前用户，保存到本地存储
-          if (user?.id) {
-            try {
-              // 更新 questionSetAccessCache
-              const accessCacheStr = localStorage.getItem('questionSetAccessCache');
-              let accessCache: {[userId: string]: {[questionSetId: string]: any}} = {};
-              
-              if (accessCacheStr) {
-                accessCache = JSON.parse(accessCacheStr);
-              }
-              
-              if (!accessCache[user.id]) {
-                accessCache[user.id] = {};
-              }
-              
-              accessCache[user.id][questionSetId] = {
-                hasAccess,
-                timestamp: Date.now(),
-                source: source || 'global_event'
-              };
-              
-              localStorage.setItem('questionSetAccessCache', JSON.stringify(accessCache));
-              console.log(`[HomePage] 已将访问权限保存到questionSetAccessCache`);
-              
-              // 更新 quizAccessRights
-              const accessRightsStr = localStorage.getItem('quizAccessRights');
-              let accessRights: {[key: string]: any} = {};
-              
-              if (accessRightsStr) {
-                accessRights = JSON.parse(accessRightsStr);
-              }
-              
-              accessRights[questionSetId] = {
-                hasAccess,
-                timestamp: Date.now(),
-                source: source || 'global_event'
-              };
-              
-              localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
-              console.log(`[HomePage] 已将访问权限保存到quizAccessRights`);
-            } catch (e) {
-              console.error('[HomePage] 保存访问权限到本地存储失败', e);
-            }
-          }
-        }
-      } catch (e) {
-        console.error('[HomePage] 处理全局访问权限变更事件失败', e);
-      }
-    };
-    
-    window.addEventListener('questionSet:accessChanged', handleAccessChanged);
-    
-    return () => {
-      window.removeEventListener('questionSet:accessChanged', handleAccessChanged);
-    };
-  }, [user?.id]);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1242,7 +1119,7 @@ const HomePage: React.FC = () => {
   }
 
   return (
-    <div className={bgClass}>
+    <div className={`${homeContent.theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'} min-h-screen py-6 flex flex-col justify-center sm:py-12`}>
       {/* 错误信息展示 */}
       {errorMessage && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 mx-4 sm:mx-auto sm:max-w-4xl" role="alert">
@@ -1392,13 +1269,18 @@ const HomePage: React.FC = () => {
               <span className={`ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full`}>精选</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recommendedSets.map(set => (
-                <BaseCard 
-                  key={set.id} 
-                  set={{...set, accessType: set.accessType}} 
-                  onStartQuiz={handleStartQuiz} 
-                />
-              ))}
+              {recommendedSets.map(set => {
+                const isSetRecentlyUpdated = !!(recentlyUpdatedSets[set.id] && 
+                  (Date.now() - recentlyUpdatedSets[set.id] < 5000));
+                return (
+                  <BaseCard 
+                    key={set.id} 
+                    set={{...set, accessType: set.accessType}} 
+                    onStartQuiz={handleStartQuiz}
+                    isRecentlyUpdated={isSetRecentlyUpdated}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
@@ -1501,13 +1383,18 @@ const HomePage: React.FC = () => {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.purchased.map(set => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
+                    {categorized.purchased.map(set => {
+                      const isSetRecentlyUpdated = !!(recentlyUpdatedSets[set.id] && 
+                        (Date.now() - recentlyUpdatedSets[set.id] < 5000));
+                      return (
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                          isRecentlyUpdated={isSetRecentlyUpdated}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1526,13 +1413,18 @@ const HomePage: React.FC = () => {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.free.map(set => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
+                    {categorized.free.map(set => {
+                      const isSetRecentlyUpdated = !!(recentlyUpdatedSets[set.id] && 
+                        (Date.now() - recentlyUpdatedSets[set.id] < 5000));
+                      return (
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                          isRecentlyUpdated={isSetRecentlyUpdated}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1551,13 +1443,18 @@ const HomePage: React.FC = () => {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.paid.map(set => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
+                    {categorized.paid.map(set => {
+                      const isSetRecentlyUpdated = !!(recentlyUpdatedSets[set.id] && 
+                        (Date.now() - recentlyUpdatedSets[set.id] < 5000));
+                      return (
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                          isRecentlyUpdated={isSetRecentlyUpdated}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1588,13 +1485,18 @@ const HomePage: React.FC = () => {
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.expired.map(set => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
+                    {categorized.expired.map(set => {
+                      const isSetRecentlyUpdated = !!(recentlyUpdatedSets[set.id] && 
+                        (Date.now() - recentlyUpdatedSets[set.id] < 5000));
+                      return (
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                          isRecentlyUpdated={isSetRecentlyUpdated}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1650,6 +1552,239 @@ const HomePage: React.FC = () => {
           }}
         />
       )}
+    </div>
+  );
+};
+
+// 修改显示进度的部分
+const renderProgressBar = (set: PreparedQuestionSet) => {
+  if (!set.remainingDays || set.remainingDays <= 0) return null;
+  
+  const percentage = Math.min(100, (set.remainingDays / (set.validityPeriod || 180)) * 100);
+  
+  return (
+    <div className="mt-4 pt-3 border-t border-gray-100">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs text-gray-500">有效期</span>
+        <span className="text-xs font-medium text-gray-700">剩余 {set.remainingDays} 天</span>
+      </div>
+      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+        <div 
+          className="bg-gradient-to-r from-green-300 to-green-500 h-2 rounded-full transition-all duration-500" 
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// 渲染有效期徽章的函数
+const renderValidityBadge = (remainingDays: number | null) => {
+  if (remainingDays === null) return null;
+  
+  const getBadgeColor = (days: number) => {
+    if (days <= 0) return 'bg-red-100 text-red-800';
+    if (days <= 7) return 'bg-orange-100 text-orange-800';
+    return 'bg-green-100 text-green-800';
+  };
+
+  const getBadgeText = (days: number) => {
+    if (days <= 0) return '已过期';
+    if (days <= 7) return `剩余${days}天`;
+    return `剩余${days}天`;
+  };
+
+  return (
+    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getBadgeColor(remainingDays)}`}>
+      {getBadgeText(remainingDays)}
+    </span>
+  );
+};
+
+// 基础卡片组件
+interface BaseCardProps {
+  set: PreparedQuestionSet;
+  onStartQuiz: (set: PreparedQuestionSet) => void;
+  isRecentlyUpdated?: boolean; // 新增参数
+}
+
+const BaseCard: React.FC<BaseCardProps> = ({ set, onStartQuiz, isRecentlyUpdated = false }) => {
+  const { progressStats } = useUserProgress();
+  const stats = progressStats[set.id];
+  const progress = stats ? (stats.completedQuestions / stats.totalQuestions) * 100 : 0;
+  const accuracy = stats ? (stats.correctAnswers / stats.completedQuestions) * 100 : 0;
+  
+  // 注意：此处不再从localStorage读取兑换状态，而是完全依赖set.accessType
+  const isRedeemed = set.accessType === 'redeemed';
+
+  return (
+    <div 
+      className={`bg-white backdrop-blur-sm bg-opacity-80 rounded-xl shadow-lg overflow-hidden 
+      hover:shadow-xl hover:translate-y-[-5px] transition-all duration-300 transform 
+      border border-gray-100 hover:border-blue-200
+      ${isRecentlyUpdated ? 'ring-2 ring-blue-400 scale-[1.02]' : ''}`}
+      style={{
+        animation: isRecentlyUpdated ? 'pulse 2s ease-in-out' : 'none',
+      }}
+    >
+      {/* 闪光效果顶部条 */}
+      <div className="h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500"></div>
+      
+      {isRecentlyUpdated && (
+        <div className="absolute -top-1 -right-1 z-10">
+          <span className="flex h-4 w-4">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-white flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+          </span>
+        </div>
+      )}
+    
+      <div className="absolute top-3 right-3 flex gap-1 z-10">
+        {set.accessType === 'paid' && (
+          <>
+            <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full shadow-sm backdrop-blur-sm">
+              已购买
+            </span>
+            {renderValidityBadge(set.remainingDays)}
+          </>
+        )}
+        {set.accessType === 'redeemed' && (
+          <>
+            <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
+              已兑换
+            </span>
+            {renderValidityBadge(set.remainingDays)}
+          </>
+        )}
+        {set.accessType === 'expired' && (
+          <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full shadow-sm backdrop-blur-sm">
+            已过期
+          </span>
+        )}
+        {set.accessType === 'trial' && !set.isPaid && (
+          <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
+            免费
+          </span>
+        )}
+        {set.accessType === 'trial' && set.isPaid && !isRedeemed && (
+          <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm backdrop-blur-sm flex items-center">
+            <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {set.price ? `¥${set.price}` : '付费题库'}
+          </span>
+        )}
+      </div>
+
+      <div className="p-6">
+        <div className="mb-4 flex items-center space-x-3">
+          <div className="bg-gradient-to-br from-blue-100 to-indigo-100 p-2 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-800 flex-1">
+            {set.title}
+          </h3>
+        </div>
+        
+        <p className="text-gray-600 text-sm line-clamp-2 h-10 mb-4">
+          {set.description}
+        </p>
+
+        <div className="flex flex-col space-y-3">
+          <div className="flex items-center justify-between text-sm bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+            <div className="flex items-center">
+              <svg className="h-4 w-4 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-gray-700 font-medium">
+                题目数量: <b>{calculateQuestionCount(set)}</b>
+              </span>
+            </div>
+            
+            <div className="flex items-center">
+              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
+                isRedeemed ? 'bg-blue-500' :
+                set.accessType === 'paid' ? 'bg-green-500' : 
+                'bg-gray-400'
+              }`}></span>
+              <span className="text-gray-600">{set.category}</span>
+            </div>
+          </div>
+
+          {stats && (
+            <div className="mt-2">
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
+                  <span className="text-xs text-gray-500 mb-1">进度</span>
+                  <div className="flex items-center">
+                    <svg className="h-3.5 w-3.5 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <span className="text-sm font-bold">{Math.round(progress)}%</span>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex flex-col items-center">
+                  <span className="text-xs text-gray-500 mb-1">正确率</span>
+                  <div className="flex items-center">
+                    <svg className="h-3.5 w-3.5 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm font-bold">{Math.round(accuracy)}%</span>
+                  </div>
+                </div>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mt-1">
+                <div
+                  className="bg-gradient-to-r from-blue-400 to-blue-600 h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {renderProgressBar(set)}
+
+          <button
+            onClick={() => onStartQuiz(set)}
+            className={`mt-4 w-full py-2.5 px-4 rounded-lg text-white font-medium 
+              flex items-center justify-center transition-all duration-300
+              transform hover:translate-y-[-2px] hover:shadow-md
+              ${
+                set.accessType === 'expired'
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : (set.accessType === 'trial' && set.isPaid && !isRedeemed)
+                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+              }`}
+            disabled={set.accessType === 'expired'}
+          >
+            {set.accessType === 'expired' ? (
+              '题库已过期'
+            ) : (set.accessType === 'trial' && set.isPaid && !isRedeemed) ? (
+              <>
+                <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                </svg>
+                免费试用
+              </>
+            ) : (
+              <>
+                <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {stats ? '继续练习' : '开始练习'}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
