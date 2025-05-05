@@ -359,7 +359,119 @@ const HomePage: React.FC = () => {
     };
   }, [user?.id, saveAccessToLocalStorage]);
 
-  // 预处理题库数据，添加访问类型
+  // 增强监听socket权限更新事件的实现
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    
+    // 监听题库访问权限更新
+    const handleAccessUpdate = (data: any) => {
+      console.log("[HomePage] 收到题库访问权限更新:", data);
+      
+      if (data.userId === user.id && data.questionSetId && data.hasAccess) {
+        // 立即更新对应题库的状态
+        setQuestionSets(prevSets => {
+          return prevSets.map(set => {
+            if (String(set.id).trim() === String(data.questionSetId).trim()) {
+              console.log(`[HomePage] 更新题库 ${set.title} (${set.id}) 的访问权限为 ${data.hasAccess}`);
+              
+              // 计算剩余天数
+              let remainingDays = data.remainingDays || set.remainingDays || null;
+              
+              // 标记为最近更新过的题库（用于视觉反馈）
+              setRecentlyUpdatedSets(prev => ({
+                ...prev,
+                [set.id]: Date.now()
+              }));
+              
+              // 保存到本地存储
+              if (user?.id) {
+                saveAccessToLocalStorage(set.id, true, remainingDays);
+              }
+              
+              // 返回更新后的题库对象
+              return {
+                ...set,
+                hasAccess: true,
+                accessType: data.source === 'redeem' ? 'redeemed' : 'paid',
+                remainingDays
+              };
+            }
+            return set;
+          });
+        });
+      }
+    };
+    
+    // 监听设备同步事件
+    const handleDeviceSync = (data: any) => {
+      console.log("[HomePage] 收到设备同步事件:", data);
+      
+      if (data.userId === user.id) {
+        // 触发全面权限检查和题库列表刷新
+        console.log("[HomePage] 收到其他设备同步事件，刷新题库列表");
+        
+        // 首先同步用户权限
+        syncAccessRights().then(() => {
+          // 然后重新获取题库列表
+          fetchQuestionSets();
+        });
+      }
+    };
+    
+    // 注册Socket事件监听
+    socket.on('questionSet:accessUpdate', handleAccessUpdate);
+    socket.on('user:deviceSync', handleDeviceSync);
+    
+    // 主动请求设备同步
+    socket.emit('user:requestDeviceSync', {
+      userId: user.id,
+      deviceInfo: navigator.userAgent,
+      timestamp: Date.now()
+    });
+    
+    // 主动请求批量检查访问权限
+    setTimeout(() => {
+      const questionSetIds = questionSets
+        .filter(set => set.isPaid)
+        .map(set => set.id);
+      
+      if (questionSetIds.length > 0) {
+        console.log("[HomePage] 登录后主动请求批量检查访问权限:", questionSetIds.length);
+        socket.emit('questionSet:checkAccessBatch', {
+          userId: user.id,
+          questionSetIds
+        });
+      }
+    }, 1000);
+    
+    return () => {
+      socket.off('questionSet:accessUpdate', handleAccessUpdate);
+      socket.off('user:deviceSync', handleDeviceSync);
+    };
+  }, [socket, user?.id, syncAccessRights, fetchQuestionSets]);
+  
+  // 增强登录后的行为
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[HomePage] 用户登录状态变化，立即同步访问权限');
+      
+      // 首先同步访问权限
+      syncAccessRights().then(() => {
+        console.log('[HomePage] 访问权限同步完成，重新获取题库列表');
+        fetchQuestionSets();
+        
+        // 触发全局事件，通知其他组件用户已登录
+        window.dispatchEvent(new CustomEvent('user:loggedIn', {
+          detail: {
+            userId: user.id,
+            timestamp: Date.now()
+          }
+        }));
+      });
+    }
+  }, [user?.id, syncAccessRights, fetchQuestionSets]);
+  
+  // 修改预处理题库数据的函数，增强对已购买状态的识别
   const prepareQuestionSets = (sets: BaseQuestionSet[]): PreparedQuestionSet[] => {
     // 检查localStorage中的兑换记录
     const getRedeemedQuestionSetIds = () => {
@@ -374,19 +486,45 @@ const HomePage: React.FC = () => {
       return [];
     };
     
+    // 获取question access cache
+    const getAccessCache = () => {
+      try {
+        const raw = localStorage.getItem('questionSetAccessCache') || '{}';
+        return JSON.parse(raw);
+      } catch (e) {
+        console.error('[HomePage] Error reading access cache:', e);
+        return {};
+      }
+    };
+    
     const redeemedIds = getRedeemedQuestionSetIds();
+    const accessCache = getAccessCache();
+    const userAccessCache = user?.id ? (accessCache[user.id] || {}) : {};
+    
+    console.log(`[HomePage] 处理 ${sets.length} 个题库, 用户缓存条目: ${Object.keys(userAccessCache).length}`);
     
     return sets.map(set => {
-      const { hasAccess, remainingDays } = getQuestionSetAccessStatus(set);
+      // 1. 首先检查缓存和题库基本信息
+      const { hasAccess: baseHasAccess, remainingDays: baseRemainingDays } = getQuestionSetAccessStatus(set);
       
+      // 2. 检查是否在兑换记录中
+      const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
+        String(id).trim() === String(set.id).trim()
+      );
+      
+      // 3. 检查本地access缓存
+      const cacheEntry = userAccessCache[set.id];
+      const cacheHasAccess = cacheEntry?.hasAccess || false;
+      const cacheRemainingDays = cacheEntry?.remainingDays;
+      
+      // 合并两个来源的访问状态
+      const hasAccess = baseHasAccess || cacheHasAccess || isRedeemed;
+      const remainingDays = cacheRemainingDays || baseRemainingDays;
+      
+      // 确定访问类型
       let accessType: AccessType = 'trial';
       
       if (set.isPaid) {
-        // 首先检查是否是已兑换的题库
-        const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
-          String(id).trim() === String(set.id).trim()
-        );
-        
         if (isRedeemed) {
           // 如果在本地兑换记录中找到，标记为已兑换
           accessType = 'redeemed';
@@ -400,18 +538,18 @@ const HomePage: React.FC = () => {
       }
       
       // 从题库数据获取validityPeriod，或使用默认值
-      const validityPeriod = set.validityPeriod || 180; // 从数据中读取或使用默认180天
+      const validityPeriod = set.validityPeriod || 180;
       
-      // 强制更新hasAccess状态，确保与accessType一致
-      let updatedHasAccess = hasAccess;
-      if (accessType === 'redeemed' || accessType === 'paid') {
-        updatedHasAccess = true;
+      // 如果发现状态变化，更新本地缓存
+      if (hasAccess && user?.id && !set.hasAccess) {
+        console.log(`[HomePage] 题库 ${set.id} 发现本地有权限但题库状态未更新，保存到缓存`);
+        saveAccessToLocalStorage(set.id, true, remainingDays);
       }
       
       return {
         ...set,
         accessType,
-        hasAccess: updatedHasAccess,
+        hasAccess,
         remainingDays: remainingDays || null,
         validityPeriod
       };
