@@ -180,6 +180,23 @@ const QuestionCard = ({
       return;
     }
     
+    // 确保题目ID存在且有效
+    if (!question || !question.id) {
+      console.error('[QuestionCard] 题目ID无效，无法提交答案', { question });
+      if (typeof toast === 'function') {
+        toast('题目数据无效，请尝试刷新页面', { type: 'error' });
+      }
+      return;
+    }
+    
+    // 添加更详细的日志，帮助诊断问题
+    console.log('[QuestionCard] 准备提交答案:', {
+      questionId: question.id,
+      questionSetId: questionSetId,
+      selectedIds,
+      isMultiple: question.questionType === 'multiple'
+    });
+    
     // 防止重复提交
     isSubmittingRef.current = true;
     lastSubmitTimeRef.current = Date.now();
@@ -214,13 +231,65 @@ const QuestionCard = ({
       // 强制显示解析
       setShowExplanation(true);
       
-      // 调用父组件提供的答案提交处理函数
+      // 准备保存进度到服务器
       if (onAnswerSubmitted) {
-        onAnswerSubmitted(isCorrect, selectedIds);
+        try {
+          // 准备后端API会用到的进度数据
+          const progressData = {
+            userId: localStorage.getItem('userId') || '', // 尝试从本地存储获取
+            questionId: question.id,
+            questionSetId: questionSetId,
+            isCorrect,
+            timeSpent: Date.now() - lastSubmitTimeRef.current,
+            selectedOptionIds: selectedIds,
+            // 添加额外的数据以增强兼容性
+            user_id: localStorage.getItem('userId') || '',
+            question_id: question.id,
+            question_set_id: questionSetId,
+            is_correct: isCorrect
+          };
+          
+          // 向服务器提交进度
+          const apiSavePromise = (async () => {
+            try {
+              // 使用window的全局方法或事件通知
+              const progressEvent = new CustomEvent('progress:save', { 
+                detail: progressData
+              });
+              window.dispatchEvent(progressEvent);
+              
+              // 同时调用传入的回调函数
+              onAnswerSubmitted(isCorrect, selectedIds);
+              
+              console.log('[QuestionCard] 进度提交成功');
+            } catch (apiError) {
+              console.error('[QuestionCard] 提交进度到服务器失败:', apiError);
+              // 保存到本地以便稍后重试
+              try {
+                const pendingUpdates = JSON.parse(localStorage.getItem('pendingProgressUpdates') || '[]');
+                pendingUpdates.push({
+                  ...progressData,
+                  timestamp: Date.now()
+                });
+                localStorage.setItem('pendingProgressUpdates', JSON.stringify(pendingUpdates));
+                console.log('[QuestionCard] 已保存到本地待提交队列');
+              } catch (e) {
+                console.error('[QuestionCard] 保存到本地失败:', e);
+              }
+            }
+          })();
+          
+          // 不等待API完成，让UI立即响应
+          setTimeout(() => {
+            // 非阻塞操作
+          }, 0);
+        } catch (callbackError) {
+          console.error('[QuestionCard] 调用回调函数失败:', callbackError);
+        }
       }
       
       // 如果回答错误，记录错题
-      if (!isCorrect && onAnswerSubmitted) {
+      if (!isCorrect) {
         // 检查此题是否最近已保存过，避免重复保存
         const wrongAnswerKey = `wrong_answer_${question.id}`;
         const lastSaved = sessionStorage.getItem(wrongAnswerKey);

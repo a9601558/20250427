@@ -563,11 +563,76 @@ export const userProgressService = {
   // 更新进度
   updateProgress: async (progress: Partial<UserProgress>) => {
     try {
-      const response = await api.post('/user-progress/update', progress);
-      return response.data;
-    } catch (error) {
+      // 添加详细日志记录以便调试
+      console.log(`[API] 准备发送进度更新请求:`, {
+        userId: progress.userId,
+        questionSetId: progress.questionSetId,
+        questionId: progress.questionId,
+        isCorrect: progress.isCorrect,
+        timeSpent: progress.timeSpent,
+        dataLength: JSON.stringify(progress).length
+      });
+      
+      // 确保questionId存在
+      if (!progress.questionId) {
+        console.error('[API] 缺少questionId，进度更新失败');
+        return { 
+          success: false, 
+          message: '必须提供问题ID (questionId)' 
+        };
+      }
+      
+      // 尝试主要端点
+      try {
+        const response = await api.post('/user-progress/update', progress);
+        if (response && response.data && response.data.success) {
+          console.log('[API] 进度更新成功');
+          return response.data;
+        } else {
+          throw new Error((response.data && response.data.message) || '主端点返回失败');
+        }
+      } catch (primaryError: any) {
+        // 如果主端点失败，记录错误并尝试备用端点
+        console.warn('[API] Primary progress update failed, trying backup endpoint', primaryError);
+        
+        // 尝试备用端点
+        try {
+          // 准备适用于备用端点的有效载荷
+          const backupPayload = {
+            ...progress,
+            user_id: progress.userId,
+            question_set_id: progress.questionSetId,
+            question_id: progress.questionId,
+            is_correct: progress.isCorrect,
+            time_spent: progress.timeSpent,
+            // 添加额外可能需要的字段
+            answerDetails: [{
+              questionId: progress.questionId,
+              question_id: progress.questionId,
+              isCorrect: progress.isCorrect,
+              is_correct: progress.isCorrect,
+              timeSpent: progress.timeSpent,
+              time_spent: progress.timeSpent
+            }]
+          };
+          
+          const backupResponse = await api.post('/quiz/submit', backupPayload);
+          console.log('[API] 备用端点返回:', backupResponse);
+          return backupResponse.data;
+        } catch (backupError: any) {
+          console.error('[API] 备用端点也失败:', backupError);
+          // 尝试第三个方案：更友好的错误信息和兜底数据
+          return { 
+            success: false, 
+            message: '进度更新失败，但您的答题记录已本地保存',
+            error: backupError.message || '未知错误',
+            originalError: primaryError.message || '主端点错误'
+          };
+        }
+      }
+    } catch (error: any) {
       console.error('更新进度失败:', error);
-      return { success: false, message: '更新进度失败' };
+      return { success: false, message: '更新进度失败', error: error.message || '未知错误' };
     }
   },
 

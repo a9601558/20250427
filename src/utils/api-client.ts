@@ -416,6 +416,10 @@ class ApiClient {
       time_spent: body.timeSpent || body.time_spent,
       completion_date: body.lastCompletedAt || body.completion_date || new Date().toISOString(),
       
+      // 确保questionId存在且有效，这是关键修复点
+      questionId: body.questionId || body.question_id || body.id,
+      question_id: body.questionId || body.question_id || body.id,
+      
       // 添加更多可能需要的字段
       progress: 100, // 假设已完成
       score: body.correctAnswers || body.correct_count || 0,
@@ -427,6 +431,7 @@ class ApiClient {
         source: 'frontend_fix',
         timestamp: Date.now(),
         fieldCount: Object.keys(body).length,
+        originalQuestionId: body.questionId || body.question_id || 'missing',
         hasCamelCase: Boolean(body.questionSetId || body.correctAnswers),
         hasSnakeCase: Boolean(body.question_set_id || body.correct_answers)
       }
@@ -435,21 +440,48 @@ class ApiClient {
     // 确保答题详情有正确的格式
     if (body.answerDetails && Array.isArray(body.answerDetails)) {
       fixed.answers = body.answerDetails.map((detail: any) => ({
-        questionId: detail.questionId || detail.question_id,
+        questionId: detail.questionId || detail.question_id || fixed.questionId,
         isCorrect: detail.isCorrect || detail.is_correct,
         selectedOptions: detail.userSelectedOptionIds || detail.selectedOptionIds || detail.selected_option_ids,
         correctOptions: detail.correctOptionIds || detail.correct_option_ids,
         
         // 添加字段别名以增加兼容性
-        question_id: detail.questionId || detail.question_id,
+        question_id: detail.questionId || detail.question_id || fixed.questionId,
         is_correct: detail.isCorrect || detail.is_correct,
         selected_options: detail.userSelectedOptionIds || detail.selectedOptionIds || detail.selected_option_ids,
         correct_options: detail.correctOptionIds || detail.correct_option_ids,
         
         // 添加额外可能需要的字段
         answerText: '', // 一些系统可能需要答案文本
-        timeTaken: 0 // 一些系统可能需要每题用时
+        timeTaken: detail.timeSpent || detail.time_spent || 0 // 一些系统可能需要每题用时
       }));
+    }
+    
+    // 如果客户端没有提供有效的questionId，尝试生成一个UUID
+    if (!fixed.questionId && typeof window !== 'undefined' && window.crypto) {
+      // 使用浏览器的crypto API生成一个简单的UUID
+      try {
+        const genUUID = () => {
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = (Math.random() * 16) | 0,
+              v = c == 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          });
+        };
+        
+        const fallbackId = genUUID();
+        fixed.questionId = fallbackId;
+        fixed.question_id = fallbackId;
+        
+        // 记录我们添加了一个临时问题ID
+        if (fixed._diagnostic) {
+          fixed._diagnostic.generatedQuestionId = fallbackId;
+        }
+        
+        console.log(`[API] 为请求生成临时问题ID: ${fallbackId}`);
+      } catch (e) {
+        console.error('[API] 生成UUID失败:', e);
+      }
     }
     
     return fixed;

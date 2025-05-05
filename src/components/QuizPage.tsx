@@ -826,6 +826,96 @@ const QuizPage: React.FC = () => {
     navigate('/');
   };
   
+  // 在QuizPage组件中添加事件监听器
+  useEffect(() => {
+    // 监听进度保存事件
+    const handleProgressSave = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const progressData = customEvent.detail;
+      
+      if (!progressData) {
+        console.error('[QuizPage] 进度保存事件无数据');
+        return;
+      }
+      
+      console.log('[QuizPage] 收到进度保存事件:', progressData);
+      
+      // 确保有用户ID
+      const effectiveUserId = progressData.userId || user?.id || localStorage.getItem('userId');
+      
+      if (!effectiveUserId) {
+        console.error('[QuizPage] 缺少用户ID，无法保存进度');
+        return;
+      }
+      
+      // 确保有问题ID和题库ID
+      if (!progressData.questionId || !progressData.questionSetId) {
+        console.error('[QuizPage] 缺少题目ID或题库ID，无法保存进度');
+        return;
+      }
+      
+      // 准备API需要的数据结构
+      const apiPayload = {
+        userId: effectiveUserId,
+        questionId: progressData.questionId,
+        questionSetId: progressData.questionSetId,
+        isCorrect: progressData.isCorrect,
+        timeSpent: progressData.timeSpent || 0,
+        // 添加兼容性字段
+        user_id: effectiveUserId,
+        question_id: progressData.questionId,
+        question_set_id: progressData.questionSetId,
+        is_correct: progressData.isCorrect
+      };
+      
+      // 使用API服务发送进度更新
+      (async () => {
+        try {
+          // 导入API服务
+          const { userProgressService } = await import('../services/api');
+          const response = await userProgressService.updateProgress(apiPayload);
+          
+          if (response && response.success) {
+            console.log('[QuizPage] 进度保存成功:', response);
+          } else {
+            console.warn('[QuizPage] 进度保存失败:', response);
+            // 保存到本地以便后续恢复
+            try {
+              const pendingUpdates = JSON.parse(localStorage.getItem('pendingProgressUpdates') || '[]');
+              pendingUpdates.push({
+                ...apiPayload,
+                timestamp: Date.now()
+              });
+              localStorage.setItem('pendingProgressUpdates', JSON.stringify(pendingUpdates));
+              console.log('[QuizPage] 已保存到本地待提交队列');
+            } catch (e) {
+              console.error('[QuizPage] 保存到本地失败:', e);
+            }
+          }
+        } catch (error) {
+          console.error('[QuizPage] 保存进度时出错:', error);
+        }
+      })();
+    };
+    
+    // 注册事件监听器
+    window.addEventListener('progress:save', handleProgressSave);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('progress:save', handleProgressSave);
+    };
+  }, [user]);
+
+  // 添加用户ID到本地存储
+  useEffect(() => {
+    // 如果用户已登录，保存用户ID到本地存储
+    if (user && user.id) {
+      localStorage.setItem('userId', user.id);
+      console.log('[QuizPage] 已保存用户ID到本地存储:', user.id);
+    }
+  }, [user]);
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
