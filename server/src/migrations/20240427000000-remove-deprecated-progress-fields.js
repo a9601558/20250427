@@ -1,68 +1,102 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  async up(queryInterface, Sequelize) {
     try {
-      // 检查列是否存在
-      const [columns] = await queryInterface.query(
-        "SHOW COLUMNS FROM user_progress"
-      );
+      console.log('Removing deprecated progress fields...');
       
-      const columnNames = columns.map(col => col.Field);
-      
-      // 只删除存在的列
-      if (columnNames.includes('completedQuestions')) {
-        await queryInterface.query(
-          'ALTER TABLE user_progress DROP COLUMN completedQuestions'
-        );
+      // Check if the table exists
+      const tables = await queryInterface.showAllTables();
+      if (!tables.includes('user_progress')) {
+        console.log('user_progress table does not exist, skipping migration');
+        return;
       }
       
-      if (columnNames.includes('totalQuestions')) {
-        await queryInterface.query(
-          'ALTER TABLE user_progress DROP COLUMN totalQuestions'
-        );
+      // Get the table columns
+      const tableInfo = await queryInterface.describeTable('user_progress');
+      
+      // Remove deprecated fields if they exist
+      const columnsToRemove = [
+        'progress_percent', 
+        'score', 
+        'status',
+        'wrong_answers_count',
+        'skipped_questions_count'
+      ];
+      
+      for (const column of columnsToRemove) {
+        if (tableInfo[column]) {
+          console.log(`Removing column: ${column}`);
+          await queryInterface.removeColumn('user_progress', column);
+        } else {
+          console.log(`Column ${column} does not exist, skipping`);
+        }
       }
       
-      if (columnNames.includes('correctAnswers')) {
-        await queryInterface.query(
-          'ALTER TABLE user_progress DROP COLUMN correctAnswers'
-        );
-      }
+      console.log('Deprecated progress fields removed successfully');
     } catch (error) {
-      console.error('Migration failed:', error);
+      console.error('Error removing deprecated progress fields:', error);
       throw error;
     }
   },
 
-  down: async (queryInterface, Sequelize) => {
+  async down(queryInterface, Sequelize) {
     try {
-      // 检查列是否存在
-      const [columns] = await queryInterface.query(
-        "SHOW COLUMNS FROM user_progress"
-      );
+      console.log('Adding back removed progress fields...');
       
-      const columnNames = columns.map(col => col.Field);
-      
-      // 只添加不存在的列
-      if (!columnNames.includes('completedQuestions')) {
-        await queryInterface.query(
-          'ALTER TABLE user_progress ADD COLUMN completedQuestions INT NULL'
-        );
+      // Check if the table exists
+      const tables = await queryInterface.showAllTables();
+      if (!tables.includes('user_progress')) {
+        console.log('user_progress table does not exist, skipping migration');
+        return;
       }
       
-      if (!columnNames.includes('totalQuestions')) {
-        await queryInterface.query(
-          'ALTER TABLE user_progress ADD COLUMN totalQuestions INT NULL'
-        );
+      // Add back removed columns
+      const columnsToAdd = [
+        {
+          name: 'progress_percent',
+          type: Sequelize.FLOAT,
+          allowNull: true,
+          defaultValue: 0
+        },
+        {
+          name: 'score',
+          type: Sequelize.INTEGER,
+          allowNull: true,
+          defaultValue: 0
+        },
+        {
+          name: 'status',
+          type: Sequelize.STRING(20),
+          allowNull: true,
+          defaultValue: 'in_progress'
+        },
+        {
+          name: 'wrong_answers_count',
+          type: Sequelize.INTEGER,
+          allowNull: true,
+          defaultValue: 0
+        },
+        {
+          name: 'skipped_questions_count',
+          type: Sequelize.INTEGER,
+          allowNull: true,
+          defaultValue: 0
+        }
+      ];
+      
+      for (const column of columnsToAdd) {
+        console.log(`Adding column: ${column.name}`);
+        await queryInterface.addColumn('user_progress', column.name, {
+          type: column.type,
+          allowNull: column.allowNull,
+          defaultValue: column.defaultValue
+        });
       }
       
-      if (!columnNames.includes('correctAnswers')) {
-        await queryInterface.query(
-          'ALTER TABLE user_progress ADD COLUMN correctAnswers INT NULL'
-        );
-      }
+      console.log('Progress fields added back successfully');
     } catch (error) {
-      console.error('Migration rollback failed:', error);
+      console.error('Error adding back progress fields:', error);
       throw error;
     }
   }

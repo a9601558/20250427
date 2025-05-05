@@ -250,7 +250,25 @@ npm run baota-deploy
    node src/scripts/run-migrations.js
    ```
 
-2. **数据库连接错误**
+   如果遇到某个迁移失败，可以使用强制继续的模式执行迁移:
+   ```
+   npm run migrations:continue
+   ```
+
+2. **NPM权限问题**
+
+   如果在宝塔面板上遇到npm权限问题，可以运行我们的权限修复工具:
+   ```
+   node src/scripts/fix-permissions.js
+   ```
+
+   如果权限问题无法自动修复，可以尝试:
+   ```
+   npm cache clean --force
+   npm config set cache ~/.npm-cache
+   ```
+
+3. **数据库连接错误**
 
    检查以下几点:
    - 确认.env文件中的数据库信息正确
@@ -259,7 +277,18 @@ npm run baota-deploy
    - 确认数据库名称存在
    - 检查数据库用户是否有足够权限
 
-3. **Socket.IO 连接问题**
+4. **检查迁移状态**
+
+   要检查哪些迁移已应用、哪些迁移待执行，可以运行:
+   ```
+   node src/scripts/check-migrations.js
+   ```
+   或
+   ```
+   npm run migrations:check
+   ```
+
+5. **Socket.IO 连接问题**
 
    确保反向代理正确配置了Socket.IO路径:
    - 代理 `/socket.io` 路径到后端服务

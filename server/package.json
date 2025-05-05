@@ -10,11 +10,15 @@
     "deploy": "npm run build && npm run start",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrations": "node src/scripts/run-migrations.js",
+    "migrations:continue": "CONTINUE_ON_MIGRATION_ERROR=true node src/scripts/run-migrations.js",
+    "migrations:check": "node src/scripts/check-migrations.js",
     "start:with-migrations": "npm run migrations && npm run start",
     "add:countdown": "node add-countdown-column.js",
     "deploy:full": "npm run migrations && npm run build && npm run start",
+    "fix:permissions": "node src/scripts/fix-permissions.js",
     "db:migrate": "sequelize-cli db:migrate",
-    "db:create": "node src/scripts/setup-database.js"
+    "db:create": "node src/scripts/setup-database.js",
+    "baota:deploy": "npm run fix:permissions && npm run migrations:continue && npm run build && npm run start"
   },
   "keywords": [],
   "author": "",
