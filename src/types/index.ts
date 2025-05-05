@@ -150,4 +150,18 @@ export interface IOption {
   orderIndex: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Purchase {
+  id: string;
+  userId: string;
+  questionSetId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paymentMethod: string;
+  expiryDate: string;
+  createdAt: string;
+  updatedAt: string;
+  remainingDays?: number;
 } 

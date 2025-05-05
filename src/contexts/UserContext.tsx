@@ -5,6 +5,7 @@ import { initializeSocket, authenticateUser } from '../config/socket';
 import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
 import { userProgressService } from '../services/UserProgressService';
+import { toast } from 'react-toastify';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -65,6 +66,7 @@ interface UserContextType {
   deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
   adminRegister: (userData: Partial<User>) => Promise<{ success: boolean; message: string }>;
   updateUserProgress: (progressUpdate: Partial<UserProgress>) => void;
+  syncAccessRights: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -811,6 +813,91 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
+  // Function to synchronize access rights across devices
+  const syncAccessRights = useCallback(async () => {
+    if (!user || !user.id || !socket) return;
+    
+    console.log('[UserContext] Syncing access rights across devices');
+    
+    try {
+      // Emit event to fetch all access rights for this user
+      socket.emit('user:syncAccessRights', {
+        userId: user.id
+      });
+      
+      // Get user's purchases and update localStorage for each
+      if (user.purchases && user.purchases.length > 0) {
+        console.log(`[UserContext] User has ${user.purchases.length} purchases, updating local storage`);
+        
+        // Update localStorage with purchase access rights
+        user.purchases.forEach(purchase => {
+          if (!purchase.questionSetId) return;
+          
+          const now = new Date();
+          const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+          const isExpired = expiryDate && expiryDate <= now;
+          const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
+          
+          if (!isExpired && isActive) {
+            // Calculate remaining days
+            let remainingDays = null;
+            if (expiryDate) {
+              const diffTime = expiryDate.getTime() - now.getTime();
+              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            }
+            
+            console.log(`[UserContext] Storing access right for ${purchase.questionSetId}`);
+            saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
+          }
+        });
+        
+        // Trigger a global event so other components can update their state
+        window.dispatchEvent(new CustomEvent('accessRights:updated', {
+          detail: { userId: user.id, timestamp: Date.now() }
+        }));
+      }
+    } catch (error) {
+      console.error('[UserContext] Error syncing access rights:', error);
+    }
+  }, [user, socket]);
+
+  // Save access rights to localStorage
+  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
+    try {
+      // Skip if no user or questionSetId
+      if (!user?.id || !questionSetId) return;
+      
+      const cache = getLocalAccessCache();
+      
+      // Create user section if it doesn't exist
+      if (!cache[user.id]) cache[user.id] = {};
+      
+      // Store access info with timestamp
+      cache[user.id][questionSetId] = {
+        hasAccess,
+        remainingDays,
+        timestamp: Date.now()
+      };
+      
+      // Save to localStorage
+      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
+      console.log(`[UserContext] Saved access right for ${questionSetId} (User: ${user.id})`);
+    } catch (error) {
+      console.error('[UserContext] Error saving access rights to localStorage:', error);
+    }
+  };
+
+  // Get access cache from localStorage
+  const getLocalAccessCache = () => {
+    try {
+      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('[UserContext] Error reading cache:', e);
+      return {};
+    }
+  };
+
   const contextValue = useMemo(() => ({
     user,
     loading,
@@ -835,7 +922,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     getAllUsers,
     deleteUser,
     adminRegister,
-    updateUserProgress
+    updateUserProgress,
+    syncAccessRights
   }), [user, loading, error, userChangeEvent]);
 
   return (

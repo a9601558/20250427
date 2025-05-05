@@ -99,7 +99,7 @@ interface PurchaseData {
 }
 
 const HomePage: React.FC = () => {
-  const { user, isAdmin } = useUser();
+  const { user, isAdmin, syncAccessRights } = useUser();
   const { socket } = useSocket();
   const { progressStats, fetchUserProgress } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
@@ -794,6 +794,65 @@ const HomePage: React.FC = () => {
       expired: expiredQuestionSets
     };
   }, [getFilteredQuestionSets]);
+
+  // Add event listener for access rights updates
+  useEffect(() => {
+    const handleAccessRightsUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('[HomePage] Received access rights update event:', customEvent.detail);
+      
+      // Only process if it's for the current user
+      if (user?.id && customEvent.detail?.userId === user.id) {
+        console.log('[HomePage] Refreshing question sets after access rights update');
+        // Refresh question sets to reflect updated access rights
+        fetchQuestionSets();
+      }
+    };
+    
+    window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
+    
+    return () => {
+      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
+    };
+  }, [user?.id, fetchQuestionSets]);
+
+  // Sync access rights when user logs in
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[HomePage] User logged in, syncing access rights');
+      syncAccessRights().then(() => {
+        console.log('[HomePage] Access rights synced, refreshing question sets');
+        fetchQuestionSets();
+      });
+    }
+  }, [user?.id, syncAccessRights, fetchQuestionSets]);
+
+  // Listen for device sync events
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    
+    const handleDeviceSync = (data: any) => {
+      if (data.userId === user.id) {
+        console.log('[HomePage] Received device sync event, refreshing question sets');
+        syncAccessRights().then(() => {
+          fetchQuestionSets();
+        });
+      }
+    };
+    
+    socket.on('user:deviceSync', handleDeviceSync);
+    
+    // On component mount, request device sync
+    socket.emit('user:requestDeviceSync', {
+      userId: user.id,
+      deviceInfo: navigator.userAgent,
+      timestamp: Date.now()
+    });
+    
+    return () => {
+      socket.off('user:deviceSync', handleDeviceSync);
+    };
+  }, [socket, user?.id, syncAccessRights, fetchQuestionSets]);
 
   if (loading) {
     return (

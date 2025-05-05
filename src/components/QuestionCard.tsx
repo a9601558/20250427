@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, KeyboardEvent, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
 import RedeemCodeForm from './RedeemCodeForm';
 import { toast } from 'react-toastify';
+import { useUser } from '../contexts/UserContext';
 
 interface QuestionCardProps {
   question: Question;
@@ -73,6 +74,8 @@ const QuestionCard = ({
   
   // 为键盘导航跟踪当前选项
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
+  
+  const { user, syncAccessRights } = useUser();
   
   // 当userAnsweredQuestion存在时预填选项
   useEffect(() => {
@@ -412,20 +415,54 @@ const QuestionCard = ({
     onNext();
   };
   
-  // 判断题号是否可点击
-  const isQuestionAccessible = (index: number) => {
-    // 使用hasCompleteAccess变量来判断是否有权限
-    if (hasCompleteAccess) return true;
-    // 否则检查是否在试用题目数量范围内
-    return index < trialQuestions;
-  };
-  
+  // Add a useEffect to handle cross-device access synchronization
+  useEffect(() => {
+    if (!user?.id || !questionSetId) return;
+    
+    const handleAccessRightsUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      
+      // If the event is for the current user, recheck local access status
+      if (customEvent.detail?.userId === user.id) {
+        // Refresh local access status
+        const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
+                              checkLocalAccessRights(questionSetId);
+                              
+        console.log(`[QuestionCard] Access rights updated for ${questionSetId}, local access: ${hasLocalAccess}`);
+      }
+    };
+    
+    window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
+    
+    return () => {
+      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
+    };
+  }, [user?.id, questionSetId]);
+
+  // Enhanced local access check function
+  const isQuestionAccessible = useCallback((questionIndex: number) => {
+    // If question set is free, all questions are accessible
+    if (!isPaid) return true;
+    
+    // First check if user has full access
+    if (hasFullAccess) return true;
+    
+    // Check local storage for redeemed status and access rights
+    const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
+                          checkLocalAccessRights(questionSetId);
+    
+    if (hasLocalAccess) return true;
+    
+    // If no access, check if within trial questions
+    return questionIndex < (trialQuestions || 0);
+  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
+
   // 处理题号跳转
   const handleJumpToQuestion = (index: number) => {
     if (!isQuestionAccessible(index)) {
       // 如果是付费题目且未购买，显示提示
       // 检查是否需要购买或兑换
-      if (isPaid && !hasCompleteAccess) {
+      if (isPaid && !hasFullAccess) {
         toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
       }
       return;

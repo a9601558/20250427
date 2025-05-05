@@ -101,7 +101,7 @@ function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, hasAccessToQuestionSet } = useUser();
+  const { user, hasAccessToQuestionSet, syncAccessRights } = useUser();
   const { socket } = useSocket();
   const { fetchUserProgress } = useUserProgress();
   
@@ -2039,6 +2039,37 @@ function QuizPage(): JSX.Element {
       socket.off('user:deviceSync', handleDeviceSync);
     };
   }, [socket, user?.id, questionSet]);
+  
+  // 添加处理跨设备访问权限同步的效果
+  useEffect(() => {
+    if (!user?.id || !questionSet) return;
+    
+    console.log('[QuizPage] 设置跨设备访问权限同步');
+    
+    const handleAccessRightsUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('[QuizPage] 收到访问权限更新事件:', customEvent.detail);
+      
+      // 如果事件是针对当前用户，重新检查访问权限
+      if (customEvent.detail?.userId === user.id) {
+        console.log('[QuizPage] 更新后重新检查访问权限');
+        checkAccess();
+      }
+    };
+    
+    // 监听访问权限更新
+    window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
+    
+    // 同步访问权限
+    syncAccessRights().then(() => {
+      console.log('[QuizPage] 访问权限已同步，检查访问权限');
+      checkAccess();
+    });
+    
+    return () => {
+      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
+    };
+  }, [user?.id, questionSet?.id, syncAccessRights, checkAccess]);
   
   // 在useEffect中初始化计时器
   useEffect(() => {
