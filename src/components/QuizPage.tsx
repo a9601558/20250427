@@ -530,9 +530,11 @@ const QuizPage: React.FC = () => {
   const fetchProgressSafely = useCallback(async () => {
     try {
       if (fetchUserProgress) {
+        // 标记尝试获取进度以防止无限循环
+        setProgressAttempted(true);
+        // 等待结果
         await fetchUserProgress();
       }
-      setProgressAttempted(true);
     } catch (err) {
       console.warn('获取用户进度失败，但不会阻止答题功能:', err);
       setProgressAttempted(true);
@@ -542,8 +544,15 @@ const QuizPage: React.FC = () => {
   // 修改用户进度相关的useEffect
   useEffect(() => {
     // 只有在用户已登录且有问题集ID时尝试获取进度
+    // 并且最多只尝试一次以防止无限循环
     if (user && questionSetId && !progressAttempted) {
-      fetchProgressSafely();
+      // 使用setTimeout避免在组件渲染期间立即触发
+      const timer = setTimeout(() => {
+        console.log('安全获取用户进度');
+        fetchProgressSafely();
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
   }, [user, questionSetId, progressAttempted, fetchProgressSafely]);
   
@@ -558,92 +567,129 @@ const QuizPage: React.FC = () => {
     // 计算正确率
     const results = calculateResults();
     
-    // 创建提交数据
+    // 先完成前端UI状态更新，防止API错误影响用户体验
+    setQuizCompleted(true);
+    
+    // 清除本地存储的进度
+    localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+    
+    // 创建提交数据 - 确保同时支持驼峰式和下划线式的命名，增强后端兼容性
     const payload = {
+      // 核心字段（驼峰命名）
       userId: user.id,
       questionSetId,
       completedQuestions: questionSet.questions.length,
       correctAnswers: results.totalCorrect,
       timeSpent: totalTime,
       lastCompletedAt: new Date().toISOString(),
-      // 添加兼容性字段
+      
+      // 备用字段（下划线命名）- 兼容不同的后端API版本
       question_set_id: questionSetId, 
       user_id: user.id,
       total_questions: questionSet.questions.length,
       correct_count: results.totalCorrect,
       time_spent: totalTime,
       completion_date: new Date().toISOString(),
-      // 添加详细答题记录
+      
+      // 详细答题记录 - 提供两种格式的字段名称
       answerDetails: results.questionResults.map(result => ({
         questionId: result.questionId,
+        question_id: result.questionId, // 下划线格式的备用字段
         isCorrect: result.isCorrect,
+        is_correct: result.isCorrect, // 下划线格式的备用字段
         selectedOptionIds: result.userSelectedOptionIds,
-        correctOptionIds: result.correctOptionIds
+        selected_option_ids: result.userSelectedOptionIds, // 下划线格式的备用字段
+        correctOptionIds: result.correctOptionIds,
+        correct_option_ids: result.correctOptionIds // 下划线格式的备用字段
       }))
     };
     
     console.log('提交测验结果数据:', payload);
     
-    // 提交进度数据
-    try {
-      const signal = createAbortController();
-      
-      try {
-        const response = await apiClient.post(
-          '/api/user-progress/update',
-          payload,
-          { signal }
-        );
-        
-        if (isMounted.current) {
-          if (response && response.success) {
-            console.log('测验结果已保存');
-            // 安全获取用户进度
-            fetchProgressSafely();
-            
-            // 清除本地存储的进度
-            localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
-          } else {
-            console.error('保存测验结果失败:', response?.message);
-            // 失败时尝试备用端点
-            throw new Error(response?.message || '保存失败');
-          }
-          
-          setQuizCompleted(true);
-        }
-      } catch (err) {
-        // 尝试使用备用端点
+    // 提交进度数据 - 在后台进行，不等待结果
+    // 这样即使API失败，用户体验也不会受影响
+    if (isMounted.current) {
+      setTimeout(async () => {
         try {
-          console.log('尝试备用进度更新端点...');
-          const backupResponse = await apiClient.post(
-            '/api/quiz/submit',
-            payload,
-            { signal }
-          );
+          const signal = createAbortController();
           
-          if (isMounted.current) {
-            if (backupResponse && backupResponse.success) {
-              console.log('测验结果已通过备用端点保存');
-              // 清除本地存储的进度
-              localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
-            } else {
-              console.warn('备用提交也失败:', backupResponse?.message);
+          try {
+            const response = await apiClient.post(
+              '/api/user-progress/update',
+              payload,
+              { signal }
+            );
+            
+            if (isMounted.current) {
+              if (response && response.success) {
+                console.log('测验结果已保存');
+                // 安全获取用户进度
+                try {
+                  await fetchProgressSafely();
+                } catch (progressErr) {
+                  console.warn('刷新进度失败，但不影响结果展示', progressErr);
+                }
+              } else {
+                console.error('保存测验结果失败:', response?.message);
+                // 失败时尝试备用端点
+                throw new Error(response?.message || '保存失败');
+              }
             }
-            setQuizCompleted(true);
+          } catch (err) {
+            // 尝试使用备用端点
+            if (!isMounted.current) return;
+            
+            try {
+              console.log('尝试备用进度更新端点...');
+              const backupResponse = await apiClient.post(
+                '/api/quiz/submit',
+                payload,
+                { signal }
+              );
+              
+              if (isMounted.current && backupResponse && backupResponse.success) {
+                console.log('测验结果已通过备用端点保存');
+              } else if (isMounted.current) {
+                console.warn('备用提交也失败:', backupResponse?.message);
+                // 即使失败也存储到本地以备后续恢复
+                try {
+                  const localResults = localStorage.getItem('pendingQuizResults') || '[]';
+                  const pendingResults = JSON.parse(localResults);
+                  pendingResults.push({
+                    ...payload,
+                    timestamp: Date.now()
+                  });
+                  localStorage.setItem('pendingQuizResults', JSON.stringify(pendingResults));
+                  console.log('测验结果已保存到本地，等待后续恢复');
+                } catch (localErr) {
+                  console.error('本地存储测验结果失败:', localErr);
+                }
+              }
+            } catch (backupErr) {
+              if (!isMounted.current) return;
+              console.error('备用端点也失败:', backupErr);
+              
+              // 保存到本地存储以便后续恢复
+              try {
+                const localResults = localStorage.getItem('pendingQuizResults') || '[]';
+                const pendingResults = JSON.parse(localResults);
+                pendingResults.push({
+                  ...payload,
+                  timestamp: Date.now()
+                });
+                localStorage.setItem('pendingQuizResults', JSON.stringify(pendingResults));
+                console.log('测验结果已保存到本地，等待后续恢复');
+              } catch (localErr) {
+                console.error('本地存储测验结果失败:', localErr);
+              }
+            }
           }
-        } catch (backupErr) {
-          console.error('备用端点也失败:', backupErr);
-          // 即使所有保存尝试失败，也完成测验
-          if (isMounted.current) {
-            setQuizCompleted(true);
+        } catch (err) {
+          if (err instanceof Error && err.name !== 'AbortError' && isMounted.current) {
+            console.error('保存测验结果时出错:', err);
           }
         }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError' && isMounted.current) {
-        console.error('保存测验结果时出错:', err);
-        setQuizCompleted(true); // 即使保存失败也完成测验
-      }
+      }, 0);
     }
   };
   

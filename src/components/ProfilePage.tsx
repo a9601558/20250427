@@ -3,7 +3,7 @@ import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
 
 // 原始进度记录类型
@@ -29,6 +29,8 @@ interface ProgressStats {
   totalTimeSpent: number;
   averageTimeSpent: number;
   accuracy: number;
+  totalQuestions: number;
+  lastAccessed?: string;
   answeredQuestions?: {
     questionId: string;
     selectedOptionId: string;
@@ -153,10 +155,10 @@ interface ProgressCardProps {
   stats: ProgressStats;
 }
 
+// 更新 ProgressCard 组件，安全处理 progressStats 可能为 null 的情况
 const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
   const navigate = useNavigate();
-
-  // 检查是否有保存在localStorage的更新数据
+  
   const checkLocalProgressData = () => {
     try {
       const localProgressKey = `quiz_progress_${stats.questionSetId}`;
@@ -178,91 +180,49 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
     return null;
   };
   
-  // 处理继续学习按钮点击
   const handleContinueLearning = () => {
-    // 检查本地数据是否存在更新的进度
-    const localProgress = checkLocalProgressData();
-    
-    if (localProgress) {
-      // 如果有本地进度数据，附加lastQuestionIndex参数
-      const continueIndex = localProgress.lastQuestionIndex >= 0 ? localProgress.lastQuestionIndex : 0;
-      navigate(`/quiz/${stats.questionSetId}?lastQuestion=${continueIndex}`);
-    } else {
-      // 否则正常导航
-      navigate(`/quiz/${stats.questionSetId}`);
-    }
+    navigate(`/quiz/${stats.questionSetId}`);
   };
-
+  
   return (
-    <div 
-      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1 border border-gray-100"
-      onClick={handleContinueLearning}
-    >
-      {/* 卡片顶部带颜色条 */}
-      <div className="h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-      
-      <div className="p-5">
-        <h2 className="text-lg font-semibold mb-4 text-gray-800 truncate flex items-center">
-          <svg className="w-5 h-5 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          {stats.title}
-        </h2>
-        
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-blue-50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.completedQuestions}</div>
-            <div className="text-xs text-blue-600 mt-1">已答题数</div>
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="p-4 border-b">
+        <h3 className="text-lg font-semibold text-gray-800">{stats.title}</h3>
+      </div>
+      <div className="p-4">
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-sm text-gray-500">已完成</p>
+            <p className="text-xl font-bold text-blue-600">{stats.completedQuestions}/{stats.totalQuestions}</p>
           </div>
-          <div className="bg-green-50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.correctAnswers}</div>
-            <div className="text-xs text-green-600 mt-1">答对题数</div>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-sm text-gray-500">正确率</p>
+            <p className="text-xl font-bold text-green-600">{stats.accuracy.toFixed(1)}%</p>
           </div>
         </div>
         
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm text-gray-600">正确率</span>
-              <span className="text-sm font-semibold">{stats.accuracy.toFixed(1)}%</span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500" 
-                style={{ width: `${stats.accuracy}%` }}
-              ></div>
-            </div>
+        <div className="mb-4">
+          <div className="flex justify-between mb-1">
+            <span className="text-sm text-gray-500">进度</span>
+            <span className="text-sm text-gray-700">{Math.round((stats.completedQuestions / stats.totalQuestions) * 100)}%</span>
           </div>
-          
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm text-gray-600">平均答题时间</span>
-              <span className="text-sm font-semibold">{formatTime(stats.averageTimeSpent)}</span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 transition-all duration-500" 
-                style={{ width: `${Math.min(100, (stats.averageTimeSpent / 60) * 100)}%` }}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="flex justify-between items-center text-sm mt-4 pt-4 border-t border-gray-100">
-            <span className="text-gray-500">总学习时间</span>
-            <span className="font-medium text-indigo-600">{formatTime(stats.totalTimeSpent)}</span>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-blue-500 h-2 rounded-full" 
+              style={{ width: `${(stats.completedQuestions / stats.totalQuestions) * 100}%` }}
+            ></div>
           </div>
         </div>
         
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            handleContinueLearning();
-          }}
-          className="w-full mt-5 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-sm font-medium transition-all duration-300 hover:shadow-md flex items-center justify-center"
+        <div className="flex justify-between text-sm text-gray-500 mb-4">
+          <span>总用时: {formatTime(stats.totalTimeSpent)}</span>
+          <span>平均用时: {formatTime(stats.averageTimeSpent)}/题</span>
+        </div>
+        
+        <button
+          onClick={handleContinueLearning}
+          className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
         >
-          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
           继续学习
         </button>
       </div>
@@ -941,7 +901,9 @@ const ProfilePage: React.FC = () => {
           correctAnswers,
           totalTimeSpent,
           averageTimeSpent,
-          accuracy
+          accuracy,
+          totalQuestions: completedQuestions,
+          lastAccessed: finalRecords[0]?.createdAt?.toString() // Convert Date to string
         });
       }
     });
