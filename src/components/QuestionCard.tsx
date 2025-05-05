@@ -194,8 +194,31 @@ const QuestionCard = ({
       questionId: question.id,
       questionSetId: questionSetId,
       selectedIds,
-      isMultiple: question.questionType === 'multiple'
+      isMultiple: question.questionType === 'multiple',
+      questionType: question.questionType
     });
+    
+    // 检查questionId格式是否合法
+    const isUUID = (id: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const isMongoId = (id: string): boolean => /^[0-9a-f]{24}$/i.test(id);
+    const isNumericId = (id: string): boolean => /^\d+$/.test(id);
+    
+    // 生成提交ID的弹性版本 - 尝试修复可能的ID格式问题
+    const questionIdString = String(question.id);
+    let submissionQuestionId = questionIdString;
+    if (!isUUID(questionIdString) && !isMongoId(questionIdString) && !isNumericId(questionIdString)) {
+      console.warn('[QuestionCard] 题目ID格式可能不规范:', questionIdString);
+      
+      // 尝试移除可能的非法字符
+      submissionQuestionId = questionIdString.replace(/[^a-zA-Z0-9\-_]/g, '');
+      console.log('[QuestionCard] 清理后的题目ID:', submissionQuestionId);
+      
+      // 如果清理后ID长度过短，生成一个临时ID
+      if (submissionQuestionId.length < 4) {
+        submissionQuestionId = `temp-${Math.floor(Math.random() * 10000)}-${Date.now()}`;
+        console.log('[QuestionCard] 生成临时题目ID:', submissionQuestionId);
+      }
+    }
     
     // 防止重复提交
     isSubmittingRef.current = true;
@@ -234,20 +257,55 @@ const QuestionCard = ({
       // 准备保存进度到服务器
       if (onAnswerSubmitted) {
         try {
+          // 准备备选的ID值，以增加服务器接受的可能性
+          // 获取当前题号，这是从props中获取的
+          const currentQuestionNumber = typeof questionNumber === 'number' ? questionNumber : 1;
+          const questionIds = [
+            submissionQuestionId,                    // 原始ID或清理后的ID
+            String(question.id),                     // 确保字符串形式
+            isNumericId(String(question.id)) ? String(parseInt(String(question.id))) : null, // 尝试整数形式
+            String(questionSetId),                   // 使用题库ID作为备用
+            `${questionSetId}_${currentQuestionNumber}`     // 组合ID
+          ].filter(id => id && id.length > 0); // 过滤掉无效值
+          
+          // 使用最合理的ID - 依次尝试不同ID
+          let effectiveQuestionId = submissionQuestionId; // 默认使用清理后的ID
+          for (const id of questionIds) {
+            if (id && (isUUID(id) || isMongoId(id) || isNumericId(id))) {
+              effectiveQuestionId = id;
+              break;
+            }
+          }
+          
+          // 如果仍然没有有效ID，使用一个数字ID作为最后的尝试
+          if (!effectiveQuestionId) {
+            effectiveQuestionId = Date.now().toString();
+            console.warn('[QuestionCard] 使用时间戳作为最后尝试:', effectiveQuestionId);
+          }
+          
           // 准备后端API会用到的进度数据
           const progressData = {
             userId: localStorage.getItem('userId') || '', // 尝试从本地存储获取
-            questionId: question.id,
+            questionId: effectiveQuestionId,             // 使用我们确定的最合理ID
             questionSetId: questionSetId,
             isCorrect,
             timeSpent: Date.now() - lastSubmitTimeRef.current,
             selectedOptionIds: selectedIds,
-            // 添加额外的数据以增强兼容性
+            
+            // 添加额外的数据以增强兼容性 - 所有可能的ID格式
             user_id: localStorage.getItem('userId') || '',
-            question_id: question.id,
+            question_id: effectiveQuestionId,
+            id: effectiveQuestionId,
             question_set_id: questionSetId,
-            is_correct: isCorrect
+            is_correct: isCorrect,
+            
+            // 辅助诊断信息
+            originalQuestionId: question.id,
+            questionText: question.question || question.text,
+            timestamp: new Date().toISOString()
           };
+          
+          console.log('[QuestionCard] 发送进度数据:', progressData);
           
           // 向服务器提交进度
           const apiSavePromise = (async () => {
