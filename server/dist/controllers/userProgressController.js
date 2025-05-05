@@ -13,6 +13,7 @@ const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const socket_1 = require("../socket");
 const uuid_1 = require("uuid");
+const Option_1 = __importDefault(require("../models/Option"));
 /**
  * Progress record types - helps distinguish between different recording strategies
  */
@@ -29,16 +30,15 @@ const PROGRESS_RECORD_TYPES = {
  * @returns Boolean indicating if access is permitted
  */
 const checkPermission = (req, targetUserId) => {
-    // Ensure user is logged in
-    if (!req.user || !req.user.id) {
-        return false;
-    }
-    // Admin can access all user data
-    if (req.user.isAdmin || req.user.role === 'admin') {
+    // Allow access if user is requesting their own data
+    if (req.user && req.user.id === targetUserId) {
         return true;
     }
-    // Regular user can only access their own data
-    return req.user.id === targetUserId;
+    // Allow access if user has admin role
+    if (req.user && req.user.role === 'admin') {
+        return true;
+    }
+    return false;
 };
 /**
  * @desc    获取用户进度
@@ -174,176 +174,87 @@ exports.getProgressByQuestionSetId = getProgressByQuestionSetId;
  * @access  Private
  */
 const updateProgress = async (req, res) => {
-    // Start transaction for atomic operations
-    const transaction = await database_1.default.transaction();
+    let transaction;
     try {
-        // 修复认证问题：允许提供userId作为请求参数，如果没有认证(401情况)
-        const userId = req.user?.id || req.body.userId;
-        // 检查是否有userId
+        // Enable accepting userId from the request body when not authenticated - more flexible API
+        // This fixes the 401 issue by allowing progress updates without requiring auth
+        let userId = req.user?.id;
+        // If user is not authenticated but userId is provided in the body, use that
+        if (!userId && req.body.userId) {
+            userId = req.body.userId;
+            console.log(`非认证更新: 使用请求体提供的用户ID: ${userId}`);
+        }
         if (!userId) {
-            await transaction.rollback();
-            return (0, responseUtils_1.sendError)(res, 400, '未提供用户ID，请确保已登录或在请求中提供userId');
+            return (0, responseUtils_1.sendError)(res, 400, '无法识别用户，请提供userId或进行身份验证');
         }
-        const { questionSetId, questionId, isCorrect, timeSpent, answerDetails, completedQuestions, correctAnswers } = req.body;
-        // 支持多种数据格式，增强兼容性
-        let effectiveQuestionSetId = questionSetId || req.body.question_set_id;
-        let effectiveIsCorrect = isCorrect;
-        let effectiveTimeSpent = timeSpent || req.body.time_spent || 0;
-        // 从不同格式的字段中提取数据
-        if (req.body.answers && Array.isArray(req.body.answers)) {
-            // 处理批量提交的答案
-            // 创建或更新每个答案的进度记录
-            for (const answer of req.body.answers) {
-                const answerId = answer.questionId || answer.question_id;
-                const answerIsCorrect = answer.isCorrect || answer.is_correct;
-                const answerTimeSpent = answer.timeSpent || answer.time_spent || 0;
-                if (answerId && typeof answerIsCorrect === 'boolean') {
-                    await createOrUpdateProgressRecord(userId, effectiveQuestionSetId, answerId, answerIsCorrect, answerTimeSpent, answer, transaction);
-                }
-            }
+        const { questionSetId, questionId, isCorrect, timeSpent, selectedOptions, correctOptions, recordType = PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER, metadata = {} } = req.body;
+        // Validate required fields
+        if (!questionSetId) {
+            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空');
         }
-        else if (questionId || req.body.question_id) {
-            // 处理单个答案
-            const effectiveQuestionId = questionId || req.body.question_id;
-            if (!effectiveQuestionSetId || !effectiveQuestionId) {
-                await transaction.rollback();
-                return (0, responseUtils_1.sendError)(res, 400, '缺少必要参数: questionSetId和questionId');
-            }
-            if (typeof effectiveIsCorrect !== 'boolean' && req.body.result !== undefined) {
-                effectiveIsCorrect = !!req.body.result;
-            }
-            if (typeof effectiveIsCorrect !== 'boolean') {
-                // 如果仍然没有isCorrect值，尝试从其他可能的字段获取
-                if (req.body.is_correct !== undefined) {
-                    effectiveIsCorrect = !!req.body.is_correct;
-                }
-                else {
-                    await transaction.rollback();
-                    return (0, responseUtils_1.sendError)(res, 400, '缺少必要参数: isCorrect');
-                }
-            }
-            await createOrUpdateProgressRecord(userId, effectiveQuestionSetId, effectiveQuestionId, effectiveIsCorrect, effectiveTimeSpent, answerDetails, transaction);
-        }
-        else if (effectiveQuestionSetId && (completedQuestions !== undefined || correctAnswers !== undefined)) {
-            // 处理测验完成摘要，不记录具体题目
-            const summary = {
-                completedQuestions: completedQuestions || req.body.completed_questions || 0,
-                correctAnswers: correctAnswers || req.body.correct_answers || req.body.correct_count || 0,
-                timeSpent: effectiveTimeSpent,
-                metadata: {
-                    source: 'quiz_completion',
-                    timestamp: new Date().toISOString(),
-                    totalQuestions: req.body.totalQuestions || req.body.total_questions || completedQuestions || 0
-                }
-            };
-            // 创建整体测验摘要记录
-            await createQuizSummaryRecord(userId, effectiveQuestionSetId, summary, transaction);
-        }
-        else {
-            await transaction.rollback();
-            return (0, responseUtils_1.sendError)(res, 400, '请求格式无效，缺少必要参数');
-        }
-        // 计算更新后的统计数据
-        const stats = await calculateProgressStats(userId, effectiveQuestionSetId, transaction);
-        // 提交事务
-        await transaction.commit();
-        // 发送实时更新通过Socket.IO
-        try {
-            const socketIo = (0, socket_1.getSocketIO)();
-            if (socketIo) {
-                const updateEvent = {
-                    type: 'progressUpdate',
+        // Start transaction
+        transaction = await database_1.default.transaction();
+        // Support multiple data formats for maximum compatibility
+        // This handles both camelCase and snake_case field names
+        const questionIdToUse = questionId || req.body.question_id;
+        const timeSpentToUse = timeSpent || req.body.time_spent || 0;
+        // Create metadata object with all possible data formats
+        const metadataObject = {
+            ...metadata,
+            selectedOptions: selectedOptions || req.body.selected_options || [],
+            correctOptions: correctOptions || req.body.correct_options || [],
+            // Include additional field aliases
+            selected_options: selectedOptions || req.body.selected_options || [],
+            correct_options: correctOptions || req.body.correct_options || []
+        };
+        // Check if this is a duplicate submission (same user, questionSet, question, within 10 seconds)
+        if (questionIdToUse) {
+            const existingRecord = await UserProgress_1.default.findOne({
+                where: {
                     userId,
-                    questionSetId: effectiveQuestionSetId,
-                    stats,
-                    timestamp: new Date().toISOString(),
-                    source: 'api'
-                };
-                socketIo.to(`user_${userId}`).emit('progressUpdate', updateEvent);
+                    questionSetId,
+                    questionId: questionIdToUse,
+                    recordType,
+                    lastAccessed: {
+                        [sequelize_1.Op.gte]: new Date(Date.now() - 10000) // last 10 seconds
+                    }
+                },
+                transaction
+            });
+            if (existingRecord) {
+                await transaction.commit();
+                return (0, responseUtils_1.sendResponse)(res, 200, '进度已存在，无需重复更新', {
+                    id: existingRecord.id,
+                    duplicate: true
+                });
             }
         }
-        catch (socketError) {
-            console.error('发送socket更新失败:', socketError);
-            // 不中断响应流程
-        }
-        return (0, responseUtils_1.sendResponse)(res, 200, '更新进度成功', { stats });
+        // Create progress record
+        const recordId = (0, uuid_1.v4)();
+        await UserProgress_1.default.create({
+            id: recordId,
+            userId,
+            questionSetId,
+            questionId: questionIdToUse,
+            isCorrect: isCorrect === true || isCorrect === 'true',
+            timeSpent: timeSpentToUse,
+            lastAccessed: new Date(),
+            recordType,
+            metadata: JSON.stringify(metadataObject)
+        }, { transaction });
+        // Commit transaction
+        await transaction.commit();
+        return (0, responseUtils_1.sendResponse)(res, 200, '进度更新成功', { id: recordId });
     }
     catch (error) {
-        // 回滚事务
-        await transaction.rollback();
+        // Rollback transaction on error
+        if (transaction)
+            await transaction.rollback();
         console.error('更新进度失败:', error);
         return (0, responseUtils_1.sendError)(res, 500, '更新进度失败', error);
     }
 };
 exports.updateProgress = updateProgress;
-/**
- * 创建或更新进度记录的辅助函数
- */
-async function createOrUpdateProgressRecord(userId, questionSetId, questionId, isCorrect, timeSpent, metadata, transaction) {
-    // 创建或更新进度记录
-    const [progress, created] = await UserProgress_1.default.findOrCreate({
-        where: {
-            userId,
-            questionSetId,
-            questionId,
-            recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER
-        },
-        defaults: {
-            id: (0, uuid_1.v4)(), // 为新记录生成UUID
-            userId,
-            questionSetId,
-            questionId,
-            isCorrect,
-            timeSpent: timeSpent || 0,
-            lastAccessed: new Date(),
-            recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
-            metadata: JSON.stringify({
-                source: 'api_direct_update',
-                created: new Date().toISOString(),
-                details: metadata
-            })
-        },
-        transaction
-    });
-    // 如果记录已存在，更新它
-    if (!created) {
-        await progress.update({
-            isCorrect,
-            timeSpent: timeSpent || progress.timeSpent,
-            lastAccessed: new Date(),
-            metadata: JSON.stringify({
-                source: 'api_direct_update',
-                updated: new Date().toISOString(),
-                previousIsCorrect: progress.isCorrect,
-                previousTimeSpent: progress.timeSpent,
-                details: metadata
-            })
-        }, { transaction });
-    }
-    return progress;
-}
-/**
- * 创建测验完成摘要记录
- */
-async function createQuizSummaryRecord(userId, questionSetId, summary, transaction) {
-    const summaryId = (0, uuid_1.v4)();
-    // 创建一个摘要记录，标记为SESSION_SUMMARY类型
-    await UserProgress_1.default.create({
-        id: summaryId,
-        userId,
-        questionSetId,
-        questionId: summaryId, // 使用生成的UUID作为虚拟questionId
-        isCorrect: false, // 对于摘要记录使用false而不是null
-        timeSpent: summary.timeSpent,
-        lastAccessed: new Date(),
-        recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY,
-        metadata: JSON.stringify(summary.metadata),
-        completedQuestions: summary.completedQuestions,
-        correctAnswers: summary.correctAnswers,
-        totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions
-    }, { transaction });
-    return summaryId;
-}
 /**
  * @desc    重置用户进度
  * @route   DELETE /api/user-progress/reset/:userId/:questionSetId
@@ -616,18 +527,18 @@ const getUserProgressStats = async (req, res) => {
         // Use SQL query to efficiently aggregate data by question set
         const query = `
       SELECT 
-        up."questionSetId", 
-        qs.title as "questionSetTitle",
-        qs.description as "questionSetDescription",
-        COUNT(DISTINCT up."questionId") as "answeredQuestions",
-        COUNT(DISTINCT CASE WHEN up."isCorrect" = true THEN up."questionId" END) as "correctAnswers",
-        SUM(up."timeSpent") as "totalTimeSpent",
-        AVG(up."timeSpent") as "avgTimeSpent",
-        MAX(up."lastAccessed") as "lastActivity"
-      FROM "UserProgress" as up
-      JOIN "QuestionSets" as qs ON up."questionSetId" = qs.id
-      WHERE up."userId" = :userId AND up."recordType" = :recordType
-      GROUP BY up."questionSetId", qs.title, qs.description
+        up.\`questionSetId\`, 
+        qs.title as \`questionSetTitle\`,
+        qs.description as \`questionSetDescription\`,
+        COUNT(DISTINCT up.\`questionId\`) as \`answeredQuestions\`,
+        COUNT(DISTINCT CASE WHEN up.\`isCorrect\` = true THEN up.\`questionId\` END) as \`correctAnswers\`,
+        SUM(up.\`timeSpent\`) as \`totalTimeSpent\`,
+        AVG(up.\`timeSpent\`) as \`avgTimeSpent\`,
+        MAX(up.\`lastAccessed\`) as \`lastActivity\`
+      FROM \`UserProgress\` as up
+      JOIN \`QuestionSets\` as qs ON up.\`questionSetId\` = qs.id
+      WHERE up.\`userId\` = :userId AND up.\`recordType\` = :recordType
+      GROUP BY up.\`questionSetId\`, qs.title, qs.description
     `;
         const stats = await database_1.default.query(query, {
             replacements: {
@@ -1027,65 +938,76 @@ const calculateProgressStats = async (userId, questionSetId, transaction) => {
  */
 const getUserProgressRecords = async (req, res) => {
     try {
-        // 优先从URL参数获取userId，如果没有则使用当前登录用户的ID
-        const userId = req.params.userId || req.user?.id;
-        const { page = 1, limit = 10, sort = 'lastAccessed', order = 'desc', questionSetId, isCorrect, recordType } = req.query;
+        const { userId } = req.params;
+        const { questionSetId, page = 1, limit = 10, sortBy = 'lastAccessed', sortOrder = 'DESC', showCorrectOnly, showIncorrectOnly, fromDate, toDate, recordType = PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER } = req.query;
         // Validate params
         if (!userId) {
-            return (0, responseUtils_1.sendError)(res, 400, '缺少用户ID参数');
+            return (0, responseUtils_1.sendError)(res, 400, '用户ID不能为空');
         }
         // Permission check
         if (!checkPermission(req, userId)) {
             return (0, responseUtils_1.sendError)(res, 403, '无权访问此用户的进度记录');
         }
-        // Calculate pagination params
-        const pageNum = parseInt(page, 10);
-        const limitNum = parseInt(limit, 10);
+        // Parse pagination params
+        const pageNum = parseInt(page) || 1;
+        const limitNum = parseInt(limit) || 10;
         const offset = (pageNum - 1) * limitNum;
-        // Define sorting options
-        const sortFields = ['lastAccessed', 'createdAt', 'updatedAt', 'timeSpent', 'isCorrect'];
-        const sortField = sortFields.includes(sort) ? sort : 'lastAccessed';
-        const sortOrder = order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
         // Build where clause
-        const whereClause = { userId };
+        const whereClause = {
+            userId,
+            recordType
+        };
         if (questionSetId) {
             whereClause.questionSetId = questionSetId;
         }
-        if (isCorrect !== undefined) {
-            whereClause.isCorrect = isCorrect === 'true';
+        if (showCorrectOnly === 'true') {
+            whereClause.isCorrect = true;
         }
-        if (recordType) {
-            whereClause.recordType = recordType;
+        else if (showIncorrectOnly === 'true') {
+            whereClause.isCorrect = false;
         }
-        // 修复：使用正确的列名 (text 和 questionType) 替代 (content 和 type)
+        if (fromDate) {
+            whereClause.lastAccessed = {
+                ...whereClause.lastAccessed,
+                [sequelize_1.Op.gte]: new Date(fromDate)
+            };
+        }
+        if (toDate) {
+            whereClause.lastAccessed = {
+                ...whereClause.lastAccessed,
+                [sequelize_1.Op.lte]: new Date(toDate)
+            };
+        }
+        // Execute query with includes
         const { count, rows } = await UserProgress_1.default.findAndCountAll({
             where: whereClause,
             include: [
                 {
-                    model: QuestionSet_1.default,
-                    as: 'progressQuestionSet',
-                    attributes: ['id', 'title']
+                    model: Question_1.default,
+                    attributes: ['id', ['text', 'content'], ['questionType', 'type']], // Using column aliases to maintain compatibility
+                    include: [
+                        {
+                            model: Option_1.default,
+                            attributes: ['id', 'text', 'isCorrect']
+                        }
+                    ]
                 },
                 {
-                    model: Question_1.default,
-                    as: 'question',
-                    // 更新列名，使用正确的字段名
-                    attributes: ['id', ['text', 'content'], ['questionType', 'type']]
+                    model: QuestionSet_1.default,
+                    attributes: ['id', 'title', 'description']
                 }
             ],
+            order: [[sortBy, sortOrder]],
             limit: limitNum,
-            offset,
-            order: [[sortField, sortOrder]]
+            offset
         });
-        const totalPages = Math.ceil(count / limitNum);
-        return (0, responseUtils_1.sendResponse)(res, 200, '获取进度记录成功', {
-            data: rows,
-            pagination: {
-                total: count,
-                page: pageNum,
-                limit: limitNum,
-                totalPages
-            }
+        // Return paginated results
+        return (0, responseUtils_1.sendResponse)(res, 200, '获取用户进度记录成功', {
+            total: count,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil(count / limitNum),
+            data: rows
         });
     }
     catch (error) {
@@ -1161,126 +1083,121 @@ const deleteProgressRecord = async (req, res) => {
 };
 exports.deleteProgressRecord = deleteProgressRecord;
 /**
- * @desc    提交测验结果（替代接口，针对没有updateProgress权限的情况）
+ * @desc    提交测验结果 - 不需要认证的公共API
  * @route   POST /api/quiz/submit
  * @access  Public
  */
 const quizSubmit = async (req, res) => {
-    // 开始事务
-    const transaction = await database_1.default.transaction();
+    let transaction;
     try {
-        // 从请求体中获取数据，支持多种格式
-        const userId = req.user?.id || req.body.userId || req.body.user_id;
-        const questionSetId = req.body.questionSetId || req.body.question_set_id || req.body.quizId;
-        const completedQuestions = req.body.completedQuestions || req.body.completed_questions || req.body.total_questions || 0;
-        const correctAnswers = req.body.correctAnswers || req.body.correct_answers || req.body.correct_count || 0;
-        const timeSpent = req.body.timeSpent || req.body.time_spent || 0;
-        const answerDetails = req.body.answerDetails || req.body.answers || [];
-        // 验证必要参数
-        if (!userId || !questionSetId) {
-            await transaction.rollback();
-            return (0, responseUtils_1.sendError)(res, 400, '缺少必要参数：userId和questionSetId');
+        // Get userId from request body since this is a public endpoint
+        const { userId } = req.body;
+        if (!userId) {
+            return (0, responseUtils_1.sendError)(res, 400, '用户ID不能为空');
         }
-        // 获取用户和题库信息（如果存在）
-        let user = null;
-        let questionSet = null;
-        try {
-            user = await User_1.default.findByPk(userId, { transaction });
-            questionSet = await QuestionSet_1.default.findByPk(questionSetId, { transaction });
+        const { questionSetId, quizId, testId, completedQuestions, totalQuestions, correctAnswers, timeSpent, answerDetails, answers } = req.body;
+        // Support multiple field names for compatibility
+        const effectiveQuestionSetId = questionSetId || quizId || testId || req.body.question_set_id;
+        if (!effectiveQuestionSetId) {
+            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空');
         }
-        catch (e) {
-            console.warn(`[quizSubmit] 无法验证用户或题库: ${e.message}`);
-            // 继续处理，即使用户或题库不存在
-        }
-        // 记录测验摘要信息
-        const summaryId = await createQuizSummaryRecord(userId, questionSetId, {
-            completedQuestions,
-            correctAnswers,
-            timeSpent,
+        // Start transaction
+        transaction = await database_1.default.transaction();
+        // Create overall quiz summary record
+        const summaryData = {
+            completedQuestions: completedQuestions || req.body.completed_questions || totalQuestions || req.body.total_questions || 0,
+            correctAnswers: correctAnswers || req.body.correct_answers || req.body.correct_count || 0,
+            timeSpent: timeSpent || req.body.time_spent || 0,
             metadata: {
-                source: 'quiz_submit_endpoint',
-                timestamp: new Date().toISOString(),
-                details: req.body,
-                userAgent: req.headers['user-agent'],
-                totalQuestions: req.body.totalQuestions || completedQuestions
+                source: 'quiz_completion',
+                submittedAt: new Date().toISOString(),
+                totalQuestions: totalQuestions || req.body.total_questions || completedQuestions || 0,
+                accuracy: req.body.accuracy || req.body.accuracyPercentage || null,
+                score: req.body.score || null
             }
-        }, transaction);
-        // 如果提供了详细的答题记录，也保存每道题的答题情况
-        if (Array.isArray(answerDetails) && answerDetails.length > 0) {
-            for (const answer of answerDetails) {
+        };
+        // Create quiz summary record first
+        const summaryId = await createQuizSummaryRecord(userId, effectiveQuestionSetId, summaryData, transaction);
+        // Process detailed answer records if available
+        const detailedAnswers = answerDetails || answers || req.body.answerDetails || req.body.answers || [];
+        if (Array.isArray(detailedAnswers) && detailedAnswers.length > 0) {
+            for (const answer of detailedAnswers) {
                 const questionId = answer.questionId || answer.question_id;
-                const isCorrect = answer.isCorrect || answer.is_correct;
+                const isCorrect = answer.isCorrect || answer.is_correct || false;
                 const answerTimeSpent = answer.timeSpent || answer.time_spent || 0;
-                if (questionId && typeof isCorrect === 'boolean') {
-                    await createOrUpdateProgressRecord(userId, questionSetId, questionId, isCorrect, answerTimeSpent, answer, transaction);
+                if (questionId) {
+                    // Create individual answer record
+                    await UserProgress_1.default.create({
+                        id: (0, uuid_1.v4)(),
+                        userId,
+                        questionSetId: effectiveQuestionSetId,
+                        questionId,
+                        isCorrect,
+                        timeSpent: answerTimeSpent,
+                        lastAccessed: new Date(),
+                        recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
+                        metadata: JSON.stringify({
+                            summaryId, // Link to the summary record
+                            selectedOptions: answer.selectedOptionIds || answer.selected_option_ids || [],
+                            correctOptions: answer.correctOptionIds || answer.correct_option_ids || [],
+                            source: 'quiz_submission'
+                        })
+                    }, { transaction });
                 }
             }
         }
-        // 计算更新后的统计数据
-        let stats = undefined;
-        try {
-            stats = await calculateProgressStats(userId, questionSetId, transaction);
-        }
-        catch (e) {
-            console.warn(`[quizSubmit] 计算统计数据失败: ${e.message}`);
-            // 继续处理，即使计算统计数据失败
-        }
-        // 创建购买记录或更新其他相关系统状态
-        // (这里可以添加其他必要的业务逻辑)
-        // 提交事务
+        // Commit transaction
         await transaction.commit();
-        // 发送实时更新通过Socket.IO
-        try {
-            const socketIo = (0, socket_1.getSocketIO)();
-            if (socketIo) {
-                const updateEvent = {
-                    type: 'quizSubmitted',
-                    userId,
-                    questionSetId,
-                    stats,
-                    completedQuestions,
-                    totalQuestions: req.body.totalQuestions || completedQuestions,
-                    correctAnswers,
-                    timestamp: new Date().toISOString(),
-                    source: 'quiz_submit'
-                };
-                socketIo.to(`user_${userId}`).emit('quizSubmitted', updateEvent);
-            }
-        }
-        catch (socketError) {
-            console.error('发送socket更新失败:', socketError);
-            // 不中断响应流程
-        }
         return (0, responseUtils_1.sendResponse)(res, 200, '测验提交成功', {
-            summaryId,
-            stats,
-            message: '测验结果已保存，感谢您的参与'
+            id: summaryId,
+            questionSetId: effectiveQuestionSetId,
+            timestamp: new Date().toISOString()
         });
     }
     catch (error) {
-        // 回滚事务
-        await transaction.rollback();
+        // Rollback transaction on error
+        if (transaction)
+            await transaction.rollback();
         console.error('提交测验失败:', error);
         return (0, responseUtils_1.sendError)(res, 500, '提交测验失败', error);
     }
 };
 exports.quizSubmit = quizSubmit;
-// 修改导出，确保包含所有必要的函数
+/**
+ * 创建测验完成摘要记录
+ */
+async function createQuizSummaryRecord(userId, questionSetId, summary, transaction) {
+    const summaryId = (0, uuid_1.v4)();
+    // Fix: Cast null to string to satisfy TypeScript - the database schema should allow null for this field
+    await UserProgress_1.default.create({
+        id: summaryId,
+        userId,
+        questionSetId,
+        questionId: null, // TypeScript workaround - the actual DB allows null
+        isCorrect: false,
+        timeSpent: summary.timeSpent,
+        lastAccessed: new Date(),
+        recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY,
+        metadata: JSON.stringify(summary.metadata),
+        completedQuestions: summary.completedQuestions,
+        correctAnswers: summary.correctAnswers,
+        totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions
+    }, { transaction });
+    return summaryId;
+}
+// Fix the exports at the end of the file
 exports.default = {
-    PROGRESS_RECORD_TYPES,
-    checkPermission,
-    calculateProgressStats,
     getUserProgress: exports.getUserProgress,
-    getProgressByQuestionSetId: exports.getProgressByQuestionSetId,
-    getDetailedProgress: exports.getDetailedProgress,
+    getUserProgressStats: exports.getUserProgressStats,
+    getUserProgressRecords: exports.getUserProgressRecords,
     updateProgress: exports.updateProgress,
     resetProgress: exports.resetProgress,
+    deleteProgressRecord: exports.deleteProgressRecord,
+    quizSubmit: exports.quizSubmit,
+    syncProgressViaBeacon: exports.syncProgressViaBeacon,
+    getDetailedProgress: exports.getDetailedProgress,
     createDetailedProgress: exports.createDetailedProgress,
-    getUserProgressRecords: exports.getUserProgressRecords,
-    getUserProgressStats: exports.getUserProgressStats,
     getProgressStats: exports.getProgressStats,
     getProgressSummary: exports.getProgressSummary,
-    syncProgressViaBeacon: exports.syncProgressViaBeacon,
-    deleteProgressRecord: exports.deleteProgressRecord,
-    quizSubmit: exports.quizSubmit // 添加新的quizSubmit函数
+    getProgressByQuestionSetId: exports.getProgressByQuestionSetId
 };
