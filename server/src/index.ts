@@ -99,7 +99,14 @@ console.log('模型关联初始化完成');
 applyGlobalFieldMappings();
 
 // 同步数据库并启动服务器
-sequelize.sync({ alter: true }).then(() => {
+// 修改: 禁用自动 alter 选项，避免"Too many keys"错误
+const syncOptions = {
+  alter: process.env.DB_AUTO_ALTER === 'true' ? true : false
+};
+
+console.log(`数据库同步选项: ${JSON.stringify(syncOptions)}`);
+
+sequelize.sync(syncOptions).then(() => {
   console.log('数据库同步完成');
   
   // 确保 HomepageSettings 表有初始数据

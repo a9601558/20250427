@@ -85,7 +85,12 @@ console.log('模型关联初始化完成');
 // 应用字段映射修复
 (0, applyFieldMappings_1.applyGlobalFieldMappings)();
 // 同步数据库并启动服务器
-database_1.default.sync({ alter: true }).then(() => {
+// 修改: 禁用自动 alter 选项，避免"Too many keys"错误
+const syncOptions = {
+    alter: process.env.DB_AUTO_ALTER === 'true' ? true : false
+};
+console.log(`数据库同步选项: ${JSON.stringify(syncOptions)}`);
+database_1.default.sync(syncOptions).then(() => {
     console.log('数据库同步完成');
     // 确保 HomepageSettings 表有初始数据
     HomepageSettings_1.default.findByPk(1).then((homepageSettings) => {
