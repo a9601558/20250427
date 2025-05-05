@@ -8,6 +8,16 @@ import QuizCompletionSummary from './quiz/QuizCompletionSummary';
 import { Question, Option, QuestionSet } from '../types';
 import { AnsweredQuestion } from '../hooks/useQuizReducer';
 
+// 添加题目数据相关的类型定义
+interface ExtractedQuestion {
+  id: string;
+  text: string;
+  questionType: string;
+  explanation: string;
+  options: any[];
+  [key: string]: any;
+}
+
 // 定义QuizCompletionSummary真实Props接口
 interface QuizCompletionSummaryProps {
   questionSet: {
@@ -44,7 +54,8 @@ interface QuestionResult {
 const LOCAL_STORAGE_KEYS = {
   QUIZ_PROGRESS: 'quizProgress',
   QUIZ_ANSWERS: 'quizAnswers',
-  QUIZ_START_TIME: 'quizStartTime'
+  QUIZ_START_TIME: 'quizStartTime',
+  QUESTION_SET_CACHE: 'questionSetCache' // 新增缓存键
 };
 
 // 将QuizResults转换为QuizCompletionSummary所需的数据结构
@@ -89,10 +100,54 @@ const QuizPage: React.FC = () => {
   const [hasAccess, setHasAccess] = useState(false);
   const [timeSpent, setTimeSpent] = useState<number>(0);
   
+  // 新增数据加载状态标记
+  const dataLoadedRef = useRef<boolean>(false);
+  
   // 使用useRef创建一个标志，以避免在组件卸载后更新状态
   const isMounted = useRef(true);
   // 用于取消请求的AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // 从本地存储读取缓存的题库数据
+  const getQuestionSetFromCache = useCallback((qsId: string) => {
+    try {
+      const cacheKey = `${LOCAL_STORAGE_KEYS.QUESTION_SET_CACHE}_${qsId}`;
+      const cachedDataStr = localStorage.getItem(cacheKey);
+      if (!cachedDataStr) return null;
+      
+      const cachedData = JSON.parse(cachedDataStr);
+      // 检查缓存是否过期（30分钟）
+      const cacheTime = new Date(cachedData.timestamp || 0);
+      const now = new Date();
+      const cacheAgeMinutes = (now.getTime() - cacheTime.getTime()) / (1000 * 60);
+      
+      if (cacheAgeMinutes > 30) {
+        // 缓存过期，删除
+        localStorage.removeItem(cacheKey);
+        return null;
+      }
+      
+      console.log(`从缓存加载题库数据，包含 ${cachedData.data.questions?.length || 0} 个题目`);
+      return cachedData.data;
+    } catch (e) {
+      console.error('读取缓存题库数据失败:', e);
+      return null;
+    }
+  }, []);
+  
+  // 将题库数据保存到缓存
+  const saveQuestionSetToCache = useCallback((qsId: string, data: any) => {
+    try {
+      const cacheKey = `${LOCAL_STORAGE_KEYS.QUESTION_SET_CACHE}_${qsId}`;
+      const cacheData = {
+        timestamp: new Date().toISOString(),
+        data: data
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+    } catch (e) {
+      console.error('保存题库数据到缓存失败:', e);
+    }
+  }, []);
   
   // 保存进度到localStorage的辅助函数
   const saveProgressToLocalStorage = useCallback(() => {
@@ -181,11 +236,40 @@ const QuizPage: React.FC = () => {
   
   // 先检查用户是否有权限访问题库
   useEffect(() => {
+    // 如果已经加载过数据，不再重复加载
+    if (dataLoadedRef.current) {
+      return;
+    }
+    
     const checkAccess = async () => {
       if (!questionSetId) {
         if (isMounted.current) {
           setError('题库ID无效');
           setLoading(false);
+        }
+        return;
+      }
+      
+      // 尝试从缓存获取数据
+      const cachedData = getQuestionSetFromCache(questionSetId);
+      if (cachedData) {
+        if (isMounted.current) {
+          setQuestionSet(cachedData);
+          setHasAccess(true);
+          dataLoadedRef.current = true;
+          setLoading(false);
+          
+          // 设置开始时间
+          const newStartTime = new Date();
+          setStartTime(newStartTime);
+          
+          // 尝试恢复保存的进度
+          const restored = restoreProgress();
+          
+          // 如果没有恢复成功，则自动保存当前状态
+          if (!restored) {
+            saveProgressToLocalStorage();
+          }
         }
         return;
       }
@@ -204,7 +288,11 @@ const QuizPage: React.FC = () => {
           if (!data) return null;
           
           // 记录所有可能包含题目的字段
-          const potentialQuestionFields = [];
+          const potentialQuestionFields: Array<{
+            field: string;
+            count: number;
+            sample: any;
+          }> = [];
           
           // 直接检查questions字段
           if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
@@ -269,13 +357,13 @@ const QuizPage: React.FC = () => {
             if (!hasStandardQuestions && response.data.questionSetQuestions) {
               // 尝试将questionSetQuestions转换为标准questions格式
               try {
-                const extractedQuestions = [];
+                const extractedQuestions: ExtractedQuestion[] = [];
                 // 收集所有嵌套的题目
                 if (Array.isArray(response.data.questionSetQuestions)) {
-                  response.data.questionSetQuestions.forEach(item => {
+                  response.data.questionSetQuestions.forEach((item: any) => {
                     if (item && typeof item === 'object') {
                       // 复制必要的字段
-                      const question = {
+                      const question: ExtractedQuestion = {
                         id: item.id,
                         text: item.text,
                         questionType: item.questionType,
@@ -312,6 +400,12 @@ const QuizPage: React.FC = () => {
             
             // 强制授予权限，跳过权限检查
             setHasAccess(true);
+            
+            // 标记数据已加载，防止重复请求
+            dataLoadedRef.current = true;
+            
+            // 保存到缓存以减少API调用
+            saveQuestionSetToCache(questionSetId, response.data);
             
             // 设置开始时间
             const newStartTime = new Date();
@@ -361,7 +455,7 @@ const QuizPage: React.FC = () => {
     };
     
     checkAccess();
-  }, [questionSetId, user, createAbortController, restoreProgress, saveProgressToLocalStorage]);
+  }, [questionSetId, user, createAbortController, restoreProgress, saveProgressToLocalStorage, getQuestionSetFromCache, saveQuestionSetToCache]);
   
   // 定期自动保存进度
   useEffect(() => {
