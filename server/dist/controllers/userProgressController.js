@@ -21,7 +21,8 @@ const PROGRESS_RECORD_TYPES = {
     INDIVIDUAL_ANSWER: 'individual_answer', // Individual question answer
     DETAILED_PROGRESS: 'detailed_progress', // Detailed progress with metadata
     SESSION_SUMMARY: 'session_summary', // Summary of a session (beacon API)
-    AGGREGATED: 'aggregated' // Aggregated stats
+    AGGREGATED: 'aggregated', // Aggregated stats
+    QUIZ_SUMMARY: 'quiz_summary' // Quiz summary
 };
 /**
  * Check if the user has permission to access/modify the requested user's data
@@ -196,7 +197,7 @@ const updateProgress = async (req, res) => {
         transaction = await database_1.default.transaction();
         // Support multiple data formats for maximum compatibility
         // This handles both camelCase and snake_case field names
-        const questionIdToUse = questionId || req.body.question_id;
+        const questionIdToUse = questionId || req.body.question_id || (0, uuid_1.v4)();
         const timeSpentToUse = timeSpent || req.body.time_spent || 0;
         // Create metadata object with all possible data formats
         const metadataObject = {
@@ -205,10 +206,12 @@ const updateProgress = async (req, res) => {
             correctOptions: correctOptions || req.body.correct_options || [],
             // Include additional field aliases
             selected_options: selectedOptions || req.body.selected_options || [],
-            correct_options: correctOptions || req.body.correct_options || []
+            correct_options: correctOptions || req.body.correct_options || [],
+            // 在缺少真实questionId时添加标记
+            isVirtualQuestionId: !questionId && !req.body.question_id
         };
         // Check if this is a duplicate submission (same user, questionSet, question, within 10 seconds)
-        if (questionIdToUse) {
+        if (questionId || req.body.question_id) {
             const existingRecord = await UserProgress_1.default.findOne({
                 where: {
                     userId,
@@ -748,61 +751,16 @@ const syncProgressViaBeacon = async (req, res) => {
             const completedQuestions = progress.length;
             const correctAnswers = progress.filter((p) => p.isCorrect).length;
             // Create or update summary record
-            const summaryId = (0, uuid_1.v4)();
-            const [summaryRecord, created] = await UserProgress_1.default.findOrCreate({
-                where: {
-                    userId,
-                    questionSetId,
-                    recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY
-                },
-                defaults: {
-                    id: summaryId,
-                    userId,
-                    questionSetId,
-                    questionId: summaryId, // Use generated UUID as virtual questionId
-                    isCorrect: false, // Use false instead of null for summary records
-                    timeSpent: progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
-                    lastAccessed: new Date(),
-                    recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY,
-                    metadata: JSON.stringify({
-                        sessionId,
-                        timestamp: new Date().toISOString(),
-                        progressDetails: progress
-                    }),
-                    completedQuestions,
-                    totalQuestions,
-                    correctAnswers
-                },
-                transaction
-            });
-            // Update existing summary record if found
-            if (!created) {
-                // Parse existing metadata
-                let metadata = {};
-                try {
-                    metadata = JSON.parse(summaryRecord.metadata || '{}');
+            const summaryId = await createQuizSummaryRecord(userId, questionSetId, {
+                completedQuestions,
+                correctAnswers,
+                timeSpent: progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
+                metadata: {
+                    sessionId,
+                    timestamp: new Date().toISOString(),
+                    progressDetails: progress
                 }
-                catch (e) {
-                    metadata = {};
-                }
-                // Update metadata with new progress
-                const progressDetails = metadata.progressDetails || [];
-                progressDetails.push(...progress);
-                // Update summary record
-                await summaryRecord.update({
-                    timeSpent: (summaryRecord.timeSpent || 0) + progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
-                    lastAccessed: new Date(),
-                    metadata: JSON.stringify({
-                        ...metadata,
-                        progressDetails,
-                        sessionId,
-                        timestamp: new Date().toISOString()
-                    }),
-                    completedQuestions: Math.max(completedQuestions, summaryRecord.completedQuestions || 0),
-                    totalQuestions,
-                    correctAnswers: Math.max(correctAnswers, summaryRecord.correctAnswers || 0)
-                }, { transaction });
-            }
+            }, transaction);
             // Create individual progress records
             for (const item of progress) {
                 const progressId = (0, uuid_1.v4)();
@@ -1090,72 +1048,106 @@ exports.deleteProgressRecord = deleteProgressRecord;
 const quizSubmit = async (req, res) => {
     let transaction;
     try {
-        // Get userId from request body since this is a public endpoint
-        const { userId } = req.body;
+        // 支持多种格式的用户ID字段
+        const userId = req.body.userId || req.body.user_id;
         if (!userId) {
-            return (0, responseUtils_1.sendError)(res, 400, '用户ID不能为空');
+            return (0, responseUtils_1.sendError)(res, 400, '用户ID不能为空，请提供userId或user_id字段');
         }
-        const { questionSetId, quizId, testId, completedQuestions, totalQuestions, correctAnswers, timeSpent, answerDetails, answers } = req.body;
-        // Support multiple field names for compatibility
-        const effectiveQuestionSetId = questionSetId || quizId || testId || req.body.question_set_id;
+        // 支持多种格式的字段名称
+        const { questionSetId, quizId, testId, question_set_id, completedQuestions, completed_questions, total_questions, totalQuestions, correctAnswers, correct_answers, correct_count, timeSpent, time_spent, answerDetails, answers, answer_details } = req.body;
+        // 支持多种字段名格式以增强兼容性
+        const effectiveQuestionSetId = questionSetId || quizId || testId || question_set_id;
         if (!effectiveQuestionSetId) {
-            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空');
+            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空，请提供questionSetId、quizId或testId字段');
         }
-        // Start transaction
+        // 开始事务
         transaction = await database_1.default.transaction();
-        // Create overall quiz summary record
+        // 构建摘要数据，支持多种数据格式
         const summaryData = {
-            completedQuestions: completedQuestions || req.body.completed_questions || totalQuestions || req.body.total_questions || 0,
-            correctAnswers: correctAnswers || req.body.correct_answers || req.body.correct_count || 0,
-            timeSpent: timeSpent || req.body.time_spent || 0,
+            completedQuestions: completedQuestions || completed_questions || totalQuestions || total_questions || 0,
+            correctAnswers: correctAnswers || correct_answers || correct_count || 0,
+            timeSpent: timeSpent || time_spent || 0,
             metadata: {
                 source: 'quiz_completion',
                 submittedAt: new Date().toISOString(),
-                totalQuestions: totalQuestions || req.body.total_questions || completedQuestions || 0,
+                totalQuestions: totalQuestions || total_questions || completedQuestions || completed_questions || 0,
                 accuracy: req.body.accuracy || req.body.accuracyPercentage || null,
-                score: req.body.score || null
+                score: req.body.score || null,
+                deviceId: req.body.deviceId || req.body.device_id || null,
+                clientIp: req.ip || null,
+                clientInfo: req.headers['user-agent'] || null
             }
         };
-        // Create quiz summary record first
+        // 创建测验摘要记录
         const summaryId = await createQuizSummaryRecord(userId, effectiveQuestionSetId, summaryData, transaction);
-        // Process detailed answer records if available
-        const detailedAnswers = answerDetails || answers || req.body.answerDetails || req.body.answers || [];
+        // 处理详细答题记录（如果有）
+        const detailedAnswers = answerDetails || answers || answer_details || [];
+        let processedAnswers = 0;
         if (Array.isArray(detailedAnswers) && detailedAnswers.length > 0) {
             for (const answer of detailedAnswers) {
+                // 支持多种字段命名格式
                 const questionId = answer.questionId || answer.question_id;
                 const isCorrect = answer.isCorrect || answer.is_correct || false;
                 const answerTimeSpent = answer.timeSpent || answer.time_spent || 0;
                 if (questionId) {
-                    // Create individual answer record
-                    await UserProgress_1.default.create({
-                        id: (0, uuid_1.v4)(),
-                        userId,
-                        questionSetId: effectiveQuestionSetId,
-                        questionId,
-                        isCorrect,
-                        timeSpent: answerTimeSpent,
-                        lastAccessed: new Date(),
-                        recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
-                        metadata: JSON.stringify({
-                            summaryId, // Link to the summary record
-                            selectedOptions: answer.selectedOptionIds || answer.selected_option_ids || [],
-                            correctOptions: answer.correctOptionIds || answer.correct_option_ids || [],
-                            source: 'quiz_submission'
-                        })
-                    }, { transaction });
+                    try {
+                        // 创建单个答题记录
+                        await UserProgress_1.default.create({
+                            id: (0, uuid_1.v4)(),
+                            userId,
+                            questionSetId: effectiveQuestionSetId,
+                            questionId,
+                            isCorrect,
+                            timeSpent: answerTimeSpent,
+                            lastAccessed: new Date(),
+                            recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
+                            metadata: JSON.stringify({
+                                summaryId, // 关联到摘要记录
+                                selectedOptions: answer.selectedOptionIds || answer.selected_option_ids || [],
+                                correctOptions: answer.correctOptionIds || answer.correct_option_ids || [],
+                                source: 'quiz_submission'
+                            })
+                        }, { transaction });
+                        processedAnswers++;
+                    }
+                    catch (answerError) {
+                        console.warn(`处理答题记录时出错 (questionId=${questionId}):`, answerError);
+                        // 继续处理其他答题记录，不中断整个流程
+                    }
                 }
             }
         }
-        // Commit transaction
+        // 提交事务
         await transaction.commit();
+        // 发送实时更新通知（如果可用）
+        try {
+            const socketIo = (0, socket_1.getSocketIO)();
+            if (socketIo) {
+                const updateEvent = {
+                    type: 'quizCompleted',
+                    userId,
+                    questionSetId: effectiveQuestionSetId,
+                    timestamp: new Date().toISOString(),
+                    source: 'quiz_submission',
+                    completedQuestions: summaryData.completedQuestions,
+                    correctAnswers: summaryData.correctAnswers
+                };
+                socketIo.to(`user_${userId}`).emit('progressUpdate', updateEvent);
+            }
+        }
+        catch (socketError) {
+            console.warn('发送Socket更新失败，但不影响提交结果:', socketError);
+        }
         return (0, responseUtils_1.sendResponse)(res, 200, '测验提交成功', {
             id: summaryId,
             questionSetId: effectiveQuestionSetId,
+            processedAnswers,
+            totalAnswers: Array.isArray(detailedAnswers) ? detailedAnswers.length : 0,
             timestamp: new Date().toISOString()
         });
     }
     catch (error) {
-        // Rollback transaction on error
+        // 回滚事务
         if (transaction)
             await transaction.rollback();
         console.error('提交测验失败:', error);
@@ -1168,22 +1160,42 @@ exports.quizSubmit = quizSubmit;
  */
 async function createQuizSummaryRecord(userId, questionSetId, summary, transaction) {
     const summaryId = (0, uuid_1.v4)();
-    // 解决 notNull 约束错误：使用 summaryId 作为 questionId 而不是 null
-    await UserProgress_1.default.create({
-        id: summaryId,
-        userId,
-        questionSetId,
-        questionId: summaryId, // 使用生成的UUID作为虚拟questionId
-        isCorrect: false,
-        timeSpent: summary.timeSpent,
-        lastAccessed: new Date(),
-        recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY,
-        metadata: JSON.stringify(summary.metadata),
-        completedQuestions: summary.completedQuestions,
-        correctAnswers: summary.correctAnswers,
-        totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions
-    }, { transaction });
-    return summaryId;
+    try {
+        // 尝试从题库中找到一个有效的题目ID来解决外键约束问题
+        const questions = await database_1.default.query(`SELECT id FROM questions WHERE questionSetId = ? LIMIT 1`, {
+            replacements: [questionSetId],
+            type: sequelize_1.QueryTypes.SELECT,
+            transaction
+        });
+        // 如果找到了题目，使用该题目ID，否则使用生成的UUID
+        const questionIdToUse = questions.length > 0 && questions[0] && questions[0].id
+            ? questions[0].id
+            : summaryId;
+        // 解决 notNull 约束错误：使用 questionIdToUse 作为 questionId 而不是 null
+        await UserProgress_1.default.create({
+            id: summaryId,
+            userId,
+            questionSetId,
+            questionId: questionIdToUse, // 使用真实题目ID或生成的UUID
+            isCorrect: false,
+            timeSpent: summary.timeSpent,
+            lastAccessed: new Date(),
+            recordType: PROGRESS_RECORD_TYPES.SESSION_SUMMARY,
+            metadata: JSON.stringify({
+                ...summary.metadata,
+                isSummary: true,
+                virtualQuestion: questionIdToUse === summaryId // 标记是否使用了虚拟ID
+            }),
+            completedQuestions: summary.completedQuestions,
+            correctAnswers: summary.correctAnswers,
+            totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions
+        }, { transaction });
+        return summaryId;
+    }
+    catch (error) {
+        console.error('创建测验摘要记录失败:', error);
+        throw error;
+    }
 }
 // Fix the exports at the end of the file
 exports.default = {
