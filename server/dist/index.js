@@ -19,6 +19,7 @@ const appstate_1 = require("./utils/appstate");
 const HomepageSettings_1 = __importDefault(require("./models/HomepageSettings"));
 const applyFieldMappings_1 = require("./utils/applyFieldMappings");
 const errorMiddleware_1 = __importDefault(require("./middleware/errorMiddleware"));
+const sequelize_1 = require("sequelize");
 // Load environment variables
 const envPath = path_1.default.resolve(__dirname, '../.env');
 if (fs_1.default.existsSync(envPath)) {
@@ -106,44 +107,162 @@ const startServer = async () => {
         // Test database connection
         await database_1.default.authenticate();
         console.log('数据库连接成功!');
+        // Run migrations first if in production
+        if (process.env.NODE_ENV === 'production' || process.env.DB_MIGRATE === 'true') {
+            console.log('正在运行数据库迁移脚本...');
+            try {
+                // Check if Sequelize CLI is available
+                const { exec } = require('child_process');
+                exec('npx sequelize-cli db:migrate', (error, stdout, stderr) => {
+                    if (error) {
+                        console.error('迁移脚本执行错误:', error);
+                        console.error('尝试使用内部迁移脚本...');
+                    }
+                    else {
+                        console.log('迁移脚本执行输出:', stdout);
+                        if (stderr)
+                            console.error('迁移脚本错误输出:', stderr);
+                    }
+                });
+            }
+            catch (migrationError) {
+                console.error('迁移流程错误:', migrationError);
+            }
+        }
         // Sync database models if needed
         if (process.env.DB_SYNC === 'true') {
             await database_1.default.sync(syncOptions);
             console.log('数据库模型同步完成');
         }
         // 确保 HomepageSettings 表有初始数据
-        HomepageSettings_1.default.findByPk(1).then((homepageSettings) => {
-            if (!homepageSettings) {
-                console.log('创建 HomepageSettings 初始数据...');
-                return HomepageSettings_1.default.create({
-                    id: 1,
-                    welcome_title: "ExamTopics 模拟练习",
-                    welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
-                    featured_categories: ["网络协议", "编程语言", "计算机基础"],
-                    announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-                    footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-                    banner_image: "/images/banner.jpg",
-                    theme: 'light'
+        try {
+            const tableExists = await database_1.default.getQueryInterface().showAllTables()
+                .then(tables => tables.includes('homepage_settings'));
+            if (!tableExists) {
+                console.log('homepage_settings表不存在，正在创建...');
+                await database_1.default.getQueryInterface().createTable('homepage_settings', {
+                    id: {
+                        type: sequelize_1.DataTypes.INTEGER,
+                        primaryKey: true,
+                        autoIncrement: true,
+                        allowNull: false
+                    },
+                    welcome_title: {
+                        type: sequelize_1.DataTypes.STRING(255),
+                        allowNull: false,
+                        defaultValue: 'ExamTopics Practice'
+                    },
+                    welcome_description: {
+                        type: sequelize_1.DataTypes.TEXT,
+                        allowNull: false,
+                        defaultValue: 'Choose any of the following question sets to practice and test your knowledge'
+                    },
+                    featured_categories: {
+                        type: sequelize_1.DataTypes.TEXT,
+                        allowNull: true,
+                        defaultValue: JSON.stringify(['Network Protocols', 'Programming Languages', 'Computer Basics'])
+                    },
+                    announcements: {
+                        type: sequelize_1.DataTypes.TEXT,
+                        allowNull: true,
+                        defaultValue: 'Welcome to the online quiz system. New question sets will be updated regularly!'
+                    },
+                    footer_text: {
+                        type: sequelize_1.DataTypes.STRING(255),
+                        allowNull: true,
+                        defaultValue: '© 2023 ExamTopics Online Quiz System. All rights reserved.'
+                    },
+                    banner_image: {
+                        type: sequelize_1.DataTypes.STRING(255),
+                        allowNull: true,
+                        defaultValue: '/images/banner.jpg'
+                    },
+                    theme: {
+                        type: sequelize_1.DataTypes.STRING(50),
+                        allowNull: true,
+                        defaultValue: 'light'
+                    },
+                    created_at: {
+                        type: sequelize_1.DataTypes.DATE,
+                        allowNull: false,
+                        defaultValue: sequelize_1.Sequelize.literal('CURRENT_TIMESTAMP')
+                    },
+                    updated_at: {
+                        type: sequelize_1.DataTypes.DATE,
+                        allowNull: false,
+                        defaultValue: sequelize_1.Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+                    }
                 });
+                // Insert initial record
+                await database_1.default.getQueryInterface().bulkInsert('homepage_settings', [{
+                        id: 1,
+                        welcome_title: "ExamTopics 模拟练习",
+                        welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
+                        featured_categories: JSON.stringify(["网络协议", "编程语言", "计算机基础"]),
+                        announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
+                        footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
+                        banner_image: "/images/banner.jpg",
+                        theme: 'light',
+                        created_at: new Date(),
+                        updated_at: new Date()
+                    }]);
+                console.log('homepage_settings表创建并初始化完成');
             }
-        }).then(() => {
-            server.listen(PORT, () => {
-                console.log(`Server is running on port ${PORT}`);
+            HomepageSettings_1.default.findByPk(1).then((homepageSettings) => {
+                if (!homepageSettings) {
+                    console.log('创建 HomepageSettings 初始数据...');
+                    return HomepageSettings_1.default.create({
+                        id: 1,
+                        welcome_title: "ExamTopics 模拟练习",
+                        welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
+                        featured_categories: ["网络协议", "编程语言", "计算机基础"],
+                        announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
+                        footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
+                        banner_image: "/images/banner.jpg",
+                        theme: 'light'
+                    });
+                }
+            }).then(() => {
+                server.listen(PORT, () => {
+                    console.log(`Server is running on port ${PORT}`);
+                });
+            }).catch(error => {
+                console.error('HomepageSettings初始化错误:', error);
+                // 即使初始化HomepageSettings失败，仍然启动服务器
+                server.listen(PORT, () => {
+                    console.log(`Server is running on port ${PORT} (degraded mode)`);
+                });
             });
-        });
+        }
+        catch (error) {
+            console.error('检查HomepageSettings表时出错:', error);
+            // 启动服务器，即使HomepageSettings表检查失败
+            server.listen(PORT, () => {
+                console.log(`Server is running on port ${PORT} (degraded mode)`);
+            });
+        }
     }
     catch (error) {
         console.error('服务器启动失败:', error);
         // Continue running the server even if database connection fails
         // This allows routes to handle errors gracefully
-        const server = app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`服务器运行在降级模式下 http://localhost:${PORT} (数据库连接失败)`);
             console.log('请运行 node src/scripts/setup-database.js 获取数据库设置帮助');
         });
         // Initialize Socket.IO in degraded mode
-        (0, socket_1.initializeSocket)(server);
+        (0, socket_1.initializeSocket)(server, true);
     }
 };
 // Start the server
 startServer();
+// 添加进程异常处理，防止因数据库错误导致整个应用崩溃
+process.on('uncaughtException', (error) => {
+    console.error('未捕获的异常:', error);
+    // 不要终止进程，让应用继续运行
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('未处理的Promise拒绝:', reason);
+    // 不要终止进程，让应用继续运行
+});
 exports.default = app;

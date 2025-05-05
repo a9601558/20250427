@@ -9,10 +9,12 @@
     "dev": "ts-node src/index.ts",
     "deploy": "npm run build && npm run start",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrations": "node run-migrations.js",
+    "migrations": "node src/scripts/run-migrations.js",
     "start:with-migrations": "npm run migrations && npm run start",
     "add:countdown": "node add-countdown-column.js",
-    "deploy:full": "npm run add:countdown && npm run build && npm run start"
+    "deploy:full": "npm run migrations && npm run build && npm run start",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:create": "node src/scripts/setup-database.js"
   },
   "keywords": [],
   "author": "",

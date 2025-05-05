@@ -163,4 +163,117 @@ npm run baota-deploy
 - featured_categories: 推荐分类
 - announcements: 公告内容
 - footer_text: 页脚文本
-- banner_image: 横幅图片 
+- banner_image: 横幅图片
+
+## 部署指南 (BaoTa Panel)
+
+本文档提供在宝塔面板(BaoTa Panel)上部署该应用的步骤。
+
+### 环境要求
+
+- Node.js 16+ 
+- MySQL 5.7+
+- 宝塔面板 7.7.0+
+
+### 部署步骤
+
+1. **准备代码**
+
+   上传代码到服务器或通过Git拉取代码:
+   ```
+   git clone <repository-url>
+   cd <project-folder>/server
+   npm install
+   ```
+
+2. **创建并配置环境变量**
+
+   在server目录下创建.env文件:
+   ```
+   NODE_ENV=production
+   PORT=5000
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=quizuser
+   DB_PASSWORD=yourpassword
+   DB_NAME=quizdb
+   JWT_SECRET=your_jwt_secret_key
+   JWT_EXPIRES_IN=30d
+   ALLOW_PUBLIC_PROGRESS=true
+   DB_MIGRATE=true
+   ```
+
+3. **数据库设置**
+
+   在宝塔面板的数据库管理中:
+   - 创建数据库 `quizdb`
+   - 创建用户 `quizuser` 并设置密码 
+   - 将 `quizuser` 用户授权给 `quizdb` 数据库
+
+4. **执行自动迁移**
+
+   系统会在启动时自动执行数据库迁移，也可以手动执行：
+   ```
+   cd <project-folder>/server
+   npm run migrations
+   ```
+
+5. **构建应用**
+
+   ```
+   cd <project-folder>/server
+   npm run build
+   ```
+
+6. **配置宝塔面板PM2管理器**
+
+   在宝塔面板中:
+   - 进入"软件商店" -> "PM2管理器" -> "添加项目"
+   - 项目名称: `quiz-server`
+   - 启动目录: `/www/wwwroot/<your-path>/server`
+   - 启动命令: `npm run start`
+   - 环境变量: 保持默认，已通过.env配置
+
+7. **配置反向代理**
+
+   在宝塔面板站点管理中:
+   - 选择对应站点，点击"设置" -> "反向代理"
+   - 添加新的反向代理，将 `/api` 和 `/socket.io` 路径代理到 `http://127.0.0.1:5000`
+
+### 故障排除
+
+1. **Table 'quizdb.homepage_settings' doesn't exist 错误**
+
+   如果部署后出现此错误，请手动执行迁移脚本:
+   ```
+   cd <project-folder>/server
+   node src/scripts/run-migrations.js
+   ```
+
+2. **数据库连接错误**
+
+   检查以下几点:
+   - 确认.env文件中的数据库信息正确
+   - 确认MySQL数据库正在运行
+   - 确认用户名和密码正确
+   - 确认数据库名称存在
+   - 检查数据库用户是否有足够权限
+
+3. **Socket.IO 连接问题**
+
+   确保反向代理正确配置了Socket.IO路径:
+   - 代理 `/socket.io` 路径到后端服务
+   - 确保WebSocket支持已启用
+
+### 升级步骤
+
+1. 先备份数据库
+2. 拉取最新代码
+3. 重新构建应用: `npm run build`
+4. 执行数据库迁移: `npm run migrations`
+5. 重启应用: `pm2 restart quiz-server`
+
+### 监控与日志
+
+- 通过PM2查看应用日志: `pm2 logs quiz-server`
+- 检查错误日志: `pm2 logs quiz-server --err` 
