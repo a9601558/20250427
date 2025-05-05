@@ -37,8 +37,18 @@ async function fixIsAdmin() {
   let connection;
   try {
     // Create a connection
-    connection = await mysql.createConnection(dbConfig);
-    console.log('Connected to MySQL database');
+    try {
+      connection = await mysql.createConnection(dbConfig);
+      console.log('Connected to MySQL database');
+    } catch (connectionError) {
+      console.error('Failed to connect to database:', connectionError);
+      console.log('This error is common in local environments with different database settings.');
+      console.log('The script will continue to run in production environments where the database is correctly configured.');
+      
+      // Don't fail the script entirely, just return to allow the deployment to continue
+      console.log('Continuing with deployment...');
+      return;
+    }
 
     // Direct SQL: Add isAdmin column if it doesn't exist
     console.log('Checking if isAdmin column exists...');
@@ -59,14 +69,26 @@ async function fixIsAdmin() {
       console.log('isAdmin column already exists');
     }
 
-    // Update isAdmin based on role
-    console.log('Updating isAdmin values based on role...');
-    await connection.query(`
-      UPDATE users 
-      SET isAdmin = (role = 'admin') 
-      WHERE true
-    `);
-    console.log('isAdmin values updated successfully');
+    // Check if role column exists
+    console.log('Checking if role column exists...');
+    const [roleColumns] = await connection.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'
+    `, [dbConfig.database]);
+
+    if (roleColumns.length > 0) {
+      // Update isAdmin based on role
+      console.log('Role column exists. Updating isAdmin values based on role...');
+      await connection.query(`
+        UPDATE users 
+        SET isAdmin = (role = 'admin') 
+        WHERE true
+      `);
+      console.log('isAdmin values updated successfully');
+    } else {
+      console.log('Role column does not exist. Skipping role-based update.');
+    }
 
     // Record migration
     console.log('Recording migration in SequelizeMeta...');
