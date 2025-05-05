@@ -72,6 +72,12 @@ app.use('/api/quiz', quizRoutes);
 
 // 添加路由别名，解决旧路径问题
 app.use('/api/progress', userProgressRoutes);
+// 添加别名路由 /api/users/:userId/progress
+app.use('/api/users/:userId/progress', (req, res, next) => {
+  // 将请求转发到 /api/user-progress/:userId
+  req.url = '/' + req.params.userId;
+  userProgressRoutes(req, res, next);
+});
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

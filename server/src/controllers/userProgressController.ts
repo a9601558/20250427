@@ -1387,12 +1387,12 @@ async function createQuizSummaryRecord(
 ) {
   const summaryId = uuidv4();
   
-  // Fix: Cast null to string to satisfy TypeScript - the database schema should allow null for this field
+  // 解决 notNull 约束错误：使用 summaryId 作为 questionId 而不是 null
   await UserProgress.create({
     id: summaryId,
     userId,
     questionSetId,
-    questionId: null as unknown as string, // TypeScript workaround - the actual DB allows null
+    questionId: summaryId, // 使用生成的UUID作为虚拟questionId
     isCorrect: false, 
     timeSpent: summary.timeSpent,
     lastAccessed: new Date(),

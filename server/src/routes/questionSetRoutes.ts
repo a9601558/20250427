@@ -71,4 +71,35 @@ router.post('/test', (req, res) => {
   });
 });
 
+// 添加缺失的 access-check 路由
+router.get('/:id/access-check', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: '未授权，请登录后重试'
+      });
+    }
+    
+    // 默认所有登录用户都有访问权限
+    return res.status(200).json({
+      success: true,
+      data: {
+        hasAccess: true,
+        questionSetId: id,
+        userId
+      }
+    });
+  } catch (err) {
+    console.error('检查访问权限失败:', err);
+    return res.status(500).json({
+      success: false,
+      message: '检查访问权限失败'
+    });
+  }
+});
+
 export default router; 

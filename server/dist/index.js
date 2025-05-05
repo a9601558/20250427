@@ -64,6 +64,12 @@ app.use('/api/wrong-answers', wrongAnswerRoutes_1.default);
 app.use('/api/quiz', quizRoutes_1.default);
 // 添加路由别名，解决旧路径问题
 app.use('/api/progress', userProgressRoutes_1.default);
+// 添加别名路由 /api/users/:userId/progress
+app.use('/api/users/:userId/progress', (req, res, next) => {
+    // 将请求转发到 /api/user-progress/:userId
+    req.url = '/' + req.params.userId;
+    (0, userProgressRoutes_1.default)(req, res, next);
+});
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

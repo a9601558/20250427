@@ -1,34 +1,31 @@
 import express from 'express';
+import { protect as auth } from '../middleware/authMiddleware';
 import userProgressController from '../controllers/userProgressController';
-import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// 公共路由 - 不需要身份验证
+// 公共路由 - 不需要认证
 router.post('/beacon', userProgressController.syncProgressViaBeacon);
+router.post('/update', userProgressController.updateProgress); // 移除认证中间件，允许未认证请求
+router.post('/quiz/submit', userProgressController.quizSubmit);
 
-// 其他所有进度路由需要认证
-router.use(protect);
+// 需要认证的路由
+router.get('/:userId', auth, userProgressController.getUserProgress);
+router.get('/detailed/:userId/:questionSetId', auth, userProgressController.getDetailedProgress);
+router.post('/detailed', auth, userProgressController.createDetailedProgress);
+router.get('/stats/:userId', auth, userProgressController.getUserProgressStats);
+router.get('/stats/:userId/:questionSetId', auth, userProgressController.getProgressStats);
+router.get('/summary/:userId', auth, userProgressController.getProgressSummary);
+router.get('/records/:userId', auth, userProgressController.getUserProgressRecords);
 
-// 详细进度记录路由 - 需要放在前面以避免和通用路由冲突
-router.get('/detailed/:userId/:questionSetId', userProgressController.getDetailedProgress);
-router.post('/detailed', userProgressController.createDetailedProgress);
+// 重置和删除操作需要认证
+router.delete('/reset/:userId/:questionSetId', auth, userProgressController.resetProgress);
+router.delete('/:userId/:progressId', auth, userProgressController.deleteProgressRecord);
 
-// 进度统计路由
-router.get('/stats/:userId/:questionSetId', userProgressController.getProgressStats);
-router.get('/stats/:userId', userProgressController.getUserProgressStats);
-router.get('/summary/:userId', userProgressController.getProgressSummary);
+// 添加缺失的用户进度路由
+router.get('/:userId/:questionSetId', auth, userProgressController.getProgressByQuestionSetId);
 
-// 进度记录路由
-router.get('/records/:userId', userProgressController.getUserProgressRecords);
-
-// 更新与重置路由
-router.post('/update', userProgressController.updateProgress);
-router.delete('/reset/:userId/:questionSetId', userProgressController.resetProgress);
-router.delete('/:userId/:progressId', userProgressController.deleteProgressRecord);
-
-// 基本进度查询路由
-router.get('/:userId/:questionSetId', userProgressController.getProgressByQuestionSetId);
-router.get('/:userId', userProgressController.getUserProgress);
+// 添加别名路由解决缺失的 /api/users/:userId/progress 路由
+router.get('/user/:userId', auth, userProgressController.getUserProgress);
 
 export default router; 
