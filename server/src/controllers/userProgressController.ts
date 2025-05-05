@@ -71,8 +71,8 @@ const checkPermission = (req: Request, targetUserId: string): boolean => {
     return true;
   }
   
-  // Allow access if user has admin role
-  if (req.user && req.user.role === 'admin') {
+  // Allow access if user has admin privileges
+  if (req.user && req.user.isAdmin) {
     return true;
   }
   

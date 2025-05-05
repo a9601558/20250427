@@ -140,61 +140,114 @@ User.init({
         comment: '用户Socket连接ID',
     },
     purchases: {
-        type: sequelize_1.DataTypes.JSON,
-        allowNull: false,
-        defaultValue: [],
-    },
-    redeemCodes: {
-        type: sequelize_1.DataTypes.JSON,
-        allowNull: true,
-        defaultValue: [],
-    },
-    progress: {
-        type: sequelize_1.DataTypes.JSON,
-        allowNull: true,
-        defaultValue: {},
-    },
-    examCountdowns: {
-        type: sequelize_1.DataTypes.JSON,
+        type: sequelize_1.DataTypes.TEXT,
         allowNull: true,
         defaultValue: '[]',
-        comment: '用户保存的考试倒计时数据',
+        get() {
+            const value = this.getDataValue('purchases');
+            if (!value)
+                return [];
+            try {
+                return JSON.parse(value);
+            }
+            catch (e) {
+                return [];
+            }
+        },
+        set(value) {
+            if (typeof value === 'object') {
+                this.setDataValue('purchases', JSON.stringify(value));
+            }
+            else {
+                this.setDataValue('purchases', JSON.parse(value));
+            }
+        }
+    },
+    redeemCodes: {
+        type: sequelize_1.DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: '[]',
+        get() {
+            const value = this.getDataValue('redeemCodes');
+            if (!value)
+                return [];
+            try {
+                return JSON.parse(value);
+            }
+            catch (e) {
+                return [];
+            }
+        },
+        set(value) {
+            if (typeof value === 'object') {
+                this.setDataValue('redeemCodes', JSON.stringify(value));
+            }
+            else {
+                this.setDataValue('redeemCodes', JSON.parse(value));
+            }
+        }
+    },
+    progress: {
+        type: sequelize_1.DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: '{}',
+        get() {
+            const value = this.getDataValue('progress');
+            if (!value)
+                return {};
+            try {
+                return JSON.parse(value);
+            }
+            catch (e) {
+                return {};
+            }
+        },
+        set(value) {
+            if (typeof value === 'object') {
+                this.setDataValue('progress', JSON.stringify(value));
+            }
+            else {
+                this.setDataValue('progress', JSON.parse(value));
+            }
+        }
+    },
+    examCountdowns: {
+        type: sequelize_1.DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: '[]',
         get() {
             const value = this.getDataValue('examCountdowns');
-            if (typeof value === 'string') {
-                try {
-                    return JSON.parse(value);
-                }
-                catch (e) {
-                    console.error('Error parsing examCountdowns:', e);
-                    return [];
-                }
+            if (!value)
+                return [];
+            try {
+                return JSON.parse(value);
             }
-            return value;
+            catch (e) {
+                return [];
+            }
         },
         set(value) {
             if (typeof value === 'object') {
                 this.setDataValue('examCountdowns', JSON.stringify(value));
             }
             else {
-                this.setDataValue('examCountdowns', value);
+                this.setDataValue('examCountdowns', JSON.parse(value));
             }
         }
     },
-    role: {
-        type: sequelize_1.DataTypes.ENUM('user', 'admin'),
-        defaultValue: 'user'
-    },
     verified: {
         type: sequelize_1.DataTypes.BOOLEAN,
+        allowNull: false,
         defaultValue: false
     },
     failedLoginAttempts: {
         type: sequelize_1.DataTypes.INTEGER,
+        allowNull: false,
         defaultValue: 0
     },
     accountLocked: {
         type: sequelize_1.DataTypes.BOOLEAN,
+        allowNull: false,
         defaultValue: false
     },
     lockUntil: {
@@ -202,12 +255,12 @@ User.init({
         allowNull: true
     },
     preferredLanguage: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(10),
         allowNull: true,
         defaultValue: 'zh-CN'
     },
     profilePicture: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(255),
         allowNull: true
     },
     lastLoginAt: {
@@ -215,7 +268,7 @@ User.init({
         allowNull: true
     },
     resetPasswordToken: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(255),
         allowNull: true
     },
     resetPasswordExpires: {
@@ -262,22 +315,12 @@ User.init({
             else {
                 throw new Error('Password is required');
             }
-            // Process examCountdowns if it's an object
-            const examCountdowns = user.getDataValue('examCountdowns');
-            if (typeof examCountdowns === 'object' && examCountdowns !== null) {
-                user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
-            }
         },
         beforeUpdate: async (user, options) => {
             // Only hash password if it has been modified
             if (user.changed('password') && user.password) {
                 const salt = await bcryptjs_1.default.genSalt(10);
                 user.password = await bcryptjs_1.default.hash(user.password, salt);
-            }
-            // Process examCountdowns if it's an object
-            const examCountdowns = user.getDataValue('examCountdowns');
-            if (typeof examCountdowns === 'object' && examCountdowns !== null) {
-                user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
             }
         }
     }

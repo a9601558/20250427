@@ -24,6 +24,7 @@ class QuestionSet extends sequelize_1.Model {
     updatedAt;
     // 关联
     questionSetQuestions;
+    questions;
 }
 // 初始化模型
 QuestionSet.init({
@@ -45,8 +46,8 @@ QuestionSet.init({
         allowNull: false,
     },
     icon: {
-        type: sequelize_1.DataTypes.STRING,
-        allowNull: false,
+        type: sequelize_1.DataTypes.STRING(255),
+        allowNull: true,
         defaultValue: 'default',
     },
     isPaid: {
@@ -72,7 +73,7 @@ QuestionSet.init({
         field: 'is_featured',
     },
     featuredCategory: {
-        type: sequelize_1.DataTypes.STRING,
+        type: sequelize_1.DataTypes.STRING(100),
         allowNull: true,
         field: 'featured_category',
     },

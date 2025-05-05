@@ -366,6 +366,65 @@ DB_NAME=quizdb
 
 ## 常见问题解决方案
 
+### 缺少数据库列问题
+
+如果您遇到以下错误消息之一：
+```
+"Unknown column 'QuestionSet.icon' in 'field list'"
+"Unknown column 'socket_id' in 'field list'"
+```
+
+这是由于数据库中的表结构缺少应用程序代码中引用的列。我们提供了多种解决方案：
+
+#### 方法1：使用迁移系统添加缺失列（Linux/Mac环境）
+
+```bash
+# 确保您有权限访问数据库
+cd <project-folder>/server
+npm run migrations
+```
+
+#### 方法2：使用SQL文件直接添加（适用于所有环境）
+
+将以下SQL命令复制并在MySQL客户端中执行：
+
+```sql
+USE quizdb;
+
+-- 添加question_sets表缺失的列
+ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS icon VARCHAR(255) NULL COMMENT 'Icon URL or identifier for the question set';
+ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS is_paid BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS trial_questions INT NULL DEFAULT 0;
+ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS featured_category VARCHAR(100) NULL;
+
+-- 添加users表缺失的列
+ALTER TABLE users ADD COLUMN IF NOT EXISTS socket_id VARCHAR(255) NULL COMMENT 'Socket.io connection ID';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS purchases TEXT NULL DEFAULT '[]';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS redeemCodes TEXT NULL DEFAULT '[]';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS progress TEXT NULL DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS examCountdowns TEXT NULL DEFAULT '[]';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS failedLoginAttempts INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS accountLocked BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS lockUntil DATETIME NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferredLanguage VARCHAR(10) NULL DEFAULT 'zh-CN';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profilePicture VARCHAR(255) NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS lastLoginAt DATETIME NULL;
+
+-- 将迁移标记为已完成
+INSERT IGNORE INTO SequelizeMeta (name) VALUES ('20250511-add-missing-columns.js');
+```
+
+#### 方法3：使用自动部署脚本
+
+最简单的方法是使用我们的全自动部署脚本，它会自动检测和解决所有数据库结构问题：
+
+```bash
+# 在宝塔面板环境中执行
+npm run baota:deploy
+```
+
 ### isAdmin列缺失问题
 
 如果您遇到以下错误消息：

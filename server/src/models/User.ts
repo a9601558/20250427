@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { IUser, IPurchase, IRedeemCode, IProgressSummary } from '../types';
 
-export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns' | 'role' | 'verified' | 'failedLoginAttempts' | 'accountLocked' | 'lockUntil' | 'preferredLanguage' | 'profilePicture' | 'lastLoginAt' | 'resetPasswordToken' | 'resetPasswordExpires'>;
+export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns' | 'verified' | 'failedLoginAttempts' | 'accountLocked' | 'lockUntil' | 'preferredLanguage' | 'profilePicture' | 'lastLoginAt' | 'resetPasswordToken' | 'resetPasswordExpires'>;
 
 export class User extends Model<IUser, UserCreationAttributes> implements IUser {
   declare id: string;
@@ -20,7 +20,6 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
     [questionSetId: string]: IProgressSummary;
   };
   declare examCountdowns?: string | any[];
-  declare role: string;
   declare verified: boolean;
   declare failedLoginAttempts?: number;
   declare accountLocked?: boolean;
@@ -184,59 +183,102 @@ User.init(
       comment: '用户Socket连接ID',
     },
     purchases: {
-      type: DataTypes.JSON,
-      allowNull: false,
-      defaultValue: [],
-    },
-    redeemCodes: {
-      type: DataTypes.JSON,
-      allowNull: true,
-      defaultValue: [],
-    },
-    progress: {
-      type: DataTypes.JSON,
-      allowNull: true,
-      defaultValue: {},
-    },
-    examCountdowns: {
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
       defaultValue: '[]',
-      comment: '用户保存的考试倒计时数据',
       get() {
-        const value = this.getDataValue('examCountdowns');
-        if (typeof value === 'string') {
-          try {
-            return JSON.parse(value);
-          } catch (e) {
-            console.error('Error parsing examCountdowns:', e);
-            return [];
-          }
+        const value = this.getDataValue('purchases');
+        if (!value) return [];
+        try {
+          return JSON.parse(value as unknown as string) as IPurchase[];
+        } catch (e) {
+          return [] as IPurchase[];
         }
-        return value;
       },
-      set(value: any) {
+      set(value: IPurchase[] | string) {
         if (typeof value === 'object') {
-          this.setDataValue('examCountdowns', JSON.stringify(value));
+          this.setDataValue('purchases', JSON.stringify(value) as unknown as IPurchase[]);
         } else {
-          this.setDataValue('examCountdowns', value);
+          this.setDataValue('purchases', JSON.parse(value) as unknown as IPurchase[]);
         }
       }
     },
-    role: {
-      type: DataTypes.ENUM('user', 'admin'),
-      defaultValue: 'user'
+    redeemCodes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: '[]',
+      get() {
+        const value = this.getDataValue('redeemCodes');
+        if (!value) return [];
+        try {
+          return JSON.parse(value as unknown as string) as IRedeemCode[];
+        } catch (e) {
+          return [] as IRedeemCode[];
+        }
+      },
+      set(value: IRedeemCode[] | string) {
+        if (typeof value === 'object') {
+          this.setDataValue('redeemCodes', JSON.stringify(value) as unknown as IRedeemCode[]);
+        } else {
+          this.setDataValue('redeemCodes', JSON.parse(value) as unknown as IRedeemCode[]);
+        }
+      }
+    },
+    progress: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: '{}',
+      get() {
+        const value = this.getDataValue('progress');
+        if (!value) return {};
+        try {
+          return JSON.parse(value as unknown as string) as { [questionSetId: string]: IProgressSummary };
+        } catch (e) {
+          return {} as { [questionSetId: string]: IProgressSummary };
+        }
+      },
+      set(value: { [questionSetId: string]: IProgressSummary } | string) {
+        if (typeof value === 'object') {
+          this.setDataValue('progress', JSON.stringify(value) as unknown as { [questionSetId: string]: IProgressSummary });
+        } else {
+          this.setDataValue('progress', JSON.parse(value) as unknown as { [questionSetId: string]: IProgressSummary });
+        }
+      }
+    },
+    examCountdowns: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: '[]',
+      get() {
+        const value = this.getDataValue('examCountdowns');
+        if (!value) return [];
+        try {
+          return JSON.parse(value as unknown as string);
+        } catch (e) {
+          return [];
+        }
+      },
+      set(value: any[] | string) {
+        if (typeof value === 'object') {
+          this.setDataValue('examCountdowns', JSON.stringify(value) as unknown as any[]);
+        } else {
+          this.setDataValue('examCountdowns', JSON.parse(value) as unknown as any[]);
+        }
+      }
     },
     verified: {
       type: DataTypes.BOOLEAN,
+      allowNull: false,
       defaultValue: false
     },
     failedLoginAttempts: {
       type: DataTypes.INTEGER,
+      allowNull: false,
       defaultValue: 0
     },
     accountLocked: {
       type: DataTypes.BOOLEAN,
+      allowNull: false,
       defaultValue: false
     },
     lockUntil: {
@@ -244,12 +286,12 @@ User.init(
       allowNull: true
     },
     preferredLanguage: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(10),
       allowNull: true,
       defaultValue: 'zh-CN'
     },
     profilePicture: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(255),
       allowNull: true
     },
     lastLoginAt: {
@@ -257,7 +299,7 @@ User.init(
       allowNull: true
     },
     resetPasswordToken: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(255),
       allowNull: true
     },
     resetPasswordExpires: {
@@ -304,24 +346,12 @@ User.init(
         } else {
           throw new Error('Password is required');
         }
-        
-        // Process examCountdowns if it's an object
-        const examCountdowns = user.getDataValue('examCountdowns');
-        if (typeof examCountdowns === 'object' && examCountdowns !== null) {
-          user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
-        }
       },
       beforeUpdate: async (user: User, options) => {
         // Only hash password if it has been modified
         if (user.changed('password') && user.password) {
           const salt = await bcrypt.genSalt(10);
           user.password = await bcrypt.hash(user.password, salt);
-        }
-        
-        // Process examCountdowns if it's an object
-        const examCountdowns = user.getDataValue('examCountdowns');
-        if (typeof examCountdowns === 'object' && examCountdowns !== null) {
-          user.setDataValue('examCountdowns', JSON.stringify(examCountdowns));
         }
       }
     }

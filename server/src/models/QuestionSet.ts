@@ -20,8 +20,8 @@ export interface QuestionSetAttributes {
   questions?: Question[];
 }
 
-// 创建时可选的属性
-interface QuestionSetCreationAttributes extends Optional<QuestionSetAttributes, 'id'> {}
+// 创建时可选字段
+export type QuestionSetCreationAttributes = Optional<QuestionSetAttributes, 'id' | 'createdAt' | 'updatedAt' | 'questionSetQuestions' | 'questions'>;
 
 // 题集模型类
 class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttributes> implements QuestionSetAttributes {
@@ -42,6 +42,7 @@ class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttrib
 
   // 关联
   public readonly questionSetQuestions?: Question[];
+  public readonly questions?: Question[];
 }
 
 // 初始化模型
@@ -65,8 +66,8 @@ QuestionSet.init(
       allowNull: false,
     },
     icon: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: DataTypes.STRING(255),
+      allowNull: true,
       defaultValue: 'default',
     },
     isPaid: {
@@ -92,7 +93,7 @@ QuestionSet.init(
       field: 'is_featured',
     },
     featuredCategory: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(100),
       allowNull: true,
       field: 'featured_category',
     },

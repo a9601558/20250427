@@ -399,7 +399,6 @@ export const updateUser = async (req: Request, res: Response) => {
       user.username = req.body.username || user.username;
       user.email = req.body.email || user.email;
       user.isAdmin = req.body.isAdmin !== undefined ? req.body.isAdmin : user.isAdmin;
-      user.role = req.body.role || user.role;
       user.verified = req.body.verified !== undefined ? req.body.verified : user.verified;
       
       // Handle password reset by admin
