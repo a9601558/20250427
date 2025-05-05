@@ -1,44 +1,90 @@
 "use strict";
-/**
- * 应用程序全局状态管理
- * 用于跟踪应用级别的状态，例如初始化状态
- */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.appState = void 0;
-class AppState {
+exports.appState = exports.AppStateManager = void 0;
+/**
+ * Global application state management
+ * Used to track application-level state and share resources
+ */
+class AppStateManager {
     static _instance;
+    // Application state properties
     _associationsInitialized = false;
+    _io = null;
+    _fieldMappings = {
+        // QuestionSet model mappings
+        QuestionSet: ['title', 'name', 'setName', 'quizName'],
+        // User model mappings
+        User: ['username', 'userName', 'user_name', 'name'],
+        // Question model mappings
+        Question: ['text', 'content', 'question', 'questionText'],
+        // Common ID mappings
+        id: ['id', '_id', 'ID', 'uuid', 'uid'],
+        // Common timestamp mappings
+        createdAt: ['createdAt', 'created_at', 'createTime', 'create_time'],
+        updatedAt: ['updatedAt', 'updated_at', 'updateTime', 'update_time'],
+        // User Progress related mappings
+        questionId: ['questionId', 'question_id'],
+        questionSetId: ['questionSetId', 'question_set_id', 'setId', 'quizId'],
+        userId: ['userId', 'user_id']
+    };
+    _enableGlobalMapping = true;
+    _config = {
+        enableGracefulDegradation: true,
+        enableFieldMapping: true,
+        enableConsistencyChecks: true
+    };
     constructor() {
-        // 私有构造函数，防止直接实例化
+        // Private constructor to prevent direct instantiation
     }
     /**
-     * 获取单例实例
+     * Get the singleton instance
      */
     static getInstance() {
-        if (!AppState._instance) {
-            AppState._instance = new AppState();
+        if (!AppStateManager._instance) {
+            AppStateManager._instance = new AppStateManager();
         }
-        return AppState._instance;
+        return AppStateManager._instance;
     }
-    /**
-     * 检查模型关联是否已初始化
-     */
+    // Getters and setters
     get associationsInitialized() {
         return this._associationsInitialized;
     }
-    /**
-     * 设置模型关联初始化状态
-     */
     set associationsInitialized(value) {
         this._associationsInitialized = value;
     }
+    get io() {
+        return this._io;
+    }
+    set io(value) {
+        this._io = value;
+    }
+    get fieldMappings() {
+        return this._fieldMappings;
+    }
+    get enableGlobalMapping() {
+        return this._enableGlobalMapping;
+    }
+    set enableGlobalMapping(value) {
+        this._enableGlobalMapping = value;
+    }
+    get config() {
+        return this._config;
+    }
     /**
-     * 将应用状态重置为初始值
-     * 主要用于测试目的
+     * Reset the application state to initial values
+     * Mainly used for testing purposes
      */
     reset() {
         this._associationsInitialized = false;
+        this._io = null;
+        this._enableGlobalMapping = true;
+        this._config = {
+            enableGracefulDegradation: true,
+            enableFieldMapping: true,
+            enableConsistencyChecks: true
+        };
     }
 }
-// 导出单例实例
-exports.appState = AppState.getInstance();
+exports.AppStateManager = AppStateManager;
+// Export singleton instance
+exports.appState = AppStateManager.getInstance();

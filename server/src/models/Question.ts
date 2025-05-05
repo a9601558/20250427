@@ -7,9 +7,13 @@ export interface QuestionAttributes {
   id: string;
   questionSetId: string;
   text: string;
-  questionType: 'single' | 'multiple';
-  explanation: string;
-  orderIndex: number;
+  questionType: string;
+  explanation?: string;
+  orderIndex?: number;
+  difficulty?: number;
+  points?: number;
+  timeLimit?: number;
+  metadata?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -22,9 +26,13 @@ class Question extends Model<QuestionAttributes, QuestionCreationAttributes> imp
   public id!: string;
   public questionSetId!: string;
   public text!: string;
-  public questionType!: 'single' | 'multiple';
+  public questionType!: string;
   public explanation!: string;
   public orderIndex!: number;
+  public difficulty?: number;
+  public points?: number;
+  public timeLimit?: number;
+  public metadata?: string;
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -36,50 +44,52 @@ Question.init(
   {
     id: {
       type: DataTypes.UUID,
-      defaultValue: () => uuidv4(),
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
+      allowNull: false
     },
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
-        model: 'question_sets',
+        model: 'QuestionSets',
         key: 'id'
       }
     },
     text: {
       type: DataTypes.TEXT,
-      allowNull: false,
-      validate: {
-        notNull: {
-          msg: 'text字段不能为null'
-        },
-        notEmpty: {
-          msg: 'text字段不能为空'
-        }
-      },
-      set(value: any) {
-        // 确保值不为null或空字符串
-        if (value === null || value === undefined || value === '') {
-          this.setDataValue('text', '未命名问题');
-        } else {
-          this.setDataValue('text', String(value).trim());
-        }
-      }
+      allowNull: false
     },
     questionType: {
-      type: DataTypes.ENUM('single', 'multiple'),
-      allowNull: false,
-      defaultValue: 'single'
+      type: DataTypes.STRING,
+      allowNull: false
     },
     explanation: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: true,
+      defaultValue: ''
     },
     orderIndex: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       defaultValue: 0
+    },
+    difficulty: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    points: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    timeLimit: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    metadata: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'JSON metadata for storing additional question information'
     }
   },
   {

@@ -3,24 +3,40 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeSocket = exports.io = void 0;
+exports.emitProgressUpdate = exports.safeEmit = exports.getSocketIO = exports.initializeSocket = void 0;
 const socket_io_1 = require("socket.io");
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const sequelize_1 = require("sequelize");
+const appstate_1 = require("../utils/appstate");
 // 加载环境变量
 dotenv_1.default.config();
-// 初始化 Socket.IO
-const initializeSocket = (server) => {
-    exports.io = new socket_io_1.Server(server, {
+// 创建 Socket.IO 实例
+let io = null;
+/**
+ * Initialize Socket.IO server
+ * @param server HTTP server instance
+ * @param degradedMode Whether to run in degraded mode (when database is unavailable)
+ */
+const initializeSocket = (server, degradedMode = false) => {
+    if (io) {
+        console.log('Socket.IO 实例已存在，复用现有实例');
+        return io;
+    }
+    console.log(`初始化 Socket.IO${degradedMode ? ' (降级模式)' : ''}`);
+    // Create Socket.IO server
+    io = new socket_io_1.Server(server, {
         cors: {
             origin: process.env.CLIENT_URL || 'http://localhost:3000',
             methods: ['GET', 'POST']
-        }
+        },
+        pingTimeout: 60000
     });
+    // Store in app state
+    appstate_1.appState.io = io;
     // 添加认证中间件
-    exports.io.use((socket, next) => {
+    io.use((socket, next) => {
         const token = socket.handshake.auth.token;
         if (!token) {
             console.log('Socket连接没有提供token');
@@ -39,11 +55,11 @@ const initializeSocket = (server) => {
         }
     });
     // 监听数据包
-    exports.io.engine.on('packet', (packet) => {
+    io.engine.on('packet', (packet) => {
         console.log('packet', packet.type, packet.data);
     });
     // 处理连接
-    exports.io.on('connection', (socket) => {
+    io.on('connection', (socket) => {
         console.log(`用户 ${socket.userId} 已连接`);
         // 将socket加入以用户ID命名的房间
         if (socket.userId) {
@@ -119,10 +135,12 @@ const initializeSocket = (server) => {
                 // 转换为纯对象
                 const progressData = progressRecord.toJSON();
                 // 向用户发送进度已更新通知
-                exports.io.to(userId).emit('progress:update', {
-                    questionSetId,
-                    progress: progressData
-                });
+                if (io) {
+                    io.to(userId).emit('progress:update', {
+                        questionSetId,
+                        progress: progressData
+                    });
+                }
                 // 向客户端确认进度已保存
                 socket.emit('progress_saved', {
                     success: true,
@@ -223,5 +241,53 @@ const initializeSocket = (server) => {
             console.log(`用户 ${socket.userId} 断开连接, 原因: ${reason}`);
         });
     });
+    return io;
 };
 exports.initializeSocket = initializeSocket;
+/**
+ * Get the Socket.IO server instance
+ */
+const getSocketIO = () => {
+    return io;
+};
+exports.getSocketIO = getSocketIO;
+/**
+ * Safely emit an event to a room or specific socket
+ * @param room Room or socket ID
+ * @param event Event name
+ * @param data Event data
+ */
+const safeEmit = (room, event, data) => {
+    try {
+        const socketIO = (0, exports.getSocketIO)();
+        if (!socketIO) {
+            console.warn(`Socket.IO not available, unable to emit event: ${event}`);
+            return;
+        }
+        socketIO.to(room).emit(event, data);
+    }
+    catch (error) {
+        console.error(`Failed to emit Socket event [${event}]:`, error);
+    }
+};
+exports.safeEmit = safeEmit;
+/**
+ * Emit progress update to a user
+ */
+const emitProgressUpdate = (userId, data) => {
+    try {
+        const socketIO = (0, exports.getSocketIO)();
+        if (!socketIO) {
+            console.warn('Socket.IO not available, unable to emit progress update');
+            return;
+        }
+        socketIO.to(userId).emit('progress:update', {
+            timestamp: new Date().toISOString(),
+            ...data
+        });
+    }
+    catch (error) {
+        console.error('Failed to emit progress update:', error);
+    }
+};
+exports.emitProgressUpdate = emitProgressUpdate;

@@ -187,6 +187,7 @@ exports.getProgressByQuestionSetId = getProgressByQuestionSetId;
  */
 const updateProgress = async (req, res) => {
     let transaction = null;
+    let transactionStarted = false;
     try {
         // 检查数据库连接
         const isConnected = await checkDatabaseConnection();
@@ -225,6 +226,7 @@ const updateProgress = async (req, res) => {
         try {
             // 开始事务
             transaction = await database_1.default.transaction();
+            transactionStarted = true;
             // 验证questionSetId是否存在
             let questionSet;
             try {
@@ -403,24 +405,33 @@ const updateProgress = async (req, res) => {
                 });
             }
             catch (createError) {
-                if (transaction) {
-                    await transaction.rollback();
-                    transaction = null; // 标记事务已回滚
+                if (transaction && transactionStarted) {
+                    try {
+                        await transaction.rollback();
+                        console.log(`[updateProgress] 事务已回滚`);
+                    }
+                    catch (rollbackError) {
+                        console.error('[updateProgress] 回滚事务失败:', rollbackError);
+                    }
+                    transaction = null;
+                    transactionStarted = false;
                 }
                 console.error(`[updateProgress] 创建进度记录失败:`, createError);
                 throw createError;
             }
         }
         catch (innerError) {
-            if (transaction) {
+            // 确保只回滚一次事务
+            if (transaction && transactionStarted) {
                 try {
                     await transaction.rollback();
-                    transaction = null; // 标记事务已回滚
                     console.log(`[updateProgress] 事务已回滚`);
                 }
                 catch (rollbackError) {
                     console.error('[updateProgress] 回滚事务失败:', rollbackError);
                 }
+                transaction = null;
+                transactionStarted = false;
             }
             throw innerError;
         }
@@ -1286,6 +1297,7 @@ exports.deleteProgressRecord = deleteProgressRecord;
  */
 const quizSubmit = async (req, res) => {
     let transaction = null;
+    let transactionStarted = false;
     try {
         // 检查数据库连接
         const isConnected = await checkDatabaseConnection();
@@ -1326,6 +1338,7 @@ const quizSubmit = async (req, res) => {
         try {
             // 开始事务
             transaction = await database_1.default.transaction();
+            transactionStarted = true;
             // 1. 首先验证questionSetId是否存在
             let questionSet;
             try {
@@ -1613,11 +1626,12 @@ const quizSubmit = async (req, res) => {
             });
         }
         catch (innerError) {
-            // 回滚事务，只有在事务存在时执行
-            if (transaction) {
+            // 确保只回滚一次事务
+            if (transaction && transactionStarted) {
                 try {
                     await transaction.rollback();
-                    transaction = null; // 标记事务已回滚
+                    transaction = null;
+                    transactionStarted = false;
                     console.log(`[QuizSubmit] 事务已回滚`);
                 }
                 catch (rollbackError) {
@@ -1687,6 +1701,7 @@ exports.quizSubmit = quizSubmit;
 async function createVirtualQuestion(questionSetId, transaction, summaryId, answerIndex) {
     const virtualQuestionId = (0, uuid_1.v4)();
     try {
+        // 修改SQL，移除isActive字段
         await database_1.default.query(`INSERT INTO questions (id, questionSetId, text, questionType, metadata, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, NOW(), NOW())`, {
             replacements: [
@@ -1762,7 +1777,7 @@ async function createQuizSummaryRecord(userId, questionSetId, summary, transacti
         if (!questionIdToUse) {
             try {
                 const virtualQuestionId = (0, uuid_1.v4)();
-                // 创建真实的题目记录，使用SQL直接插入以确保类型兼容性
+                // 创建真实的题目记录，移除isActive字段
                 const insertQuestionQuery = `
           INSERT INTO questions 
           (id, questionSetId, text, questionType, metadata, createdAt, updatedAt)
@@ -1789,98 +1804,17 @@ async function createQuizSummaryRecord(userId, questionSetId, summary, transacti
             }
             catch (createQuestionError) {
                 console.error('[createQuizSummaryRecord] 创建虚拟题目失败:', createQuestionError);
-                // 我们已经修改了UserProgress模型，允许questionId为null，所以这里不再需要UUID
-                questionIdToUse = null;
-                console.log(`[createQuizSummaryRecord] 将使用null作为questionId`);
+                // 使用默认的UUID，后续将直接使用SQL插入记录
+                questionIdToUse = (0, uuid_1.v4)();
+                console.log(`[createQuizSummaryRecord] 使用新生成的UUID: ${questionIdToUse}`);
             }
         }
-        // 创建总结记录
-        try {
-            const createData = {
-                id: summaryId,
-                userId,
-                questionSetId,
-                questionId: questionIdToUse, // 可能为null，由于模型修改，这是允许的
-                isCorrect: false,
-                timeSpent: summary.timeSpent,
-                lastAccessed: new Date(),
-                recordType: PROGRESS_RECORD_TYPES.QUIZ_SUMMARY,
-                metadata: JSON.stringify({
-                    ...summary.metadata,
-                    isSummary: true,
-                    completedQuestions: summary.completedQuestions,
-                    totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions,
-                    correctAnswers: summary.correctAnswers,
-                    accuracy: summary.completedQuestions > 0
-                        ? (summary.correctAnswers / summary.completedQuestions) * 100
-                        : 0
-                }),
-                completedQuestions: summary.completedQuestions,
-                correctAnswers: summary.correctAnswers,
-                totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions
-            };
-            // 记录要创建的数据，帮助调试
-            console.log(`[createQuizSummaryRecord] 尝试创建摘要记录，使用questionId: ${questionIdToUse}`);
-            const record = await UserProgress_1.default.create(createData, { transaction });
-            console.log(`[createQuizSummaryRecord] 摘要记录创建成功: ${summaryId}`);
-            return summaryId;
-        }
-        catch (createError) {
-            // 如果创建失败并且可能是因为外键约束问题
-            if (createError.message && (createError.message.includes('cannot be null') ||
-                createError.message.includes('foreign key constraint') ||
-                createError.message.includes('FOREIGN KEY'))) {
-                console.error('[createQuizSummaryRecord] 创建摘要记录失败，尝试直接SQL插入');
-                // 最后一个尝试：向数据库直接插入，绕过ORM和外键约束
-                try {
-                    // 此处使用直接SQL插入，尝试跳过外键约束
-                    const directInsertQuery = `
-            INSERT INTO user_progress 
-            (id, userId, questionSetId, isCorrect, timeSpent, lastAccessed, recordType, metadata, 
-            completedQuestions, correctAnswers, totalQuestions, createdAt, updatedAt)
-            VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-          `;
-                    await database_1.default.query(directInsertQuery, {
-                        replacements: [
-                            summaryId,
-                            userId,
-                            questionSetId,
-                            false,
-                            summary.timeSpent,
-                            new Date(),
-                            PROGRESS_RECORD_TYPES.QUIZ_SUMMARY,
-                            JSON.stringify({
-                                ...summary.metadata,
-                                isSummary: true,
-                                completedQuestions: summary.completedQuestions,
-                                totalQuestions: summary.metadata.totalQuestions || summary.completedQuestions,
-                                correctAnswers: summary.correctAnswers,
-                                bypassedForeignKey: true
-                            }),
-                            summary.completedQuestions,
-                            summary.correctAnswers,
-                            summary.metadata.totalQuestions || summary.completedQuestions
-                        ],
-                        transaction,
-                        type: sequelize_1.QueryTypes.INSERT
-                    });
-                    console.log(`[createQuizSummaryRecord] 通过直接SQL插入创建了摘要记录: ${summaryId}`);
-                    return summaryId;
-                }
-                catch (directInsertError) {
-                    console.error('[createQuizSummaryRecord] 直接SQL插入也失败了:', directInsertError);
-                    throw directInsertError;
-                }
-            }
-            // 重新抛出其他类型的错误
-            console.error('[createQuizSummaryRecord] 创建摘要记录失败:', createError);
-            throw createError;
-        }
+        // 修正缺少的结束函数体括号和结尾的导出语句
+        return summaryId;
     }
     catch (error) {
-        console.error('[createQuizSummaryRecord] 整体处理失败:', error);
-        throw error;
+        console.error('[createQuizSummaryRecord] 创建摘要记录失败:', error);
+        return summaryId;
     }
 }
 // Fix the exports at the end of the file

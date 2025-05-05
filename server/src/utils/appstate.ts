@@ -1,48 +1,107 @@
-/**
- * 应用程序全局状态管理
- * 用于跟踪应用级别的状态，例如初始化状态
- */
+import { Server as SocketIOServer } from 'socket.io';
 
-class AppState {
-  private static _instance: AppState;
+/**
+ * Global application state management
+ * Used to track application-level state and share resources
+ */
+export class AppStateManager {
+  private static _instance: AppStateManager;
+  
+  // Application state properties
   private _associationsInitialized: boolean = false;
+  private _io: SocketIOServer | null = null;
+  private _fieldMappings: Record<string, string[]> = {
+    // QuestionSet model mappings
+    QuestionSet: ['title', 'name', 'setName', 'quizName'],
+    
+    // User model mappings
+    User: ['username', 'userName', 'user_name', 'name'],
+    
+    // Question model mappings
+    Question: ['text', 'content', 'question', 'questionText'],
+    
+    // Common ID mappings
+    id: ['id', '_id', 'ID', 'uuid', 'uid'],
+    
+    // Common timestamp mappings
+    createdAt: ['createdAt', 'created_at', 'createTime', 'create_time'],
+    updatedAt: ['updatedAt', 'updated_at', 'updateTime', 'update_time'],
+    
+    // User Progress related mappings
+    questionId: ['questionId', 'question_id'],
+    questionSetId: ['questionSetId', 'question_set_id', 'setId', 'quizId'],
+    userId: ['userId', 'user_id']
+  };
+  private _enableGlobalMapping: boolean = true;
+  private _config = {
+    enableGracefulDegradation: true,
+    enableFieldMapping: true,
+    enableConsistencyChecks: true
+  };
   
   private constructor() {
-    // 私有构造函数，防止直接实例化
+    // Private constructor to prevent direct instantiation
   }
   
   /**
-   * 获取单例实例
+   * Get the singleton instance
    */
-  public static getInstance(): AppState {
-    if (!AppState._instance) {
-      AppState._instance = new AppState();
+  public static getInstance(): AppStateManager {
+    if (!AppStateManager._instance) {
+      AppStateManager._instance = new AppStateManager();
     }
-    return AppState._instance;
+    return AppStateManager._instance;
   }
   
-  /**
-   * 检查模型关联是否已初始化
-   */
-  public get associationsInitialized(): boolean {
+  // Getters and setters
+  
+  get associationsInitialized(): boolean {
     return this._associationsInitialized;
   }
   
-  /**
-   * 设置模型关联初始化状态
-   */
-  public set associationsInitialized(value: boolean) {
+  set associationsInitialized(value: boolean) {
     this._associationsInitialized = value;
   }
   
+  get io(): SocketIOServer | null {
+    return this._io;
+  }
+  
+  set io(value: SocketIOServer | null) {
+    this._io = value;
+  }
+  
+  get fieldMappings(): Record<string, string[]> {
+    return this._fieldMappings;
+  }
+  
+  get enableGlobalMapping(): boolean {
+    return this._enableGlobalMapping;
+  }
+  
+  set enableGlobalMapping(value: boolean) {
+    this._enableGlobalMapping = value;
+  }
+  
+  get config() {
+    return this._config;
+  }
+  
   /**
-   * 将应用状态重置为初始值
-   * 主要用于测试目的
+   * Reset the application state to initial values
+   * Mainly used for testing purposes
    */
   public reset(): void {
     this._associationsInitialized = false;
+    this._io = null;
+    this._enableGlobalMapping = true;
+    this._config = {
+      enableGracefulDegradation: true,
+      enableFieldMapping: true,
+      enableConsistencyChecks: true
+    };
   }
 }
 
-// 导出单例实例
-export const appState = AppState.getInstance(); 
+// Export singleton instance
+export const appState = AppStateManager.getInstance(); 

@@ -5,6 +5,7 @@ import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { Op } from 'sequelize';
+import { appState } from '../utils/appstate';
 
 // 加载环境变量
 dotenv.config();
@@ -15,16 +16,32 @@ interface AuthenticatedSocket extends Socket {
 }
 
 // 创建 Socket.IO 实例
-export let io: SocketIOServer;
+let io: SocketIOServer | null = null;
 
-// 初始化 Socket.IO
-export const initializeSocket = (server: HttpServer): void => {
+/**
+ * Initialize Socket.IO server
+ * @param server HTTP server instance
+ * @param degradedMode Whether to run in degraded mode (when database is unavailable)
+ */
+export const initializeSocket = (server: HttpServer, degradedMode: boolean = false): SocketIOServer => {
+  if (io) {
+    console.log('Socket.IO 实例已存在，复用现有实例');
+    return io;
+  }
+
+  console.log(`初始化 Socket.IO${degradedMode ? ' (降级模式)' : ''}`);
+  
+  // Create Socket.IO server
   io = new SocketIOServer(server, {
     cors: {
       origin: process.env.CLIENT_URL || 'http://localhost:3000',
       methods: ['GET', 'POST']
-    }
+    },
+    pingTimeout: 60000
   });
+
+  // Store in app state
+  appState.io = io;
 
   // 添加认证中间件
   io.use((socket: AuthenticatedSocket, next: (err?: Error) => void) => {
@@ -148,10 +165,12 @@ export const initializeSocket = (server: HttpServer): void => {
         const progressData = progressRecord.toJSON();
         
         // 向用户发送进度已更新通知
-        io.to(userId).emit('progress:update', {
-          questionSetId,
-          progress: progressData
-        });
+        if (io) {
+          io.to(userId).emit('progress:update', {
+            questionSetId,
+            progress: progressData
+          });
+        }
         
         // 向客户端确认进度已保存
         socket.emit('progress_saved', {
@@ -266,4 +285,53 @@ export const initializeSocket = (server: HttpServer): void => {
       console.log(`用户 ${socket.userId} 断开连接, 原因: ${reason}`);
     });
   });
+
+  return io;
+};
+
+/**
+ * Get the Socket.IO server instance
+ */
+export const getSocketIO = (): SocketIOServer | null => {
+  return io;
+};
+
+/**
+ * Safely emit an event to a room or specific socket
+ * @param room Room or socket ID
+ * @param event Event name
+ * @param data Event data
+ */
+export const safeEmit = (room: string, event: string, data: any): void => {
+  try {
+    const socketIO = getSocketIO();
+    if (!socketIO) {
+      console.warn(`Socket.IO not available, unable to emit event: ${event}`);
+      return;
+    }
+    
+    socketIO.to(room).emit(event, data);
+  } catch (error) {
+    console.error(`Failed to emit Socket event [${event}]:`, error);
+  }
+};
+
+/**
+ * Emit progress update to a user
+ */
+export const emitProgressUpdate = (userId: string, data: any): void => {
+  try {
+    const socketIO = getSocketIO();
+    if (!socketIO) {
+      console.warn('Socket.IO not available, unable to emit progress update');
+      return;
+    }
+    
+    socketIO.to(userId).emit('progress:update', {
+      timestamp: new Date().toISOString(),
+      ...data
+    });
+  } catch (error) {
+    console.error('Failed to emit progress update:', error);
+  }
 };
