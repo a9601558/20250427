@@ -361,17 +361,40 @@ const HomePage: React.FC = () => {
 
   // 预处理题库数据，添加访问类型
   const prepareQuestionSets = (sets: BaseQuestionSet[]): PreparedQuestionSet[] => {
+    // 检查localStorage中的兑换记录
+    const getRedeemedQuestionSetIds = () => {
+      try {
+        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+        if (redeemedStr) {
+          return JSON.parse(redeemedStr) || [];
+        }
+      } catch (e) {
+        console.error('解析localStorage兑换记录失败', e);
+      }
+      return [];
+    };
+    
+    const redeemedIds = getRedeemedQuestionSetIds();
+    
     return sets.map(set => {
       const { hasAccess, remainingDays } = getQuestionSetAccessStatus(set);
       
       let accessType: AccessType = 'trial';
       
       if (set.isPaid) {
-        if (hasAccess) {
-          // 检查是否是兑换的题库
-          const isRedeemed = set.paymentMethod === 'redeem';
-          accessType = isRedeemed ? 'redeemed' : 'paid';
+        // 首先检查是否是已兑换的题库
+        const isRedeemed = Array.isArray(redeemedIds) && redeemedIds.some(id => 
+          String(id).trim() === String(set.id).trim()
+        );
+        
+        if (isRedeemed) {
+          // 如果在本地兑换记录中找到，标记为已兑换
+          accessType = 'redeemed';
+        } else if (hasAccess) {
+          // 否则检查是否有权限，并根据支付方式判断
+          accessType = set.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
         } else if (remainingDays !== null && remainingDays <= 0) {
+          // 如果没有权限且剩余天数小于0，标记为已过期
           accessType = 'expired';
         }
       }
@@ -379,9 +402,16 @@ const HomePage: React.FC = () => {
       // 从题库数据获取validityPeriod，或使用默认值
       const validityPeriod = set.validityPeriod || 180; // 从数据中读取或使用默认180天
       
+      // 强制更新hasAccess状态，确保与accessType一致
+      let updatedHasAccess = hasAccess;
+      if (accessType === 'redeemed' || accessType === 'paid') {
+        updatedHasAccess = true;
+      }
+      
       return {
         ...set,
         accessType,
+        hasAccess: updatedHasAccess,
         remainingDays: remainingDays || null,
         validityPeriod
       };
@@ -555,8 +585,11 @@ const HomePage: React.FC = () => {
       }
     }, [set.id]);
     
-    // 根据兑换状态直接修改渲染逻辑，避免类型错误
-    const displayAsRedeemed = isRedeemed && set.isPaid;
+    // 根据兑换状态和accessType确定显示状态
+    const displayAsRedeemed = isRedeemed || set.accessType === 'redeemed';
+    const displayAsPaid = set.accessType === 'paid';
+    const displayAsExpired = set.accessType === 'expired';
+    const displayAsTrial = !displayAsRedeemed && !displayAsPaid && !displayAsExpired;
 
     return (
       <div 
@@ -585,7 +618,7 @@ const HomePage: React.FC = () => {
         )}
       
         <div className="absolute top-3 right-3 flex gap-1 z-10">
-          {set.accessType === 'paid' && (
+          {displayAsPaid && (
             <>
               <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full shadow-sm backdrop-blur-sm">
                 已购买
@@ -593,7 +626,7 @@ const HomePage: React.FC = () => {
               {renderValidityBadge(set.remainingDays)}
             </>
           )}
-          {(set.accessType === 'redeemed' || displayAsRedeemed) && (
+          {displayAsRedeemed && (
             <>
               <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
                 已兑换
@@ -601,17 +634,17 @@ const HomePage: React.FC = () => {
               {renderValidityBadge(set.remainingDays)}
             </>
           )}
-          {set.accessType === 'expired' && (
+          {displayAsExpired && (
             <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full shadow-sm backdrop-blur-sm">
               已过期
             </span>
           )}
-          {set.accessType === 'trial' && !set.isPaid && (
+          {!set.isPaid && (
             <span className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 rounded-full shadow-sm backdrop-blur-sm">
               免费
             </span>
           )}
-          {set.accessType === 'trial' && set.isPaid && !displayAsRedeemed && (
+          {set.isPaid && displayAsTrial && (
             <span className="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full shadow-sm backdrop-blur-sm flex items-center">
               <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -651,8 +684,8 @@ const HomePage: React.FC = () => {
               <div className="flex items-center">
                 <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
                   displayAsRedeemed ? 'bg-blue-500' :
-                  set.accessType === 'paid' ? 'bg-green-500' : 
-                  set.accessType === 'redeemed' ? 'bg-blue-500' : 
+                  displayAsPaid ? 'bg-green-500' : 
+                  displayAsExpired ? 'bg-red-500' : 
                   'bg-gray-400'
                 }`}></span>
                 <span className="text-gray-600">{set.category}</span>
@@ -694,33 +727,28 @@ const HomePage: React.FC = () => {
 
             <button
               onClick={() => {
-                // 如果已经兑换过，就更新set的属性再传给onStartQuiz
-                if (displayAsRedeemed) {
-                  const updatedSet: PreparedQuestionSet = {
-                    ...set,
-                    accessType: 'redeemed',
-                    hasAccess: true
-                  };
-                  onStartQuiz(updatedSet);
-                } else {
-                  onStartQuiz(set);
-                }
+                // 根据当前状态确定传递给onStartQuiz的参数
+                const updatedSet: PreparedQuestionSet = {
+                  ...set,
+                  hasAccess: displayAsRedeemed || displayAsPaid || !set.isPaid
+                };
+                onStartQuiz(updatedSet);
               }}
               className={`mt-4 w-full py-2.5 px-4 rounded-lg text-white font-medium 
                 flex items-center justify-center transition-all duration-300
                 transform hover:translate-y-[-2px] hover:shadow-md
                 ${
-                  set.accessType === 'expired' && !displayAsRedeemed
+                  displayAsExpired
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : (set.accessType === 'trial' && set.isPaid && !displayAsRedeemed)
+                    : (displayAsTrial && set.isPaid)
                     ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700'
                     : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
                 }`}
-              disabled={set.accessType === 'expired' && !displayAsRedeemed}
+              disabled={displayAsExpired}
             >
-              {set.accessType === 'expired' && !displayAsRedeemed ? (
+              {displayAsExpired ? (
                 '题库已过期'
-              ) : (set.accessType === 'trial' && set.isPaid && !displayAsRedeemed) ? (
+              ) : (displayAsTrial && set.isPaid) ? (
                 <>
                   <svg className="h-5 w-5 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />

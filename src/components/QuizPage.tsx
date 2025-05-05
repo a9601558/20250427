@@ -529,10 +529,14 @@ function QuizPage(): JSX.Element {
     
     // 用户直接的访问检查函数
     if (hasAccessToQuestionSet) {
-      const directAccess = hasAccessToQuestionSet(questionSet.id);
-      console.log(`[checkAccess] 通过hasAccessToQuestionSet检查: ${directAccess}`);
       console.log(`[checkAccess] 调用hasAccessToQuestionSet('${questionSet.id}')`);
-      hasAccess = hasAccess || directAccess;
+      try {
+        const directAccess = await hasAccessToQuestionSet(questionSet.id);
+        console.log(`[checkAccess] 通过hasAccessToQuestionSet检查: ${directAccess}`);
+        hasAccess = hasAccess || directAccess;
+      } catch (error) {
+        console.error(`[checkAccess] 通过hasAccessToQuestionSet检查出错:`, error);
+      }
     }
     
     console.log(`[checkAccess] 最终访问权限结果: ${hasAccess}`);
