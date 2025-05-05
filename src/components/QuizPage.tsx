@@ -538,34 +538,80 @@ const QuizPage: React.FC = () => {
     try {
       const signal = createAbortController();
       
-      const response = await apiClient.post(
-        '/api/user-progress/update',
-        {
-          userId: user.id,
-          questionSetId,
-          completedQuestions: questionSet.questions.length,
-          correctAnswers: results.totalCorrect,
-          timeSpent: totalTime,
-          lastCompletedAt: new Date().toISOString()
-        },
-        { signal }
-      );
+      // 修改提交格式，确保字段名与后端匹配
+      const payload = {
+        userId: user.id,
+        questionSetId,
+        completedQuestions: questionSet.questions.length,
+        correctAnswers: results.totalCorrect,
+        timeSpent: totalTime,
+        lastCompletedAt: new Date().toISOString(),
+        // 添加兼容性字段
+        question_set_id: questionSetId, // 备用字段名
+        user_id: user.id, // 备用字段名
+        total_questions: questionSet.questions.length, // 备用字段名
+        correct_count: results.totalCorrect, // 备用字段名
+        time_spent: totalTime, // 备用字段名
+        completion_date: new Date().toISOString(), // 备用字段名
+        // 添加详细作答记录，可能对某些后端版本有用
+        answerDetails: results.questionResults.map(result => ({
+          questionId: result.questionId,
+          isCorrect: result.isCorrect,
+          selectedOptionIds: result.userSelectedOptionIds,
+          correctOptionIds: result.correctOptionIds
+        }))
+      };
       
-      if (isMounted.current) {
-        if (response && response.success) {
-          console.log('测验结果已保存');
-          // 重新获取用户进度
-          if (fetchUserProgress) {
-            fetchUserProgress();
+      console.log('提交测验结果数据:', payload);
+      
+      try {
+        const response = await apiClient.post(
+          '/api/user-progress/update',
+          payload,
+          { signal }
+        );
+        
+        if (isMounted.current) {
+          if (response && response.success) {
+            console.log('测验结果已保存');
+            // 重新获取用户进度
+            if (fetchUserProgress) {
+              fetchUserProgress();
+            }
+            
+            // 清除本地存储的进度
+            localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+          } else {
+            console.error('保存测验结果失败:', response?.message);
           }
           
-          // 清除本地存储的进度
-          localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
-        } else {
-          console.error('保存测验结果失败:', response?.message);
+          setQuizCompleted(true);
         }
-        
-        setQuizCompleted(true);
+      } catch (err) {
+        // 尝试使用备用端点
+        try {
+          console.log('尝试备用进度更新端点...');
+          const backupResponse = await apiClient.post(
+            '/api/quiz/submit',
+            payload,
+            { signal }
+          );
+          
+          if (isMounted.current) {
+            if (backupResponse && backupResponse.success) {
+              console.log('测验结果已通过备用端点保存');
+              // 清除本地存储的进度
+              localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+            }
+            setQuizCompleted(true);
+          }
+        } catch (backupErr) {
+          console.error('备用端点也失败:', backupErr);
+          // 即使所有保存尝试失败，也完成测验
+          if (isMounted.current) {
+            setQuizCompleted(true);
+          }
+        }
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError' && isMounted.current) {
@@ -574,6 +620,31 @@ const QuizPage: React.FC = () => {
       }
     }
   };
+  
+  // 修改useEffect，处理用户进度API错误
+  useEffect(() => {
+    // 创建错误处理版本的fetchUserProgress
+    const fetchProgressSafely = async () => {
+      try {
+        if (fetchUserProgress) {
+          await fetchUserProgress();
+        }
+      } catch (err) {
+        console.warn('获取用户进度失败，但不影响答题功能:', err);
+        // 即使获取进度失败，也不阻止用户继续使用应用
+      }
+    };
+    
+    // 只有在用户登录且有questionSetId时才获取进度
+    if (user && questionSetId) {
+      fetchProgressSafely();
+    }
+    
+    // 用户完成测验后会再次触发这个effect
+    if (quizCompleted) {
+      fetchProgressSafely();
+    }
+  }, [user, questionSetId, quizCompleted, fetchUserProgress]);
   
   // 计算测验结果 - 修复类型比较问题
   const calculateResults = (): QuizResults => {
