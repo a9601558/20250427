@@ -88,7 +88,7 @@ const QuizPage: React.FC = () => {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const { user } = useUser();
-  const { progressStats, fetchUserProgress } = useUserProgress();
+  const { progressStats, fetchUserProgress, loading: progressLoading, error: progressError } = useUserProgress();
   
   const [questionSet, setQuestionSet] = useState<QuestionSet | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -107,6 +107,9 @@ const QuizPage: React.FC = () => {
   const isMounted = useRef(true);
   // 用于取消请求的AbortController
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // 增加一个状态标记是否已尝试加载进度
+  const [progressAttempted, setProgressAttempted] = useState(false);
   
   // 从本地存储读取缓存的题库数据
   const getQuestionSetFromCache = useCallback((qsId: string) => {
@@ -523,7 +526,28 @@ const QuizPage: React.FC = () => {
     }
   };
   
-  // 完成测验，提交结果
+  // 添加安全的进度获取函数
+  const fetchProgressSafely = useCallback(async () => {
+    try {
+      if (fetchUserProgress) {
+        await fetchUserProgress();
+      }
+      setProgressAttempted(true);
+    } catch (err) {
+      console.warn('获取用户进度失败，但不会阻止答题功能:', err);
+      setProgressAttempted(true);
+    }
+  }, [fetchUserProgress]);
+  
+  // 修改用户进度相关的useEffect
+  useEffect(() => {
+    // 只有在用户已登录且有问题集ID时尝试获取进度
+    if (user && questionSetId && !progressAttempted) {
+      fetchProgressSafely();
+    }
+  }, [user, questionSetId, progressAttempted, fetchProgressSafely]);
+  
+  // 修改完成测验逻辑，增加错误处理和备用提交方式
   const completeQuiz = async () => {
     if (!questionSet || !questionSet.questions || !user) return;
     
@@ -534,35 +558,35 @@ const QuizPage: React.FC = () => {
     // 计算正确率
     const results = calculateResults();
     
+    // 创建提交数据
+    const payload = {
+      userId: user.id,
+      questionSetId,
+      completedQuestions: questionSet.questions.length,
+      correctAnswers: results.totalCorrect,
+      timeSpent: totalTime,
+      lastCompletedAt: new Date().toISOString(),
+      // 添加兼容性字段
+      question_set_id: questionSetId, 
+      user_id: user.id,
+      total_questions: questionSet.questions.length,
+      correct_count: results.totalCorrect,
+      time_spent: totalTime,
+      completion_date: new Date().toISOString(),
+      // 添加详细答题记录
+      answerDetails: results.questionResults.map(result => ({
+        questionId: result.questionId,
+        isCorrect: result.isCorrect,
+        selectedOptionIds: result.userSelectedOptionIds,
+        correctOptionIds: result.correctOptionIds
+      }))
+    };
+    
+    console.log('提交测验结果数据:', payload);
+    
     // 提交进度数据
     try {
       const signal = createAbortController();
-      
-      // 修改提交格式，确保字段名与后端匹配
-      const payload = {
-        userId: user.id,
-        questionSetId,
-        completedQuestions: questionSet.questions.length,
-        correctAnswers: results.totalCorrect,
-        timeSpent: totalTime,
-        lastCompletedAt: new Date().toISOString(),
-        // 添加兼容性字段
-        question_set_id: questionSetId, // 备用字段名
-        user_id: user.id, // 备用字段名
-        total_questions: questionSet.questions.length, // 备用字段名
-        correct_count: results.totalCorrect, // 备用字段名
-        time_spent: totalTime, // 备用字段名
-        completion_date: new Date().toISOString(), // 备用字段名
-        // 添加详细作答记录，可能对某些后端版本有用
-        answerDetails: results.questionResults.map(result => ({
-          questionId: result.questionId,
-          isCorrect: result.isCorrect,
-          selectedOptionIds: result.userSelectedOptionIds,
-          correctOptionIds: result.correctOptionIds
-        }))
-      };
-      
-      console.log('提交测验结果数据:', payload);
       
       try {
         const response = await apiClient.post(
@@ -574,15 +598,15 @@ const QuizPage: React.FC = () => {
         if (isMounted.current) {
           if (response && response.success) {
             console.log('测验结果已保存');
-            // 重新获取用户进度
-            if (fetchUserProgress) {
-              fetchUserProgress();
-            }
+            // 安全获取用户进度
+            fetchProgressSafely();
             
             // 清除本地存储的进度
             localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
           } else {
             console.error('保存测验结果失败:', response?.message);
+            // 失败时尝试备用端点
+            throw new Error(response?.message || '保存失败');
           }
           
           setQuizCompleted(true);
@@ -602,6 +626,8 @@ const QuizPage: React.FC = () => {
               console.log('测验结果已通过备用端点保存');
               // 清除本地存储的进度
               localStorage.removeItem(`${LOCAL_STORAGE_KEYS.QUIZ_PROGRESS}_${questionSetId}`);
+            } else {
+              console.warn('备用提交也失败:', backupResponse?.message);
             }
             setQuizCompleted(true);
           }
@@ -620,31 +646,6 @@ const QuizPage: React.FC = () => {
       }
     }
   };
-  
-  // 修改useEffect，处理用户进度API错误
-  useEffect(() => {
-    // 创建错误处理版本的fetchUserProgress
-    const fetchProgressSafely = async () => {
-      try {
-        if (fetchUserProgress) {
-          await fetchUserProgress();
-        }
-      } catch (err) {
-        console.warn('获取用户进度失败，但不影响答题功能:', err);
-        // 即使获取进度失败，也不阻止用户继续使用应用
-      }
-    };
-    
-    // 只有在用户登录且有questionSetId时才获取进度
-    if (user && questionSetId) {
-      fetchProgressSafely();
-    }
-    
-    // 用户完成测验后会再次触发这个effect
-    if (quizCompleted) {
-      fetchProgressSafely();
-    }
-  }, [user, questionSetId, quizCompleted, fetchUserProgress]);
   
   // 计算测验结果 - 修复类型比较问题
   const calculateResults = (): QuizResults => {

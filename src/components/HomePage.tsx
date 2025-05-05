@@ -1610,7 +1610,7 @@ interface BaseCardProps {
 
 const BaseCard: React.FC<BaseCardProps> = ({ set, onStartQuiz, isRecentlyUpdated = false }) => {
   const { progressStats } = useUserProgress();
-  const stats = progressStats[set.id];
+  const stats = progressStats?.[set.id];
   const progress = stats ? (stats.completedQuestions / stats.totalQuestions) * 100 : 0;
   const accuracy = stats ? (stats.correctAnswers / stats.completedQuestions) * 100 : 0;
   
