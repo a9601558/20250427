@@ -193,18 +193,7 @@ const QuizPage: React.FC = () => {
       try {
         const signal = createAbortController();
         
-        // 先发送预检请求，检查用户是否有权访问
-        const accessCheckResponse = await apiClient.get(`/api/question-sets/${questionSetId}/access-check`, undefined, { signal });
-        
-        if (!accessCheckResponse.success) {
-          if (isMounted.current) {
-            setError(accessCheckResponse.message || '无权访问此题库');
-            setLoading(false);
-          }
-          return;
-        }
-        
-        // 如果有权限，再获取完整题库数据
+        // 修改: 直接获取题库数据，不再调用不存在的access-check端点
         const response = await apiClient.get(`/api/question-sets/${questionSetId}`, undefined, { signal });
         
         if (isMounted.current) {
