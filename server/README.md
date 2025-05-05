@@ -362,4 +362,53 @@ DB_PORT=3306
 DB_USER=quizuser
 DB_PASSWORD=quizpassword
 DB_NAME=quizdb
-``` 
+```
+
+## 常见问题解决方案
+
+### isAdmin列缺失问题
+
+如果您遇到以下错误消息：
+```
+"Unknown column 'isAdmin' in 'field list'"
+```
+
+这是由于数据库中的`users`表结构缺少`isAdmin`字段所导致的。解决此问题有几种方法：
+
+#### 方法1：使用SQL文件直接添加（推荐）
+
+我们提供了一个SQL文件，可以直接添加缺失的字段：
+
+```bash
+# 用MySQL客户端执行以下命令
+mysql -u root -p quizdb < add-isAdmin-column.sql
+```
+
+#### 方法2：使用自动化脚本
+
+如果您已经配置好了环境，可以使用我们提供的自动化脚本：
+
+```bash
+npm run fix:isAdmin:direct
+```
+
+#### 方法3：手动SQL命令
+
+直接在MySQL客户端中执行以下SQL命令：
+
+```sql
+USE quizdb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS isAdmin BOOLEAN NOT NULL DEFAULT false;
+UPDATE users SET isAdmin = (role = 'admin') WHERE true;
+INSERT IGNORE INTO SequelizeMeta (name) VALUES ('20250509-add-isAdmin-to-users.js');
+```
+
+#### 方法4：完整部署
+
+如果您需要重新部署或更新整个应用程序，可以使用：
+
+```bash
+npm run baota:deploy
+```
+
+这将修复权限问题，添加缺失的`isAdmin`列，确保所有表格都存在，编译TypeScript代码并启动服务器。 

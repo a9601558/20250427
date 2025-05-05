@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `username` VARCHAR(100) NOT NULL,
   `password` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) NULL,
-  `role` ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+  `isAdmin` BOOLEAN NOT NULL DEFAULT false,
   `last_login` DATETIME NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL,
@@ -248,7 +248,9 @@ INSERT INTO `SequelizeMeta` (`name`) VALUES
 ('20240326000007-create-wrong-answers.js'),
 ('20240326000008-create-homepage-settings.js'),
 ('20240427000000-remove-deprecated-progress-fields.js'),
-('20240505-add-metadata-to-questions.js')
+('20240505-add-metadata-to-questions.js'),
+('20250509-add-isAdmin-to-users.js'),
+('20250510-remove-role-from-users.js')
 ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 
 -- Display completed tables

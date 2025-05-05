@@ -16,11 +16,14 @@
     "add:countdown": "node add-countdown-column.js",
     "deploy:full": "npm run migrations && npm run build && npm run start",
     "fix:permissions": "node src/scripts/fix-permissions.js",
+    "fix:isAdmin": "node src/scripts/add-isAdmin-column.js",
+    "fix:isAdmin:direct": "node src/scripts/fix-isAdmin-direct.js",
+    "remove:role": "node src/scripts/remove-role-column.js",
     "db:migrate": "sequelize-cli db:migrate",
     "db:create": "node src/scripts/setup-database.js",
     "deploy:db": "node src/scripts/deploy-database.js",
     "setup:tables": "node src/scripts/setup-tables.js",
-    "baota:deploy": "npm run fix:permissions && npm run deploy:db && npm run build && npm run start"
+    "baota:deploy": "npm run fix:permissions && npm run fix:isAdmin:direct && npm run deploy:db && npm run build && npm run start"
   },
   "keywords": [],
   "author": "",
