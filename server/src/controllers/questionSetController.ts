@@ -93,202 +93,202 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
   });
 };
 
-// @desc    Get all question sets
-// @route   GET /api/v1/question-sets
-// @access  Public
+/**
+ * @desc    Get all question sets with pagination
+ * @route   GET /api/question-sets
+ * @access  Public
+ */
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
+    console.log('题库路由收到请求:', req.method, req.originalUrl);
+    console.log('请求头:', JSON.stringify(req.headers));
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
-
+    
+    // Simplified query to avoid association issues
     const questionSets = await QuestionSet.findAll({
-      ...withQuestionSetAttributes({
-        order: [['created_at', 'DESC']],
-        limit,
-        offset
-      }),
-      include: [{
-        model: Question,
-        as: 'questionSetQuestions',
-        attributes: ['id']  // 只拿 id 就够用
-      }]
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset,
+      attributes: [
+        'id', 'title', 'description', 'category', 'icon', 
+        ['is_paid', 'isPaid'], 'price', 
+        ['trial_questions', 'trialQuestions'], 
+        ['is_featured', 'isFeatured'], 
+        ['featured_category', 'featuredCategory'],
+        ['created_at', 'createdAt'], ['updated_at', 'updatedAt']
+      ],
+      // Avoid problematic associations until fixed
+      // include: [{
+      //   model: Question, 
+      //   as: 'questions',
+      //   attributes: ['id']
+      // }]
     });
-
-    const total = await QuestionSet.count();
-
-    // 添加 questionCount 字段
-    const result = questionSets.map(set => ({
-      ...set.toJSON(),
-      questionCount: set.questionSetQuestions?.length || 0
+    
+    // Manually get question counts for each set
+    const result = await Promise.all(questionSets.map(async (set) => {
+      const questionCount = await Question.count({
+        where: { questionSetId: set.id }
+      });
+      
+      const plainSet = set.get({ plain: true });
+      return {
+        ...plainSet,
+        questionCount
+      };
     }));
 
-    res.status(200).json({
+    res.json({
       success: true,
       data: result,
       pagination: {
-        total,
         page,
         limit,
-        pages: Math.ceil(total / limit)
+        total: await QuestionSet.count()
       }
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('获取题集列表失败:', error);
     res.status(500).json({
       success: false,
-      message: '获取题库列表失败',
-      error: error.message
+      message: '获取题集失败'
     });
   }
 };
 
-// @desc    Get question set by ID
-// @route   GET /api/v1/question-sets/:id
-// @access  Public
+/**
+ * @desc    Get a question set by ID
+ * @route   GET /api/question-sets/:id
+ * @access  Public
+ */
 export const getQuestionSetById = async (req: Request, res: Response) => {
   try {
-    console.log(`尝试获取题库，ID: ${req.params.id}`);
-    
     const questionSet = await QuestionSet.findByPk(req.params.id, {
-      include: [{
-        model: Question,
-        as: 'questionSetQuestions',
-        include: [{
-          model: Option,
-          as: 'options'
-        }]
-      }]
+      attributes: [
+        'id', 'title', 'description', 'category', 'icon', 
+        ['is_paid', 'isPaid'], 'price', 
+        ['trial_questions', 'trialQuestions'], 
+        ['is_featured', 'isFeatured'], 
+        ['featured_category', 'featuredCategory'],
+        ['created_at', 'createdAt'], ['updated_at', 'updatedAt']
+      ]
     });
-    
+
     if (!questionSet) {
-      console.log(`未找到题库，ID: ${req.params.id}`);
-      return sendError(res, 404, '题库不存在');
+      return res.status(404).json({
+        success: false,
+        message: '题集不存在'
+      });
     }
-    
-    console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个问题`);
-    sendResponse(res, 200, questionSet);
+
+    // Manually get questions
+    const questions = await Question.findAll({
+      where: { questionSetId: questionSet.id },
+      attributes: ['id', 'text', 'questionType', 'metadata']
+    });
+
+    const questionCount = questions.length;
+
+    res.json({
+      success: true,
+      data: {
+        ...questionSet.get({ plain: true }),
+        questions,
+        questionCount
+      }
+    });
   } catch (error) {
-    console.error('Get question set error:', error);
-    sendError(res, 500, '获取题库详情失败', error);
+    console.error('获取题集详情失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取题集详情失败'
+    });
   }
 };
 
-// @desc    Create question set
-// @route   POST /api/v1/question-sets
-// @access  Private/Admin
+/**
+ * @desc    Create a new question set
+ * @route   POST /api/question-sets
+ * @access  Private/Admin
+ */
 export const createQuestionSet = async (req: Request, res: Response) => {
   try {
-    const { 
-      title, 
-      description, 
-      category, 
-      isFeatured, 
-      featuredCategory, 
-      isPaid, 
-      price, 
-      trialQuestions 
-    } = req.body;
-
-    // 验证必填字段
-    if (!title || !description || !category) {
-      return sendError(res, 400, '请提供标题、描述和分类');
-    }
-
-    // 如果是付费题库，验证价格
-    if (isPaid && (price === undefined || price <= 0)) {
-      return sendError(res, 400, '付费题库必须设置有效的价格');
-    }
-
-    const questionSet = await QuestionSet.create({
-      title,
-      description,
-      category,
-      icon: 'default',
-      isPaid: isPaid || false,
-      price: isPaid ? price : null,
-      trialQuestions: isPaid ? trialQuestions : null,
-      isFeatured: isFeatured || false,
-      featuredCategory
+    const questionSet = await QuestionSet.create(req.body);
+    res.status(201).json({
+      success: true,
+      data: questionSet
     });
-
-    sendResponse(res, 201, questionSet, '题库创建成功');
   } catch (error) {
-    console.error('Create question set error:', error);
-    sendError(res, 500, '创建题库失败', error);
+    console.error('创建题集失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '创建题集失败'
+    });
   }
 };
 
-// @desc    Update question set
-// @route   PUT /api/v1/question-sets/:id
-// @access  Private/Admin
+/**
+ * @desc    Update a question set
+ * @route   PUT /api/question-sets/:id
+ * @access  Private/Admin
+ */
 export const updateQuestionSet = async (req: Request, res: Response) => {
   try {
     const questionSet = await QuestionSet.findByPk(req.params.id);
-
-    if (questionSet) {
-      const { 
-        title, 
-        description, 
-        category, 
-        isFeatured, 
-        featuredCategory, 
-        isPaid, 
-        price, 
-        trialQuestions 
-      } = req.body;
-
-      // 如果是付费题库，验证价格
-      if (isPaid && (price === undefined || price <= 0)) {
-        return sendError(res, 400, '付费题库必须设置有效的价格');
-      }
-
-      questionSet.title = title || questionSet.title;
-      questionSet.description = description || questionSet.description;
-      questionSet.category = category || questionSet.category;
-      
-      // 更新付费相关字段
-      if (isPaid !== undefined) {
-        questionSet.isPaid = isPaid;
-        if (isPaid) {
-          questionSet.price = price !== undefined ? price : questionSet.price;
-          questionSet.trialQuestions = trialQuestions !== undefined ? trialQuestions : questionSet.trialQuestions;
-        } else {
-          questionSet.price = undefined;
-          questionSet.trialQuestions = undefined;
-        }
-      }
-      
-      questionSet.isFeatured = isFeatured !== undefined ? isFeatured : questionSet.isFeatured;
-      questionSet.featuredCategory = featuredCategory !== undefined ? featuredCategory : questionSet.featuredCategory;
-
-      const updatedQuestionSet = await questionSet.save();
-      sendResponse(res, 200, updatedQuestionSet, '题库更新成功');
-    } else {
-      sendError(res, 404, '题库不存在');
+    
+    if (!questionSet) {
+      return res.status(404).json({
+        success: false,
+        message: '题集不存在'
+      });
     }
+
+    await questionSet.update(req.body);
+    
+    res.json({
+      success: true,
+      data: questionSet
+    });
   } catch (error) {
-    console.error('Update question set error:', error);
-    sendError(res, 500, '更新题库失败', error);
+    console.error('更新题集失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '更新题集失败'
+    });
   }
 };
 
-// @desc    Delete question set
-// @route   DELETE /api/v1/question-sets/:id
-// @access  Private/Admin
+/**
+ * @desc    Delete a question set
+ * @route   DELETE /api/question-sets/:id
+ * @access  Private/Admin
+ */
 export const deleteQuestionSet = async (req: Request, res: Response) => {
   try {
     const questionSet = await QuestionSet.findByPk(req.params.id);
-
-    if (questionSet) {
-      await questionSet.destroy();
-      sendResponse(res, 200, null, '题库删除成功');
-    } else {
-      sendError(res, 404, '题库不存在');
+    
+    if (!questionSet) {
+      return res.status(404).json({
+        success: false,
+        message: '题集不存在'
+      });
     }
+
+    await questionSet.destroy();
+    
+    res.json({
+      success: true,
+      message: '题集已删除'
+    });
   } catch (error) {
-    console.error('Delete question set error:', error);
-    sendError(res, 500, '删除题库失败', error);
+    console.error('删除题集失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '删除题集失败'
+    });
   }
 };
 

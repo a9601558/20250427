@@ -8,41 +8,33 @@ export interface QuestionSetAttributes {
   title: string;
   description: string;
   category: string;
-  icon: string;
+  icon?: string;
   isPaid: boolean;
   price?: number;
   trialQuestions?: number;
-  isFeatured?: boolean;
+  isFeatured: boolean;
   featuredCategory?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-  questionSetQuestions?: Question[];
-  questions?: Question[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // 创建时可选字段
-export type QuestionSetCreationAttributes = Optional<QuestionSetAttributes, 'id' | 'createdAt' | 'updatedAt' | 'questionSetQuestions' | 'questions'>;
+export type QuestionSetCreationAttributes = Optional<QuestionSetAttributes, 'id' | 'createdAt' | 'updatedAt' | 'isPaid' | 'isFeatured' | 'icon' | 'price' | 'trialQuestions' | 'featuredCategory'>;
 
 // 题集模型类
 class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttributes> implements QuestionSetAttributes {
-  public id!: string;
-  public title!: string;
-  public description!: string;
-  public category!: string;
-  public icon!: string;
-  public isPaid!: boolean;
-  public price?: number;
-  public trialQuestions?: number;
-  public isFeatured?: boolean;
-  public featuredCategory?: string;
-  
-  // 时间戳
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
-
-  // 关联
-  public readonly questionSetQuestions?: Question[];
-  public readonly questions?: Question[];
+  declare id: string;
+  declare title: string;
+  declare description: string;
+  declare category: string;
+  declare icon?: string;
+  declare isPaid: boolean;
+  declare price?: number;
+  declare trialQuestions?: number;
+  declare isFeatured: boolean;
+  declare featuredCategory?: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 // 初始化模型
@@ -66,58 +58,62 @@ QuestionSet.init(
       allowNull: false,
     },
     icon: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING,
       allowNull: true,
-      defaultValue: 'default',
     },
     isPaid: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
-      field: 'is_paid',
+      field: 'is_paid'
     },
     price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
-      field: 'price',
     },
     trialQuestions: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      field: 'trial_questions',
+      field: 'trial_questions'
     },
     isFeatured: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
-      field: 'is_featured',
+      field: 'is_featured'
     },
     featuredCategory: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING,
       allowNull: true,
-      field: 'featured_category',
+      field: 'featured_category'
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+      field: 'created_at'
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+      field: 'updated_at'
     },
   },
   {
     sequelize,
     modelName: 'QuestionSet',
     tableName: 'question_sets',
-    underscored: true,
     timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
+    underscored: true,
   }
 );
 
-// After the QuestionSet init, add model associations
-export const setupQuestionSetAssociations = () => {
-  // Add the hasMany relationship from QuestionSet to Question
-  QuestionSet.hasMany(Question, {
-    foreignKey: 'questionSetId',
-    as: 'questions',
-    onDelete: 'CASCADE',
-    onUpdate: 'CASCADE'
-  });
-};
+// Define association with questions
+QuestionSet.hasMany(Question, {
+  sourceKey: 'id',
+  foreignKey: 'questionSetId',
+  as: 'questions'
+});
 
 export default QuestionSet; 

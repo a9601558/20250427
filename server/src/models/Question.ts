@@ -1,6 +1,7 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
-import { v4 as uuidv4 } from 'uuid';
+import Option from './Option';
+import QuestionSet from './QuestionSet';
 
 // 问题接口
 export interface QuestionAttributes {
@@ -13,13 +14,13 @@ export interface QuestionAttributes {
   difficulty?: number;
   points?: number;
   timeLimit?: number;
-  metadata?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  metadata?: string | object;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // 创建时可选的属性
-interface QuestionCreationAttributes extends Optional<QuestionAttributes, 'id'> {}
+export type QuestionCreationAttributes = Optional<QuestionAttributes, 'id' | 'createdAt' | 'updatedAt' | 'metadata'>;
 
 // 问题模型类
 class Question extends Model<QuestionAttributes, QuestionCreationAttributes> implements QuestionAttributes {
@@ -32,7 +33,7 @@ class Question extends Model<QuestionAttributes, QuestionCreationAttributes> imp
   public difficulty?: number;
   public points?: number;
   public timeLimit?: number;
-  public metadata?: string;
+  public metadata?: string | object;
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -46,23 +47,25 @@ Question.init(
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      allowNull: false
     },
     questionSetId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
-        model: 'QuestionSets',
+        model: 'question_sets',
         key: 'id'
-      }
+      },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE'
     },
     text: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     },
     questionType: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
+      defaultValue: 'single',
     },
     explanation: {
       type: DataTypes.TEXT,
@@ -89,17 +92,57 @@ Question.init(
     metadata: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: 'JSON metadata for storing additional question information'
-    }
+      get() {
+        const raw = this.getDataValue('metadata');
+        if (raw) {
+          try {
+            return JSON.parse(raw as string);
+          } catch (e) {
+            return raw;
+          }
+        }
+        return null;
+      },
+      set(value: any) {
+        if (value && typeof value === 'object') {
+          this.setDataValue('metadata', JSON.stringify(value));
+        } else {
+          this.setDataValue('metadata', value);
+        }
+      }
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
   },
   {
     sequelize,
+    modelName: 'Question',
     tableName: 'questions',
+    timestamps: true,
     indexes: [
       { fields: ['questionSetId'] },
       { fields: ['questionSetId', 'orderIndex'] }
     ]
   }
 );
+
+// Define associations
+Question.belongsTo(QuestionSet, {
+  foreignKey: 'questionSetId',
+  as: 'questionSet'
+});
+
+Question.hasMany(Option, {
+  foreignKey: 'questionId',
+  as: 'options'
+});
 
 export default Question; 
