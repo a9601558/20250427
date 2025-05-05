@@ -18,7 +18,9 @@
     "fix:permissions": "node src/scripts/fix-permissions.js",
     "db:migrate": "sequelize-cli db:migrate",
     "db:create": "node src/scripts/setup-database.js",
-    "baota:deploy": "npm run fix:permissions && npm run migrations:continue && npm run build && npm run start"
+    "deploy:db": "node src/scripts/deploy-database.js",
+    "setup:tables": "node src/scripts/setup-tables.js",
+    "baota:deploy": "npm run fix:permissions && npm run deploy:db && npm run build && npm run start"
   },
   "keywords": [],
   "author": "",

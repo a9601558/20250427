@@ -305,4 +305,61 @@ npm run baota-deploy
 ### 监控与日志
 
 - 通过PM2查看应用日志: `pm2 logs quiz-server`
-- 检查错误日志: `pm2 logs quiz-server --err` 
+- 检查错误日志: `pm2 logs quiz-server --err`
+
+## 部署后表格缺失问题
+
+如果在部署后发现数据库中缺少一些表格，可以通过以下方法解决：
+
+### 方法1：直接使用SQL创建所有表格
+
+我们提供了一个SQL脚本和辅助工具，可以一次性创建所有必要的数据库表格：
+
+```bash
+# 使用自动化工具创建表格（推荐）
+npm run setup:tables
+
+# 或者手动执行SQL文件
+mysql -u root -p < src/scripts/db-setup.sql
+```
+
+这个过程将：
+1. 创建数据库（如果不存在）
+2. 创建所有必要的表格（如果不存在）
+3. 设置正确的表格关系和外键
+4. 插入默认的主页设置数据
+5. 将所有迁移标记为已完成
+
+### 方法2：使用强制部署脚本
+
+如果您无法直接访问MySQL命令行，可以使用我们的自动化部署脚本：
+
+```bash
+npm run deploy:db
+```
+
+这个脚本将使用Sequelize直接从模型定义创建表格，绕过迁移系统。
+
+### 方法3：使用宝塔一键部署
+
+在宝塔面板环境中，我们提供了专门的一键部署命令：
+
+```bash
+npm run baota:deploy
+```
+
+这个命令会：
+1. 修复npm权限问题
+2. 使用模型定义直接创建表格
+3. 构建TypeScript代码
+4. 启动服务器
+
+如果遇到任何数据库相关问题，请检查您的`.env`文件，确保数据库连接信息正确：
+
+```
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=quizuser
+DB_PASSWORD=quizpassword
+DB_NAME=quizdb
+``` 
