@@ -194,6 +194,8 @@ const updateProgress = async (req, res) => {
             console.error('数据库连接不可用');
             return (0, responseUtils_1.sendError)(res, 503, '数据库服务暂时不可用，请稍后重试');
         }
+        // 记录完整的请求体，用于调试
+        console.log(`[UserProgressController] 收到更新请求，请求体:`, JSON.stringify(req.body).substring(0, 500));
         // Enable accepting userId from the request body when not authenticated - more flexible API
         // This fixes the 401 issue by allowing progress updates without requiring auth
         let userId = req.user?.id;
@@ -202,30 +204,42 @@ const updateProgress = async (req, res) => {
             userId = req.body.userId;
             console.log(`非认证更新: 使用请求体提供的用户ID: ${userId}`);
         }
-        if (!userId) {
-            return (0, responseUtils_1.sendError)(res, 400, '无法识别用户，请提供userId或进行身份验证');
+        else if (!userId && req.body.user_id) {
+            // 支持 snake_case 命名规范
+            userId = req.body.user_id;
+            console.log(`非认证更新: 使用请求体提供的user_id: ${userId}`);
         }
-        const { questionSetId, questionId, isCorrect, timeSpent, selectedOptions, correctOptions, recordType = PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER, metadata = {} } = req.body;
+        if (!userId) {
+            return (0, responseUtils_1.sendError)(res, 400, '无法识别用户，请提供userId或user_id字段');
+        }
+        // 支持多种字段名格式
+        const questionSetId = req.body.questionSetId || req.body.quizId || req.body.testId || req.body.question_set_id;
+        const questionId = req.body.questionId || req.body.question_id;
+        const isCorrect = req.body.isCorrect || req.body.is_correct;
+        const timeSpent = req.body.timeSpent || req.body.time_spent || 0;
+        const selectedOptions = req.body.selectedOptions || req.body.selected_options || req.body.selectedOptionIds || req.body.selected_option_ids || [];
+        const correctOptions = req.body.correctOptions || req.body.correct_options || req.body.correctOptionIds || req.body.correct_option_ids || [];
+        const recordType = req.body.recordType || req.body.record_type || PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER;
+        const metadata = req.body.metadata || {};
         // Validate required fields
         if (!questionSetId) {
-            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空');
+            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空，请提供questionSetId、quizId、testId或question_set_id字段');
         }
         console.log(`[UserProgressController] 处理更新请求: userId=${userId}, questionSetId=${questionSetId}, questionId=${questionId || '未提供'}`);
         try {
             // Start transaction
             transaction = await database_1.default.transaction();
-            // Support multiple data formats for maximum compatibility
-            // This handles both camelCase and snake_case field names
+            // 如果没有提供questionId，生成一个虚拟ID
             const questionIdToUse = questionId || req.body.question_id || (0, uuid_1.v4)(); // 使用UUID生成唯一ID，避免null值
-            const timeSpentToUse = timeSpent || req.body.time_spent || 0;
+            const timeSpentToUse = timeSpent || 0;
             // Create metadata object with all possible data formats
             const metadataObject = {
                 ...metadata,
-                selectedOptions: selectedOptions || req.body.selected_options || [],
-                correctOptions: correctOptions || req.body.correct_options || [],
+                selectedOptions: selectedOptions,
+                correctOptions: correctOptions,
                 // Include additional field aliases
-                selected_options: selectedOptions || req.body.selected_options || [],
-                correct_options: correctOptions || req.body.correct_options || [],
+                selected_options: selectedOptions,
+                correct_options: correctOptions,
                 // 在缺少真实questionId时添加标记
                 isVirtualQuestionId: !questionId && !req.body.question_id,
                 // 添加请求信息用于调试
@@ -280,12 +294,14 @@ const updateProgress = async (req, res) => {
             // Create progress record
             const recordId = (0, uuid_1.v4)();
             try {
+                const isCorrectValue = isCorrect === true || isCorrect === 'true';
+                console.log(`[UserProgressController] 创建记录: isCorrect=${isCorrectValue}, timeSpent=${timeSpentToUse}`);
                 await UserProgress_1.default.create({
                     id: recordId,
                     userId,
                     questionSetId,
                     questionId: questionIdToUse,
-                    isCorrect: isCorrect === true || isCorrect === 'true',
+                    isCorrect: isCorrectValue,
                     timeSpent: timeSpentToUse,
                     lastAccessed: new Date(),
                     recordType,
@@ -326,9 +342,9 @@ const updateProgress = async (req, res) => {
                 stack: error.stack,
             } : error,
             requestBody: {
-                userId: req.body.userId || req.user?.id,
-                questionSetId: req.body.questionSetId,
-                questionId: req.body.questionId,
+                userId: req.body.userId || req.body.user_id,
+                questionSetId: req.body.questionSetId || req.body.quizId || req.body.testId || req.body.question_set_id,
+                questionId: req.body.questionId || req.body.question_id,
             }
         });
         // 根据错误类型返回合适的消息
@@ -1147,6 +1163,8 @@ const quizSubmit = async (req, res) => {
             console.error('数据库连接不可用');
             return (0, responseUtils_1.sendError)(res, 503, '数据库服务暂时不可用，请稍后重试');
         }
+        // 记录完整的请求体，用于调试
+        console.log(`[QuizSubmit] 收到提交请求，请求体:`, JSON.stringify(req.body).substring(0, 500));
         // 支持多种格式的用户ID字段
         const userId = req.body.userId || req.body.user_id;
         if (!userId) {
@@ -1157,29 +1175,51 @@ const quizSubmit = async (req, res) => {
         // 支持多种字段名格式以增强兼容性
         const effectiveQuestionSetId = questionSetId || quizId || testId || question_set_id;
         if (!effectiveQuestionSetId) {
-            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空，请提供questionSetId、quizId或testId字段');
+            return (0, responseUtils_1.sendError)(res, 400, '题库ID不能为空，请提供questionSetId、quizId、testId或question_set_id字段');
+        }
+        // 验证答题记录是否有效
+        const detailedAnswers = answerDetails || answers || answer_details || [];
+        if (detailedAnswers && !Array.isArray(detailedAnswers)) {
+            return (0, responseUtils_1.sendError)(res, 400, '答题记录格式不正确，应为数组格式');
         }
         // 记录请求信息以便调试
-        console.log(`[UserProgressController] 处理测验提交请求: userId=${userId}, questionSetId=${effectiveQuestionSetId}`);
+        console.log(`[UserProgressController] 处理测验提交请求: userId=${userId}, questionSetId=${effectiveQuestionSetId}, 答题记录数量=${detailedAnswers.length}`);
         try {
             // 开始事务
             transaction = await database_1.default.transaction();
+            // 处理完成数和正确数的字段
+            const effectiveCompletedQuestions = Number(completedQuestions || completed_questions || totalQuestions || total_questions || detailedAnswers.length || 0);
+            const effectiveCorrectAnswers = Number(correctAnswers || correct_answers || correct_count || 0);
+            const effectiveTimeSpent = Number(timeSpent || time_spent || 0);
             // 构建摘要数据，支持多种数据格式
             const summaryData = {
-                completedQuestions: completedQuestions || completed_questions || totalQuestions || total_questions || 0,
-                correctAnswers: correctAnswers || correct_answers || correct_count || 0,
-                timeSpent: timeSpent || time_spent || 0,
+                completedQuestions: effectiveCompletedQuestions,
+                correctAnswers: effectiveCorrectAnswers,
+                timeSpent: effectiveTimeSpent,
                 metadata: {
                     source: 'quiz_completion',
                     submittedAt: new Date().toISOString(),
-                    totalQuestions: totalQuestions || total_questions || completedQuestions || completed_questions || 0,
-                    accuracy: req.body.accuracy || req.body.accuracyPercentage || null,
-                    score: req.body.score || null,
+                    totalQuestions: Number(totalQuestions || total_questions || effectiveCompletedQuestions || 0),
+                    accuracy: Number(req.body.accuracy || req.body.accuracyPercentage || 0),
+                    score: Number(req.body.score || effectiveCorrectAnswers || 0),
                     deviceId: req.body.deviceId || req.body.device_id || null,
                     clientIp: req.ip || null,
-                    clientInfo: req.headers['user-agent'] || null
+                    clientInfo: req.headers['user-agent'] || null,
+                    // 添加额外调试信息
+                    requestInfo: {
+                        timestamp: new Date().toISOString(),
+                        ipAddress: req.ip || 'unknown',
+                        userAgent: req.headers['user-agent'] || 'unknown',
+                        origin: req.headers.origin || 'unknown',
+                        referer: req.headers.referer || 'unknown'
+                    }
                 }
             };
+            console.log(`[QuizSubmit] 创建摘要数据:`, {
+                completedQuestions: effectiveCompletedQuestions,
+                correctAnswers: effectiveCorrectAnswers,
+                timeSpent: effectiveTimeSpent
+            });
             // 创建测验摘要记录
             let summaryId;
             try {
@@ -1190,7 +1230,6 @@ const quizSubmit = async (req, res) => {
                 throw summaryError; // 重新抛出以触发事务回滚
             }
             // 处理详细答题记录（如果有）
-            const detailedAnswers = answerDetails || answers || answer_details || [];
             let processedAnswers = 0;
             let failedAnswers = 0;
             if (Array.isArray(detailedAnswers) && detailedAnswers.length > 0) {
@@ -1199,32 +1238,34 @@ const quizSubmit = async (req, res) => {
                     const questionId = answer.questionId || answer.question_id;
                     const isCorrect = answer.isCorrect || answer.is_correct || false;
                     const answerTimeSpent = answer.timeSpent || answer.time_spent || 0;
-                    if (questionId) {
-                        try {
-                            // 创建单个答题记录
-                            await UserProgress_1.default.create({
-                                id: (0, uuid_1.v4)(),
-                                userId,
-                                questionSetId: effectiveQuestionSetId,
-                                questionId,
-                                isCorrect,
-                                timeSpent: answerTimeSpent,
-                                lastAccessed: new Date(),
-                                recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
-                                metadata: JSON.stringify({
-                                    summaryId, // 关联到摘要记录
-                                    selectedOptions: answer.selectedOptionIds || answer.selected_option_ids || [],
-                                    correctOptions: answer.correctOptionIds || answer.correct_option_ids || [],
-                                    source: 'quiz_submission'
-                                })
-                            }, { transaction });
-                            processedAnswers++;
-                        }
-                        catch (answerError) {
-                            failedAnswers++;
-                            console.warn(`处理答题记录时出错 (questionId=${questionId}):`, answerError);
-                            // 继续处理其他答题记录，不中断整个流程
-                        }
+                    // 如果没有问题ID，生成一个ID
+                    const effectiveQuestionId = questionId || (0, uuid_1.v4)();
+                    try {
+                        // 创建单个答题记录
+                        await UserProgress_1.default.create({
+                            id: (0, uuid_1.v4)(),
+                            userId,
+                            questionSetId: effectiveQuestionSetId,
+                            questionId: effectiveQuestionId,
+                            isCorrect: isCorrect === true || isCorrect === 'true',
+                            timeSpent: Number(answerTimeSpent) || 0,
+                            lastAccessed: new Date(),
+                            recordType: PROGRESS_RECORD_TYPES.INDIVIDUAL_ANSWER,
+                            metadata: JSON.stringify({
+                                summaryId, // 关联到摘要记录
+                                selectedOptions: answer.selectedOptionIds || answer.selected_option_ids || [],
+                                correctOptions: answer.correctOptionIds || answer.correct_option_ids || [],
+                                source: 'quiz_submission',
+                                isVirtualQuestionId: !questionId,
+                                answerIndex: processedAnswers
+                            })
+                        }, { transaction });
+                        processedAnswers++;
+                    }
+                    catch (answerError) {
+                        failedAnswers++;
+                        console.warn(`处理答题记录时出错 (questionId=${effectiveQuestionId}):`, answerError);
+                        // 继续处理其他答题记录，不中断整个流程
                     }
                 }
             }
@@ -1280,10 +1321,12 @@ const quizSubmit = async (req, res) => {
                 message: error.message,
                 stack: error.stack
             } : error,
-            requestBody: {
+            requestBody: JSON.stringify({
                 userId: req.body.userId || req.body.user_id,
-                questionSetId: req.body.questionSetId || req.body.quizId || req.body.testId
-            }
+                questionSetId: req.body.questionSetId || req.body.quizId || req.body.testId,
+                answerCount: Array.isArray(req.body.answerDetails || req.body.answers) ?
+                    (req.body.answerDetails || req.body.answers).length : 0
+            }).substring(0, 200)
         });
         // 根据错误类型返回合适的消息
         let errorMessage = '提交测验失败';
@@ -1299,6 +1342,14 @@ const quizSubmit = async (req, res) => {
             }
             else if (error.message.includes('timeout') || error.message.includes('connect')) {
                 errorMessage = '数据库连接超时，请稍后重试';
+            }
+            else if (error.message.includes('parse') || error.message.includes('JSON')) {
+                errorMessage = '请求数据格式错误，请检查您的JSON格式';
+                statusCode = 400;
+            }
+            else if (error.message.includes('invalid input')) {
+                errorMessage = '输入数据无效，请检查字段类型是否正确';
+                statusCode = 400;
             }
         }
         return (0, responseUtils_1.sendError)(res, statusCode, errorMessage, error);
