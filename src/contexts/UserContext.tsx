@@ -52,7 +52,7 @@ interface UserContextType {
   updateUser: (userData: Partial<User>) => Promise<void>;
   addProgress: (progress: QuizProgress) => Promise<void>;
   addPurchase: (purchase: Purchase) => Promise<void>;
-  hasAccessToQuestionSet: (questionSetId: string) => boolean;
+  hasAccessToQuestionSet: (questionSetId: string) => Promise<boolean>;
   getRemainingAccessDays: (questionSetId: string) => number | null;
   isQuizCompleted: (questionSetId: string) => boolean;
   getQuizScore: (questionSetId: string) => number | null;
@@ -214,117 +214,88 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const socketInstance = initializeSocket();
           authenticateUser(userData.id, token);
           
-          // 延迟一下再检查题库权限，确保Socket连接已建立
-          setTimeout(() => {
-            console.log("[UserContext] 登录成功，开始检查题库访问权限");
+          // 登录成功后立即同步访问权限
+          setTimeout(async () => {
+            console.log("[UserContext] 登录成功，立即进行数据库权限同步");
             
-            // 获取所有题库ID并检查权限
-            if (socketInstance) {
-              // 检查已购买题库
-              const purchasedQuestionSetIds = userData.purchases?.map(p => p.questionSetId) || [];
-              console.log(`[UserContext] 已购买题库: ${purchasedQuestionSetIds.length}个`);
-              
-              // 检查已兑换题库 - 根据用户类型可能有不同的字段名
-              const redeemedQuestionSetIds: string[] = [];
-              
-              // 检查redeems字段（如果存在）
-              if (Array.isArray((userData as any).redeems)) {
-                const redeemIds = (userData as any).redeems
-                  .map((r: any) => r.questionSetId)
-                  .filter(Boolean);
-                redeemedQuestionSetIds.push(...redeemIds);
-              }
-              
-              // 检查redeemedCodes字段（如果存在）
-              if (Array.isArray((userData as any).redeemedCodes)) {
-                const redeemCodeIds = (userData as any).redeemedCodes
-                  .map((r: any) => r.questionSetId)
-                  .filter(Boolean);
-                redeemedQuestionSetIds.push(...redeemCodeIds);
-              }
-              
-              console.log(`[UserContext] 已兑换题库: ${redeemedQuestionSetIds.length}个`);
-              
-              // 合并去重
-              const allQuestionSetIds = [...new Set([...purchasedQuestionSetIds, ...redeemedQuestionSetIds])];
-              console.log(`[UserContext] 总共需要检查: ${allQuestionSetIds.length}个题库`);
-              
-              if (allQuestionSetIds.length > 0) {
-                // 批量检查
-                socketInstance.emit('questionSet:checkAccessBatch', {
-                  userId: userData.id,
-                  questionSetIds: allQuestionSetIds
-                });
+            try {
+              // 1. 从服务器重新获取最新的用户数据，确保购买记录是最新的
+              const refreshedUserData = await userApi.getCurrentUser();
+              if (refreshedUserData.success && refreshedUserData.data) {
+                // 使用最新的用户数据更新状态
+                setUser(refreshedUserData.data);
                 
-                // 逐个检查作为备份
-                allQuestionSetIds.forEach(questionSetId => {
-                  if (questionSetId) {
-                    socketInstance.emit('questionSet:checkAccess', {
-                      userId: userData.id,
-                      questionSetId: String(questionSetId).trim()
-                    });
+                // 2. 通过socket请求最新的访问权限
+                if (socketInstance) {
+                  socketInstance.emit('user:syncAccessRights', {
+                    userId: userData.id,
+                    forceRefresh: true
+                  });
+                }
+                
+                // 3. 检查购买记录并同步到本地存储
+                if (refreshedUserData.data.purchases && refreshedUserData.data.purchases.length > 0) {
+                  console.log(`[UserContext] 同步 ${refreshedUserData.data.purchases.length} 条购买记录到本地`);
+                  
+                  const now = new Date();
+                  refreshedUserData.data.purchases.forEach(purchase => {
+                    if (!purchase.questionSetId) return;
+                    
+                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+                    const isExpired = expiryDate && expiryDate <= now;
+                    const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
+                    
+                    if (!isExpired && isActive) {
+                      // 计算剩余天数
+                      let remainingDays = null;
+                      if (expiryDate) {
+                        const diffTime = expiryDate.getTime() - now.getTime();
+                        remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      }
+                      
+                      // 保存到本地存储
+                      saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
+                      
+                      // 通知其他设备权限更新
+                      if (socketInstance) {
+                        socketInstance.emit('questionSet:accessUpdate', {
+                          userId: userData.id,
+                          questionSetId: purchase.questionSetId,
+                          hasAccess: true,
+                          remainingDays: remainingDays,
+                          source: 'login_sync'
+                        });
+                      }
+                    }
+                  });
+                }
+                
+                // 4. 触发全局事件通知组件更新状态
+                window.dispatchEvent(new CustomEvent('accessRights:updated', {
+                  detail: {
+                    userId: userData.id,
+                    timestamp: Date.now(),
+                    source: 'login_refresh'
                   }
-                });
+                }));
               }
+            } catch (error) {
+              console.error('[UserContext] 登录后同步访问权限失败:', error);
             }
           }, 500);
           
-          notifyUserChange(userData); // 通知用户变化
+          notifyUserChange(userData);
           return true;
         } else {
           // 用户数据不存在，尝试获取
           const userResponse = await fetchCurrentUser(); 
           if (userResponse) {
-            // 同样需要检查题库权限
-            const socketInstance = initializeSocket();
-            authenticateUser(userResponse.id, token);
-            
-            setTimeout(() => {
-              if (socketInstance) {
-                const purchasedQuestionSetIds = userResponse.purchases?.map(p => p.questionSetId) || [];
-                
-                // 检查已兑换题库 - 根据用户类型可能有不同的字段名
-                const redeemedQuestionSetIds: string[] = [];
-                
-                // 检查redeems字段（如果存在）
-                if (Array.isArray((userResponse as any).redeems)) {
-                  const redeemIds = (userResponse as any).redeems
-                    .map((r: any) => r.questionSetId)
-                    .filter(Boolean);
-                  redeemedQuestionSetIds.push(...redeemIds);
-                }
-                
-                // 检查redeemedCodes字段（如果存在）
-                if (Array.isArray((userResponse as any).redeemedCodes)) {
-                  const redeemCodeIds = (userResponse as any).redeemedCodes
-                    .map((r: any) => r.questionSetId)
-                    .filter(Boolean);
-                  redeemedQuestionSetIds.push(...redeemCodeIds);
-                }
-                
-                const allQuestionSetIds = [...new Set([...purchasedQuestionSetIds, ...redeemedQuestionSetIds])];
-                
-                if (allQuestionSetIds.length > 0) {
-                  // 批量检查
-                  socketInstance.emit('questionSet:checkAccessBatch', {
-                    userId: userResponse.id,
-                    questionSetIds: allQuestionSetIds
-                  });
-                  
-                  // 逐个检查作为备份
-                  allQuestionSetIds.forEach(questionSetId => {
-                    if (questionSetId) {
-                      socketInstance.emit('questionSet:checkAccess', {
-                        userId: userResponse.id,
-                        questionSetId: String(questionSetId).trim()
-                      });
-                    }
-                  });
-                }
-              }
+            // 同样需要立即同步数据库权限
+            setTimeout(async () => {
+              await syncAccessRights();
             }, 500);
             
-            notifyUserChange(userResponse); // 通知用户变化
+            notifyUserChange(userResponse);
           }
           return userResponse !== null;
         }
@@ -518,39 +489,182 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const hasAccessToQuestionSet = useCallback((questionSetId: string): boolean => {
-    if (!user || !user.purchases) {
-      console.log(`[hasAccessToQuestionSet] 无权限访问题库 ${questionSetId}:`, { hasUser: !!user, hasPurchases: !!(user?.purchases) });
+  // 获取本地缓存
+  const getLocalAccessCache = () => {
+    try {
+      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('[UserContext] Error reading cache:', e);
+      return {};
+    }
+  };
+
+  // Save access rights to localStorage
+  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
+    try {
+      // Skip if no user or questionSetId
+      if (!user?.id || !questionSetId) return;
+      
+      const cache = getLocalAccessCache();
+      
+      // Create user section if it doesn't exist
+      if (!cache[user.id]) cache[user.id] = {};
+      
+      // Store access info with timestamp
+      cache[user.id][questionSetId] = {
+        hasAccess,
+        remainingDays,
+        timestamp: Date.now()
+      };
+      
+      // Save to localStorage
+      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
+      console.log(`[UserContext] Saved access right for ${questionSetId} (User: ${user.id})`);
+    } catch (error) {
+      console.error('[UserContext] Error saving access rights to localStorage:', error);
+    }
+  };
+
+  // 添加检查数据库购买记录函数
+  const hasAccessInDatabase = useCallback(async (questionSetId: string): Promise<boolean> => {
+    if (!user?.id) return false;
+    
+    try {
+      // 从服务器获取最新购买状态
+      const response = await apiClient.get(`/api/purchases/check/${questionSetId}`, {
+        userId: user.id
+      }, { 
+        cacheDuration: 60000 // 1分钟缓存，避免频繁请求
+      });
+      
+      return response?.success && response?.data?.hasAccess === true;
+    } catch (error) {
+      console.error(`[UserContext] 检查数据库购买记录失败:`, error);
       return false;
     }
+  }, [user?.id]);
 
-    console.log(`[hasAccessToQuestionSet] 检查题库权限 ${questionSetId}, 购买记录:`, user.purchases);
+  // 增强的访问权限检查函数
+  const hasAccessToQuestionSet = useCallback(async (questionSetId: string): Promise<boolean> => {
+    if (!user || !questionSetId) return false;
     
-    // 确保questionSetId是字符串类型并规范化比较
-    const strQuestionSetId = String(questionSetId).trim();
+    // 记录函数调用
+    console.log(`[hasAccessToQuestionSet] 检查题库权限: ${questionSetId}`);
     
-    // 打印出所有购买记录的ID以便调试
-    user.purchases.forEach((purchase, index) => {
-      const purchaseId = String(purchase.questionSetId).trim();
-      console.log(`[hasAccessToQuestionSet] 购买记录 #${index}: ${purchaseId} vs ${strQuestionSetId}, 匹配: ${purchaseId === strQuestionSetId}`);
-    });
+    // 1. 首先检查本地缓存 (最快)
+    try {
+      const cache = getLocalAccessCache();
+      if (cache[user.id] && cache[user.id][questionSetId]) {
+        const accessInfo = cache[user.id][questionSetId];
+        
+        // 检查缓存是否较新 (30分钟内)
+        const isCacheRecent = (Date.now() - accessInfo.timestamp) < 1800000;
+        
+        if (isCacheRecent && accessInfo.hasAccess) {
+          console.log(`[hasAccessToQuestionSet] 本地缓存显示有权限`);
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('[hasAccessToQuestionSet] 检查本地缓存出错:', error);
+    }
     
-    const hasAccess = user.purchases.some(p => {
-      // 对两个ID进行严格的字符串处理
-      const purchaseQuestionSetId = String(p.questionSetId).trim();
-      const isMatching = purchaseQuestionSetId === strQuestionSetId;
-      const isValid = new Date(p.expiryDate) > new Date() || !p.expiryDate;
-      const isActive = p.status !== 'cancelled' && p.status !== 'expired';
+    // 2. 然后检查用户对象中的购买记录
+    if (user.purchases && user.purchases.length > 0) {
+      const purchase = user.purchases.find(p => {
+        // 标准化ID进行比较
+        const purchaseId = String(p.questionSetId || '').trim();
+        const targetId = String(questionSetId).trim();
+        
+        // 检查精确匹配或相似匹配
+        const exactMatch = purchaseId === targetId;
+        const partialMatch = (purchaseId.includes(targetId) || targetId.includes(purchaseId)) 
+          && Math.abs(purchaseId.length - targetId.length) <= 3
+          && purchaseId.length > 5 && targetId.length > 5;
+        
+        return exactMatch || partialMatch;
+      });
       
-      console.log(`[hasAccessToQuestionSet] 评估: ID匹配=${isMatching}, 有效期=${isValid}, 状态有效=${isActive}`);
-      
-      return isMatching && isValid && isActive;
-    });
+      if (purchase) {
+        const now = new Date();
+        const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+        const isExpired = expiryDate && expiryDate <= now;
+        const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
+        
+        const hasAccess = !isExpired && isActive;
+        if (hasAccess) {
+          console.log(`[hasAccessToQuestionSet] 用户购买记录显示有权限`);
+          
+          // 更新本地缓存
+          try {
+            let remainingDays = null;
+            if (expiryDate) {
+              const diffTime = expiryDate.getTime() - now.getTime();
+              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            }
+            
+            saveAccessToLocalStorage(questionSetId, true, remainingDays);
+          } catch (error) {
+            console.error('[hasAccessToQuestionSet] 更新缓存出错:', error);
+          }
+          
+          return true;
+        }
+      }
+    }
     
-    console.log(`[hasAccessToQuestionSet] 题库 ${questionSetId} 访问结果:`, hasAccess);
+    // 3. 检查已兑换题库的本地存储
+    try {
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedStr) {
+        const redeemedIds = JSON.parse(redeemedStr);
+        if (Array.isArray(redeemedIds)) {
+          const normalizedId = String(questionSetId).trim();
+          const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedId);
+          
+          if (isRedeemed) {
+            console.log(`[hasAccessToQuestionSet] 本地兑换记录显示有权限`);
+            
+            // 更新本地缓存
+            saveAccessToLocalStorage(questionSetId, true, null);
+            return true;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[hasAccessToQuestionSet] 检查兑换记录出错:', error);
+    }
     
-    return hasAccess;
-  }, [user]);
+    // 4. 最后，如果本地检查都失败，则直接检查数据库
+    try {
+      const dbAccess = await hasAccessInDatabase(questionSetId);
+      if (dbAccess) {
+        console.log(`[hasAccessToQuestionSet] 数据库显示有权限`);
+        
+        // 同步更新缓存和状态
+        saveAccessToLocalStorage(questionSetId, true, null);
+        
+        // 同步其他设备
+        if (socket) {
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: questionSetId,
+            hasAccess: true,
+            source: 'db_check'
+          });
+        }
+        
+        return true;
+      }
+    } catch (error) {
+      console.error('[hasAccessToQuestionSet] 检查数据库出错:', error);
+    }
+    
+    // 所有检查都失败，无权限
+    console.log(`[hasAccessToQuestionSet] 无权限访问`);
+    return false;
+  }, [user, socket, hasAccessInDatabase]);
 
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
@@ -817,86 +931,77 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const syncAccessRights = useCallback(async () => {
     if (!user || !user.id || !socket) return;
     
-    console.log('[UserContext] Syncing access rights across devices');
+    console.log('[UserContext] 开始跨设备访问权限同步');
     
     try {
-      // Emit event to fetch all access rights for this user
-      socket.emit('user:syncAccessRights', {
-        userId: user.id
-      });
-      
-      // Get user's purchases and update localStorage for each
-      if (user.purchases && user.purchases.length > 0) {
-        console.log(`[UserContext] User has ${user.purchases.length} purchases, updating local storage`);
+      // 1. 首先从服务器获取最新用户数据
+      const freshUserResponse = await userApi.getCurrentUser();
+      if (freshUserResponse.success && freshUserResponse.data) {
+        console.log('[UserContext] 成功获取最新用户数据');
         
-        // Update localStorage with purchase access rights
-        user.purchases.forEach(purchase => {
-          if (!purchase.questionSetId) return;
-          
-          const now = new Date();
-          const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-          const isExpired = expiryDate && expiryDate <= now;
-          const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
-          
-          if (!isExpired && isActive) {
-            // Calculate remaining days
-            let remainingDays = null;
-            if (expiryDate) {
-              const diffTime = expiryDate.getTime() - now.getTime();
-              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-            
-            console.log(`[UserContext] Storing access right for ${purchase.questionSetId}`);
-            saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
-          }
+        // 更新用户状态，包括最新的购买记录
+        setUser(freshUserResponse.data);
+        
+        // 2. 通知socket进行权限同步
+        socket.emit('user:syncAccessRights', {
+          userId: user.id,
+          forceRefresh: true
         });
         
-        // Trigger a global event so other components can update their state
+        // 3. 处理最新的购买记录
+        if (freshUserResponse.data.purchases && freshUserResponse.data.purchases.length > 0) {
+          console.log(`[UserContext] 处理 ${freshUserResponse.data.purchases.length} 条最新购买记录`);
+          
+          const now = new Date();
+          freshUserResponse.data.purchases.forEach(purchase => {
+            if (!purchase.questionSetId) return;
+            
+            const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+            const isExpired = expiryDate && expiryDate <= now;
+            const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
+            
+            if (!isExpired && isActive) {
+              // 计算剩余天数
+              let remainingDays = null;
+              if (expiryDate) {
+                const diffTime = expiryDate.getTime() - now.getTime();
+                remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              }
+              
+              console.log(`[UserContext] 同步题库访问权限: ${purchase.questionSetId}, 剩余天数: ${remainingDays}`);
+              
+              // 保存到本地存储
+              saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
+              
+              // 单独请求题库权限状态，确保其他数据也同步
+              socket.emit('questionSet:checkAccess', {
+                userId: user.id,
+                questionSetId: purchase.questionSetId
+              });
+            }
+          });
+        }
+        
+        // 4. 触发全局事件更新UI
         window.dispatchEvent(new CustomEvent('accessRights:updated', {
-          detail: { userId: user.id, timestamp: Date.now() }
+          detail: { 
+            userId: user.id, 
+            timestamp: Date.now(),
+            source: 'database_refresh'
+          }
         }));
+        
+        // 5. 广播到用户的其他设备
+        socket.emit('user:deviceSync', {
+          userId: user.id,
+          type: 'access_refresh',
+          timestamp: Date.now()
+        });
       }
     } catch (error) {
-      console.error('[UserContext] Error syncing access rights:', error);
+      console.error('[UserContext] 同步访问权限错误:', error);
     }
   }, [user, socket]);
-
-  // Save access rights to localStorage
-  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
-    try {
-      // Skip if no user or questionSetId
-      if (!user?.id || !questionSetId) return;
-      
-      const cache = getLocalAccessCache();
-      
-      // Create user section if it doesn't exist
-      if (!cache[user.id]) cache[user.id] = {};
-      
-      // Store access info with timestamp
-      cache[user.id][questionSetId] = {
-        hasAccess,
-        remainingDays,
-        timestamp: Date.now()
-      };
-      
-      // Save to localStorage
-      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
-      console.log(`[UserContext] Saved access right for ${questionSetId} (User: ${user.id})`);
-    } catch (error) {
-      console.error('[UserContext] Error saving access rights to localStorage:', error);
-    }
-  };
-
-  // Get access cache from localStorage
-  const getLocalAccessCache = () => {
-    try {
-      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
-      return JSON.parse(raw);
-    } catch (e) {
-      console.error('[UserContext] Error reading cache:', e);
-      return {};
-    }
-  };
 
   const contextValue = useMemo(() => ({
     user,
