@@ -5,21 +5,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSocketIO = exports.getIO = exports.initializeSocketServer = void 0;
 const socket_io_1 = require("socket.io");
-const admin_ui_1 = require("@socket.io/admin-ui");
 const logger_1 = __importDefault(require("../utils/logger"));
 const userAccessHandlers_1 = require("./userAccessHandlers");
 let io;
 const initializeSocketServer = (httpServer) => {
     io = new socket_io_1.Server(httpServer, {
         cors: {
-            origin: ['https://admin.socket.io'],
+            origin: '*',
             credentials: true
         }
-    });
-    // 设置Socket.IO管理界面
-    (0, admin_ui_1.instrument)(io, {
-        auth: false,
-        mode: 'development',
     });
     // 处理连接事件
     io.on('connection', (socket) => {

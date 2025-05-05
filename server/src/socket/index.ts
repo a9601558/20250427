@@ -1,6 +1,5 @@
 import { Server as SocketServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
-import { instrument } from '@socket.io/admin-ui';
 import logger from '../utils/logger';
 import { registerUserAccessHandlers } from './userAccessHandlers';
 
@@ -9,15 +8,9 @@ let io: SocketServer;
 export const initializeSocketServer = (httpServer: HTTPServer) => {
   io = new SocketServer(httpServer, {
     cors: {
-      origin: ['https://admin.socket.io'],
+      origin: '*',
       credentials: true
     }
-  });
-
-  // 设置Socket.IO管理界面
-  instrument(io, {
-    auth: false,
-    mode: 'development',
   });
 
   // 处理连接事件
