@@ -23,6 +23,15 @@ const MAX_RECONNECT_ATTEMPTS = 10; // 增加重连尝试次数
 // 心跳检测定时器
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
+// 日志控制
+const ENABLE_DEBUG_LOGS = false;
+
+const debugLog = (message: string, ...args: any[]) => {
+  if (ENABLE_DEBUG_LOGS) {
+    console.log(`[Socket Debug] ${message}`, ...args);
+  }
+};
+
 // 心跳检测 - 定期发送ping确保连接活跃
 const startHeartbeat = () => {
   // 先清除可能存在的旧定时器
@@ -114,18 +123,56 @@ const initializeSocket = () => {
   }
   
   console.log('[Socket] 初始化新连接');
-  socketInstance = io(API_BASE_URL, {
-    transports: ['websocket'],
-    autoConnect: true
+  
+  // Get the server URL from the constants file
+  const serverUrl = API_BASE_URL;
+  console.log(`[Socket] 连接到服务器: ${serverUrl}`);
+  
+  // Add more fallback options and better config
+  socketInstance = io(serverUrl, {
+    transports: ['websocket', 'polling'], // Try both transports
+    reconnectionAttempts: 10,             // Limit retry attempts
+    reconnectionDelay: 1000,              // Start with 1s delay
+    reconnectionDelayMax: 5000,           // Max 5s between retries
+    timeout: 20000,                       // Longer connection timeout
+    autoConnect: true,
+    forceNew: false
   });
   
-  // 添加全局错误处理
+  // 添加更详细的错误处理
   socketInstance.on('connect_error', (error) => {
     console.error('[Socket] 连接错误:', error);
+    // 记录失败URL以便调试
+    console.error(`[Socket] 连接失败URL: ${serverUrl}`);
+    
+    // 在生产环境添加特殊处理
+    if (window.location.hostname !== 'localhost') {
+      console.warn('[Socket] 生产环境连接失败，尝试使用轮询模式');
+      // 动态调整传输方式
+      if (socketInstance) {
+        socketInstance.io.opts.transports = ['polling', 'websocket'];
+      }
+    }
+  });
+  
+  // 添加连接成功处理
+  socketInstance.on('connect', () => {
+    console.log('[Socket] 连接成功 🟢');
+    reconnectAttempts = 0; // Reset attempts counter on success
   });
   
   socketInstance.on('disconnect', (reason) => {
     console.log(`[Socket] 断开连接: ${reason}`);
+    
+    // 自动重连逻辑
+    if (reason === 'io server disconnect') {
+      // 服务器主动断开，需要手动重连
+      setTimeout(() => {
+        if (socketInstance) {
+          socketInstance.connect();
+        }
+      }, 3000);
+    }
   });
   
   // 连接成功后开始心跳检测

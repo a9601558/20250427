@@ -178,41 +178,43 @@ const getLocalAccessCache = () => {
 
 // 保存访问数据到本地存储
 const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string, userId?: string) => {
-  try {
-    // 强制要求传入userId参数，不再使用localStorage作为后备
-    if (!userId) {
-      console.warn('[HomePage] saveAccessToLocalStorage被调用但没有提供userId，请检查调用位置');
-      return; // 没有userId时不保存，避免数据混乱
+  if (!questionSetId) {
+    console.error('[HomePage] Cannot save access to localStorage: missing questionSetId');
+    return;
+  }
+  
+  if (userId) {
+    try {
+      // Create a storage key that includes the question set ID
+      const storageKey = `access_${questionSetId}`;
+      
+      // Get the current timestamp for tracking when this was saved
+      const timestamp = new Date().getTime();
+      
+      // Create an object with all access information
+      const accessData = {
+        questionSetId,
+        hasAccess,
+        remainingDays,
+        paymentMethod,
+        userId,
+        timestamp
+      };
+      
+      // Save to localStorage
+      localStorage.setItem(storageKey, JSON.stringify(accessData));
+      console.log(`[HomePage] Saved access to localStorage: ${storageKey}`, accessData);
+    } catch (err) {
+      console.error('[HomePage] Error saving access to localStorage:', err);
     }
-    
-    // 记录当前保存的用户以便调试
-    console.log(`[HomePage] 保存本地访问权限：题库=${questionSetId}, 用户=${userId}, 权限=${hasAccess}`);
-    
-    const cache = getLocalAccessCache();
-    
-    // 确保用户ID索引存在
-    if (!cache[userId]) {
-      cache[userId] = {};
-    }
-    
-    // 更新题库的访问信息
-    cache[userId][questionSetId] = {
-      hasAccess,
-      remainingDays,
-      paymentMethod,
-      timestamp: Date.now()
-    };
-    
-    // 保存回本地存储
-    localStorage.setItem('question_set_access', JSON.stringify(cache));
-  } catch (error) {
-    console.error('[HomePage] 保存本地缓存失败', error);
+  } else {
+    console.warn('[HomePage] Not saving access to localStorage: missing userId');
   }
 };
 
 const HomePage: React.FC = () => {
   const { user, isAdmin, syncAccessRights, userChangeEvent } = useUser();
-  const { socket } = useSocket();
+  const { socket, connected, connectionFailed } = useSocket();
   // Remove unused destructured variables
   const { /* progressStats, fetchUserProgress */ } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
@@ -918,6 +920,248 @@ const HomePage: React.FC = () => {
     };
   }, []);
 
+  // Define handlers for socket events
+  const handleAccessUpdate = useCallback((data: any) => {
+    if (!data) return;
+    
+    console.log('[HomePage] 收到访问权限更新:', data);
+    
+    const { userId, questionSetId, hasAccess, remainingDays, paymentMethod } = data;
+    
+    // 验证数据有效性
+    if (!questionSetId || hasAccess === undefined || !userId) {
+      console.warn('[HomePage] 访问权限更新数据不完整');
+      return;
+    }
+    
+    // 确认用户ID匹配
+    if (user?.id !== userId) {
+      console.warn(`[HomePage] 访问权限更新的用户ID不匹配: 当前=${user?.id}, 收到=${userId}`);
+      return;
+    }
+    
+    console.log(`[HomePage] 更新题库访问权限: 题库=${questionSetId}, 权限=${hasAccess}, 剩余天数=${remainingDays}, 支付方式=${paymentMethod || '未指定'}`);
+    
+    // 保存到本地存储
+    saveAccessToLocalStorage(questionSetId, hasAccess, remainingDays, paymentMethod, userId);
+    
+    // 更新状态
+    setQuestionSets(prevSets => 
+      prevSets.map(set => {
+        if (set.id === questionSetId) {
+          const { accessType, hasAccess: finalHasAccess } = determineAccessStatus(
+            set, 
+            hasAccess, 
+            remainingDays, 
+            paymentMethod
+          );
+          
+          return {
+            ...set,
+            hasAccess: finalHasAccess,
+            accessType,
+            remainingDays: remainingDays || null,
+            paymentMethod,
+            recentlyUpdated: true
+          };
+        }
+        return set;
+      })
+    );
+    
+    // 标记最近更新的题库
+    setRecentlyUpdatedSets(prev => ({
+      ...prev,
+      [questionSetId]: Date.now()
+    }));
+  }, [user?.id, saveAccessToLocalStorage, determineAccessStatus]);
+  
+  const handleSyncDevice = useCallback((data: any) => {
+    console.log('[HomePage] 收到设备同步请求');
+    
+    if (!user?.id || !socket) {
+      console.warn('[HomePage] 无法同步设备: 用户未登录或socket未连接');
+      return;
+    }
+    
+    // 刷新访问权限
+    if (typeof syncAccessRights === 'function') {
+      console.log('[HomePage] 同步用户访问权限');
+      syncAccessRights();
+    }
+    
+    // 刷新题库列表
+    console.log('[HomePage] 重新获取题库列表');
+    fetchQuestionSets({ forceFresh: true });
+  }, [user?.id, socket, syncAccessRights, fetchQuestionSets]);
+  
+  const handleBatchAccessResult = useCallback((data: any) => {
+    if (!data || !Array.isArray(data.results)) {
+      console.warn('[HomePage] 收到无效的批量访问结果:', data);
+      return;
+    }
+    
+    console.log(`[HomePage] 收到批量访问结果: ${data.results.length}个题库`);
+    
+    // 更新最近同步时间
+    lastSocketUpdateTimeRef.current = Date.now();
+    hasRequestedAccess.current = false;
+    
+    // 防御性检查: 确保用户ID匹配
+    if (data.userId && user?.id && data.userId !== user.id) {
+      console.warn(`[HomePage] 批量访问结果的用户ID不匹配: 当前=${user.id}, 收到=${data.userId}`);
+      return;
+    }
+    
+    // 处理每个题库的访问结果
+    const updates = data.results.map((result: any) => {
+      if (!result.questionSetId) return null;
+      
+      const { questionSetId, hasAccess, remainingDays, paymentMethod, timestamp } = result;
+      
+      // 保存到本地存储
+      if (user?.id) {
+        saveAccessToLocalStorage(questionSetId, hasAccess, remainingDays, paymentMethod, user.id);
+      }
+      
+      // 检查时间戳，避免使用过时的数据
+      if (socketDataRef.current[questionSetId] && 
+          socketDataRef.current[questionSetId].timestamp > (timestamp || 0)) {
+        console.log(`[HomePage] 忽略旧的访问数据: 题库=${questionSetId}, 当前=${socketDataRef.current[questionSetId].timestamp}, 收到=${timestamp || 0}`);
+        return null;
+      }
+      
+      // 保存最新数据到引用
+      socketDataRef.current[questionSetId] = {
+        ...result,
+        timestamp: timestamp || Date.now()
+      };
+      
+      return {
+        questionSetId,
+        hasAccess,
+        remainingDays,
+        paymentMethod
+      };
+    }).filter(Boolean);
+    
+    // 批量更新状态
+    if (updates.length > 0) {
+      setQuestionSets(prevSets => 
+        prevSets.map(set => {
+          const update = updates.find((u: any) => u.questionSetId === set.id);
+          
+          if (update) {
+            const { accessType, hasAccess: finalHasAccess } = determineAccessStatus(
+              set,
+              update.hasAccess,
+              update.remainingDays,
+              update.paymentMethod
+            );
+            
+            return {
+              ...set,
+              hasAccess: finalHasAccess,
+              accessType,
+              remainingDays: update.remainingDays || null,
+              paymentMethod: update.paymentMethod,
+              recentlyUpdated: true
+            };
+          }
+          
+          return set;
+        })
+      );
+      
+      // 标记最近更新的题库
+      const updatedTimestamp = Date.now();
+      const newRecentlyUpdated = updates.reduce((acc: Record<string, number>, update: any) => {
+        if (update && update.questionSetId) {
+          acc[update.questionSetId] = updatedTimestamp;
+        }
+        return acc;
+      }, {});
+      
+      setRecentlyUpdatedSets(prev => ({
+        ...prev,
+        ...newRecentlyUpdated
+      }));
+    }
+  }, [user?.id, saveAccessToLocalStorage, determineAccessStatus]);
+
+  // In useEffect for socket event listeners, add check for connection failed status
+  useEffect(() => {
+    if (!socket) return;
+    
+    console.log('[HomePage] Registering socket event listeners');
+    
+    // Register event listeners
+    socket.on('questionSet:accessUpdate', handleAccessUpdate);
+    socket.on('sync:device', handleSyncDevice);
+    socket.on('batch:accessResult', handleBatchAccessResult);
+    
+    // If socket connection has failed, use localStorage as fallback
+    if (connectionFailed) {
+      console.warn('[HomePage] Socket connection failed, using localStorage fallback only');
+      // Load access data from localStorage instead of waiting for socket events
+      const loadAccessFromLocalStorage = () => {
+        if (!user?.id) return;
+        
+        try {
+          console.log('[HomePage] Loading access data from localStorage');
+          // Get all keys in localStorage that start with "access_"
+          const accessKeys = Object.keys(localStorage).filter(key => key.startsWith('access_'));
+          
+          // Process each access entry
+          for (const key of accessKeys) {
+            try {
+              const accessData = JSON.parse(localStorage.getItem(key) || '{}');
+              
+              // Check if this access entry belongs to current user
+              if (accessData.userId === user.id) {
+                const { questionSetId, hasAccess, remainingDays } = accessData;
+                
+                if (questionSetId && hasAccess !== undefined) {
+                  console.log(`[HomePage] Found access in localStorage: questionSetId=${questionSetId}, hasAccess=${hasAccess}`);
+                  
+                  // Update question set access in state
+                  setQuestionSets(prevSets => 
+                    prevSets.map(set => 
+                      set.id === questionSetId 
+                        ? { 
+                            ...set, 
+                            hasAccess, 
+                            remainingDays: remainingDays || null,
+                            recentlyUpdated: true 
+                          } 
+                        : set
+                    )
+                  );
+                }
+              }
+            } catch (err) {
+              console.error('[HomePage] Error processing localStorage access entry', key, err);
+            }
+          }
+        } catch (err) {
+          console.error('[HomePage] Error loading access data from localStorage', err);
+        }
+      };
+      
+      // Load data from localStorage after a short delay
+      setTimeout(loadAccessFromLocalStorage, 500);
+    }
+    
+    return () => {
+      if (!socket) return;
+      
+      console.log('[HomePage] Removing socket event listeners');
+      socket.off('questionSet:accessUpdate', handleAccessUpdate);
+      socket.off('sync:device', handleSyncDevice);
+      socket.off('batch:accessResult', handleBatchAccessResult);
+    };
+  }, [socket, user?.id, connectionFailed, handleAccessUpdate, handleSyncDevice, handleBatchAccessResult]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1334,6 +1578,16 @@ const HomePage: React.FC = () => {
             }
           }}
         />
+      )}
+
+      {/* Add a socket connection status indicator */}
+      {connectionFailed && (
+        <div className="px-4 py-2 bg-yellow-100 text-yellow-800 text-sm rounded mb-4">
+          <p className="flex items-center">
+            <span className="mr-2">⚠️</span>
+            Offline mode active - Some features may be limited
+          </p>
+        </div>
       )}
     </div>
   );
