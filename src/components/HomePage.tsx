@@ -127,8 +127,38 @@ const apiClient = {
       
       return response.data;
     } catch (error: any) {
-      console.error(`[apiClient] GET请求错误: ${url}`, error);
-      return { success: false, message: error.message };
+      // 改进错误处理逻辑，特别是针对取消的请求
+      if (error.name === 'CanceledError' || error.name === 'AbortError' || axios.isCancel(error)) {
+        console.log(`[apiClient] 请求已被中止: ${url}`);
+        // 对于取消的请求，返回特殊标识，而不是错误
+        return { success: false, canceled: true, message: '请求已被中止' };
+      }
+      
+      // 分类处理不同类型的错误
+      if (error.response) {
+        // 服务器返回了错误状态码
+        console.error(`[apiClient] 请求错误(${error.response.status}): ${url}`, error.response.data);
+        return { 
+          success: false, 
+          status: error.response.status,
+          message: error.response.data?.message || error.message || '服务器错误'
+        };
+      } else if (error.request) {
+        // 请求已发送但没有收到响应
+        console.error(`[apiClient] 网络错误: ${url}`, error.request);
+        return { 
+          success: false, 
+          networkError: true,
+          message: '网络连接错误，请检查网络连接' 
+        };
+      } else {
+        // 请求设置时出现问题
+        console.error(`[apiClient] 请求设置错误: ${url}`, error);
+        return { 
+          success: false, 
+          message: error.message || '请求错误' 
+        };
+      }
     }
   }
 };
@@ -477,7 +507,7 @@ const HomePage: React.FC = () => {
       // 对比Socket数据与数据库结果，检测不一致
       if (socketDataRef.current[questionSetId] && 
           socketDataRef.current[questionSetId].hasAccess !== hasAccess) {
-        console.warn(`[HomePage] 权限不一致，执行数据库验证 - Socket=${hasAccess}, 数据库=${socketDataRef.current[questionSetId].hasAccess}`);
+        console.warn(`[HomePage] 权限不一致，执行数据库验证 - 数据库=${hasAccess}, Socket=${socketDataRef.current[questionSetId].hasAccess}`);
       }
       
       return hasAccess;
@@ -669,6 +699,14 @@ const HomePage: React.FC = () => {
       // 检查是否已中止
       if (options.signal?.aborted) {
         console.log('[HomePage] 请求已被中止');
+        return questionSets;
+      }
+      
+      // 改进的响应处理，支持取消请求
+      if (response && response.canceled) {
+        console.log('[HomePage] 请求已被取消，保持当前题库列表');
+        setLoading(false);
+        clearTimeout(loadingTimeoutRef.current);
         return questionSets;
       }
       
@@ -1073,17 +1111,35 @@ const HomePage: React.FC = () => {
 
   // 添加函数获取首页内容（包括精品分类）
   useEffect(() => {
+    // 创建AbortController用于取消请求
+    const abortController = new AbortController();
+    
     const fetchHomeContent = async () => {
       try {
         console.log('[HomePage] 开始获取首页内容和精品分类');
-        // 使用axios直接获取，避免引用问题
-        const response = await axios.get('/api/homepage/content');
+        // 使用apiClient替代直接axios调用，传入AbortSignal
+        const response = await apiClient.get('/api/homepage/content', 
+          { _t: Date.now() }, // 添加时间戳防止缓存
+          { signal: abortController.signal }
+        );
         
-        if (response.data && response.data.success) {
-          console.log('[HomePage] 成功获取首页内容:', response.data.data);
-          setHomeContent(response.data.data);
+        // 检查请求是否被取消
+        if (abortController.signal.aborted) {
+          console.log('[HomePage] 获取首页内容请求已被中止');
+          return;
+        }
+        
+        // 检查是否是被取消的请求
+        if (response && response.canceled) {
+          console.log('[HomePage] 获取首页内容请求已被取消');
+          return;
+        }
+        
+        if (response && response.success) {
+          console.log('[HomePage] 成功获取首页内容:', response.data);
+          setHomeContent(response.data);
         } else {
-          console.error('[HomePage] 获取首页内容失败:', response.data?.message);
+          console.error('[HomePage] 获取首页内容失败:', response?.message);
           // 如果获取失败，继续使用默认内容
         }
       } catch (error) {
@@ -1093,6 +1149,12 @@ const HomePage: React.FC = () => {
     };
     
     fetchHomeContent();
+    
+    // 清理函数
+    return () => {
+      // 组件卸载时取消请求
+      abortController.abort();
+    };
   }, []);
 
   // 监听全局兑换码成功事件
