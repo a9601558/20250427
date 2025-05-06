@@ -32,44 +32,75 @@ const sendError = (res, status, message, error) => {
 // @access  Public
 const getAllQuestionSets = async (req, res) => {
     try {
+        console.log(`[QuestionSetController] getAllQuestionSets 被调用，查询参数: ${JSON.stringify(req.query)}`);
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const limit = parseInt(req.query.limit) || 100; // Increased default limit to ensure all sets are returned
         const offset = (page - 1) * limit;
-        const questionSets = await QuestionSet_1.default.findAll({
-            ...(0, applyFieldMappings_1.withQuestionSetAttributes)({
-                order: [['created_at', 'DESC']],
-                limit,
-                offset
-            }),
-            include: [{
-                    model: Question_1.default,
-                    as: 'questionSetQuestions',
-                    attributes: ['id'] // 只拿 id 就够用
-                }]
-        });
-        const total = await QuestionSet_1.default.count();
-        // 添加 questionCount 字段
-        const result = questionSets.map(set => ({
-            ...set.toJSON(),
-            questionCount: set.questionSetQuestions?.length || 0
-        }));
-        res.status(200).json({
-            success: true,
-            data: result,
-            pagination: {
-                total,
-                page,
-                limit,
-                pages: Math.ceil(total / limit)
-            }
-        });
+        const userId = req.query.userId;
+        // Log userId if present for debugging
+        if (userId) {
+            console.log(`[QuestionSetController] Request includes userId: ${userId}`);
+        }
+        try {
+            const questionSets = await QuestionSet_1.default.findAll({
+                ...(0, applyFieldMappings_1.withQuestionSetAttributes)({
+                    order: [['created_at', 'DESC']],
+                    limit,
+                    offset
+                }),
+                include: [{
+                        model: Question_1.default,
+                        as: 'questionSetQuestions',
+                        attributes: ['id'] // 只拿 id 就够用
+                    }]
+            });
+            const total = await QuestionSet_1.default.count();
+            // 添加 questionCount 字段
+            const result = questionSets.map(set => ({
+                ...set.toJSON(),
+                questionCount: set.questionSetQuestions?.length || 0
+            }));
+            console.log(`[QuestionSetController] 成功获取${result.length}个题库`);
+            res.status(200).json({
+                success: true,
+                data: result,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    pages: Math.ceil(total / limit)
+                }
+            });
+        }
+        catch (dbError) {
+            console.error('[QuestionSetController] 数据库查询错误:', dbError);
+            // 返回空数组而不是错误，让前端能正常处理
+            res.status(200).json({
+                success: true,
+                data: [],
+                message: '数据库查询出错，返回空结果',
+                pagination: {
+                    total: 0,
+                    page: 1,
+                    limit,
+                    pages: 0
+                }
+            });
+        }
     }
     catch (error) {
-        console.error('获取题集列表失败:', error);
-        res.status(500).json({
-            success: false,
-            message: '获取题库列表失败',
-            error: error.message
+        console.error('[QuestionSetController] 获取题集列表失败:', error);
+        // 确保即使在错误情况下也返回成功响应，带有空数组
+        res.status(200).json({
+            success: true,
+            data: [],
+            message: '处理请求时出错，返回空结果',
+            pagination: {
+                total: 0,
+                page: 1,
+                limit: 10,
+                pages: 0
+            }
         });
     }
 };

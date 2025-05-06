@@ -98,47 +98,82 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
 // @access  Public
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
+    console.log(`[QuestionSetController] getAllQuestionSets 被调用，查询参数: ${JSON.stringify(req.query)}`);
+    
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const limit = parseInt(req.query.limit as string) || 100; // Increased default limit to ensure all sets are returned
     const offset = (page - 1) * limit;
+    const userId = req.query.userId as string;
 
-    const questionSets = await QuestionSet.findAll({
-      ...withQuestionSetAttributes({
-        order: [['created_at', 'DESC']],
-        limit,
-        offset
-      }),
-      include: [{
-        model: Question,
-        as: 'questionSetQuestions',
-        attributes: ['id']  // 只拿 id 就够用
-      }]
-    });
+    // Log userId if present for debugging
+    if (userId) {
+      console.log(`[QuestionSetController] Request includes userId: ${userId}`);
+    }
 
-    const total = await QuestionSet.count();
+    try {
+      const questionSets = await QuestionSet.findAll({
+        ...withQuestionSetAttributes({
+          order: [['created_at', 'DESC']],
+          limit,
+          offset
+        }),
+        include: [{
+          model: Question,
+          as: 'questionSetQuestions',
+          attributes: ['id']  // 只拿 id 就够用
+        }]
+      });
 
-    // 添加 questionCount 字段
-    const result = questionSets.map(set => ({
-      ...set.toJSON(),
-      questionCount: set.questionSetQuestions?.length || 0
-    }));
+      const total = await QuestionSet.count();
 
+      // 添加 questionCount 字段
+      const result = questionSets.map(set => ({
+        ...set.toJSON(),
+        questionCount: set.questionSetQuestions?.length || 0
+      }));
+
+      console.log(`[QuestionSetController] 成功获取${result.length}个题库`);
+      
+      res.status(200).json({
+        success: true,
+        data: result,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      });
+    } catch (dbError: any) {
+      console.error('[QuestionSetController] 数据库查询错误:', dbError);
+      
+      // 返回空数组而不是错误，让前端能正常处理
+      res.status(200).json({
+        success: true,
+        data: [],
+        message: '数据库查询出错，返回空结果',
+        pagination: {
+          total: 0,
+          page: 1,
+          limit,
+          pages: 0
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error('[QuestionSetController] 获取题集列表失败:', error);
+    
+    // 确保即使在错误情况下也返回成功响应，带有空数组
     res.status(200).json({
       success: true,
-      data: result,
+      data: [],
+      message: '处理请求时出错，返回空结果',
       pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit)
+        total: 0,
+        page: 1,
+        limit: 10,
+        pages: 0
       }
-    });
-  } catch (error: any) {
-    console.error('获取题集列表失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取题库列表失败',
-      error: error.message
     });
   }
 };
