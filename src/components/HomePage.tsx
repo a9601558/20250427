@@ -1232,6 +1232,9 @@ const HomePage: React.FC = () => {
     });
   }, [user?.id, saveAccessToLocalStorage]);
 
+  // 添加请求状态跟踪
+  const hasRequestedAccess = useRef<boolean>(false);
+
   // 向服务器请求所有题库的最新访问权限状态
   const requestAccessStatusForAllQuestionSets = useCallback((sets: PreparedQuestionSet[] = []) => {
     if (!socket || !user?.id) return;
@@ -1248,6 +1251,9 @@ const HomePage: React.FC = () => {
     }
     
     console.log(`[HomePage] 向服务器请求 ${paidSets.length} 个题库的最新访问权限状态`);
+    
+    // 设置已请求标记，避免重复请求
+    hasRequestedAccess.current = true;
     
     // 方式1: 使用批量检查 - 一次性请求所有题库
     socket.emit('questionSet:checkAccessBatch', {
@@ -1270,36 +1276,22 @@ const HomePage: React.FC = () => {
     });
   }, [socket, user?.id, questionSets]);
 
-  // 初始加载和用户状态变化时请求最新权限状态
+  // 移除依赖questionSets.length的useEffect，仅在用户登录时检查权限
   useEffect(() => {
-    // 只在用户已登录时执行
-    if (!user?.id || !socket) return;
+    // 只在用户已登录时执行，且确保只执行一次
+    if (!user?.id || !socket || hasRequestedAccess.current) return;
     
-    console.log('[HomePage] 用户状态变化，请求最新题库权限状态');
+    console.log('[HomePage] 用户登录后初始化权限状态检查');
     
     // 使用短延迟确保组件已完全挂载并避免与其他请求冲突
     const timer = setTimeout(() => {
-      requestAccessStatusForAllQuestionSets();
+      if (questionSets.length > 0) {
+        requestAccessStatusForAllQuestionSets();
+      }
     }, 800);
     
     return () => clearTimeout(timer);
-  }, [user?.id, socket, requestAccessStatusForAllQuestionSets]);
-
-  // 在题库列表更新后，也请求最新权限状态
-  useEffect(() => {
-    // 只在用户已登录且有题库数据时执行
-    if (!user?.id || !socket || questionSets.length === 0) return;
-    
-    // 检查是否为初次加载
-    if (!isInitialLoad.current) {
-      console.log('[HomePage] 题库列表更新，请求最新权限状态');
-      requestAccessStatusForAllQuestionSets();
-    } else {
-      // 首次加载后重置标记
-      isInitialLoad.current = false;
-      console.log('[HomePage] 首次加载题库列表，跳过重复请求');
-    }
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
+  }, [user?.id, socket, requestAccessStatusForAllQuestionSets, questionSets.length]);
 
   // 优化Socket通信 - 接收权限更新和设备同步事件
   useEffect(() => {
@@ -1321,16 +1313,16 @@ const HomePage: React.FC = () => {
         data.remainingDays
       );
       
-      // 立即更新题库的UI状态
-      setQuestionSets(prevSets => 
-        prevSets.map(set => {
+      // 立即更新题库的UI状态，仅当状态真正变化时
+      setQuestionSets(prevSets => {
+        let hasChanged = false;
+        
+        const updatedSets = prevSets.map(set => {
           if (set.id === data.questionSetId) {
-            console.log(`[HomePage] 更新题库 "${set.title}" 状态: hasAccess=${data.hasAccess}, remainingDays=${data.remainingDays || 'null'}`);
+            console.log(`[HomePage] 检查题库 "${set.title}" 状态变化`);
             
-            // 确定访问类型
-            let accessType: AccessType = data.hasAccess ? 
-              (data.paymentMethod === 'redeem' ? 'redeemed' : 'paid') : 
-              (set.isPaid ? 'trial' : 'trial');  // 这里两个条件分支都是'trial'，需要修复
+            // 确定新的访问类型
+            let accessType: AccessType = 'trial';
             
             // 根据题库类型和访问状态确定正确的accessType
             if (!set.isPaid) {
@@ -1350,22 +1342,37 @@ const HomePage: React.FC = () => {
               accessType = 'trial';
             }
             
-            return {
-              ...set,
-              hasAccess: data.hasAccess,
-              accessType,
-              remainingDays: data.remainingDays
-            };
+            // 检查状态是否真的改变了
+            const newHasAccess = Boolean(data.hasAccess);
+            if (set.hasAccess !== newHasAccess || 
+                set.accessType !== accessType || 
+                set.remainingDays !== data.remainingDays) {
+              
+              console.log(`[HomePage] 题库状态有变化，从 ${set.accessType} -> ${accessType}, hasAccess: ${set.hasAccess} -> ${newHasAccess}`);
+              hasChanged = true;
+              
+              // 标记为最近更新
+              setRecentlyUpdatedSets(prev => ({
+                ...prev,
+                [data.questionSetId]: Date.now()
+              }));
+              
+              return {
+                ...set,
+                hasAccess: newHasAccess,
+                accessType,
+                remainingDays: data.remainingDays
+              };
+            }
+            
+            console.log(`[HomePage] 题库状态无变化，跳过更新`);
           }
           return set;
-        })
-      );
-      
-      // 标记为最近更新
-      setRecentlyUpdatedSets(prev => ({
-        ...prev,
-        [data.questionSetId]: Date.now()
-      }));
+        });
+        
+        // 仅在有变化时返回新数组，否则返回原数组，避免不必要的重渲染
+        return hasChanged ? updatedSets : prevSets;
+      });
     };
     
     // 监听设备同步事件
@@ -1377,14 +1384,19 @@ const HomePage: React.FC = () => {
       // 设备同步事件要求完整刷新权限和题库列表
       (async () => {
         try {
+          // 重置请求标记，允许再次请求权限
+          hasRequestedAccess.current = false;
+          
           // 同步最新权限
           await syncAccessRights();
           
           // 刷新题库列表，使用最新数据
           await fetchQuestionSets({ forceFresh: true });
           
-          // 请求最新权限状态
-          requestAccessStatusForAllQuestionSets();
+          // 请求最新权限状态 - 恢复请求权限，因为这是由设备同步触发的
+          if (questionSets.length > 0) {
+            requestAccessStatusForAllQuestionSets();
+          }
         } catch (error) {
           console.error('[HomePage] 处理设备同步事件错误:', error);
         }
@@ -1397,25 +1409,46 @@ const HomePage: React.FC = () => {
       
       console.log(`[HomePage] 收到批量访问检查结果: ${data.results.length} 个题库`);
       
-      // 更新题库状态
+      // 更新题库状态，增加变化检测逻辑
       setQuestionSets(prevSets => {
+        let hasChanged = false;
+        
         const updatedSets = prevSets.map(set => {
           // 在结果中查找当前题库
           const result = data.results.find((r: any) => 
             String(r.questionSetId).trim() === String(set.id).trim()
           );
           
-          // 如果找到了结果且有访问权限，更新题库状态
+          // 如果找到了结果，检查是否需要更新状态
           if (result) {
             console.log(`[HomePage] 批量检查题库 "${set.title}": hasAccess=${result.hasAccess}, remainingDays=${result.remainingDays || 'null'}`);
             
             // 确定访问类型和状态
-            let hasAccess = result.hasAccess;
-            let accessType = set.accessType;
-            let remainingDays = result.remainingDays !== undefined ? result.remainingDays : set.remainingDays;
+            const newHasAccess = Boolean(result.hasAccess);
+            let newAccessType = set.accessType;
+            const newRemainingDays = result.remainingDays !== undefined ? result.remainingDays : set.remainingDays;
             
-            if (hasAccess) {
-              accessType = result.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+            if (newHasAccess) {
+              newAccessType = result.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+              
+              // 如果剩余天数为0或负数，标记为过期
+              if (newRemainingDays !== null && newRemainingDays <= 0) {
+                newAccessType = 'expired';
+              }
+            } else if (set.isPaid) {
+              newAccessType = 'trial';
+            }
+            
+            // 只有在状态真正变化时才更新
+            if (set.hasAccess !== newHasAccess || 
+                set.accessType !== newAccessType || 
+                set.remainingDays !== newRemainingDays) {
+              
+              console.log(`[HomePage] 题库状态有变化: ${set.accessType} -> ${newAccessType}, hasAccess: ${set.hasAccess} -> ${newHasAccess}`);
+              hasChanged = true;
+              
+              // 保存到本地缓存
+              saveAccessToLocalStorage(set.id, newHasAccess, newRemainingDays);
               
               // 标记为最近更新
               setRecentlyUpdatedSets(prev => ({
@@ -1423,25 +1456,23 @@ const HomePage: React.FC = () => {
                 [set.id]: Date.now()
               }));
               
-              // 保存到本地缓存
-              saveAccessToLocalStorage(set.id, true, remainingDays);
-            } else if (set.isPaid) {
-              accessType = (remainingDays !== null && remainingDays <= 0) ? 'expired' : 'trial';
+              // 返回更新后的题库对象
+              return {
+                ...set,
+                hasAccess: newHasAccess,
+                accessType: newAccessType,
+                remainingDays: newRemainingDays
+              };
             }
             
-            // 返回更新后的题库对象
-            return {
-              ...set,
-              hasAccess,
-              accessType,
-              remainingDays
-            };
+            console.log(`[HomePage] 题库状态无变化，跳过更新`);
           }
           
           return set;
         });
         
-        return updatedSets;
+        // 只有在实际有变化时才返回新数组，避免不必要的重渲染
+        return hasChanged ? updatedSets : prevSets;
       });
     };
     
@@ -1463,6 +1494,9 @@ const HomePage: React.FC = () => {
     if (user?.id) {
       console.log('[HomePage] 用户登录事件触发，开始处理登录流程');
       
+      // 重置请求标记，允许在新登录时请求权限
+      hasRequestedAccess.current = false;
+      
       // 完全重写登录流程，按顺序执行，避免竞态条件
       (async () => {
         try {
@@ -1478,7 +1512,7 @@ const HomePage: React.FC = () => {
           
           // 第3步：向服务器请求各题库的最新访问权限状态
           console.log('[HomePage] 3. 向服务器请求各题库的最新权限状态');
-          if (freshSets && freshSets.length > 0) {
+          if (freshSets && freshSets.length > 0 && !hasRequestedAccess.current) {
             requestAccessStatusForAllQuestionSets(freshSets);
           }
           
