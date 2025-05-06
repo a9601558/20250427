@@ -41,11 +41,18 @@ export interface QuizProgress {
   lastAttemptDate?: Date;
 }
 
+// 添加用户变更事件类型
+interface UserChangeEvent {
+  userId: string | null;
+  timestamp: number;
+  type?: 'login' | 'logout' | 'access_rights_updated' | 'user_updated';
+}
+
 interface UserContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
-  userChangeEvent: { userId: string | null; timestamp: number };
+  userChangeEvent: UserChangeEvent;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (userData: Partial<User>) => Promise<boolean>;
@@ -76,36 +83,80 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   // 创建一个用户变化事件
-  const [userChangeEvent, setUserChangeEvent] = useState<{userId: string | null, timestamp: number}>({userId: null, timestamp: 0});
+  const [userChangeEvent, setUserChangeEvent] = useState<UserChangeEvent>({userId: null, timestamp: 0});
   // 添加一个上次通知时间引用，用于防抖
   const lastNotifyTimeRef = useRef<number>(0);
   // 添加当前用户ID引用，用于比较
   const prevUserIdRef = useRef<string | null>(null);
   const { socket } = useSocket();
 
-  // 当用户变化时触发事件
-  const notifyUserChange = useCallback((newUser: User | null) => {
+  // 修改通知用户变化的函数
+  const notifyUserChange = useCallback((newUser: User | null, eventDetails?: Partial<UserChangeEvent>) => {
     // 获取新用户ID
     const newUserId = newUser?.id || null;
     // 获取当前时间
     const now = Date.now();
     
+    // 确定事件类型
+    let eventType: UserChangeEvent['type'];
+    if (!newUserId && prevUserIdRef.current) {
+      eventType = 'logout';
+    } else if (newUserId && !prevUserIdRef.current) {
+      eventType = 'login';
+    } else if (eventDetails?.type) {
+      eventType = eventDetails.type;
+    } else {
+      eventType = 'user_updated';
+    }
+    
     // 如果与上次通知的用户ID相同且时间间隔小于500ms，则忽略此次通知
-    if (newUserId === prevUserIdRef.current && now - lastNotifyTimeRef.current < 500) {
-      console.log('忽略重复的用户变更通知:', newUserId);
+    // 除非是特殊事件类型（如权限更新）
+    if (newUserId === prevUserIdRef.current && 
+        now - lastNotifyTimeRef.current < 500 && 
+        eventType !== 'access_rights_updated') {
+      console.log(`[UserContext] 忽略重复的用户变更通知: ${newUserId} (${eventType})`);
       return;
     }
     
     // 更新上次通知时间和用户ID
     lastNotifyTimeRef.current = now;
+    const oldUserId = prevUserIdRef.current;
     prevUserIdRef.current = newUserId;
     
     // 触发事件
-    console.log('发送用户变更通知:', newUserId);
-    setUserChangeEvent({
+    console.log(`[UserContext] 发送用户变更通知: ${oldUserId} -> ${newUserId}, 类型: ${eventType}`);
+    
+    // 创建详细的变更事件
+    const fullEvent: UserChangeEvent = {
       userId: newUserId,
-      timestamp: now
-    });
+      timestamp: now,
+      type: eventType,
+      ...eventDetails
+    };
+    
+    // 如果用户ID变化，重置Socket连接
+    if (oldUserId !== newUserId && (eventType === 'login' || eventType === 'logout')) {
+      // 处理Socket连接，在单独的useEffect中进行，避免依赖循环
+      if (newUserId) {
+        // 保存token以方便在外部调用
+        const token = localStorage.getItem('token');
+        console.log(`[UserContext] 用户变更重置Socket连接: ${oldUserId} -> ${newUserId}`);
+        
+        // 以下代码不直接调用Socket函数，而是触发一个自定义事件
+        // Socket连接的管理在SocketContext中处理
+        const socketResetEvent = new CustomEvent('socket:reset', {
+          detail: { userId: newUserId, token }
+        });
+        window.dispatchEvent(socketResetEvent);
+      } else {
+        // 如果是登出，触发Socket断开事件
+        const socketDisconnectEvent = new CustomEvent('socket:disconnect');
+        window.dispatchEvent(socketDisconnectEvent);
+      }
+    }
+    
+    // 触发用户变更事件
+    setUserChangeEvent(fullEvent);
   }, []);
 
   useEffect(() => {
@@ -198,151 +249,41 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setLoading(true);
-    setError(null);
     try {
       const response = await userApi.login(username, password);
-      if (response.success && response.data) {
-        const token = response.data.token || '';
-        localStorage.setItem('token', token);
+      if (response.success && response.data && response.data.token) {
+        // 开始原子性操作: 先清除所有旧用户数据
+        console.log('[UserContext] 登录成功，清理旧用户数据');
+        localStorage.removeItem('user');
+        localStorage.removeItem('question_set_access');
+        localStorage.removeItem('redeemedQuestionSetIds');
         
-        // 处理用户数据存在的情况
+        // 然后完整设置新用户数据
+        localStorage.setItem('token', response.data.token);
         if (response.data.user) {
-          const userData = response.data.user;
-          setUser(userData);
-          
-          // 登录后初始化Socket连接
-          const socketInstance = initializeSocket();
-          authenticateUser(userData.id, token);
-          
-          // 登录成功后立即同步访问权限
-          setTimeout(async () => {
-            console.log("[UserContext] 登录成功，立即进行数据库权限同步");
-            
-            try {
-              // 1. 从服务器重新获取最新的用户数据，确保购买记录是最新的
-              const refreshedUserData = await userApi.getCurrentUser();
-              if (refreshedUserData.success && refreshedUserData.data) {
-                // 使用最新的用户数据更新状态
-                setUser(refreshedUserData.data);
-                
-                // 2. 通过socket请求最新的访问权限
-                if (socketInstance) {
-                  socketInstance.emit('user:syncAccessRights', {
-                    userId: userData.id,
-                    forceRefresh: true
-                  });
-                }
-                
-                // 3a. 检查购买记录并同步到本地存储
-                if (refreshedUserData.data.purchases && refreshedUserData.data.purchases.length > 0) {
-                  console.log(`[UserContext] 同步 ${refreshedUserData.data.purchases.length} 条购买记录到本地`);
-                  
-                  const now = new Date();
-                  refreshedUserData.data.purchases.forEach(purchase => {
-                    if (!purchase.questionSetId) return;
-                    
-                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-                    const isExpired = expiryDate && expiryDate <= now;
-                    const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
-                    
-                    if (!isExpired && isActive) {
-                      // 计算剩余天数
-                      let remainingDays = null;
-                      if (expiryDate) {
-                        const diffTime = expiryDate.getTime() - now.getTime();
-                        remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      }
-                      
-                      // 保存到本地存储
-                      saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
-                      
-                      // 通知其他设备权限更新
-                      if (socketInstance) {
-                        socketInstance.emit('questionSet:accessUpdate', {
-                          userId: userData.id,
-                          questionSetId: purchase.questionSetId,
-                          hasAccess: true,
-                          remainingDays: remainingDays,
-                          source: 'login_sync'
-                        });
-                      }
-                    }
-                  });
-                }
-                
-                // 3b. 处理已兑换的题库，确保跨设备同步
-                if (refreshedUserData.data.redeemCodes && refreshedUserData.data.redeemCodes.length > 0) {
-                  console.log(`[UserContext] 同步 ${refreshedUserData.data.redeemCodes.length} 条兑换码记录到本地`);
-                  
-                  // 收集所有已兑换的题库ID
-                  const redeemedQuestionSetIds: string[] = [];
-                  
-                  refreshedUserData.data.redeemCodes.forEach(code => {
-                    if (!code.questionSetId) return;
-                    
-                    // 添加到已兑换题库ID列表
-                    redeemedQuestionSetIds.push(code.questionSetId);
-                    
-                    // 保存到本地存储
-                    saveAccessToLocalStorage(code.questionSetId, true, null, 'redeem');
-                    
-                    // 通知其他设备权限更新
-                    if (socketInstance) {
-                      socketInstance.emit('questionSet:accessUpdate', {
-                        userId: userData.id,
-                        questionSetId: code.questionSetId,
-                        hasAccess: true,
-                        accessType: 'redeemed',
-                        paymentMethod: 'redeem',
-                        source: 'login_sync_redeem'
-                      });
-                    }
-                  });
-                  
-                  // 将所有兑换码对应的题库ID保存到localStorage
-                  try {
-                    localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(redeemedQuestionSetIds));
-                    console.log(`[UserContext] 已保存${redeemedQuestionSetIds.length}个已兑换题库ID到本地存储`);
-                  } catch (error) {
-                    console.error('[UserContext] 保存兑换记录到本地存储失败:', error);
-                  }
-                }
-                
-                // 4. 触发全局事件通知组件更新状态
-                window.dispatchEvent(new CustomEvent('accessRights:updated', {
-                  detail: {
-                    userId: userData.id,
-                    timestamp: Date.now(),
-                    source: 'login_refresh'
-                  }
-                }));
-              }
-            } catch (error) {
-              console.error('[UserContext] 登录后同步访问权限失败:', error);
-            }
-          }, 500);
-          
-          notifyUserChange(userData);
-          return true;
-        } else {
-          // 用户数据不存在，尝试获取
-          const userResponse = await fetchCurrentUser(); 
-          if (userResponse) {
-            // 同样需要立即同步数据库权限
-            setTimeout(async () => {
-              await syncAccessRights();
-            }, 500);
-            
-            notifyUserChange(userResponse);
-          }
-          return userResponse !== null;
+          localStorage.setItem('user', JSON.stringify({
+            id: response.data.user.id,
+            username: response.data.user.username,
+            email: response.data.user.email,
+            isAdmin: response.data.user.isAdmin
+          }));
         }
+        
+        // 获取完整用户数据
+        console.log('[UserContext] 获取完整用户数据');
+        const userData = await fetchCurrentUser();
+        
+        // 触发用户变更通知
+        console.log('[UserContext] 触发用户变更通知');
+        notifyUserChange(userData);
+        
+        return true;
       } else {
-        setError(response.message || 'Invalid username or password');
+        setError(response.message || 'Login failed');
         return false;
       }
     } catch (error) {
-      console.error('[UserProvider] Login failed:', error);
+      console.error('[UserProvider] Login error:', error);
       setError('An error occurred during login');
       return false;
     } finally {
@@ -351,20 +292,31 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
-    // 确保先改变状态，再调用notifyUserChange
+    // 先保存旧用户ID用于日志记录
+    const oldUserId = user?.id;
+    
+    // 清理所有用户相关状态和缓存
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('question_set_access');
+    localStorage.removeItem('redeemedQuestionSetIds');
     
-    // 清除API客户端缓存和状态
-    apiClient.clearCache();
-    apiClient.setAuthHeader(null);
-    userProgressService.clearCachedUserId();
+    // 清理Socket连接状态
+    if (socket) {
+      console.log('[UserContext] 断开Socket连接');
+      try {
+        socket.disconnect();
+      } catch (e) {
+        console.error('断开Socket连接失败', e);
+      }
+    }
     
+    // 重置状态
     setUser(null);
     
-    // 短暂延迟后通知其他组件，避免状态更新冲突
-    setTimeout(() => {
-      notifyUserChange(null); // 通知用户登出
-    }, 100);
+    // 通知状态变更
+    console.log(`[UserContext] 用户登出完成，ID: ${oldUserId} -> null`);
+    notifyUserChange(null);
   };
 
   const register = async (userData: Partial<User>): Promise<boolean> => {
@@ -967,80 +919,53 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Function to synchronize access rights across devices
-  const syncAccessRights = useCallback(async () => {
-    if (!user || !user.id || !socket) return;
+  const syncAccessRights = async (): Promise<void> => {
+    if (!user?.id) {
+      console.log('[UserContext] syncAccessRights: 没有登录用户，跳过同步');
+      return;
+    }
     
-    console.log('[UserContext] 开始跨设备访问权限同步');
+    console.log(`[UserContext] 开始同步用户${user.id}的访问权限`);
+    setLoading(true);
     
     try {
-      // 1. 首先从服务器获取最新用户数据
-      const freshUserResponse = await userApi.getCurrentUser();
-      if (freshUserResponse.success && freshUserResponse.data) {
-        console.log('[UserContext] 成功获取最新用户数据');
+      // 获取最新的用户购买记录
+      const purchasesResponse = await apiClient.get('/api/purchases', { userId: user.id });
+      
+      // 获取最新的兑换码记录
+      const redeemCodesResponse = await apiClient.get('/api/redeem-codes/user', { userId: user.id });
+      
+      if (purchasesResponse.success && redeemCodesResponse.success) {
+        // 准备完整的用户数据更新
+        const updatedUserData = {
+          ...user,
+          purchases: purchasesResponse.data || [],
+          redeemCodes: redeemCodesResponse.data || []
+        };
         
-        // 更新用户状态，包括最新的购买记录
-        setUser(freshUserResponse.data);
+        // 原子性更新用户数据
+        setUser(updatedUserData);
         
-        // 2. 通知socket进行权限同步
-        socket.emit('user:syncAccessRights', {
+        console.log(`[UserContext] 同步完成: 更新了${updatedUserData.purchases.length}条购买记录和${updatedUserData.redeemCodes.length}条兑换记录`);
+        
+        // 发送用户变更通知，但只针对购买和权限变更
+        const changeEvent: UserChangeEvent = {
           userId: user.id,
-          forceRefresh: true
-        });
-        
-        // 3. 处理最新的购买记录
-        if (freshUserResponse.data.purchases && freshUserResponse.data.purchases.length > 0) {
-          console.log(`[UserContext] 处理 ${freshUserResponse.data.purchases.length} 条最新购买记录`);
-          
-          const now = new Date();
-          freshUserResponse.data.purchases.forEach(purchase => {
-            if (!purchase.questionSetId) return;
-            
-            const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-            const isExpired = expiryDate && expiryDate <= now;
-            const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
-            
-            if (!isExpired && isActive) {
-              // 计算剩余天数
-              let remainingDays = null;
-              if (expiryDate) {
-                const diffTime = expiryDate.getTime() - now.getTime();
-                remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              }
-              
-              console.log(`[UserContext] 同步题库访问权限: ${purchase.questionSetId}, 剩余天数: ${remainingDays}`);
-              
-              // 保存到本地存储
-              saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
-              
-              // 单独请求题库权限状态，确保其他数据也同步
-              socket.emit('questionSet:checkAccess', {
-                userId: user.id,
-                questionSetId: purchase.questionSetId
-              });
-            }
-          });
-        }
-        
-        // 4. 触发全局事件更新UI
-        window.dispatchEvent(new CustomEvent('accessRights:updated', {
-          detail: { 
-            userId: user.id, 
-            timestamp: Date.now(),
-            source: 'database_refresh'
-          }
-        }));
-        
-        // 5. 广播到用户的其他设备
-        socket.emit('user:deviceSync', {
-          userId: user.id,
-          type: 'access_refresh',
+          type: 'access_rights_updated',
           timestamp: Date.now()
-        });
+        };
+        notifyUserChange(updatedUserData, changeEvent);
+        
+        return;
       }
+      
+      throw new Error('获取用户权限数据失败');
     } catch (error) {
-      console.error('[UserContext] 同步访问权限错误:', error);
+      console.error('[UserContext] 同步访问权限失败:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [user, socket]);
+  };
 
   const contextValue = useMemo(() => ({
     user,
