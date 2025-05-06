@@ -5,13 +5,14 @@ export interface Purchase {
   id: string;
   userId: string;
   questionSetId: string;
-  purchaseDate: Date | string;
-  expiryDate?: Date | string | null;
-  price: number;
-  currency: string;
+  amount: number;
   status: 'active' | 'completed' | 'cancelled' | 'expired' | 'pending';
   paymentMethod?: string;
   transactionId?: string;
+  purchaseDate: Date;
+  expiryDate: Date;
+  price?: number;
+  currency?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

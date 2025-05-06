@@ -164,7 +164,7 @@ const getUserProfile = async (req, res) => {
             // 添加include选项，确保加载purchases和redeemCodes关联数据
             include: [
                 {
-                    association: 'purchases',
+                    association: 'userPurchases',
                     attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
                 },
                 {
@@ -179,6 +179,14 @@ const getUserProfile = async (req, res) => {
         if (user) {
             // 确保返回的数据结构完整
             const userData = user.toJSON();
+            // 为了保持兼容性，将userPurchases映射回purchases字段
+            if (userData.userPurchases) {
+                userData.purchases = userData.userPurchases;
+                delete userData.userPurchases; // 删除多余字段
+            }
+            else {
+                userData.purchases = [];
+            }
             // 确保purchases字段是数组
             if (!userData.purchases) {
                 userData.purchases = [];

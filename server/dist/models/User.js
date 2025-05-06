@@ -234,7 +234,7 @@ User.beforeCreate((user) => {
 User.hasMany(Purchase_1.default, {
     foreignKey: 'user_id',
     sourceKey: 'id',
-    as: 'purchases'
+    as: 'userPurchases'
 });
 // 添加关联到QuestionSet
 User.belongsToMany(QuestionSet_1.default, {

@@ -178,14 +178,50 @@ const registerUserAccessHandlers = (socket, io) => {
             if (!questionSetIds || !Array.isArray(questionSetIds) || questionSetIds.length === 0) {
                 throw new errors_1.CustomError('Question set IDs are required', 400);
             }
-            logger_1.default.info(`[Socket] 用户 ${userId} 批量检查 ${questionSetIds.length} 个题库的访问权限`);
-            // 获取最新购买记录
-            const purchases = await purchaseService.getActivePurchasesByUserId(userId);
+            logger_1.default.info(`[Socket] 用户 ${userId} 批量检查 ${questionSetIds.length} 个题库的访问权限, 来源: ${data.source || 'unknown'}`);
+            // 获取最新购买记录，添加更详细的错误处理
+            try {
+                var purchases = await purchaseService.getActivePurchasesByUserId(userId);
+                logger_1.default.info(`[Socket] 用户 ${userId} 有 ${purchases.length} 条有效购买记录`);
+                // 如果找到的购买记录为空，尝试直接查询数据库
+                if (!purchases || purchases.length === 0) {
+                    logger_1.default.warn(`[Socket] 通过服务发现用户 ${userId} 没有购买记录，尝试直接查询数据库`);
+                    // 直接从数据库获取购买记录，确保数据完整性
+                    const user = await userService.getUserById(userId, {
+                        includeAssociations: true,
+                        log: true
+                    });
+                    if (user && user.userPurchases && user.userPurchases.length > 0) {
+                        logger_1.default.info(`[Socket] 直接查询数据库发现用户 ${userId} 有 ${user.userPurchases.length} 条购买记录`);
+                        // 类型转换，确保满足Purchase类型的要求
+                        purchases = user.userPurchases.map(p => ({
+                            ...p,
+                            // 确保包含必需字段
+                            id: p.id,
+                            userId: p.userId,
+                            questionSetId: p.questionSetId,
+                            purchaseDate: p.purchaseDate,
+                            expiryDate: p.expiryDate,
+                            status: p.status,
+                            amount: p.amount,
+                            // 添加缺失字段的默认值
+                            price: 0,
+                            currency: 'CNY'
+                        }));
+                    }
+                }
+            }
+            catch (purchaseError) {
+                logger_1.default.error(`[Socket] 获取用户购买记录错误:`, purchaseError);
+                // 即使获取购买记录失败，我们仍然继续处理，假设没有购买记录
+                purchases = [];
+            }
             const purchaseMap = new Map();
             // 建立题库ID与购买记录的映射
             purchases.forEach(purchase => {
                 if (purchase.questionSetId) {
                     purchaseMap.set(purchase.questionSetId, purchase);
+                    logger_1.default.debug(`[Socket] 用户 ${userId} 购买了题库 ${purchase.questionSetId}, 到期日: ${purchase.expiryDate}`);
                 }
             });
             // 检查每个题库的访问权限
@@ -201,6 +237,7 @@ const registerUserAccessHandlers = (socket, io) => {
                         const diffTime = expiryDate.getTime() - now.getTime();
                         remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                     }
+                    logger_1.default.debug(`[Socket] 题库 ${questionSetId} 检查结果: 访问权限=${hasAccess}, 剩余天数=${remainingDays}, 支付方式=${purchase.paymentMethod || 'unknown'}`);
                 }
                 return {
                     questionSetId,

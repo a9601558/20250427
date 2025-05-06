@@ -62,14 +62,14 @@ export interface IUser {
   password: string;
   isAdmin: boolean;
   purchases: IPurchase[];
+  socket_id: string | null;
   redeemCodes?: IRedeemCode[];
   progress?: {
     [questionSetId: string]: IProgressSummary;
   };
-  socket_id?: string | null;
   examCountdowns?: string | any[];
-  role?: string;
-  verified?: boolean;
+  role: string;
+  verified: boolean;
   failedLoginAttempts?: number;
   accountLocked?: boolean;
   lockUntil?: Date;
@@ -80,6 +80,7 @@ export interface IUser {
   resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
+  userPurchases?: IPurchase[];
 }
 
 export interface IQuestionSet {

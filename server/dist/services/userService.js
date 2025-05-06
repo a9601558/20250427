@@ -5,20 +5,44 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateUserLastActive = exports.registerUserDevice = exports.getUserDevices = exports.getUserById = void 0;
 const logger_1 = __importDefault(require("../utils/logger"));
+const User_1 = __importDefault(require("../models/User"));
 /**
  * 根据用户ID获取用户信息
  */
-const getUserById = async (userId) => {
+const getUserById = async (userId, options = {}) => {
     try {
-        logger_1.default.info(`获取用户信息: ${userId}`);
-        // 模拟从数据库获取用户
-        // 实际实现中应该使用真实的数据库查询
-        // 这里只是一个示例
-        const user = {
-            id: userId,
-            username: `user_${userId}`,
-            email: `user_${userId}@example.com`
+        const { includeAssociations = false, log = false } = options;
+        if (log) {
+            logger_1.default.info(`获取用户信息: ${userId}, 包含关联: ${includeAssociations}`);
+        }
+        // 准备查询选项
+        const queryOptions = {
+            attributes: { exclude: ['password'] }
         };
+        // 如果需要包含关联数据
+        if (includeAssociations) {
+            queryOptions.include = [
+                {
+                    association: 'userPurchases',
+                    attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
+                },
+                {
+                    association: 'redeemCodes'
+                }
+            ];
+        }
+        // 执行数据库查询
+        const user = await User_1.default.findByPk(userId, queryOptions);
+        if (!user) {
+            if (log) {
+                logger_1.default.warn(`未找到用户: ${userId}`);
+            }
+            return null;
+        }
+        if (log) {
+            logger_1.default.info(`已找到用户: ${userId}, 包含购买记录: ${user.purchases?.length || 0} 条`);
+        }
+        // 返回用户数据
         return user;
     }
     catch (error) {

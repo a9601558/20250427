@@ -1,29 +1,57 @@
 import logger from '../utils/logger';
 import { CustomError, NotFoundError } from '../utils/errors';
+import User from '../models/User';
+import { IUser } from '../types';
 
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  // 其他用户字段
+interface GetUserOptions {
+  includeAssociations?: boolean;
+  log?: boolean;
 }
 
 /**
  * 根据用户ID获取用户信息
  */
-export const getUserById = async (userId: string): Promise<User | null> => {
+export const getUserById = async (userId: string, options: GetUserOptions = {}): Promise<IUser | null> => {
   try {
-    logger.info(`获取用户信息: ${userId}`);
+    const { includeAssociations = false, log = false } = options;
     
-    // 模拟从数据库获取用户
-    // 实际实现中应该使用真实的数据库查询
-    // 这里只是一个示例
-    const user: User = {
-      id: userId,
-      username: `user_${userId}`,
-      email: `user_${userId}@example.com`
+    if (log) {
+      logger.info(`获取用户信息: ${userId}, 包含关联: ${includeAssociations}`);
+    }
+    
+    // 准备查询选项
+    const queryOptions: any = {
+      attributes: { exclude: ['password'] }
     };
     
+    // 如果需要包含关联数据
+    if (includeAssociations) {
+      queryOptions.include = [
+        { 
+          association: 'userPurchases',
+          attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
+        },
+        {
+          association: 'redeemCodes'
+        }
+      ];
+    }
+    
+    // 执行数据库查询
+    const user = await User.findByPk(userId, queryOptions);
+    
+    if (!user) {
+      if (log) {
+        logger.warn(`未找到用户: ${userId}`);
+      }
+      return null;
+    }
+    
+    if (log) {
+      logger.info(`已找到用户: ${userId}, 包含购买记录: ${user.purchases?.length || 0} 条`);
+    }
+    
+    // 返回用户数据
     return user;
   } catch (error) {
     logger.error(`获取用户信息失败:`, error);

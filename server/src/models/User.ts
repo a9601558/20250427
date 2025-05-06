@@ -272,7 +272,7 @@ User.beforeCreate((user: User) => {
 User.hasMany(Purchase, {
   foreignKey: 'user_id',
   sourceKey: 'id',
-  as: 'purchases'
+  as: 'userPurchases'
 });
 
 // 添加关联到QuestionSet
