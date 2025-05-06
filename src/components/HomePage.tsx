@@ -118,6 +118,8 @@ const HomePage: React.FC = () => {
   const isInitialLoad = useRef<boolean>(true);
   // Add hasRequestedAccess ref to track if access has been requested
   const hasRequestedAccess = useRef<boolean>(false);
+  // Add loading timeout ref to avoid getting stuck in loading state
+  const loadingTimeoutRef = useRef<any>(null);
 
   // 切换分类
   const handleCategoryChange = (category: string) => {
@@ -220,15 +222,31 @@ const HomePage: React.FC = () => {
   const fetchQuestionSets = useCallback(async (options: { forceFresh?: boolean } = {}) => {
     const now = Date.now();
     
+    // Ensure loading is set to true during fetch
+    setLoading(true);
+    
+    // Set a safety timeout to prevent infinite loading state
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    
+    loadingTimeoutRef.current = setTimeout(() => {
+      console.log('[HomePage] Loading timeout triggered - forcing loading state to false');
+      setLoading(false);
+    }, 10000); // 10 seconds timeout
+    
     // 防止频繁请求 - 仅在上次请求超过5秒或强制刷新时执行
     if (!options.forceFresh && now - lastFetchTime < 5000) {
       console.log(`[HomePage] 上次请求在 ${(now - lastFetchTime)/1000}秒前，跳过请求`);
+      setLoading(false); // Make sure to set loading to false when skipping
+      clearTimeout(loadingTimeoutRef.current);
       return questionSets;
     }
     
     // 防止并发请求
     if (pendingFetchRef.current) {
       console.log(`[HomePage] 有请求正在进行中，跳过重复请求`);
+      // Don't set loading to false here to maintain the loading indicator
       return questionSets;
     }
     
@@ -339,13 +357,29 @@ const HomePage: React.FC = () => {
         // 更新最后获取时间
         setLastFetchTime(now);
         
+        // Always set loading to false after successful fetch
+        setLoading(false);
+        clearTimeout(loadingTimeoutRef.current);
+        
         return preparedSets;
       } else {
         console.error('[HomePage] 获取题库失败:', response?.message);
+        // Set loading to false even if the request failed
+        setLoading(false);
+        clearTimeout(loadingTimeoutRef.current);
+        
+        // Show error message to user
+        setErrorMessage('获取题库数据失败，请稍后重试');
         return questionSets;
       }
     } catch (error) {
       console.error('[HomePage] 获取题库异常:', error);
+      // Set loading to false even if an error occurred
+      setLoading(false);
+      clearTimeout(loadingTimeoutRef.current);
+      
+      // Show error message to user
+      setErrorMessage('获取题库时发生错误，请刷新页面重试');
       return questionSets;
     } finally {
       pendingFetchRef.current = false;
@@ -355,11 +389,14 @@ const HomePage: React.FC = () => {
   // 初始化时获取题库列表
   useEffect(() => {
     // 如果已经有题库列表，则不重新加载
-    if (questionSets.length === 0 && !loading) {
+    if (questionSets.length === 0) {
       console.log(`[HomePage] 初始化获取题库列表`);
       fetchQuestionSets();
+    } else {
+      // If we already have question sets, ensure loading is false
+      setLoading(false);
     }
-  }, [loading, fetchQuestionSets, questionSets.length]);
+  }, [fetchQuestionSets, questionSets.length]);
 
   // 监听来自ProfilePage的刷新通知 - 超简化版本，避免无限循环
   useEffect(() => {
@@ -1674,6 +1711,8 @@ const HomePage: React.FC = () => {
     if (!user?.id) {
       // Reset the flag when user logs out
       hasRequestedAccess.current = false;
+      // Make sure loading is false when logged out
+      setLoading(false);
       return;
     }
     
@@ -1687,6 +1726,19 @@ const HomePage: React.FC = () => {
     
     // 标记为已处理
     hasRequestedAccess.current = true;
+    
+    // Set loading true explicitly when starting login flow
+    setLoading(true);
+    
+    // Set a safety timeout to prevent infinite loading state
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    
+    loadingTimeoutRef.current = setTimeout(() => {
+      console.log('[HomePage] Login flow timeout triggered - forcing loading state to false');
+      setLoading(false);
+    }, 15000); // 15 seconds timeout for the entire login flow
     
     // 完全重写登录流程，按顺序执行，避免竞态条件
     (async () => {
@@ -1706,8 +1758,21 @@ const HomePage: React.FC = () => {
         console.error('[HomePage] 登录流程处理出错:', error);
         // Reset the flag on error so we can try again
         hasRequestedAccess.current = false;
+        // Ensure loading is set to false even if an error occurs
+        setLoading(false);
+        clearTimeout(loadingTimeoutRef.current);
+        
+        // Show error message to user
+        setErrorMessage('登录后加载数据时出错，请刷新页面重试');
       }
     })();
+    
+    // Clean up the timeout when the component unmounts or when the effect runs again
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
   }, [user?.id, syncAccessRights, fetchQuestionSets]);
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
@@ -1790,6 +1855,18 @@ const HomePage: React.FC = () => {
       isInitialLoad.current = false;
     }
   }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
+
+  // Add a cleanup effect to clear timeouts when component unmounts
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
