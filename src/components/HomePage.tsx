@@ -17,21 +17,21 @@ type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
 interface BaseQuestionSet {
   id: string;
   title: string;
-  description: string;
-  category: string;
-  icon: string;
-  isPaid: boolean;
-  price: number | null;
-  trialQuestions: number | null;
+  description?: string;
+  category?: string;
+  icon?: string;
+  isPaid?: boolean;
+  price?: number | null;
+  trialQuestions?: number | null;
   questionCount?: number;
-  isFeatured: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  isFeatured?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
   hasAccess?: boolean;
   remainingDays?: number | null;
   paymentMethod?: string;
-  questions?: { id: string }[];
-  questionSetQuestions?: { id: string }[];
+  questions?: any[];
+  questionSetQuestions?: any[];
   validityPeriod?: number; // 题库有效期，以天为单位
 }
 
@@ -40,8 +40,10 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   accessType: AccessType;
   remainingDays: number | null;
   validityPeriod: number;
-  featuredCategory?: string; // 添加精选分类字段
-  recentlyUpdated?: boolean; // 添加这个字段以匹配代码中的使用
+  featuredCategory?: string;
+  recentlyUpdated?: boolean;
+  hasAccess: boolean; // Make hasAccess required in PreparedQuestionSet
+  trialQuestions?: number | null;
 }
 
 // 使用本地接口替代
@@ -280,6 +282,48 @@ const HomePage: React.FC = () => {
   const [isCheckingAccess, setIsCheckingAccess] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
   
+  // Re-add determineAccessStatus as a memoized function inside the component
+  const determineAccessStatus = useCallback((
+    set: BaseQuestionSet,
+    hasAccessValue: boolean,
+    remainingDays: number | null,
+    paymentMethod?: string
+  ) => {
+    // 如果是免费题库，始终可访问且类型为trial
+    if (!set.isPaid) {
+      console.log(`[determineAccessStatus] 题库ID=${set.id} 免费题库，自动授予访问权限`);
+      return {
+        hasAccess: true,
+        accessType: 'trial' as AccessType,
+        remainingDays: null
+      };
+    }
+    
+    // 优化访问类型判断逻辑
+    let accessType: AccessType = 'trial';
+    let finalHasAccess = hasAccessValue;
+    
+    // 根据支付方式优先判断
+    if (paymentMethod === 'redeem') {
+      accessType = 'redeemed';
+    } else if (remainingDays !== null && remainingDays <= 0) {
+      accessType = 'expired';
+      finalHasAccess = false;
+    } else if (hasAccessValue) {
+      accessType = 'paid';
+    } else {
+      accessType = 'trial';
+    }
+    
+    console.log(`[determineAccessStatus] 题库ID=${set.id}, 标题="${set.title}" - 付费=${set.isPaid}, 有权限=${finalHasAccess}, 类型=${accessType}, 支付方式=${paymentMethod || '未知'}, 剩余天数=${remainingDays}`);
+    
+    return {
+      hasAccess: finalHasAccess,
+      accessType,
+      remainingDays
+    };
+  }, []);
+
   // 请求数据库直接检查权限 - 添加更强的验证机制
   const hasAccessInDatabase = useCallback(async (questionSetId: string): Promise<boolean> => {
     if (!user?.id) return false;
@@ -444,12 +488,68 @@ const HomePage: React.FC = () => {
         return questionSets;
       }
       
-      // 处理响应数据（这里简化了代码）
+      // 处理响应数据
       if (response && response.success && response.data) {
         console.log(`[HomePage] 成功获取${response.data.length}个题库`);
         
-        // 处理数据并更新状态
-        // ...
+        // 处理每个题库的访问权限
+        const preparedQuestionSets = response.data.map((set: BaseQuestionSet) => {
+          // 计算问题数量
+          const questionCount = calculateQuestionCount(set);
+          
+          // 获取本地缓存的访问权限
+          let hasAccess = false;
+          let remainingDays = null;
+          let paymentMethod = '';
+          
+          // 检查是否有本地缓存的访问数据
+          if (user?.id) {
+            const key = `access_${set.id}`;
+            try {
+              const cachedDataStr = localStorage.getItem(key);
+              if (cachedDataStr) {
+                const cachedData = JSON.parse(cachedDataStr);
+                // 验证数据是否属于当前用户
+                if (cachedData.userId === user.id) {
+                  hasAccess = cachedData.hasAccess;
+                  remainingDays = cachedData.remainingDays;
+                  paymentMethod = cachedData.paymentMethod;
+                }
+              }
+            } catch (e) {
+              console.error(`[HomePage] 读取题库${set.id}的本地访问数据失败:`, e);
+            }
+          }
+          
+          // 确定访问类型
+          const { accessType, hasAccess: finalHasAccess } = determineAccessStatus(
+            set,
+            hasAccess,
+            remainingDays,
+            paymentMethod
+          );
+          
+          return {
+            ...set,
+            questionCount,
+            hasAccess: finalHasAccess,
+            accessType,
+            remainingDays,
+            paymentMethod,
+            validityPeriod: set.validityPeriod || 180 // 默认有效期为180天
+          } as PreparedQuestionSet;
+        });
+        
+        // 更新状态
+        setQuestionSets(preparedQuestionSets);
+        
+        // 更新推荐题库
+        const recommended = preparedQuestionSets.filter((set: PreparedQuestionSet) => set.isFeatured).slice(0, 3);
+        setRecommendedSets(recommended);
+        
+        setLoading(false);
+        clearTimeout(loadingTimeoutRef.current);
+        return preparedQuestionSets;
       }
       
       setLoading(false);
@@ -651,16 +751,18 @@ const HomePage: React.FC = () => {
     
     // 题库信息显示文字（总题目数、章节等）
     const getInfoText = () => {
-      const count = set.questionCount || (set.questionSetQuestions?.length || 0);
+      const count = (set.questionCount !== undefined ? set.questionCount : 0) || 
+                   (set.questionSetQuestions?.length || 0);
       const infoArray = [];
       
       if (count > 0) {
         infoArray.push(`${count}题`);
       }
       
-      // 添加显示可试用题目数
-      if (set.isPaid && set.trialQuestions && set.trialQuestions > 0) {
-        infoArray.push(`可试用${set.trialQuestions}题`);
+      // Update the trialQuestions check to handle null values
+      if (set.isPaid && set.trialQuestions !== undefined && set.trialQuestions !== null && set.trialQuestions > 0) {
+        const trialCount = set.trialQuestions; // This avoids the null warning in the template
+        infoArray.push(`可试用${trialCount}题`);
       }
       
       if (set.category) {
@@ -830,50 +932,8 @@ const HomePage: React.FC = () => {
   
   // 获取推荐题库的函数
   const getRecommendedSets = useCallback(() => {
-    return questionSets.filter((set: any) => set.isFeatured).slice(0, 3);
+    return questionSets.filter((set: PreparedQuestionSet) => set.isFeatured).slice(0, 3);
   }, [questionSets]);
-
-  // 优化 determineAccessStatus 函数逻辑，添加更细致的状态判断和日志
-  const determineAccessStatus = useCallback((
-    set: BaseQuestionSet,
-    hasAccessValue: boolean,
-    remainingDays: number | null,
-    paymentMethod?: string
-  ) => {
-    // 如果是免费题库，始终可访问且类型为trial
-    if (!set.isPaid) {
-      console.log(`[determineAccessStatus] 题库ID=${set.id} 免费题库，自动授予访问权限`);
-      return {
-        hasAccess: true,
-        accessType: 'trial' as AccessType,
-        remainingDays: null
-      };
-    }
-    
-    // 优化访问类型判断逻辑
-    let accessType: AccessType = 'trial';
-    let finalHasAccess = hasAccessValue;
-    
-    // 根据支付方式优先判断
-    if (paymentMethod === 'redeem') {
-      accessType = 'redeemed';
-    } else if (remainingDays !== null && remainingDays <= 0) {
-      accessType = 'expired';
-      finalHasAccess = false;
-    } else if (hasAccessValue) {
-      accessType = 'paid';
-    } else {
-      accessType = 'trial';
-    }
-    
-    console.log(`[determineAccessStatus] 题库ID=${set.id}, 标题="${set.title}" - 付费=${set.isPaid}, 有权限=${finalHasAccess}, 类型=${accessType}, 支付方式=${paymentMethod || '未知'}, 剩余天数=${remainingDays}`);
-    
-    return {
-      hasAccess: finalHasAccess,
-      accessType,
-      remainingDays
-    };
-  }, []);
 
   // 切换分类
   const handleCategoryChange = (category: string) => {
@@ -886,7 +946,7 @@ const HomePage: React.FC = () => {
     let filteredSets = searchTerm.trim() ? 
       questionSets.filter((set: any) => 
         set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        set.category.toLowerCase().includes(searchTerm.toLowerCase())
+        set.category?.toLowerCase().includes(searchTerm.toLowerCase())
       ) : 
       questionSets;
     
@@ -1000,7 +1060,7 @@ const HomePage: React.FC = () => {
       ...prev,
       [questionSetId]: Date.now()
     }));
-  }, [user?.id, saveAccessToLocalStorage, determineAccessStatus]);
+  }, [user?.id, saveAccessToLocalStorage]);
   
   const handleSyncDevice = useCallback((data: any) => {
     console.log('[HomePage] 收到设备同步请求');

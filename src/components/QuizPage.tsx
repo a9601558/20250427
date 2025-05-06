@@ -1086,6 +1086,8 @@ function QuizPage(): JSX.Element {
 
   // 在handleNextQuestion函数后添加定期同步逻辑
   const handleNextQuestion = useCallback(() => {
+    console.log('[QuizPage] 调用handleNextQuestion，当前题目:', currentQuestionIndex, '总题数:', questions.length);
+    
     // 如果有未同步的数据且已经累积了多个回答，定期同步
     if (unsyncedChangesRef.current && answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
       // 每答完5题同步一次
@@ -1094,17 +1096,39 @@ function QuizPage(): JSX.Element {
     
     // 如果已经是最后一题，标记为完成并同步所有数据
     if (currentQuestionIndex === questions.length - 1) {
+      console.log('[QuizPage] 已经是最后一题，标记为完成');
       syncProgressToServer(true).then(() => {
         setQuizComplete(true);
+        console.log('[QuizPage] 测验完成，已标记为完成');
       });
       return;
     }
     
     // 否则跳转到下一题
-    setCurrentQuestionIndex(prevIndex => prevIndex + 1);
+    console.log('[QuizPage] 跳转到下一题:', currentQuestionIndex + 1);
+    setCurrentQuestionIndex(prevIndex => {
+      const nextIndex = prevIndex + 1;
+      console.log('[QuizPage] 设置新的题目索引:', nextIndex);
+      
+      // 更新本地存储中的位置
+      try {
+        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const existingData = localStorage.getItem(localProgressKey);
+        if (existingData) {
+          const progressData = JSON.parse(existingData);
+          progressData.lastQuestionIndex = nextIndex;
+          progressData.lastUpdated = new Date().toISOString();
+          localStorage.setItem(localProgressKey, JSON.stringify(progressData));
+        }
+      } catch (e) {
+        console.error('[QuizPage] 更新本地进度失败:', e);
+      }
+      
+      return nextIndex;
+    });
     setSelectedOptions([]);
     setShowExplanation(false);
-  }, [currentQuestionIndex, questions.length, answeredQuestions.length, syncProgressToServer]);
+  }, [currentQuestionIndex, questions.length, answeredQuestions.length, syncProgressToServer, questionSetId]);
 
   // 添加定期同步逻辑
   useEffect(() => {
@@ -1502,19 +1526,29 @@ function QuizPage(): JSX.Element {
         
         console.log('[QuizPage] 已发送进度重置请求到服务器');
         
-        // 等待响应
-        socket.once('progress:reset:result', (result) => {
-          console.log('[QuizPage] 服务器进度重置结果:', result);
-          if (result.success) {
-            toast.success('进度已重置');
-            
-            // 添加URL参数确保从第一题开始
+        // 等待响应 - 修复socket.once TypeScript错误
+        if ('once' in socket) {
+          socket.once('progress:reset:result', (result: any) => {
+            console.log('[QuizPage] 服务器进度重置结果:', result);
+            if (result.success) {
+              toast.success('进度已重置');
+              
+              // 添加URL参数确保从第一题开始
+              const url = new URL(window.location.href);
+              url.searchParams.set('start', 'first');
+              url.searchParams.set('t', Date.now().toString());
+              window.location.href = url.toString();
+            }
+          });
+        } else {
+          // MockSocket不支持once方法，直接刷新页面
+          setTimeout(() => {
             const url = new URL(window.location.href);
             url.searchParams.set('start', 'first');
             url.searchParams.set('t', Date.now().toString());
             window.location.href = url.toString();
-          }
-        });
+          }, 1000);
+        }
         
         // 设置超时，确保不会因为服务器响应问题而挂起
         setTimeout(() => {
@@ -1940,12 +1974,23 @@ function QuizPage(): JSX.Element {
         }
       };
       
-      // 注册一次性监听器
-      socket.once('progress:data', onProgressData);
+      // 注册一次性监听器 - 修复socket.once TypeScript错误
+      if ('once' in socket) {
+        socket.once('progress:data', onProgressData);
+      } else {
+        // 对于MockSocket，使用on并手动处理one-time逻辑
+        const onceHandler = (data: ProgressData) => {
+          socket.off('progress:data', onceHandler);
+          onProgressData(data);
+        };
+        socket.on('progress:data', onceHandler);
+      }
       
       // 设置超时，确保不会永远等待
       const timeout = setTimeout(() => {
-        socket.off('progress:data', onProgressData); // 移除监听器
+        if ('off' in socket) {
+          socket.off('progress:data', onProgressData); // 移除监听器
+        }
         console.log('[QuizPage] 获取进度超时，从第一题开始');
         setCurrentQuestionIndex(0);
       }, 5000); // 增加超时时间
@@ -1953,7 +1998,9 @@ function QuizPage(): JSX.Element {
       // 注册一个函数来清理
       return () => {
         clearTimeout(timeout);
-        socket.off('progress:data', onProgressData);
+        if ('off' in socket) {
+          socket.off('progress:data', onProgressData);
+        }
       };
     }
   }, [questionSet?.id, user?.id, questions.length, loading, socket]);
