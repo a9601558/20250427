@@ -144,22 +144,169 @@ const HomePage: React.FC = () => {
     set: PreparedQuestionSet;
     onStartQuiz: (set: PreparedQuestionSet) => void;
   }> = ({ set, onStartQuiz }) => {
+    // 计算剩余天数的显示文本
+    const getRemainingDaysText = () => {
+      if (set.accessType === 'trial' || !set.isPaid) return null;
+      if (set.accessType === 'expired') return '已过期';
+      if (set.remainingDays === null) return '永久访问';
+      return `剩余 ${set.remainingDays} 天`;
+    };
+    
+    // 确定卡片的背景样式
+    const getCardStyle = () => {
+      switch (set.accessType) {
+        case 'paid':
+          return 'from-blue-500 to-indigo-600'; // 蓝色渐变
+        case 'redeemed':
+          return 'from-emerald-500 to-teal-600'; // 绿色渐变
+        case 'trial':
+          return 'from-amber-400 to-orange-500'; // 橙色渐变
+        case 'expired':
+          return 'from-gray-400 to-gray-600'; // 灰色渐变
+        default:
+          return 'from-gray-400 to-gray-600';
+      }
+    };
+    
+    // 计算卡片状态标签的样式
+    const getStatusStyle = () => {
+      switch (set.accessType) {
+        case 'paid':
+          return 'bg-blue-100 text-blue-800';
+        case 'redeemed':
+          return 'bg-emerald-100 text-emerald-800';
+        case 'trial':
+          return 'bg-amber-100 text-amber-800';
+        case 'expired':
+          return 'bg-gray-100 text-gray-800';
+        default:
+          return 'bg-gray-100 text-gray-800';
+      }
+    };
+    
+    // 计算剩余天数进度条百分比
+    const getProgressPercentage = () => {
+      if (set.accessType === 'trial' || set.accessType === 'expired' || !set.isPaid || set.remainingDays === null) {
+        return 0;
+      }
+      
+      // 假设普通购买的有效期是180天
+      const totalDays = set.validityPeriod || 180;
+      const remainingPercentage = Math.min(100, Math.max(0, (set.remainingDays / totalDays) * 100));
+      return remainingPercentage;
+    };
+    
+    // 判断是否显示有效期
+    const shouldShowValidity = set.accessType === 'paid' || set.accessType === 'redeemed';
+    
+    // 题库信息显示文字（总题目数、章节等）
+    const getInfoText = () => {
+      const count = set.questionCount || (set.questionSetQuestions?.length || 0);
+      const infoArray = [];
+      
+      if (count > 0) {
+        infoArray.push(`${count}题`);
+      }
+      
+      if (set.category) {
+        infoArray.push(set.category);
+      }
+      
+      return infoArray.join(' · ');
+    };
+    
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-300">
-        <h3 className="text-lg font-semibold mb-2">{set.title}</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{set.description}</p>
-        <div className="flex justify-between items-center">
-          <span className={`text-xs px-2 py-1 rounded ${set.hasAccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-            {set.accessType === 'trial' ? '免费' : 
-             set.accessType === 'paid' ? '已购买' :
-             set.accessType === 'redeemed' ? '已兑换' :
-             set.accessType === 'expired' ? '已过期' : '未知'}
-          </span>
+      <div className="relative group overflow-hidden rounded-xl shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white dark:bg-gray-800">
+        {/* 卡片装饰元素 - 背景渐变 */}
+        <div className={`absolute inset-0 h-2 bg-gradient-to-r ${getCardStyle()} transform transition-all duration-300 group-hover:h-full group-hover:opacity-10`}></div>
+        
+        {/* 几何装饰元素 */}
+        <div className="absolute -top-6 -right-6 w-12 h-12 rounded-full border border-gray-200 dark:border-gray-700 opacity-20"></div>
+        <div className="absolute bottom-10 -left-6 w-16 h-16 rounded-full border border-gray-200 dark:border-gray-700 opacity-10"></div>
+        
+        {/* 卡片内容 */}
+        <div className="p-6 relative z-10">
+          {/* 标题和类型标签 */}
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white line-clamp-1 flex-1">{set.title}</h3>
+            <span className={`ml-2 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${getStatusStyle()}`}>
+              {set.accessType === 'trial' ? '免费' : 
+               set.accessType === 'paid' ? '已购买' :
+               set.accessType === 'redeemed' ? '已兑换' :
+               set.accessType === 'expired' ? '已过期' : '未知'}
+            </span>
+          </div>
+          
+          {/* 描述文字 */}
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2 h-10">
+            {set.description}
+          </p>
+          
+          {/* 题库信息 */}
+          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4">
+            <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            {getInfoText()}
+          </div>
+          
+          {/* 剩余有效期进度条（仅对已购买/已兑换的题库显示） */}
+          {shouldShowValidity && (
+            <div className="mb-3">
+              <div className="flex justify-between items-center text-xs mb-1">
+                <span className="font-medium text-gray-700 dark:text-gray-300">有效期</span>
+                <span className={`font-medium ${
+                  set.remainingDays !== null && set.remainingDays < 7 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {getRemainingDaysText()}
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    set.remainingDays !== null && set.remainingDays < 7 
+                      ? 'bg-red-500' 
+                      : set.accessType === 'redeemed' 
+                        ? 'bg-emerald-500' 
+                        : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${getProgressPercentage()}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+          
+          {/* 开始按钮 */}
           <button
             onClick={() => onStartQuiz(set)}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            className={`w-full mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+              !set.hasAccess
+                ? 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                : set.accessType === 'redeemed'
+                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-800/20 dark:text-emerald-400 dark:hover:bg-emerald-800/30'
+                  : set.accessType === 'paid'
+                    ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-800/20 dark:text-blue-400 dark:hover:bg-blue-800/30'
+                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-800/20 dark:text-amber-400 dark:hover:bg-amber-800/30'
+            }`}
           >
-            开始
+            {set.hasAccess ? (
+              <span className="flex items-center justify-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                立即开始
+              </span>
+            ) : (
+              <span className="flex items-center justify-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+                立即购买
+              </span>
+            )}
           </button>
         </div>
       </div>
