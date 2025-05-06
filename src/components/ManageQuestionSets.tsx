@@ -190,9 +190,44 @@ const ManageQuestionSets: React.FC = () => {
   };
 
   // 开始管理题目
-  const handleManageQuestions = (questionSet: QuestionSet) => {
-    setCurrentQuestionSet(questionSet);
-    setIsManagingQuestions(true);
+  const handleManageQuestions = async (questionSet: QuestionSet) => {
+    try {
+      setLoading(true);
+      // 从数据库获取完整的题目列表
+      const response = await axios.get(`/api/questions?questionSetId=${questionSet.id}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.data && response.data.success) {
+        const questionSetWithQuestions = {
+          ...questionSet,
+          questions: response.data.data,
+          questionCount: response.data.data.length
+        };
+        
+        // 更新当前题库信息，包含完整题目列表
+        setCurrentQuestionSet(questionSetWithQuestions);
+        
+        // 更新题库列表中的对应题库
+        setQuestionSets(prev => 
+          prev.map(set => 
+            set.id === questionSet.id ? questionSetWithQuestions : set
+          )
+        );
+        
+        setIsManagingQuestions(true);
+      } else {
+        throw new Error(response.data?.message || '获取题目列表失败');
+      }
+    } catch (err) {
+      console.error('获取题目列表失败:', err);
+      setError(`获取题目列表失败: ${err.message || '未知错误'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 取消管理题目

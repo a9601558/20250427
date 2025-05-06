@@ -4,9 +4,9 @@ import { UserProgress, QuestionSet } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
-import apiClient from '../utils/api-client';
 import PaymentModal from './PaymentModal';
 import ExamCountdownWidget from './ExamCountdownWidget';
+import axios from 'axios';
 
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -74,17 +74,6 @@ const calculateQuestionCount = (set: BaseQuestionSet): number => {
   return 0; // 不再使用 trialQuestions 作为后备选项
 };
 
-// 使用本地接口替代
-interface HomeContentData {
-  welcomeTitle: string;
-  welcomeDescription: string;
-  featuredCategories: string[];
-  announcements: string;
-  footerText: string;
-  bannerImage?: string;
-  theme?: 'light' | 'dark' | 'auto';
-}
-
 // 删除重复的 QuestionSet 接口，统一使用 BaseQuestionSet
 
 // Add a new interface for purchase data
@@ -113,6 +102,94 @@ interface DatabasePurchaseRecord {
 }
 
 // 删除这里的BaseCard和handleStartQuiz定义，移到组件内部
+
+// Add utility functions at the top of the file, after the imports
+// 简化版的apiClient
+const apiClient = {
+  get: async (url: string, params?: any, options?: any) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          queryParams.append(key, String(value));
+        });
+      }
+      
+      const queryString = queryParams.toString();
+      const fullUrl = queryString ? `${url}?${queryString}` : url;
+      
+      const response = await axios.get(fullUrl, { 
+        signal: options?.signal,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      console.error(`[apiClient] GET请求错误: ${url}`, error);
+      return { success: false, message: error.message };
+    }
+  }
+};
+
+// 获取本地缓存
+const getLocalAccessCache = () => {
+  try {
+    const cachedData = localStorage.getItem('question_set_access');
+    if (cachedData) {
+      return JSON.parse(cachedData) || {};
+    }
+  } catch (error) {
+    console.error('[HomePage] 读取本地缓存失败', error);
+  }
+  return {};
+};
+
+// 保存访问数据到本地存储
+const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string, userId?: string) => {
+  if (!questionSetId) return;
+  
+  try {
+    // 先尝试使用传入的userId参数
+    let userIdToUse = userId;
+    
+    // 如果没有传入userId，则尝试从localStorage获取
+    if (!userIdToUse) {
+      try {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        userIdToUse = user.id;
+      } catch (e) {
+        console.error('[HomePage] 无法从本地存储获取用户ID', e);
+      }
+    }
+    
+    if (!userIdToUse) {
+      console.log('[HomePage] 无法保存缓存: 用户ID不可用');
+      return;
+    }
+    
+    const cache = getLocalAccessCache();
+    
+    // 确保用户ID索引存在
+    if (!cache[userIdToUse]) {
+      cache[userIdToUse] = {};
+    }
+    
+    // 更新题库的访问信息
+    cache[userIdToUse][questionSetId] = {
+      hasAccess,
+      remainingDays,
+      paymentMethod,
+      timestamp: Date.now()
+    };
+    
+    // 保存回本地存储
+    localStorage.setItem('question_set_access', JSON.stringify(cache));
+  } catch (error) {
+    console.error('[HomePage] 保存本地缓存失败', error);
+  }
+};
 
 const HomePage: React.FC = () => {
   const { user, isAdmin, syncAccessRights } = useUser();
@@ -156,7 +233,7 @@ const HomePage: React.FC = () => {
     const getCardStyle = () => {
       switch (set.accessType) {
         case 'paid':
-          return 'from-blue-500 to-indigo-600'; // 蓝色渐变
+          return 'from-green-500 to-teal-600'; // 改为绿色渐变
         case 'redeemed':
           return 'from-emerald-500 to-teal-600'; // 绿色渐变
         case 'trial':
@@ -172,7 +249,7 @@ const HomePage: React.FC = () => {
     const getStatusStyle = () => {
       switch (set.accessType) {
         case 'paid':
-          return 'bg-blue-100 text-blue-800';
+          return 'bg-green-100 text-green-800'; // 改为绿色
         case 'redeemed':
           return 'bg-emerald-100 text-emerald-800';
         case 'trial':
@@ -206,6 +283,11 @@ const HomePage: React.FC = () => {
       
       if (count > 0) {
         infoArray.push(`${count}题`);
+      }
+      
+      // 添加显示可试用题目数
+      if (set.isPaid && set.trialQuestions && set.trialQuestions > 0) {
+        infoArray.push(`可试用${set.trialQuestions}题`);
       }
       
       if (set.category) {
@@ -283,11 +365,13 @@ const HomePage: React.FC = () => {
             onClick={() => onStartQuiz(set)}
             className={`w-full mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
               !set.hasAccess
-                ? 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                ? set.isPaid 
+                  ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-800/20 dark:text-green-400 dark:hover:bg-green-800/30'
+                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                 : set.accessType === 'redeemed'
                   ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-800/20 dark:text-emerald-400 dark:hover:bg-emerald-800/30'
                   : set.accessType === 'paid'
-                    ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-800/20 dark:text-blue-400 dark:hover:bg-blue-800/30'
+                    ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-800/20 dark:text-green-400 dark:hover:bg-green-800/30'
                     : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-800/20 dark:text-amber-400 dark:hover:bg-amber-800/30'
             }`}
           >
@@ -302,9 +386,10 @@ const HomePage: React.FC = () => {
             ) : (
               <span className="flex items-center justify-center">
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                立即购买
+                立即试用
               </span>
             )}
           </button>
@@ -324,31 +409,10 @@ const HomePage: React.FC = () => {
       return;
     }
     
-    // 检查是否有访问权限
-    if (!set.hasAccess && set.isPaid) {
-      console.log(`[HomePage] 无权访问付费题库: ${set.title} (ID: ${set.id})`);
-      // 显示付款模态框
-      setSelectedQuestionSet(set);
-      setShowPaymentModal(true);
-      return;
-    }
-    
-    // 使用navigate进行路由跳转，而不是直接修改window.location
+    // 修改为始终允许进入试用模式，不再弹出购买提示
+    // 直接使用navigate进行路由跳转
     navigate(`/quiz/${set.id}`);
-  }, [navigate, setSelectedQuestionSet, setShowPaymentModal, setErrorMessage]);
-
-  // Add getLocalAccessCache function before it's used
-  const getLocalAccessCache = useCallback(() => {
-    try {
-      const cachedData = localStorage.getItem('question_set_access');
-      if (cachedData) {
-        return JSON.parse(cachedData) || {};
-      }
-    } catch (error) {
-      console.error('[HomePage] 读取本地缓存失败', error);
-    }
-    return {};
-  }, []);
+  }, [navigate, setErrorMessage]);
 
   // 将 getCategorizedQuestionSets 函数移到组件内部，这样它可以访问 questionSets 状态
   const getCategorizedQuestionSets = useCallback(() => {
@@ -372,51 +436,25 @@ const HomePage: React.FC = () => {
     return { purchased, free, paid, expired };
   }, [questionSets]);
 
-  // Save access info to local storage
-  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string) => {
-    if (!user?.id) return;
-    
-    try {
-      const cache = getLocalAccessCache();
-      const userId = user.id;
-      
-      // 确保用户ID索引存在
-      if (!cache[userId]) {
-        cache[userId] = {};
-      }
-      
-      // 更新题库的访问信息
-      cache[userId][questionSetId] = {
-        hasAccess,
-        remainingDays,
-        paymentMethod,
-        timestamp: Date.now()
-      };
-      
-      // 保存回本地存储
-      localStorage.setItem('question_set_access', JSON.stringify(cache));
-    } catch (error) {
-      console.error('[HomePage] 保存本地缓存失败', error);
-    }
-  }, [user?.id, getLocalAccessCache]);
-  
   const socketDataRef = useRef<{[key: string]: {hasAccess: boolean, remainingDays: number | null, accessType?: string}}>({}); 
   const bgClass = "min-h-screen bg-gray-50 dark:bg-gray-900 py-8";
   
   // 辅助函数：读取本地缓存的访问状态
-  const getAccessFromLocalCache = useCallback((questionSetId: string, userId: string | undefined) => {
-    if (!questionSetId || !userId) return null;
+  const getAccessFromLocalCache = (questionSetId: string, userId?: string) => {
+    if (!questionSetId) return null;
     
     try {
       const cache = getLocalAccessCache();
-      if (cache[userId] && cache[userId][questionSetId]) {
+      
+      if (userId && cache[userId] && cache[userId][questionSetId]) {
         return cache[userId][questionSetId];
       }
-    } catch (e) {
-      console.error('[HomePage] 读取本地缓存失败:', e);
+    } catch (error) {
+      console.error('[HomePage] 读取本地缓存失败:', error);
     }
+    
     return null;
-  }, [getLocalAccessCache]);
+  };
   
   // 请求数据库直接检查权限 - 添加更强的验证机制
   const hasAccessInDatabase = useCallback(async (questionSetId: string): Promise<boolean> => {
@@ -439,12 +477,12 @@ const HomePage: React.FC = () => {
       // 对比Socket数据与数据库结果，检测不一致
       if (socketDataRef.current[questionSetId] && 
           socketDataRef.current[questionSetId].hasAccess !== hasAccess) {
-        console.warn(`[HomePage] 权限不一致: 数据库=${hasAccess}, Socket=${socketDataRef.current[questionSetId].hasAccess}`);
+        console.warn(`[HomePage] 权限不一致，执行数据库验证 - Socket=${hasAccess}, 数据库=${socketDataRef.current[questionSetId].hasAccess}`);
       }
       
       return hasAccess;
     } catch (error) {
-      console.error(`[HomePage] 检查数据库权限失败:`, error);
+      console.error('[HomePage] 检查数据库权限失败:', error);
       return false;
     }
   }, [user?.id]);
@@ -580,7 +618,7 @@ const HomePage: React.FC = () => {
   const debounceTimerRef = useRef<any>(null);
   
   // 修改fetchQuestionSets，优先使用用户购买记录，然后才是socket数据和本地缓存
-  const fetchQuestionSets = useCallback(async (options: { forceFresh?: boolean } = {}) => {
+  const fetchQuestionSets = useCallback(async (options: { forceFresh?: boolean, signal?: AbortSignal } = {}) => {
     const now = Date.now();
     
     // Ensure loading is set to true during fetch
@@ -623,7 +661,16 @@ const HomePage: React.FC = () => {
           userId: user.id, 
           _t: timestamp 
         } : { _t: timestamp }
-      );
+      , {
+        // 传递AbortSignal以支持请求取消
+        signal: options.signal
+      });
+      
+      // 检查是否已中止
+      if (options.signal?.aborted) {
+        console.log('[HomePage] 请求已被中止');
+        return questionSets;
+      }
       
       if (response && response.success && response.data) {
         console.log(`[HomePage] 成功获取${response.data.length}个题库`);
@@ -665,6 +712,12 @@ const HomePage: React.FC = () => {
             
             console.log(`[HomePage] 用户购买记录: 题库=${qsId}, 有效=${isActive}, 类型=${purchase.paymentMethod || 'paid'}, 剩余天数=${remainingDays}`);
           });
+        }
+        
+        // 检查是否已中止
+        if (options.signal?.aborted) {
+          console.log('[HomePage] 请求处理过程中被中止');
+          return questionSets;
         }
         
         // 预处理用户兑换码记录，添加到快速查找Map
@@ -715,7 +768,7 @@ const HomePage: React.FC = () => {
               
               // 立即保存到本地缓存以确保状态一致性
               if (user?.id) {
-                saveAccessToLocalStorage(setId, hasAccess, remainingDays, paymentMethod);
+                saveAccessToLocalStorage(setId, hasAccess, remainingDays, paymentMethod, user.id);
               }
             } else {
               // 处理过期购买记录
@@ -725,7 +778,7 @@ const HomePage: React.FC = () => {
               
               // 同样更新本地缓存
               if (user?.id) {
-                saveAccessToLocalStorage(setId, false, 0, userPurchase.paymentMethod);
+                saveAccessToLocalStorage(setId, false, 0, userPurchase.paymentMethod, user.id);
               }
             }
           }
@@ -846,7 +899,7 @@ const HomePage: React.FC = () => {
                   localUpdatesCount++;
                   
                   // 保存到本地缓存
-                  saveAccessToLocalStorage(normalizedId, true, null, 'redeem');
+                  saveAccessToLocalStorage(normalizedId, true, null, 'redeem', user?.id);
                 }
               });
               
@@ -896,25 +949,47 @@ const HomePage: React.FC = () => {
   
   // 初始化时获取题库列表
   useEffect(() => {
+    // 创建AbortController用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    
     // 如果已经有题库列表，则不重新加载
     if (questionSets.length === 0) {
       console.log(`[HomePage] 初始化获取题库列表`);
-      fetchQuestionSets();
+      fetchQuestionSets({ signal });
     } else {
       // If we already have question sets, ensure loading is false
       setLoading(false);
     }
+    
+    // 组件卸载时取消请求
+    return () => {
+      abortController.abort();
+    };
   }, [fetchQuestionSets, questionSets.length]);
 
   // 监听来自ProfilePage的刷新通知 - 超简化版本，避免无限循环
   useEffect(() => {
+    // 创建AbortController用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    
     // 只在组件挂载时刷新一次题库列表
-    fetchQuestionSets();
+    fetchQuestionSets({ signal });
     
     // 添加一个简单的事件监听器来处理ProfilePage的刷新通知
     const handleRefreshRequest = () => {
       console.log('[HomePage] 收到刷新请求');
-      fetchQuestionSets();
+      // 每次请求使用新的AbortController
+      const refreshAbortController = new AbortController();
+      fetchQuestionSets({ signal: refreshAbortController.signal });
+      
+      // 10秒后如果请求还未完成，取消它
+      setTimeout(() => {
+        if (!refreshAbortController.signal.aborted) {
+          refreshAbortController.abort();
+        }
+      }, 10000);
     };
     
     // 使用自定义事件而不是socket
@@ -922,20 +997,31 @@ const HomePage: React.FC = () => {
     
     return () => {
       window.removeEventListener('questionSets:refresh', handleRefreshRequest);
+      abortController.abort();
     };
-  }, []); // 空依赖数组，只在挂载时执行
+  }, [fetchQuestionSets]); // 添加fetchQuestionSets到依赖数组
 
   // 页面加载时获取题库列表
   useEffect(() => {
-    fetchQuestionSets();
+    const abortController = new AbortController();
+    fetchQuestionSets({ signal: abortController.signal });
+    
+    return () => {
+      abortController.abort();
+    };
   }, [fetchQuestionSets]);
 
   // 用户登录状态改变时重新获取题库列表
   useEffect(() => {
-    if (user?.id) {
-      console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
-      fetchQuestionSets();
-    }
+    if (!user?.id) return;
+    
+    const abortController = new AbortController();
+    console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
+    fetchQuestionSets({ signal: abortController.signal });
+    
+    return () => {
+      abortController.abort();
+    };
   }, [user?.id, fetchQuestionSets]);
 
   // 添加函数来清除本地存储中过期的缓存数据
@@ -985,6 +1071,30 @@ const HomePage: React.FC = () => {
     }
   }, [user?.id]);
 
+  // 添加函数获取首页内容（包括精品分类）
+  useEffect(() => {
+    const fetchHomeContent = async () => {
+      try {
+        console.log('[HomePage] 开始获取首页内容和精品分类');
+        // 使用axios直接获取，避免引用问题
+        const response = await axios.get('/api/homepage/content');
+        
+        if (response.data && response.data.success) {
+          console.log('[HomePage] 成功获取首页内容:', response.data.data);
+          setHomeContent(response.data.data);
+        } else {
+          console.error('[HomePage] 获取首页内容失败:', response.data?.message);
+          // 如果获取失败，继续使用默认内容
+        }
+      } catch (error) {
+        console.error('[HomePage] 获取首页内容异常:', error);
+        // 发生异常时继续使用默认内容
+      }
+    };
+    
+    fetchHomeContent();
+  }, []);
+
   // 监听全局兑换码成功事件
   useEffect(() => {
     const handleRedeemSuccess = (e: Event) => {
@@ -1006,7 +1116,7 @@ const HomePage: React.FC = () => {
               
               // 保存到localStorage缓存，确保用户已登录
               if (user?.id) {
-                saveAccessToLocalStorage(questionSetId, true, remainingDays);
+                saveAccessToLocalStorage(questionSetId, true, remainingDays, 'redeem', user.id);
               }
               
               // Add to recently updated sets for animation
@@ -1077,7 +1187,8 @@ const HomePage: React.FC = () => {
         data.questionSetId, 
         data.hasAccess, 
         data.remainingDays,
-        data.paymentMethod || 'unknown'
+        data.paymentMethod || 'unknown',
+        user.id
       );
       
       // 检查数据一致性，可选择直接查询数据库
@@ -1200,7 +1311,8 @@ const HomePage: React.FC = () => {
           questionSetId,
           hasAccess,
           remainingDays,
-          paymentMethod
+          paymentMethod,
+          user.id
         );
         
         // 添加到批量更新映射
@@ -1351,10 +1463,14 @@ const HomePage: React.FC = () => {
     
     console.log('[HomePage] 用户登录事件触发，开始处理登录流程');
     
+    // 创建AbortController用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    
     // 防止多次触发 - 使用ref标记代替sessionStorage
     if (hasRequestedAccess.current) {
       console.log('[HomePage] 已在处理登录流程，跳过重复请求');
-      return;
+      return () => abortController.abort();
     }
     
     // 标记为已处理
@@ -1378,8 +1494,11 @@ const HomePage: React.FC = () => {
       const syncEvent = event as CustomEvent;
       console.log('[HomePage] 接收到权限同步完成事件:', syncEvent.detail);
       
+      // 如果请求已被中止，不要继续
+      if (signal.aborted) return;
+      
       // 强制刷新题库列表，以确保显示最新的权限状态
-      fetchQuestionSets({ forceFresh: true }).then(() => {
+      fetchQuestionSets({ forceFresh: true, signal }).then(() => {
         console.log('[HomePage] 权限同步后题库列表已更新');
       });
     };
@@ -1390,18 +1509,38 @@ const HomePage: React.FC = () => {
     // 登录流程，按顺序执行，避免竞态条件
     (async () => {
       try {
+        // 检查是否已中止
+        if (signal.aborted) {
+          console.log('[HomePage] 登录流程被中止');
+          return;
+        }
+        
         // 第1步：通过syncAccessRights同步最新权限数据
         console.log('[HomePage] 1. 开始同步访问权限数据');
         await syncAccessRights();
+        
+        // 检查是否已中止
+        if (signal.aborted) {
+          console.log('[HomePage] 同步访问权限后流程被中止');
+          return;
+        }
+        
         console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
         
         // 第2步：使用最新的权限信息，获取并处理题库列表
         console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
-        const freshSets = await fetchQuestionSets({ forceFresh: true });
+        const freshSets = await fetchQuestionSets({ forceFresh: true, signal });
+        
+        // 检查是否已中止
+        if (signal.aborted) {
+          console.log('[HomePage] 获取题库列表后流程被中止');
+          return;
+        }
+        
         console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
         
         // 第3步：通过socket请求批量权限检查，确保数据一致性
-        if (socket) {
+        if (socket && !signal.aborted) {
           console.log('[HomePage] 3. 请求Socket批量权限检查，确保数据一致性');
           socket.emit('user:syncAccessRights', {
             userId: user.id,
@@ -1419,7 +1558,7 @@ const HomePage: React.FC = () => {
           
           // 显式针对每个付费题库检查访问权限
           const paidSets = freshSets.filter(set => set.isPaid === true);
-          if (paidSets.length > 0) {
+          if (paidSets.length > 0 && !signal.aborted) {
             console.log(`[HomePage] 4. 主动检查 ${paidSets.length} 个付费题库的访问权限`);
             socket.emit('questionSet:checkAccessBatch', {
               userId: user.id,
@@ -1430,10 +1569,22 @@ const HomePage: React.FC = () => {
           }
         }
         
+        // 如果请求已中止，提前退出
+        if (signal.aborted) {
+          console.log('[HomePage] 登录流程最终阶段被中止');
+          return;
+        }
+        
         // 设置loading状态为false，表示登录流程完成
         setLoading(false);
         clearTimeout(loadingTimeoutRef.current);
       } catch (error) {
+        // 如果请求已中止，不显示错误
+        if (signal.aborted) {
+          console.log('[HomePage] 已中止的登录流程，忽略错误');
+          return;
+        }
+        
         console.error('[HomePage] 登录流程处理出错:', error);
         // Reset the flag on error so we can try again
         hasRequestedAccess.current = false;
@@ -1452,6 +1603,7 @@ const HomePage: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
       window.removeEventListener('accessRights:updated', handleSyncComplete);
+      abortController.abort();
     };
   }, [user?.id, syncAccessRights, fetchQuestionSets, socket]);
 
