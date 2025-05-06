@@ -113,6 +113,9 @@ const HomePage: React.FC = () => {
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
+  
+  // 添加题库列表初始加载标记，避免重复请求
+  const isInitialLoad = useRef<boolean>(true);
 
   // 切换分类
   const handleCategoryChange = (category: string) => {
@@ -1229,6 +1232,232 @@ const HomePage: React.FC = () => {
     });
   }, [user?.id, saveAccessToLocalStorage]);
 
+  // 向服务器请求所有题库的最新访问权限状态
+  const requestAccessStatusForAllQuestionSets = useCallback((sets: PreparedQuestionSet[] = []) => {
+    if (!socket || !user?.id) return;
+    
+    // 使用当前题库列表或传入的题库列表
+    const questionSetsToCheck = sets.length > 0 ? sets : questionSets;
+    
+    // 只检查付费题库
+    const paidSets = questionSetsToCheck.filter(set => set.isPaid);
+    
+    if (paidSets.length === 0) {
+      console.log('[HomePage] 没有需要检查权限的付费题库');
+      return;
+    }
+    
+    console.log(`[HomePage] 向服务器请求 ${paidSets.length} 个题库的最新访问权限状态`);
+    
+    // 方式1: 使用批量检查 - 一次性请求所有题库
+    socket.emit('questionSet:checkAccessBatch', {
+      userId: user.id,
+      questionSetIds: paidSets.map(set => String(set.id).trim()),
+      source: 'homePage_init'
+    });
+    
+    // 方式2: 对最近查看或重要的题库进行单独检查，确保最快得到结果
+    // 选取前5个题库进行单独检查(可以根据某种优先级排序，这里简化为取前几个)
+    const prioritySets = paidSets.slice(0, 5);
+    
+    prioritySets.forEach(set => {
+      console.log(`[HomePage] 单独检查题库 ${set.title} (${set.id}) 的访问权限`);
+      socket.emit('questionSet:checkAccess', {
+        userId: user.id,
+        questionSetId: String(set.id).trim(),
+        source: 'homePage_priority'
+      });
+    });
+  }, [socket, user?.id, questionSets]);
+
+  // 初始加载和用户状态变化时请求最新权限状态
+  useEffect(() => {
+    // 只在用户已登录时执行
+    if (!user?.id || !socket) return;
+    
+    console.log('[HomePage] 用户状态变化，请求最新题库权限状态');
+    
+    // 使用短延迟确保组件已完全挂载并避免与其他请求冲突
+    const timer = setTimeout(() => {
+      requestAccessStatusForAllQuestionSets();
+    }, 800);
+    
+    return () => clearTimeout(timer);
+  }, [user?.id, socket, requestAccessStatusForAllQuestionSets]);
+
+  // 在题库列表更新后，也请求最新权限状态
+  useEffect(() => {
+    // 只在用户已登录且有题库数据时执行
+    if (!user?.id || !socket || questionSets.length === 0) return;
+    
+    // 检查是否为初次加载
+    if (!isInitialLoad.current) {
+      console.log('[HomePage] 题库列表更新，请求最新权限状态');
+      requestAccessStatusForAllQuestionSets();
+    } else {
+      // 首次加载后重置标记
+      isInitialLoad.current = false;
+      console.log('[HomePage] 首次加载题库列表，跳过重复请求');
+    }
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
+
+  // 优化Socket通信 - 接收权限更新和设备同步事件
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    
+    console.log('[HomePage] 设置Socket事件监听');
+    
+    // 监听权限更新事件
+    const handleAccessUpdate = (data: any) => {
+      // 过滤不是当前用户的事件
+      if (data.userId !== user.id) return;
+      
+      console.log(`[HomePage] 收到题库 ${data.questionSetId} 权限更新:`, data);
+      
+      // 更新本地缓存
+      saveAccessToLocalStorage(
+        data.questionSetId, 
+        data.hasAccess, 
+        data.remainingDays
+      );
+      
+      // 立即更新题库的UI状态
+      setQuestionSets(prevSets => 
+        prevSets.map(set => {
+          if (set.id === data.questionSetId) {
+            console.log(`[HomePage] 更新题库 "${set.title}" 状态: hasAccess=${data.hasAccess}, remainingDays=${data.remainingDays || 'null'}`);
+            
+            // 确定访问类型
+            let accessType: AccessType = data.hasAccess ? 
+              (data.paymentMethod === 'redeem' ? 'redeemed' : 'paid') : 
+              (set.isPaid ? 'trial' : 'trial');  // 这里两个条件分支都是'trial'，需要修复
+            
+            // 根据题库类型和访问状态确定正确的accessType
+            if (!set.isPaid) {
+              // 免费题库总是'trial'类型
+              accessType = 'trial';
+            } else if (data.hasAccess) {
+              // 付费题库有访问权限时，根据支付方式区分
+              accessType = data.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+              
+              // 如果剩余时间为0或负数且有访问权限，标记为过期
+              if (data.remainingDays !== undefined && data.remainingDays !== null && 
+                  data.remainingDays <= 0) {
+                accessType = 'expired';
+              }
+            } else {
+              // 付费题库无访问权限时
+              accessType = 'trial';
+            }
+            
+            return {
+              ...set,
+              hasAccess: data.hasAccess,
+              accessType,
+              remainingDays: data.remainingDays
+            };
+          }
+          return set;
+        })
+      );
+      
+      // 标记为最近更新
+      setRecentlyUpdatedSets(prev => ({
+        ...prev,
+        [data.questionSetId]: Date.now()
+      }));
+    };
+    
+    // 监听设备同步事件
+    const handleDeviceSync = (data: any) => {
+      if (data.userId !== user.id) return;
+      
+      console.log("[HomePage] 收到设备同步事件:", data);
+      
+      // 设备同步事件要求完整刷新权限和题库列表
+      (async () => {
+        try {
+          // 同步最新权限
+          await syncAccessRights();
+          
+          // 刷新题库列表，使用最新数据
+          await fetchQuestionSets({ forceFresh: true });
+          
+          // 请求最新权限状态
+          requestAccessStatusForAllQuestionSets();
+        } catch (error) {
+          console.error('[HomePage] 处理设备同步事件错误:', error);
+        }
+      })();
+    };
+    
+    // 监听批量访问检查结果
+    const handleBatchAccessResult = (data: any) => {
+      if (data.userId !== user.id || !Array.isArray(data.results)) return;
+      
+      console.log(`[HomePage] 收到批量访问检查结果: ${data.results.length} 个题库`);
+      
+      // 更新题库状态
+      setQuestionSets(prevSets => {
+        const updatedSets = prevSets.map(set => {
+          // 在结果中查找当前题库
+          const result = data.results.find((r: any) => 
+            String(r.questionSetId).trim() === String(set.id).trim()
+          );
+          
+          // 如果找到了结果且有访问权限，更新题库状态
+          if (result) {
+            console.log(`[HomePage] 批量检查题库 "${set.title}": hasAccess=${result.hasAccess}, remainingDays=${result.remainingDays || 'null'}`);
+            
+            // 确定访问类型和状态
+            let hasAccess = result.hasAccess;
+            let accessType = set.accessType;
+            let remainingDays = result.remainingDays !== undefined ? result.remainingDays : set.remainingDays;
+            
+            if (hasAccess) {
+              accessType = result.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+              
+              // 标记为最近更新
+              setRecentlyUpdatedSets(prev => ({
+                ...prev,
+                [set.id]: Date.now()
+              }));
+              
+              // 保存到本地缓存
+              saveAccessToLocalStorage(set.id, true, remainingDays);
+            } else if (set.isPaid) {
+              accessType = (remainingDays !== null && remainingDays <= 0) ? 'expired' : 'trial';
+            }
+            
+            // 返回更新后的题库对象
+            return {
+              ...set,
+              hasAccess,
+              accessType,
+              remainingDays
+            };
+          }
+          
+          return set;
+        });
+        
+        return updatedSets;
+      });
+    };
+    
+    // 注册Socket事件监听
+    socket.on('questionSet:accessUpdate', handleAccessUpdate);
+    socket.on('user:deviceSync', handleDeviceSync);
+    socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
+    
+    return () => {
+      // 清理事件监听
+      socket.off('questionSet:accessUpdate', handleAccessUpdate);
+      socket.off('user:deviceSync', handleDeviceSync);
+      socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
+    };
+  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets]);
+
   // 优化登录后的行为 - 解决操作时序问题
   useEffect(() => {
     if (user?.id) {
@@ -1244,11 +1473,17 @@ const HomePage: React.FC = () => {
           
           // 第2步：使用最新的权限信息，获取并处理题库列表
           console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
-          await fetchQuestionSets({ forceFresh: true });
+          const freshSets = await fetchQuestionSets({ forceFresh: true });
           console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
           
-          // 第3步：通知其他组件用户已登录
-          console.log('[HomePage] 3. 发送用户登录事件');
+          // 第3步：向服务器请求各题库的最新访问权限状态
+          console.log('[HomePage] 3. 向服务器请求各题库的最新权限状态');
+          if (freshSets && freshSets.length > 0) {
+            requestAccessStatusForAllQuestionSets(freshSets);
+          }
+          
+          // 第4步：通知其他组件用户已登录
+          console.log('[HomePage] 4. 发送用户登录事件');
           window.dispatchEvent(new CustomEvent('user:loggedIn', {
             detail: {
               userId: user.id,
@@ -1256,9 +1491,9 @@ const HomePage: React.FC = () => {
             }
           }));
           
-          // 第4步：如果有socket连接，检查其他设备同步
+          // 第5步：如果有socket连接，检查其他设备同步
           if (socket) {
-            console.log('[HomePage] 4. 发送设备同步请求');
+            console.log('[HomePage] 5. 发送设备同步请求');
             socket.emit('user:requestDeviceSync', {
               userId: user.id,
               deviceInfo: navigator.userAgent,
@@ -1270,7 +1505,7 @@ const HomePage: React.FC = () => {
         }
       })();
     }
-  }, [user?.id, syncAccessRights, fetchQuestionSets, socket]);
+  }, [user?.id, syncAccessRights, fetchQuestionSets, socket, requestAccessStatusForAllQuestionSets]);
 
   if (loading) {
     return (
