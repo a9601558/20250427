@@ -218,6 +218,25 @@ export const saveAccessToLocalStorage = (
   }
 };
 
+// Helper function to ensure socket authentication
+const ensureSocketAuthentication = (socket: any, userId: string | undefined) => {
+  if (!socket || !userId) return;
+  
+  try {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Create a DOM event to reset socket auth
+      const socketResetEvent = new CustomEvent('socket:reset', {
+        detail: { userId, token }
+      });
+      window.dispatchEvent(socketResetEvent);
+      console.log(`[HomePage] Requested socket authentication for user ${userId}`);
+    }
+  } catch (e) {
+    console.error('[HomePage] Error ensuring socket authentication:', e);
+  }
+};
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAdmin, syncAccessRights, userChangeEvent } = useUser();
@@ -1004,56 +1023,71 @@ const HomePage: React.FC = () => {
   
   const handleBatchAccessResult = useCallback((data: any) => {
     if (!data || !Array.isArray(data.results)) {
-      console.warn('[HomePage] 收到无效的批量访问结果:', data);
+      console.warn('[HomePage] Received invalid batch access result:', data);
+      setIsCheckingAccess(false);
+      setAccessChecked(true);
       return;
     }
     
-    console.log(`[HomePage] 收到批量访问结果: ${data.results.length}个题库`);
+    console.log(`[HomePage] Received batch access results: ${data.results.length} items`);
     
-    // 更新最近同步时间
+    // Update checking state
+    setIsCheckingAccess(false);
+    setAccessChecked(true);
+    
+    // Update last sync time
     lastSocketUpdateTimeRef.current = Date.now();
     hasRequestedAccess.current = false;
     
-    // 防御性检查: 确保用户ID匹配
+    // Defensive check: ensure user ID matches
     if (data.userId && user?.id && data.userId !== user.id) {
-      console.warn(`[HomePage] 批量访问结果的用户ID不匹配: 当前=${user.id}, 收到=${data.userId}`);
+      console.warn(`[HomePage] Batch access results user ID mismatch: current=${user.id}, received=${data.userId}`);
       return;
     }
     
-    // 处理每个题库的访问结果
-    const updates = data.results.map((result: any) => {
-      if (!result.questionSetId) return null;
-      
-      const { questionSetId, hasAccess, remainingDays, paymentMethod, timestamp } = result;
-      
-      // 保存到本地存储
-      if (user?.id) {
-        saveAccessToLocalStorage(questionSetId, hasAccess, remainingDays, paymentMethod, user.id);
-      }
-      
-      // 检查时间戳，避免使用过时的数据
-      if (socketDataRef.current[questionSetId] && 
-          socketDataRef.current[questionSetId].timestamp > (timestamp || 0)) {
-        console.log(`[HomePage] 忽略旧的访问数据: 题库=${questionSetId}, 当前=${socketDataRef.current[questionSetId].timestamp}, 收到=${timestamp || 0}`);
-        return null;
-      }
-      
-      // 保存最新数据到引用
-      socketDataRef.current[questionSetId] = {
-        ...result,
-        timestamp: timestamp || Date.now()
-      };
-      
-      return {
-        questionSetId,
-        hasAccess,
-        remainingDays,
-        paymentMethod
-      };
-    }).filter(Boolean);
+    // Process each question set access result
+    const updates = data.results
+      .filter((result: any) => result && result.questionSetId)
+      .map((result: any) => {
+        const { questionSetId, hasAccess, remainingDays, paymentMethod, timestamp } = result;
+        
+        // Save to localStorage for offline access
+        if (user?.id) {
+          saveAccessToLocalStorage(
+            questionSetId,
+            hasAccess,
+            user.id,
+            remainingDays || null,
+            paymentMethod
+          );
+        }
+        
+        // Check if this data is newer than what we already have
+        if (socketDataRef.current[questionSetId] && 
+            socketDataRef.current[questionSetId].timestamp > (timestamp || 0)) {
+          console.log(`[HomePage] Ignoring older access data: questionSetId=${questionSetId}`);
+          return null;
+        }
+        
+        // Save to socketDataRef for future reference
+        socketDataRef.current[questionSetId] = {
+          ...result,
+          timestamp: timestamp || Date.now()
+        };
+        
+        return {
+          questionSetId,
+          hasAccess,
+          remainingDays,
+          paymentMethod
+        };
+      })
+      .filter(Boolean);
     
-    // 批量更新状态
     if (updates.length > 0) {
+      console.log(`[HomePage] Updating ${updates.length} question sets with access data`);
+      
+      // Update question sets in a batch
       setQuestionSets(prevSets => 
         prevSets.map(set => {
           const update = updates.find((u: any) => u.questionSetId === set.id);
@@ -1080,7 +1114,7 @@ const HomePage: React.FC = () => {
         })
       );
       
-      // 标记最近更新的题库
+      // Mark recently updated sets
       const updatedTimestamp = Date.now();
       const newRecentlyUpdated = updates.reduce((acc: Record<string, number>, update: any) => {
         if (update && update.questionSetId) {
@@ -1093,14 +1127,21 @@ const HomePage: React.FC = () => {
         ...prev,
         ...newRecentlyUpdated
       }));
+    } else {
+      console.log('[HomePage] No updates needed from batch access results');
     }
-  }, [user?.id, saveAccessToLocalStorage, determineAccessStatus]);
+  }, [user?.id, determineAccessStatus]);
 
-  // In useEffect for socket event listeners, add check for connection failed status
+  // Update the socket event listener useEffect to include authentication check
   useEffect(() => {
     if (!socket) return;
     
     console.log('[HomePage] Registering socket event listeners');
+    
+    // First ensure socket is authenticated if user exists
+    if (user?.id) {
+      ensureSocketAuthentication(socket, user.id);
+    }
     
     // Register event listeners
     socket.on('questionSet:accessUpdate', handleAccessUpdate);
@@ -1108,8 +1149,8 @@ const HomePage: React.FC = () => {
     socket.on('batch:accessResult', handleBatchAccessResult);
     
     // If socket connection has failed, use localStorage as fallback
-    if (connectionFailed) {
-      console.warn('[HomePage] Socket connection failed, using localStorage fallback only');
+    if (connectionFailed || offlineMode) {
+      console.warn('[HomePage] Socket connection failed or offline mode, using localStorage fallback only');
       // Load access data from localStorage instead of waiting for socket events
       const loadAccessFromLocalStorage = () => {
         if (!user?.id) return;
@@ -1118,6 +1159,12 @@ const HomePage: React.FC = () => {
           console.log('[HomePage] Loading access data from localStorage');
           // Get all keys in localStorage that start with "access_"
           const accessKeys = Object.keys(localStorage).filter(key => key.startsWith('access_'));
+          
+          if (accessKeys.length > 0) {
+            console.log(`[HomePage] Found ${accessKeys.length} access keys in localStorage`);
+          } else {
+            console.log('[HomePage] No access keys found in localStorage');
+          }
           
           // Process each access entry
           for (const key of accessKeys) {
@@ -1150,8 +1197,12 @@ const HomePage: React.FC = () => {
               console.error('[HomePage] Error processing localStorage access entry', key, err);
             }
           }
+          
+          // Mark as checked to prevent infinite loading
+          setAccessChecked(true);
         } catch (err) {
           console.error('[HomePage] Error loading access data from localStorage', err);
+          setAccessChecked(true); // Ensure we exit loading state
         }
       };
       
@@ -1167,7 +1218,7 @@ const HomePage: React.FC = () => {
       socket.off('sync:device', handleSyncDevice);
       socket.off('batch:accessResult', handleBatchAccessResult);
     };
-  }, [socket, user?.id, connectionFailed, handleAccessUpdate, handleSyncDevice, handleBatchAccessResult]);
+  }, [socket, user?.id, connectionFailed, offlineMode, handleAccessUpdate, handleSyncDevice, handleBatchAccessResult]);
 
   // Handle socket reconnection
   const handleReconnect = () => {
@@ -1224,14 +1275,17 @@ const HomePage: React.FC = () => {
     return null;
   };
 
-  // 检查题库访问权限 - 避免无限loading状态
+  // Update the access checking useEffect to handle authentication and data loading properly
   useEffect(() => {
     // Only check access if we have user, questionSets and socket
     if (!user || questionSets.length === 0 || !socket || isCheckingAccess || accessChecked) {
       return;
     }
     
-    // If connection failed or offline mode, rely on localStorage data
+    // Ensure socket is authenticated
+    ensureSocketAuthentication(socket, user.id);
+    
+    // If connection failed or offline mode, rely on localStorage data only
     if (connectionFailed || offlineMode) {
       console.log('[HomePage] Connection failed or offline mode, skipping server access check');
       setAccessChecked(true);
@@ -1245,13 +1299,19 @@ const HomePage: React.FC = () => {
     }
     
     setIsCheckingAccess(true);
+    console.log('[HomePage] Checking access for all question sets');
     
-    // Use batch access check with type annotation
-    const questionSetIds = questionSets.map((set: any) => set.id);
+    // Use batch access check
+    const questionSetIds = questionSets.map((set) => set.id);
+    
+    // Log the request being sent
+    console.log(`[HomePage] Sending questionSet:checkAccessBatch for ${questionSetIds.length} question sets`);
     
     socket.emit('questionSet:checkAccessBatch', {
       userId: user.id,
-      questionSetIds
+      questionSetIds,
+      timestamp: Date.now(),
+      source: 'homepage_access_check'
     });
     
     // Set a timeout in case server doesn't respond
@@ -1260,7 +1320,7 @@ const HomePage: React.FC = () => {
       setIsCheckingAccess(false);
       setAccessChecked(true);
       message.warning('Server response timeout - using cached data. Some features may be limited.');
-    }, 5000);
+    }, 10000); // Increased timeout to 10 seconds for slower connections
     
     return () => {
       clearTimeout(timeoutId);
@@ -1298,37 +1358,56 @@ const HomePage: React.FC = () => {
     };
   }, [socket, user]);
   
-  // Ensure loading state is correctly determined based on accessChecked
+  // Modify the isPageLoading calculation to handle the loading state better
   const isPageLoading = loading || (isCheckingAccess && !accessChecked && !connectionFailed && !offlineMode);
   
-  // Update the render method to show loading state correctly
+  // Update the render method to properly handle loading and display question sets
   if (isPageLoading) {
     return (
-      <div className="flex min-h-screen flex-col">
-        {/* Keep existing header */}
-        <div className="flex-1 bg-blue-50 p-4">
-          <div className="container mx-auto">
-            <Skeleton active paragraph={{ rows: 10 }} />
-                  </div>
-                  </div>
-                </div>
-              );
-            }
-            
-  return (
-    <div className="flex min-h-screen flex-col">
-      {/* ... existing header ... */}
-      
-      <div className="flex-1 bg-blue-50 p-4">
-        <div className="container mx-auto">
-          {/* Add connection status indicator */}
-          {renderConnectionStatus()}
-          
-          {/* ... existing content ... */}
-        </div>
+      <div className="flex h-screen w-full items-center justify-center">
+        <Skeleton active paragraph={{ rows: 10 }} />
       </div>
-      
-      {/* ... existing modal and other elements ... */}
+    );
+  }
+
+  // Return a simplified component structure for debugging
+  return (
+    <div className={bgClass}>
+      <div className="container mx-auto px-4">
+        {/* Connection status indicator */}
+        {renderConnectionStatus()}
+        
+        {/* Title and search */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-2">题库列表</h1>
+          <p className="text-gray-600">共 {questionSets.length} 个题库</p>
+        </div>
+        
+        {/* Question set grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {getFilteredQuestionSets().map((set: PreparedQuestionSet) => (
+            <div key={set.id} className="bg-white shadow-md rounded-lg p-4">
+              <h2 className="text-lg font-semibold">{set.title}</h2>
+              <p className="text-sm text-gray-600 mt-1">{set.description}</p>
+              <div className="mt-4">
+                <button 
+                  onClick={() => handleStartQuiz(set)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md"
+                >
+                  {set.hasAccess ? "开始答题" : "查看详情"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* No results message */}
+        {getFilteredQuestionSets().length === 0 && (
+          <div className="text-center py-10">
+            <p className="text-lg text-gray-500">没有找到匹配的题库</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
