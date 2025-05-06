@@ -520,6 +520,30 @@ const HomePage: React.FC = () => {
           });
         }
         
+        // 预处理用户兑换码记录，添加到快速查找Map
+        if (user?.redeemCodes && user.redeemCodes.length > 0) {
+          console.log(`[HomePage] 处理${user.redeemCodes.length}条用户兑换码记录供题库映射使用`);
+          
+          user.redeemCodes.forEach(code => {
+            if (!code.questionSetId) return;
+            
+            const qsId = String(code.questionSetId).trim();
+            
+            // 只有在还没有此题库记录或现有记录已过期时，才添加兑换记录
+            if (!userPurchasesMap.has(qsId) || userPurchasesMap.get(qsId).isExpired) {
+              userPurchasesMap.set(qsId, {
+                hasAccess: true,
+                accessType: 'redeemed',
+                remainingDays: null, // 兑换的题库通常不设置过期时间
+                paymentMethod: 'redeem',
+                isExpired: false
+              });
+              
+              console.log(`[HomePage] 用户兑换记录: 题库=${qsId}, 已兑换可访问`);
+            }
+          });
+        }
+        
         // 处理题库数据，确保包含必要字段
         const preparedSets: PreparedQuestionSet[] = response.data.map((set: BaseQuestionSet) => {
           const setId = String(set.id).trim();
@@ -534,7 +558,7 @@ const HomePage: React.FC = () => {
           // 1. 首先优先使用用户的购买记录（这是最高优先级，特别是刚登录时）
           const userPurchase = userPurchasesMap.get(setId);
           if (userPurchase) {
-            console.log(`[HomePage] 题库"${set.title}"(${setId})找到用户购买记录, 状态=${userPurchase.hasAccess ? '有效' : '无效'}`);
+            console.log(`[HomePage] 题库"${set.title}"(${setId})找到用户购买/兑换记录, 状态=${userPurchase.hasAccess ? '有效' : '无效'}, 类型=${userPurchase.accessType}`);
             
             if (!userPurchase.isExpired) {
               hasAccess = userPurchase.hasAccess;
@@ -579,7 +603,7 @@ const HomePage: React.FC = () => {
             }
           }
           
-          // 3. 最后检查本地缓存（如果仍未确定访问权限）
+          // 3. 然后检查本地缓存（如果仍未确定访问权限）
           const cachedData = !hasAccess && getAccessFromLocalCache(setId, user?.id);
           if (cachedData && cachedData.hasAccess) {
             console.log(`[HomePage] 题库"${set.title}"(${setId})从本地缓存获取权限`);
@@ -588,7 +612,7 @@ const HomePage: React.FC = () => {
             remainingDays = cachedData.remainingDays;
             
             // 根据支付方式和剩余天数确定访问类型
-            if (cachedData.paymentMethod === 'redeem') {
+            if (cachedData.paymentMethod === 'redeem' || cachedData.accessType === 'redeemed') {
               accessType = 'redeemed';
             } else {
               accessType = 'paid';
@@ -650,15 +674,17 @@ const HomePage: React.FC = () => {
         setLoading(false);
         clearTimeout(loadingTimeoutRef.current);
         
-        // 3. 检查已兑换题库的本地存储
+        // 3. 检查已兑换题库的本地存储（作为后备方案）
         try {
           const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
           if (redeemedStr) {
             const redeemedIds = JSON.parse(redeemedStr);
             if (Array.isArray(redeemedIds) && redeemedIds.length > 0) {
-              console.log(`[HomePage] 发现本地存储的${redeemedIds.length}个已兑换题库ID`);
+              console.log(`[HomePage] 发现本地存储的${redeemedIds.length}个已兑换题库ID，作为后备检查`);
               
               // 对每个已兑换题库进行处理
+              let localUpdatesCount = 0;
+              
               redeemedIds.forEach(id => {
                 const normalizedId = String(id).trim();
                 
@@ -670,16 +696,31 @@ const HomePage: React.FC = () => {
                   // 更新为已兑换状态
                   matchingSet.hasAccess = true;
                   matchingSet.accessType = 'redeemed';
+                  localUpdatesCount++;
                   
                   // 保存到本地缓存
                   saveAccessToLocalStorage(normalizedId, true, null, 'redeem');
                 }
               });
+              
+              if (localUpdatesCount > 0) {
+                console.log(`[HomePage] 通过本地存储更新了${localUpdatesCount}个题库的访问权限`);
+                // 有变更时重新更新题库列表状态
+                setQuestionSets([...preparedSets]);
+              }
             }
           }
         } catch (error) {
           console.error('[HomePage] 检查兑换记录出错:', error);
         }
+        
+        // 同步完成后触发一个全局事件，通知其他组件刷新
+        window.dispatchEvent(new CustomEvent('questionSets:loaded', {
+          detail: { 
+            timestamp: now,
+            count: preparedSets.length
+          }
+        }));
         
         return preparedSets;
       } else {
@@ -704,7 +745,7 @@ const HomePage: React.FC = () => {
     } finally {
       pendingFetchRef.current = false;
     }
-  }, [questionSets, user?.id, user?.purchases, getAccessFromLocalCache, saveAccessToLocalStorage]);
+  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage]);
   
   // 初始化时获取题库列表
   useEffect(() => {
@@ -1185,6 +1226,20 @@ const HomePage: React.FC = () => {
       setLoading(false);
     }, 15000); // 15 seconds timeout for the entire login flow
     
+    // 添加对同步事件的监听
+    const handleSyncComplete = (event: Event) => {
+      const syncEvent = event as CustomEvent;
+      console.log('[HomePage] 接收到权限同步完成事件:', syncEvent.detail);
+      
+      // 强制刷新题库列表，以确保显示最新的权限状态
+      fetchQuestionSets({ forceFresh: true }).then(() => {
+        console.log('[HomePage] 权限同步后题库列表已更新');
+      });
+    };
+    
+    // 添加权限同步完成事件监听
+    window.addEventListener('accessRights:updated', handleSyncComplete);
+    
     // 登录流程，按顺序执行，避免竞态条件
     (async () => {
       try {
@@ -1244,13 +1299,14 @@ const HomePage: React.FC = () => {
       }
     })();
     
-    // Clean up the timeout when the component unmounts or when the effect runs again
+    // Clean up the timeout and event listeners when the component unmounts or when the effect runs again
     return () => {
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
+      window.removeEventListener('accessRights:updated', handleSyncComplete);
     };
-  }, [user?.id, syncAccessRights, fetchQuestionSets, socket]); // 移除了 questionSets 依赖项
+  }, [user?.id, syncAccessRights, fetchQuestionSets, socket]);
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
   useEffect(() => {

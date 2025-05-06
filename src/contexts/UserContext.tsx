@@ -233,7 +233,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   });
                 }
                 
-                // 3. 检查购买记录并同步到本地存储
+                // 3a. 检查购买记录并同步到本地存储
                 if (refreshedUserData.data.purchases && refreshedUserData.data.purchases.length > 0) {
                   console.log(`[UserContext] 同步 ${refreshedUserData.data.purchases.length} 条购买记录到本地`);
                   
@@ -268,6 +268,44 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                       }
                     }
                   });
+                }
+                
+                // 3b. 处理已兑换的题库，确保跨设备同步
+                if (refreshedUserData.data.redeemCodes && refreshedUserData.data.redeemCodes.length > 0) {
+                  console.log(`[UserContext] 同步 ${refreshedUserData.data.redeemCodes.length} 条兑换码记录到本地`);
+                  
+                  // 收集所有已兑换的题库ID
+                  const redeemedQuestionSetIds: string[] = [];
+                  
+                  refreshedUserData.data.redeemCodes.forEach(code => {
+                    if (!code.questionSetId) return;
+                    
+                    // 添加到已兑换题库ID列表
+                    redeemedQuestionSetIds.push(code.questionSetId);
+                    
+                    // 保存到本地存储
+                    saveAccessToLocalStorage(code.questionSetId, true, null, 'redeem');
+                    
+                    // 通知其他设备权限更新
+                    if (socketInstance) {
+                      socketInstance.emit('questionSet:accessUpdate', {
+                        userId: userData.id,
+                        questionSetId: code.questionSetId,
+                        hasAccess: true,
+                        accessType: 'redeemed',
+                        paymentMethod: 'redeem',
+                        source: 'login_sync_redeem'
+                      });
+                    }
+                  });
+                  
+                  // 将所有兑换码对应的题库ID保存到localStorage
+                  try {
+                    localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(redeemedQuestionSetIds));
+                    console.log(`[UserContext] 已保存${redeemedQuestionSetIds.length}个已兑换题库ID到本地存储`);
+                  } catch (error) {
+                    console.error('[UserContext] 保存兑换记录到本地存储失败:', error);
+                  }
                 }
                 
                 // 4. 触发全局事件通知组件更新状态
@@ -501,7 +539,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Save access rights to localStorage
-  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays?: number | null) => {
+  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean, remainingDays?: number | null, accessType?: string) => {
     try {
       // Skip if no user or questionSetId
       if (!user?.id || !questionSetId) return;
@@ -515,7 +553,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       cache[user.id][questionSetId] = {
         hasAccess,
         remainingDays,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        accessType
       };
       
       // Save to localStorage
