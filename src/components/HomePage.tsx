@@ -417,6 +417,7 @@ const HomePage: React.FC = () => {
     
     // Ensure loading is set to true during fetch
     setLoading(true);
+    setErrorMessage(null); // Clear any previous error messages
     
     // 在强制刷新模式下重置状态
     if (options.forceFresh || forceRefreshAfterUserChange.current) {
@@ -463,11 +464,15 @@ const HomePage: React.FC = () => {
         _t: timestamp 
       } : { _t: timestamp };
       
+      console.log(`[HomePage] 发起API请求: /api/question-sets, 参数:`, params);
+      
       // 使用apiClient替代未定义的questionSetApi
       const response = await apiClient.get('/api/question-sets', params, {
         // 传递AbortSignal以支持请求取消
         signal: options.signal
       });
+      
+      console.log(`[HomePage] API响应:`, response);
       
       // 请求完成后保存最后请求时间
       lastFetchTimeRef.current = now;
@@ -540,6 +545,8 @@ const HomePage: React.FC = () => {
           } as PreparedQuestionSet;
         });
         
+        console.log(`[HomePage] 处理完成，准备设置 ${preparedQuestionSets.length} 个题库`);
+        
         // 更新状态
         setQuestionSets(preparedQuestionSets);
         
@@ -550,21 +557,30 @@ const HomePage: React.FC = () => {
         setLoading(false);
         clearTimeout(loadingTimeoutRef.current);
         return preparedQuestionSets;
+      } else {
+        // Handle API response failures
+        console.error('[HomePage] API 响应错误:', response);
+        const errorMsg = response?.message || '获取题库列表失败，请稍后重试';
+        setErrorMessage(errorMsg);
+        setLoading(false);
+        clearTimeout(loadingTimeoutRef.current);
+        return questionSets;
       }
-      
-      setLoading(false);
-      clearTimeout(loadingTimeoutRef.current);
-      return questionSets;
     } catch (error) {
       console.error('[HomePage] 获取题库列表失败:', error);
-      setErrorMessage('获取题库列表失败，请稍后重试');
+      // 提供更详细的错误信息
+      let errorMsg = '获取题库列表失败，请稍后重试';
+      if (error instanceof Error) {
+        errorMsg += ` (${error.name}: ${error.message})`;
+      }
+      setErrorMessage(errorMsg);
       setLoading(false);
       clearTimeout(loadingTimeoutRef.current);
       return questionSets;
     } finally {
       pendingFetchRef.current = false;
     }
-  }, [user, questionSets]);
+  }, [user, questionSets, determineAccessStatus, calculateQuestionCount]);
 
   // 重置网络状态
   const resetNetworkState = useCallback(() => {
@@ -1430,6 +1446,33 @@ const HomePage: React.FC = () => {
     );
   }
 
+  // Add a useEffect hook to fetch question sets when the component mounts
+  useEffect(() => {
+    console.log('[HomePage] Component mounted, fetching question sets...');
+    
+    // Initialize abort controller for cleanup
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    // Fetch question sets with the abort signal
+    fetchQuestionSets({ signal: controller.signal })
+      .then(sets => {
+        console.log(`[HomePage] Successfully fetched ${sets.length} question sets`);
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          console.error('[HomePage] Error fetching question sets:', error);
+          setErrorMessage('Failed to load question sets. Please try again.');
+        }
+      });
+    
+    // Cleanup function
+    return () => {
+      console.log('[HomePage] Unmounting component, aborting fetch requests');
+      controller.abort('Component unmounting');
+    };
+  }, [fetchQuestionSets]); // Add fetchQuestionSets as a dependency
+
   // Return a simplified component structure for debugging
   return (
     <div className={bgClass}>
@@ -1440,32 +1483,61 @@ const HomePage: React.FC = () => {
         {/* Title and search */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold mb-2">题库列表</h1>
-          <p className="text-gray-600">共 {questionSets.length} 个题库</p>
+          <p className="text-gray-600">
+            {loading ? '加载中...' : `共 ${questionSets.length} 个题库`}
+          </p>
+          
+          {/* Debug info */}
+          {errorMessage && (
+            <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
+              错误: {errorMessage}
+            </div>
+          )}
         </div>
         
-        {/* Question set grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {getFilteredQuestionSets().map((set: PreparedQuestionSet) => (
-            <div key={set.id} className="bg-white shadow-md rounded-lg p-4">
-              <h2 className="text-lg font-semibold">{set.title}</h2>
-              <p className="text-sm text-gray-600 mt-1">{set.description}</p>
-              <div className="mt-4">
+        {/* Loading state */}
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : (
+          <>
+            {/* Question set grid */}
+            {questionSets.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {getFilteredQuestionSets().map((set: PreparedQuestionSet) => (
+                  <div key={set.id} className="bg-white shadow-md rounded-lg p-4">
+                    <h2 className="text-lg font-semibold">{set.title}</h2>
+                    <p className="text-sm text-gray-600 mt-1">{set.description}</p>
+                    <div className="mt-4">
+                      <button
+                        onClick={() => handleStartQuiz(set)}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md"
+                      >
+                        {set.hasAccess ? "开始答题" : "查看详情"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-lg text-gray-500">
+                  {errorMessage ? '加载失败，请尝试刷新页面' : '没有找到匹配的题库'}
+                </p>
                 <button 
-                  onClick={() => handleStartQuiz(set)}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md"
+                  onClick={() => {
+                    console.log('[HomePage] Manually refreshing question sets');
+                    setLoading(true);
+                    fetchQuestionSets({ forceFresh: true });
+                  }}
+                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md"
                 >
-                  {set.hasAccess ? "开始答题" : "查看详情"}
+                  刷新
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
-        
-        {/* No results message */}
-        {getFilteredQuestionSets().length === 0 && (
-          <div className="text-center py-10">
-            <p className="text-lg text-gray-500">没有找到匹配的题库</p>
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>
