@@ -1020,28 +1020,78 @@ const HomePage: React.FC = () => {
     };
   }, [socket, user?.id, syncAccessRights, fetchQuestionSets]);
 
-  // 添加直接从API获取购买记录的函数
+  // 替换直接API请求的方法，改用现有用户数据和检查单个题库的API
   const fetchPurchaseRecords = useCallback(async () => {
     if (!user?.id) return [];
     
     try {
-      console.log('[HomePage] 直接从API获取用户购买记录');
-      const response = await apiClient.get('/api/purchases/user', undefined, {
-        cacheDuration: 0, // 不使用缓存，确保获取最新数据
-      });
+      console.log('[HomePage] 使用用户数据和有针对性的API检查购买记录');
       
-      if (response && response.success && Array.isArray(response.data)) {
-        console.log(`[HomePage] 成功获取 ${response.data.length} 条购买记录`);
-        return response.data;
-      } else {
-        console.error('[HomePage] 获取购买记录返回格式错误:', response);
-        return [];
+      // 1. 首先使用现有用户对象中的购买记录
+      const userPurchases = user.purchases || [];
+      console.log(`[HomePage] 用户对象中已有 ${userPurchases.length} 条购买记录`);
+      
+      // 2. 如果已有购买记录，就直接使用
+      if (userPurchases.length > 0) {
+        return userPurchases;
       }
+      
+      // 3. 如果没有购买记录但有付费题库，尝试针对性地检查每个题库
+      const paidQuestionSets = questionSets.filter(set => set.isPaid);
+      if (paidQuestionSets.length > 0 && socket) {
+        console.log(`[HomePage] 没有现成购买记录，通过Socket请求批量检查 ${paidQuestionSets.length} 个付费题库`);
+        
+        // 使用Socket批量检查
+        socket.emit('questionSet:checkAccessBatch', {
+          userId: user.id,
+          questionSetIds: paidQuestionSets.map(set => set.id)
+        });
+        
+        // 也单独检查每个题库，确保权限状态更新
+        for (const set of paidQuestionSets.slice(0, 10)) { // 限制最多10个，避免请求过多
+          try {
+            const response = await apiClient.get(`/api/purchases/check/${set.id}`, {
+              userId: user.id
+            }, { cacheDuration: 0 });
+            
+            if (response?.success && response?.data?.hasAccess) {
+              console.log(`[HomePage] 题库 ${set.title} (${set.id}) 有访问权限`);
+              
+              // 立即更新此题库状态
+              setQuestionSets(prevSets => 
+                prevSets.map(prevSet => 
+                  prevSet.id === set.id 
+                    ? {
+                        ...prevSet,
+                        hasAccess: true,
+                        accessType: 'paid',
+                        remainingDays: response.data.remainingDays || null
+                      }
+                    : prevSet
+                )
+              );
+              
+              // 保存到缓存
+              saveAccessToLocalStorage(set.id, true, response.data.remainingDays);
+              
+              // 更新视觉反馈
+              setRecentlyUpdatedSets(prev => ({
+                ...prev,
+                [set.id]: Date.now()
+              }));
+            }
+          } catch (error) {
+            console.error(`[HomePage] 检查题库 ${set.id} 访问权限失败:`, error);
+          }
+        }
+      }
+      
+      return userPurchases;
     } catch (error) {
-      console.error('[HomePage] 获取购买记录失败:', error);
-      return [];
+      console.error('[HomePage] 检查购买记录失败:', error);
+      return user.purchases || [];
     }
-  }, [user?.id]);
+  }, [user, questionSets, socket, saveAccessToLocalStorage]);
 
   // 添加根据购买记录立即更新题库状态的函数
   const updateQuestionSetsFromPurchases = useCallback((purchases: any[]) => {
@@ -1125,30 +1175,29 @@ const HomePage: React.FC = () => {
     });
   }, [user?.id, saveAccessToLocalStorage]);
 
-  // 增强登录后的行为，立即从数据库获取购买信息
+  // 增强登录后的行为，从不同来源检查并更新题库状态
   useEffect(() => {
     if (user?.id) {
-      console.log('[HomePage] 用户登录，立即从数据库获取购买信息');
+      console.log('[HomePage] 用户登录，开始综合检查题库访问权限');
       
-      // 先同步访问权限
+      // 1. 先同步UserContext的访问权限
       syncAccessRights().then(() => {
-        // 然后直接从API获取最新购买记录
+        console.log('[HomePage] 权限同步完成，检查用户购买记录');
+        
+        // 2. 检查用户购买记录并更新题库状态
         fetchPurchaseRecords().then(purchases => {
           if (purchases.length > 0) {
-            // 立即根据购买记录更新题库状态
+            console.log(`[HomePage] 发现 ${purchases.length} 条购买记录，更新题库状态`);
             updateQuestionSetsFromPurchases(purchases);
-            
-            // 然后再获取完整的题库列表（作为备份）
-            setTimeout(() => {
-              fetchQuestionSets();
-            }, 2000);
           } else {
-            // 如果没有获取到购买记录，则直接刷新题库列表
-            fetchQuestionSets();
+            console.log('[HomePage] 没有找到购买记录，获取最新题库列表');
           }
+          
+          // 3. 无论如何都刷新题库列表，确保数据完整
+          fetchQuestionSets();
         });
         
-        // 触发全局事件，通知其他组件用户已登录
+        // 4. 通知其他组件用户已登录
         window.dispatchEvent(new CustomEvent('user:loggedIn', {
           detail: {
             userId: user.id,
@@ -1159,7 +1208,7 @@ const HomePage: React.FC = () => {
     }
   }, [user?.id, syncAccessRights, fetchPurchaseRecords, updateQuestionSetsFromPurchases, fetchQuestionSets]);
 
-  // 添加专门处理后端批量访问检查结果的处理器
+  // 添加监听socket批量检查结果的处理器
   useEffect(() => {
     if (!socket || !user?.id) return;
     
@@ -1213,21 +1262,6 @@ const HomePage: React.FC = () => {
       socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
     };
   }, [socket, user?.id, saveAccessToLocalStorage]);
-
-  // 在组件挂载时直接检查已登录用户的购买记录
-  useEffect(() => {
-    if (user?.id && questionSets.length > 0) {
-      console.log('[HomePage] 组件挂载且用户已登录，检查购买记录');
-      
-      // 直接从API获取最新购买记录
-      fetchPurchaseRecords().then(purchases => {
-        if (purchases.length > 0) {
-          // 立即根据购买记录更新题库状态
-          updateQuestionSetsFromPurchases(purchases);
-        }
-      });
-    }
-  }, []);
 
   if (loading) {
     return (
