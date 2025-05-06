@@ -98,6 +98,20 @@ interface PurchaseData {
   questionSet?: any;
 }
 
+// 新增购买记录接口用于类型检查
+interface DatabasePurchaseRecord {
+  id: string;
+  userId: string;
+  questionSetId: string;
+  purchaseDate: string;
+  expiryDate: string;
+  status?: string;
+  amount?: number;
+  transactionId?: string;
+  paymentMethod?: string;
+  remainingDays?: number;
+}
+
 const HomePage: React.FC = () => {
   const { user, isAdmin, syncAccessRights } = useUser();
   const { socket } = useSocket();
@@ -1748,10 +1762,140 @@ const HomePage: React.FC = () => {
         await syncAccessRights();
         console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
         
+        // 新增步骤：直接检查数据库购买记录
+        console.log('[HomePage] 1.5. 直接从数据库检查用户购买记录');
+        try {
+          const purchaseResponse = await apiClient.get('/api/purchases/user', { 
+            userId: user.id,
+            _t: Date.now() // 防止缓存
+          });
+          
+          if (purchaseResponse && purchaseResponse.success && Array.isArray(purchaseResponse.data)) {
+            console.log(`[HomePage] 从数据库获取到 ${purchaseResponse.data.length} 条购买记录`);
+            
+            // 处理购买记录并立即更新题库的访问状态
+            if (purchaseResponse.data.length > 0) {
+              // 如果已有题库数据，立即更新它们的访问权限
+              if (questionSets.length > 0) {
+                const now = new Date();
+                const purchaseMap = new Map<string, DatabasePurchaseRecord>();
+                
+                // 创建购买记录的map，便于快速查找
+                purchaseResponse.data.forEach((purchase: DatabasePurchaseRecord) => {
+                  if (!purchase.questionSetId) return;
+                  purchaseMap.set(String(purchase.questionSetId).trim(), purchase);
+                });
+                
+                // 更新题库访问权限
+                setQuestionSets(prevSets => {
+                  return prevSets.map(set => {
+                    const setId = String(set.id).trim();
+                    const purchase = purchaseMap.get(setId);
+                    
+                    // 如果没有此题库的购买记录，保持原状态
+                    if (!purchase) return set;
+                    
+                    console.log(`[HomePage] 检查题库 ${set.title} 的购买记录:`, purchase);
+                    
+                    // 计算过期状态
+                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+                    const isExpired = expiryDate && expiryDate <= now;
+                    const isActive = purchase.status === 'active' || 
+                                    purchase.status === 'completed' || 
+                                    !purchase.status;
+                    
+                    // 计算剩余天数
+                    let remainingDays = null;
+                    if (expiryDate && !isExpired) {
+                      const diffTime = expiryDate.getTime() - now.getTime();
+                      remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    }
+                    
+                    // 确定访问类型
+                    let accessType: AccessType = set.accessType;
+                    let hasAccess = set.hasAccess;
+                    
+                    if (!set.isPaid) {
+                      // 免费题库始终可访问
+                      accessType = 'trial';
+                      hasAccess = true;
+                    } else if (isActive && !isExpired) {
+                      // 有效的购买记录
+                      accessType = purchase.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+                      hasAccess = true;
+                      
+                      // 更新本地缓存
+                      saveAccessToLocalStorage(
+                        setId, 
+                        true, 
+                        remainingDays, 
+                        purchase.paymentMethod
+                      );
+                      
+                      // 标记为最近更新
+                      setRecentlyUpdatedSets(prev => ({
+                        ...prev,
+                        [setId]: Date.now()
+                      }));
+                    } else if (isExpired) {
+                      // 过期的购买记录
+                      accessType = 'expired';
+                      hasAccess = false;
+                      remainingDays = 0;
+                      
+                      // 更新本地缓存
+                      saveAccessToLocalStorage(
+                        setId, 
+                        false, 
+                        0, 
+                        purchase.paymentMethod
+                      );
+                    }
+                    
+                    // 只有当状态真正改变时才返回新对象
+                    if (set.accessType !== accessType || 
+                        set.hasAccess !== hasAccess || 
+                        set.remainingDays !== remainingDays) {
+                      console.log(`[HomePage] 题库 ${set.title} 状态更新: ${set.accessType} -> ${accessType}`);
+                      return {
+                        ...set,
+                        accessType,
+                        hasAccess,
+                        remainingDays
+                      };
+                    }
+                    
+                    return set;
+                  });
+                });
+              }
+            }
+          } else {
+            console.log('[HomePage] 未获取到购买记录或API请求失败');
+          }
+        } catch (purchaseError) {
+          console.error('[HomePage] 检查数据库购买记录失败:', purchaseError);
+        }
+        
         // 第2步：使用最新的权限信息，获取并处理题库列表
         console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
         await fetchQuestionSets({ forceFresh: true });
         console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
+
+        // 第3步: 对于付费题库再次确认权限状态
+        if (socket && questionSets.length > 0) {
+          console.log('[HomePage] 3. 通过Socket再次检查付费题库权限');
+          const paidSets = questionSets.filter(set => set.isPaid);
+          
+          if (paidSets.length > 0) {
+            socket.emit('questionSet:checkAccessBatch', {
+              userId: user.id,
+              questionSetIds: paidSets.map(set => String(set.id).trim()),
+              source: 'login_confirmation',
+              timestamp: Date.now()
+            });
+          }
+        }
         
         // 不要再次调用requestAccessStatusForAllQuestionSets，因为fetchQuestionSets已经处理了权限
       } catch (error) {
@@ -1773,7 +1917,7 @@ const HomePage: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [user?.id, syncAccessRights, fetchQuestionSets]);
+  }, [user?.id, syncAccessRights, fetchQuestionSets, questionSets, socket, saveAccessToLocalStorage]);
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
   useEffect(() => {
