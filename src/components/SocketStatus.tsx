@@ -2,9 +2,9 @@ import React from 'react';
 import { useSocket } from '../contexts/SocketContext';
 
 const SocketStatus: React.FC = () => {
-  const { isConnected, connectionError, reconnect } = useSocket();
+  const { connected, reconnect } = useSocket();
 
-  if (isConnected) {
+  if (connected) {
     return (
       <div className="fixed bottom-4 right-4 flex items-center px-3 py-1 bg-green-500 text-white rounded-md text-sm shadow-md">
         <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
@@ -19,12 +19,6 @@ const SocketStatus: React.FC = () => {
         <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
         <span className="text-red-700 text-sm font-medium">Socket 连接失败</span>
       </div>
-      
-      {connectionError && (
-        <div className="mt-1 text-xs text-red-600">
-          错误: {connectionError}
-        </div>
-      )}
       
       <button
         onClick={reconnect}

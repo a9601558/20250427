@@ -23,7 +23,91 @@ const MAX_RECONNECT_ATTEMPTS = 10; // 增加重连尝试次数
 // 心跳检测定时器
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-export const initializeSocket = () => {
+// 心跳检测 - 定期发送ping确保连接活跃
+const startHeartbeat = () => {
+  // 先清除可能存在的旧定时器
+  stopHeartbeat();
+  
+  // 每30秒发送一次心跳包
+  heartbeatInterval = setInterval(() => {
+    if (socketInstance && socketInstance.connected) {
+      console.log('[Socket] 发送心跳ping...');
+      socketInstance.emit('ping');
+      
+      // 设置ping超时检测
+      const pingTimeout = setTimeout(() => {
+        if (socketInstance && socketInstance.connected) {
+          console.warn('[Socket] ping超时未收到响应，主动尝试重连');
+          socketInstance.disconnect().connect(); // 断开并立即重连
+        }
+      }, 10000); // 10秒内未收到响应就重连
+      
+      // 设置pong响应处理
+      const pongHandler = () => {
+        clearTimeout(pingTimeout);
+        if (socketInstance) {
+          socketInstance.off('pong', pongHandler); // 移除一次性的pong处理
+        }
+      };
+      
+      if (socketInstance) {
+        socketInstance.on('pong', pongHandler);
+      }
+    } else {
+      console.warn('[Socket] 心跳检测：Socket未连接，尝试重连');
+      attemptReconnect();
+    }
+  }, 30000);
+};
+
+// 停止心跳检测
+const stopHeartbeat = () => {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+};
+
+// 手动尝试重连
+const attemptReconnect = (delay = 1000) => {
+  if (socketInstance && !socketInstance.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+    reconnectAttempts++;
+    console.log(`[Socket] 手动尝试重连 #${reconnectAttempts}...`);
+    
+    // 先断开旧连接
+    socketInstance.disconnect();
+    
+    // 延迟后重新连接
+    setTimeout(() => {
+      // 检查是否已经连接
+      if (socketInstance && !socketInstance.connected) {
+        console.log(`[Socket] 尝试重新连接...`);
+        
+        // 先尝试不同的传输方式
+        if (reconnectAttempts % 2 === 0) {
+          console.log('[Socket] 尝试使用polling传输方式重连');
+          if (socketInstance) {
+            socketInstance.io.opts.transports = ['polling', 'websocket'];
+          }
+        } else {
+          console.log('[Socket] 尝试使用websocket传输方式重连');
+          if (socketInstance) {
+            socketInstance.io.opts.transports = ['websocket', 'polling'];
+          }
+        }
+        
+        if (socketInstance) {
+          socketInstance.connect();
+        }
+      }
+    }, delay);
+  } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.error('[Socket] 达到最大重连次数，需要用户手动刷新页面');
+    // 可以在这里触发一个全局事件，通知UI显示一个重连失败的提示
+  }
+};
+
+const initializeSocket = () => {
   if (socketInstance) {
     console.log('[Socket] 重用现有连接');
     return socketInstance;
@@ -44,10 +128,16 @@ export const initializeSocket = () => {
     console.log(`[Socket] 断开连接: ${reason}`);
   });
   
+  // 连接成功后开始心跳检测
+  socketInstance.on('connect', () => {
+    console.log('[Socket] 连接成功，启动心跳检测');
+    startHeartbeat();
+  });
+  
   return socketInstance;
 };
 
-export const authenticateUser = (userId: string, token: string) => {
+const authenticateUser = (userId: string, token: string) => {
   if (!socketInstance) {
     console.error('[Socket] 无法认证：socket实例不存在');
     return;
@@ -78,109 +168,30 @@ export const authenticateUser = (userId: string, token: string) => {
   }
 };
 
-export const deauthenticateSocket = () => {
+const deauthenticateSocket = () => {
   if (!socketInstance) return;
   
   console.log('[Socket] 清除用户认证');
   socketInstance.auth = {};
   
+  // 断开连接前停止心跳
+  stopHeartbeat();
+  
   // 断开连接
   socketInstance.disconnect();
 };
 
-export const getSocketInstance = () => {
+const getSocketInstance = () => {
   return socketInstance;
 };
 
-export const closeSocket = () => {
+const closeSocket = () => {
   if (socketInstance) {
     console.log('[Socket] 关闭连接');
+    // 关闭前停止心跳
+    stopHeartbeat();
     socketInstance.disconnect();
     socketInstance = null;
-  }
-};
-
-// 心跳检测 - 定期发送ping确保连接活跃
-const startHeartbeat = () => {
-  // 先清除可能存在的旧定时器
-  stopHeartbeat();
-  
-  // 每30秒发送一次心跳包
-  heartbeatInterval = setInterval(() => {
-    if (socketInstance && socketInstance.connected) {
-      console.log('发送心跳ping...');
-      socketInstance.emit('ping');
-      
-      // 设置ping超时检测
-      const pingTimeout = setTimeout(() => {
-        if (socketInstance && socketInstance.connected) {
-          console.warn('ping超时未收到响应，主动尝试重连');
-          socketInstance.disconnect().connect(); // 断开并立即重连
-        }
-      }, 10000); // 10秒内未收到响应就重连
-      
-      // 设置pong响应处理
-      const pongHandler = () => {
-        clearTimeout(pingTimeout);
-        if (socketInstance) {
-          socketInstance.off('pong', pongHandler); // 移除一次性的pong处理
-        }
-      };
-      
-      if (socketInstance) {
-        socketInstance.on('pong', pongHandler);
-      }
-    } else {
-      console.warn('心跳检测：Socket未连接，尝试重连');
-      attemptReconnect();
-    }
-  }, 30000);
-};
-
-// 停止心跳检测
-const stopHeartbeat = () => {
-  if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-    heartbeatInterval = null;
-  }
-};
-
-// 手动尝试重连
-const attemptReconnect = (delay = 1000) => {
-  if (socketInstance && !socketInstance.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-    reconnectAttempts++;
-    console.log(`手动尝试重连 #${reconnectAttempts}...`);
-    
-    // 先断开旧连接
-    socketInstance.disconnect();
-    
-    // 延迟后重新连接
-    setTimeout(() => {
-      // 检查是否已经连接
-      if (socketInstance && !socketInstance.connected) {
-        console.log(`尝试重新连接...`);
-        
-        // 先尝试不同的传输方式
-        if (reconnectAttempts % 2 === 0) {
-          console.log('尝试使用polling传输方式重连');
-          if (socketInstance) {
-            socketInstance.io.opts.transports = ['polling', 'websocket'];
-          }
-        } else {
-          console.log('尝试使用websocket传输方式重连');
-          if (socketInstance) {
-            socketInstance.io.opts.transports = ['websocket', 'polling'];
-          }
-        }
-        
-        if (socketInstance) {
-          socketInstance.connect();
-        }
-      }
-    }, delay);
-  } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error('达到最大重连次数，需要用户手动刷新页面');
-    // 可以在这里触发一个全局事件，通知UI显示一个重连失败的提示
   }
 };
 
@@ -205,9 +216,18 @@ const testConnection = (): void => {
   }
 };
 
-// Export as a single object to avoid duplicate exports
+// 统一导出所有函数
 export {
+  initializeSocket,
+  authenticateUser,
+  deauthenticateSocket,
+  getSocketInstance,
+  closeSocket,
+  startHeartbeat,
+  stopHeartbeat,
+  attemptReconnect,
   sendProgressUpdate,
   onProgressUpdate,
-  testConnection
+  testConnection,
+  type ProgressData
 }; 

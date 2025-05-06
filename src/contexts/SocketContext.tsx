@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Socket } from 'socket.io-client';
-import { initializeSocket, authenticateUser, deauthenticateSocket, closeSocket } from '../config/socket';
+import { 
+  initializeSocket, 
+  authenticateUser, 
+  deauthenticateSocket, 
+  closeSocket,
+  startHeartbeat,
+  stopHeartbeat,
+  attemptReconnect
+} from '../config/socket';
 import { useUser } from './UserContext';
 
 interface SocketContextType {
@@ -9,6 +17,7 @@ interface SocketContextType {
   reconnect: () => void;
 }
 
+// Create the context with default undefined value
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -71,7 +80,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const handleSocketReset = (event: Event) => {
       if (!socket) return;
       
-      const customEvent = event as CustomEvent;
+      const customEvent = event as CustomEvent<{userId?: string, token?: string}>;
       const { userId, token } = customEvent.detail || {};
       
       if (userId && token) {
@@ -86,11 +95,11 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       deauthenticateSocket();
     };
     
-    window.addEventListener('socket:reset', handleSocketReset);
+    window.addEventListener('socket:reset', handleSocketReset as EventListener);
     window.addEventListener('socket:disconnect', handleSocketDisconnect);
     
     return () => {
-      window.removeEventListener('socket:reset', handleSocketReset);
+      window.removeEventListener('socket:reset', handleSocketReset as EventListener);
       window.removeEventListener('socket:disconnect', handleSocketDisconnect);
     };
   }, [socket]);
@@ -134,13 +143,21 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
   
+  // Ensure value is memoized to prevent unnecessary re-renders
+  const contextValue = {
+    socket,
+    connected,
+    reconnect
+  };
+  
   return (
-    <SocketContext.Provider value={{ socket, connected, reconnect }}>
+    <SocketContext.Provider value={contextValue}>
       {children}
     </SocketContext.Provider>
   );
 };
 
+// Custom hook to use the socket context
 export const useSocket = () => {
   const context = useContext(SocketContext);
   if (context === undefined) {
