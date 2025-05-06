@@ -215,7 +215,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const token = localStorage.getItem('token');
     if (token) {
       fetchCurrentUser();
-    } else {
+        } else {
       setLoading(false);
     }
   }, []);
@@ -450,11 +450,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Emit custom event for access update
           const accessUpdateEvent = new CustomEvent('access:update', {
             detail: {
-              userId: user.id,
-              questionSetId: formattedPurchase.questionSetId,
+            userId: user.id,
+            questionSetId: formattedPurchase.questionSetId,
               hasAccess: true,
-              purchaseId: formattedPurchase.id,
-              expiryDate: formattedPurchase.expiryDate
+            purchaseId: formattedPurchase.id,
+            expiryDate: formattedPurchase.expiryDate
             }
           });
           window.dispatchEvent(accessUpdateEvent);
@@ -786,9 +786,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               
               const accessUpdateEvent = new CustomEvent('access:update', {
                 detail: {
-                  userId: user.id,
-                  questionSetId: String(questionSetId).trim(),
-                  hasAccess: true
+                userId: user.id,
+                questionSetId: String(questionSetId).trim(),
+                hasAccess: true
                 }
               });
               window.dispatchEvent(accessUpdateEvent);

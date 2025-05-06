@@ -316,8 +316,8 @@ const HomePage: React.FC = () => {
         timestamp: now
       });
       
-      socket.emit('questionSet:checkAccessBatch', {
-        userId: user.id,
+            socket.emit('questionSet:checkAccessBatch', {
+              userId: user.id,
         questionSetIds: paidQuestionSetIds,
         timestamp: now,
         source: 'explicit_homepage_check'
@@ -650,7 +650,7 @@ const HomePage: React.FC = () => {
       
       return infoArray.join(' · ');
     };
-    
+
     return (
       <div className="relative group overflow-hidden rounded-xl shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white dark:bg-gray-800">
         {/* 卡片装饰元素 - 背景渐变 */}
@@ -670,22 +670,22 @@ const HomePage: React.FC = () => {
                set.accessType === 'paid' ? '已购买' :
                set.accessType === 'redeemed' ? '已兑换' :
                set.accessType === 'expired' ? '已过期' : '未知'}
-            </span>
-          </div>
-          
+              </span>
+        </div>
+
           {/* 描述文字 */}
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2 h-10">
             {set.description}
           </p>
-          
+
           {/* 题库信息 */}
           <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4">
             <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-            </svg>
+                </svg>
             {getInfoText()}
-          </div>
-          
+              </div>
+              
           {/* 剩余有效期进度条（仅对已购买/已兑换的题库显示） */}
           {shouldShowValidity && (
             <div className="mb-3">
@@ -710,12 +710,12 @@ const HomePage: React.FC = () => {
                   }`}
                   style={{ width: `${getProgressPercentage()}%` }}
                 ></div>
+                </div>
               </div>
-            </div>
-          )}
-          
+            )}
+
           {/* 开始按钮 */}
-          <button
+            <button
             onClick={() => onStartQuiz(set)}
             className={`w-full mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
               !set.hasAccess
@@ -734,7 +734,7 @@ const HomePage: React.FC = () => {
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
+                  </svg>
                 立即开始
               </span>
             ) : (
@@ -742,16 +742,16 @@ const HomePage: React.FC = () => {
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
+                  </svg>
                 立即试用
               </span>
-            )}
-          </button>
+              )}
+            </button>
         </div>
       </div>
     );
   };
-  
+
   // 添加handleStartQuiz函数（组件内部）
   const handleStartQuiz = useCallback((set: PreparedQuestionSet) => {
     console.log(`[HomePage] 开始答题:`, set);
@@ -1186,7 +1186,7 @@ const HomePage: React.FC = () => {
   // Render connection status indicator
   const renderConnectionStatus = () => {
     if (connectionFailed || offlineMode) {
-      return (
+    return (
         <div className="mb-4 rounded bg-amber-50 p-3 shadow-sm">
           <div className="flex items-center">
             <DisconnectOutlined className="mr-2 text-amber-500" />
@@ -1202,15 +1202,15 @@ const HomePage: React.FC = () => {
               Reconnect
             </Button>
           </div>
-        </div>
-      );
-    }
-    
+      </div>
+    );
+  }
+
     if (connected && !offlineMode) {
-      return (
+  return (
         <div className="mb-4 flex justify-end">
           <Button 
-            type="text"
+                  type="text"
             size="small"
             icon={<WifiOutlined />}
             onClick={handleToggleOfflineMode}
@@ -1309,12 +1309,12 @@ const HomePage: React.FC = () => {
         <div className="flex-1 bg-blue-50 p-4">
           <div className="container mx-auto">
             <Skeleton active paragraph={{ rows: 10 }} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
+                  </div>
+                  </div>
+                </div>
+              );
+            }
+            
   return (
     <div className="flex min-h-screen flex-col">
       {/* ... existing header ... */}

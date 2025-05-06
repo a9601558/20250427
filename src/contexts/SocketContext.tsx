@@ -432,7 +432,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setOfflineMode(false);
         setConnectionAttempts(0);
         const newSocket = initializeSocket();
-        setSocket(newSocket);
+    setSocket(newSocket);
         
         // Re-authenticate if needed
         if (currentUserIdRef.current) {
