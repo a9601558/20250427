@@ -209,10 +209,11 @@ const registerUserAccessHandlers = (socket, io) => {
                 };
             });
             // 发送批量结果
-            socket.emit('questionSet:accessBatchResult', {
+            socket.emit('questionSet:batchAccessResult', {
                 userId,
                 results,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                source: data.source || 'batch_check'
             });
             // 单独发送每个题库的结果，以便客户端可以更新本地缓存
             results.forEach(result => {
@@ -221,6 +222,7 @@ const registerUserAccessHandlers = (socket, io) => {
                     questionSetId: result.questionSetId,
                     hasAccess: result.hasAccess,
                     remainingDays: result.remainingDays,
+                    paymentMethod: purchaseMap.get(result.questionSetId)?.paymentMethod || 'unknown',
                     timestamp: Date.now()
                 });
             });

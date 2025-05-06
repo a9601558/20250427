@@ -8,6 +8,8 @@ const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = require("crypto");
+const Purchase_1 = __importDefault(require("./Purchase"));
+const QuestionSet_1 = __importDefault(require("./QuestionSet"));
 class User extends sequelize_1.Model {
     async comparePassword(candidatePassword) {
         try {
@@ -227,5 +229,18 @@ User.beforeCreate((user) => {
     if (!user.redeemCodes)
         user.redeemCodes = [];
     console.log('用户初始化默认值完成');
+});
+// 定义关联关系
+User.hasMany(Purchase_1.default, {
+    foreignKey: 'user_id',
+    sourceKey: 'id',
+    as: 'purchases'
+});
+// 添加关联到QuestionSet
+User.belongsToMany(QuestionSet_1.default, {
+    through: Purchase_1.default,
+    foreignKey: 'user_id',
+    otherKey: 'question_set_id',
+    as: 'questionSets'
 });
 exports.default = User;

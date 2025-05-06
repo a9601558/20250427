@@ -161,6 +161,16 @@ const getUserProfile = async (req, res) => {
         // 使用附加包括关联数据的查询选项，确保返回完整用户数据
         const user = await User_1.default.findByPk(req.user.id, {
             attributes: { exclude: ['password'] },
+            // 添加include选项，确保加载purchases和redeemCodes关联数据
+            include: [
+                {
+                    association: 'purchases',
+                    attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
+                },
+                {
+                    association: 'redeemCodes'
+                }
+            ],
             // 记录请求信息以帮助调试跨设备同步问题
             logging: (sql) => {
                 console.log(`[用户资料] 获取用户(${req.user.id})资料, 设备: ${req.headers['user-agent']}`);
@@ -172,6 +182,9 @@ const getUserProfile = async (req, res) => {
             // 确保purchases字段是数组
             if (!userData.purchases) {
                 userData.purchases = [];
+            }
+            else {
+                console.log(`[用户资料] 用户购买记录详情:`, JSON.stringify(userData.purchases.slice(0, 2)));
             }
             // 如果examCountdowns字段是字符串，尝试解析为JSON
             if (typeof userData.examCountdowns === 'string') {

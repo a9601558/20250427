@@ -153,7 +153,7 @@ export const registerUserAccessHandlers = (socket: Socket, io: Server) => {
   });
   
   // 批量检查题库访问权限
-  socket.on('questionSet:checkAccessBatch', async (data: { userId: string; questionSetIds: string[] }) => {
+  socket.on('questionSet:checkAccessBatch', async (data: { userId: string; questionSetIds: string[]; source?: string }) => {
     try {
       if (!userId || userId !== data.userId) {
         throw new CustomError('Unauthorized access', 403);
@@ -202,10 +202,11 @@ export const registerUserAccessHandlers = (socket: Socket, io: Server) => {
       });
       
       // 发送批量结果
-      socket.emit('questionSet:accessBatchResult', {
+      socket.emit('questionSet:batchAccessResult', {
         userId,
         results,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        source: data.source || 'batch_check'
       });
       
       // 单独发送每个题库的结果，以便客户端可以更新本地缓存
@@ -215,6 +216,7 @@ export const registerUserAccessHandlers = (socket: Socket, io: Server) => {
           questionSetId: result.questionSetId,
           hasAccess: result.hasAccess,
           remainingDays: result.remainingDays,
+          paymentMethod: purchaseMap.get(result.questionSetId)?.paymentMethod || 'unknown',
           timestamp: Date.now()
         });
       });

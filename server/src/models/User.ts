@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { IUser, IPurchase, IRedeemCode, IProgressSummary } from '../types';
+import Purchase from './Purchase';
+import QuestionSet from './QuestionSet';
 
 export type UserCreationAttributes = Optional<IUser, 'id' | 'createdAt' | 'updatedAt' | 'purchases' | 'redeemCodes' | 'progress' | 'socket_id' | 'examCountdowns' | 'role' | 'verified' | 'failedLoginAttempts' | 'accountLocked' | 'lockUntil' | 'preferredLanguage' | 'profilePicture' | 'lastLoginAt' | 'resetPasswordToken' | 'resetPasswordExpires'>;
 
@@ -264,6 +266,21 @@ User.beforeCreate((user: User) => {
   if (!user.purchases) user.purchases = [];
   if (!user.redeemCodes) user.redeemCodes = [];
   console.log('用户初始化默认值完成');
+});
+
+// 定义关联关系
+User.hasMany(Purchase, {
+  foreignKey: 'user_id',
+  sourceKey: 'id',
+  as: 'purchases'
+});
+
+// 添加关联到QuestionSet
+User.belongsToMany(QuestionSet, {
+  through: Purchase,
+  foreignKey: 'user_id',
+  otherKey: 'question_set_id',
+  as: 'questionSets'
 });
 
 export default User; 

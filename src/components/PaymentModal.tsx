@@ -195,11 +195,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
         </div>
         
         <div className="mb-6">
-          <h4 className="font-medium text-lg mb-2">{questionSet.title}</h4>
-          <p className="text-gray-600 mb-3">{questionSet.description}</p>
+          <h4 className="font-medium text-lg mb-2">
+            {questionSet?.title || '未知题库'}
+          </h4>
+          <p className="text-gray-600 mb-3">
+            {questionSet?.description || '无描述信息'}
+          </p>
           <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
             <span className="text-gray-700">付费内容</span>
-            <span className="font-medium text-lg text-green-600">¥{questionSet.price}</span>
+            <span className="font-medium text-lg text-green-600">
+              ¥{questionSet?.price ?? '未定价'}
+            </span>
           </div>
           <p className="text-sm text-gray-500 mt-2">购买后有效期为6个月</p>
         </div>
