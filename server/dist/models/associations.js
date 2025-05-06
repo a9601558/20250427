@@ -83,8 +83,9 @@ const setupAssociations = () => {
         onDelete: 'CASCADE'
     });
     User_1.default.hasMany(RedeemCode_1.default, {
-        foreignKey: 'redeemedBy',
-        as: 'redeemedCodes'
+        foreignKey: 'usedBy',
+        as: 'redeemCodes',
+        onDelete: 'SET NULL'
     });
     // WrongAnswer 关联
     User_1.default.hasMany(WrongAnswer_1.default, {
