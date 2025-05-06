@@ -1510,28 +1510,6 @@ const HomePage: React.FC = () => {
                   // 付费题库无访问权限时
                   accessType = 'trial';
                 }
-                
-                // 检查状态是否真的改变了
-                if (set.hasAccess !== socketData.hasAccess || 
-                    set.accessType !== accessType || 
-                    set.remainingDays !== socketData.remainingDays) {
-                  
-                  console.log(`[HomePage] 题库 "${set.title}" 状态有变化，从 ${set.accessType} -> ${accessType}, hasAccess: ${set.hasAccess} -> ${socketData.hasAccess}`);
-                  hasChanged = true;
-                  
-                  // 标记为最近更新
-                  setRecentlyUpdatedSets(prev => ({
-                    ...prev,
-                    [set.id]: Date.now()
-                  }));
-                  
-                  return {
-                    ...set,
-                    hasAccess: socketData.hasAccess,
-                    accessType,
-                    remainingDays: socketData.remainingDays
-                  };
-                }
               }
               return set;
             });
@@ -1718,7 +1696,7 @@ const HomePage: React.FC = () => {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets]); // Remove questionSets.length from dependencies
+  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets]); // 移除 questionSets.length
 
   // 登录状态变化后重新获取题库数据
   useEffect(() => {
@@ -1754,7 +1732,7 @@ const HomePage: React.FC = () => {
       setLoading(false);
     }, 15000); // 15 seconds timeout for the entire login flow
     
-    // 完全重写登录流程，按顺序执行，避免竞态条件
+    // 登录流程，按顺序执行，避免竞态条件
     (async () => {
       try {
         // 第1步：通过syncAccessRights同步最新权限数据
@@ -1762,142 +1740,23 @@ const HomePage: React.FC = () => {
         await syncAccessRights();
         console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
         
-        // 新增步骤：直接检查数据库购买记录
-        console.log('[HomePage] 1.5. 直接从数据库检查用户购买记录');
-        try {
-          const purchaseResponse = await apiClient.get('/api/purchases/user', { 
-            userId: user.id,
-            _t: Date.now() // 防止缓存
-          });
-          
-          if (purchaseResponse && purchaseResponse.success && Array.isArray(purchaseResponse.data)) {
-            console.log(`[HomePage] 从数据库获取到 ${purchaseResponse.data.length} 条购买记录`);
-            
-            // 处理购买记录并立即更新题库的访问状态
-            if (purchaseResponse.data.length > 0) {
-              // 如果已有题库数据，立即更新它们的访问权限
-              if (questionSets.length > 0) {
-                const now = new Date();
-                const purchaseMap = new Map<string, DatabasePurchaseRecord>();
-                
-                // 创建购买记录的map，便于快速查找
-                purchaseResponse.data.forEach((purchase: DatabasePurchaseRecord) => {
-                  if (!purchase.questionSetId) return;
-                  purchaseMap.set(String(purchase.questionSetId).trim(), purchase);
-                });
-                
-                // 更新题库访问权限
-                setQuestionSets(prevSets => {
-                  return prevSets.map(set => {
-                    const setId = String(set.id).trim();
-                    const purchase = purchaseMap.get(setId);
-                    
-                    // 如果没有此题库的购买记录，保持原状态
-                    if (!purchase) return set;
-                    
-                    console.log(`[HomePage] 检查题库 ${set.title} 的购买记录:`, purchase);
-                    
-                    // 计算过期状态
-                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-                    const isExpired = expiryDate && expiryDate <= now;
-                    const isActive = purchase.status === 'active' || 
-                                    purchase.status === 'completed' || 
-                                    !purchase.status;
-                    
-                    // 计算剩余天数
-                    let remainingDays = null;
-                    if (expiryDate && !isExpired) {
-                      const diffTime = expiryDate.getTime() - now.getTime();
-                      remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    }
-                    
-                    // 确定访问类型
-                    let accessType: AccessType = set.accessType;
-                    let hasAccess = set.hasAccess;
-                    
-                    if (!set.isPaid) {
-                      // 免费题库始终可访问
-                      accessType = 'trial';
-                      hasAccess = true;
-                    } else if (isActive && !isExpired) {
-                      // 有效的购买记录
-                      accessType = purchase.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
-                      hasAccess = true;
-                      
-                      // 更新本地缓存
-                      saveAccessToLocalStorage(
-                        setId, 
-                        true, 
-                        remainingDays, 
-                        purchase.paymentMethod
-                      );
-                      
-                      // 标记为最近更新
-                      setRecentlyUpdatedSets(prev => ({
-                        ...prev,
-                        [setId]: Date.now()
-                      }));
-                    } else if (isExpired) {
-                      // 过期的购买记录
-                      accessType = 'expired';
-                      hasAccess = false;
-                      remainingDays = 0;
-                      
-                      // 更新本地缓存
-                      saveAccessToLocalStorage(
-                        setId, 
-                        false, 
-                        0, 
-                        purchase.paymentMethod
-                      );
-                    }
-                    
-                    // 只有当状态真正改变时才返回新对象
-                    if (set.accessType !== accessType || 
-                        set.hasAccess !== hasAccess || 
-                        set.remainingDays !== remainingDays) {
-                      console.log(`[HomePage] 题库 ${set.title} 状态更新: ${set.accessType} -> ${accessType}`);
-                      return {
-                        ...set,
-                        accessType,
-                        hasAccess,
-                        remainingDays
-                      };
-                    }
-                    
-                    return set;
-                  });
-                });
-              }
-            }
-          } else {
-            console.log('[HomePage] 未获取到购买记录或API请求失败');
-          }
-        } catch (purchaseError) {
-          console.error('[HomePage] 检查数据库购买记录失败:', purchaseError);
-        }
-        
         // 第2步：使用最新的权限信息，获取并处理题库列表
         console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
         await fetchQuestionSets({ forceFresh: true });
         console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
-
-        // 第3步: 对于付费题库再次确认权限状态
-        if (socket && questionSets.length > 0) {
-          console.log('[HomePage] 3. 通过Socket再次检查付费题库权限');
-          const paidSets = questionSets.filter(set => set.isPaid);
-          
-          if (paidSets.length > 0) {
-            socket.emit('questionSet:checkAccessBatch', {
-              userId: user.id,
-              questionSetIds: paidSets.map(set => String(set.id).trim()),
-              source: 'login_confirmation',
-              timestamp: Date.now()
-            });
-          }
-        }
         
-        // 不要再次调用requestAccessStatusForAllQuestionSets，因为fetchQuestionSets已经处理了权限
+        // 第3步：通过socket请求批量权限检查，确保数据一致性
+        if (socket) {
+          console.log('[HomePage] 3. 请求Socket批量权限检查，确保数据一致性');
+          socket.emit('user:syncAccessRights', {
+            userId: user.id,
+            forceRefresh: true,
+            timestamp: Date.now()
+          });
+          
+          // 不立即请求具体题库权限，等待题库列表加载完成后，
+          // 会通过监听questionSets.length变化的useEffect自动触发requestAccessStatusForAllQuestionSets
+        }
       } catch (error) {
         console.error('[HomePage] 登录流程处理出错:', error);
         // Reset the flag on error so we can try again
@@ -1917,7 +1776,313 @@ const HomePage: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [user?.id, syncAccessRights, fetchQuestionSets, questionSets, socket, saveAccessToLocalStorage]);
+  }, [user?.id, syncAccessRights, fetchQuestionSets, socket]); // 移除 questionSets，保留必要稳定的依赖项
+
+  // 提取重复逻辑到独立的统一函数：根据题库和权限数据确定访问状态
+  const determineAccessStatus = useCallback((
+    set: PreparedQuestionSet, 
+    hasAccessValue: boolean | undefined, 
+    remainingDaysValue: number | null,
+    paymentMethodValue?: string
+  ): { 
+    accessType: AccessType, 
+    hasAccess: boolean, 
+    remainingDays: number | null 
+  } => {
+    // 免费题库总是可访问的
+    if (!set.isPaid) {
+      return { 
+        accessType: 'trial', 
+        hasAccess: true, 
+        remainingDays: null 
+      };
+    }
+    
+    // 确保hasAccessValue是布尔值
+    const definitiveAccess = hasAccessValue === true;
+    
+    // 付费题库
+    if (definitiveAccess) {
+      // 有访问权限
+      // 确定访问类型，根据支付方式
+      const accessType = paymentMethodValue === 'redeem' ? 'redeemed' : 'paid';
+      
+      // 检查是否过期
+      if (remainingDaysValue !== null && remainingDaysValue <= 0) {
+        return {
+          accessType: 'expired',
+          hasAccess: true,
+          remainingDays: remainingDaysValue
+        };
+      }
+      
+      return {
+        accessType,
+        hasAccess: true,
+        remainingDays: remainingDaysValue
+      };
+    } else {
+      // 无访问权限，试用状态
+      return {
+        accessType: 'trial',
+        hasAccess: false,
+        remainingDays: null
+      };
+    }
+  }, []);
+
+  // 修改 socket 事件处理程序，使用统一的访问状态判断逻辑
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    
+    console.log('[HomePage] 设置Socket事件监听');
+    
+    // 监听权限更新事件
+    const handleAccessUpdate = (data: any) => {
+      // 过滤不是当前用户的事件
+      if (data.userId !== user.id) return;
+      
+      const now = Date.now();
+      
+      // 防止过于频繁的状态更新 - 使用引用存储数据而不是立即更新状态
+      console.log(`[HomePage] 收到题库 ${data.questionSetId} 权限更新, 来源: ${data.source || '未知'}`);
+      
+      // 更新本地缓存
+      saveAccessToLocalStorage(
+        data.questionSetId, 
+        data.hasAccess, 
+        data.remainingDays,
+        data.paymentMethod || 'unknown'
+      );
+      
+      // 更新Socket数据引用
+      socketDataRef.current[data.questionSetId] = {
+        hasAccess: Boolean(data.hasAccess),
+        remainingDays: data.remainingDays,
+        accessType: data.paymentMethod === 'redeem' ? 'redeemed' : 'paid'
+      };
+      
+      // 使用防抖，合并短时间内的多次更新
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      debounceTimerRef.current = setTimeout(() => {
+        // 仅当有一定间隔(2秒)或累积了多个更新时才触发状态更新
+        if (now - lastSocketUpdateTime.current > 2000 || Object.keys(socketDataRef.current).length > 2) {
+          console.log(`[HomePage] 应用Socket数据更新，更新 ${Object.keys(socketDataRef.current).length} 个题库状态`);
+          
+          // 立即更新题库的UI状态，仅当状态真正变化时
+          setQuestionSets(prevSets => {
+            let hasChanged = false;
+            
+            const updatedSets = prevSets.map(set => {
+              const socketData = socketDataRef.current[set.id];
+              if (socketData) {
+                // 使用统一函数确定访问状态
+                const newStatus = determineAccessStatus(
+                  set,
+                  socketData.hasAccess,
+                  socketData.remainingDays,
+                  socketData.accessType === 'redeemed' ? 'redeem' : 'paid'
+                );
+                
+                // 检查状态是否真的改变了
+                if (set.hasAccess !== newStatus.hasAccess || 
+                    set.accessType !== newStatus.accessType || 
+                    set.remainingDays !== newStatus.remainingDays) {
+                  
+                  console.log(`[HomePage] 题库 "${set.title}" 状态有变化，从 ${set.accessType} -> ${newStatus.accessType}, hasAccess: ${set.hasAccess} -> ${newStatus.hasAccess}`);
+                  hasChanged = true;
+                  
+                  // 标记为最近更新
+                  setRecentlyUpdatedSets(prev => ({
+                    ...prev,
+                    [set.id]: Date.now()
+                  }));
+                  
+                  return {
+                    ...set,
+                    ...newStatus
+                  };
+                }
+              }
+              return set;
+            });
+            
+            // 清空Socket数据引用
+            socketDataRef.current = {};
+            
+            // 仅在有变化时返回新数组，否则返回原数组，避免不必要的重渲染
+            return hasChanged ? updatedSets : prevSets;
+          });
+          
+          lastSocketUpdateTime.current = now;
+        }
+      }, 1000); // 1秒防抖时间
+    };
+    
+    // 监听设备同步事件
+    const handleDeviceSync = (data: any) => {
+      if (data.userId !== user.id) return;
+      
+      console.log("[HomePage] 收到设备同步事件:", data);
+      
+      // 避免重复处理相同设备同步事件
+      const deviceSyncKey = `deviceSync_${data.timestamp || Date.now()}`;
+      const processedSync = sessionStorage.getItem(deviceSyncKey);
+      
+      if (processedSync) {
+        console.log("[HomePage] 此设备同步事件已处理，跳过");
+        return;
+      }
+      
+      // 标记为已处理
+      sessionStorage.setItem(deviceSyncKey, 'true');
+      
+      // 间隔至少30秒才处理设备同步事件
+      const now = Date.now();
+      if (now - lastSocketUpdateTime.current < 30000) {
+        console.log(`[HomePage] 上次Socket操作时间过近 (${(now - lastSocketUpdateTime.current)/1000}秒前)，延迟处理设备同步`);
+        setTimeout(() => {
+          processDeviceSync(data);
+        }, 5000);
+        return;
+      }
+      
+      processDeviceSync(data);
+    };
+    
+    // 处理设备同步的辅助函数
+    const processDeviceSync = (data: any) => {
+      // 设备同步事件要求完整刷新权限和题库列表
+      (async () => {
+        try {
+          // 重置请求标记，允许再次请求权限
+          hasRequestedAccess.current = false;
+          lastSocketUpdateTime.current = Date.now();
+          
+          // 同步最新权限
+          await syncAccessRights();
+          
+          // 刷新题库列表，使用最新数据
+          await fetchQuestionSets({ forceFresh: true });
+          
+          // 请求最新权限状态 - 恢复请求权限，因为这是由设备同步触发的
+          if (questionSets.length > 0) {
+            requestAccessStatusForAllQuestionSets();
+          }
+        } catch (error) {
+          console.error('[HomePage] 处理设备同步事件错误:', error);
+        }
+      })();
+    };
+    
+    // 修改 handleBatchAccessResult 函数使用统一的访问状态判断逻辑
+    const handleBatchAccessResult = (data: any) => {
+      if (data.userId !== user?.id || !Array.isArray(data.results)) return;
+      
+      const now = Date.now();
+      console.log(`[HomePage] 收到批量访问检查结果: ${data.results.length} 个题库, 来源: ${data.source || '未知'}`);
+      
+      // 使用检查时间戳防止过期数据覆盖新数据
+      if (data.timestamp && data.timestamp < lastSocketUpdateTime.current) {
+        console.log(`[HomePage] 收到的批量检查结果已过期，跳过处理`);
+        return;
+      }
+      
+      // 更新Socket数据引用而不是立即更新状态
+      data.results.forEach((result: any) => {
+        const questionSetId = String(result.questionSetId).trim();
+        socketDataRef.current[questionSetId] = {
+          hasAccess: Boolean(result.hasAccess),
+          remainingDays: result.remainingDays,
+          accessType: result.paymentMethod === 'redeem' ? 'redeemed' : 'paid'
+        };
+        
+        // 更新本地缓存
+        saveAccessToLocalStorage(
+          questionSetId,
+          result.hasAccess,
+          result.remainingDays,
+          result.paymentMethod || 'unknown'
+        );
+      });
+      
+      // 使用防抖，合并短时间内的多次更新
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      debounceTimerRef.current = setTimeout(() => {
+        // 更新题库状态，增加变化检测逻辑
+        setQuestionSets(prevSets => {
+          let hasChanged = false;
+          
+          const updatedSets = prevSets.map(set => {
+            const socketData = socketDataRef.current[set.id];
+            if (socketData) {
+              // 使用统一函数确定访问状态
+              const newStatus = determineAccessStatus(
+                set,
+                socketData.hasAccess,
+                socketData.remainingDays,
+                socketData.accessType === 'redeemed' ? 'redeem' : 'paid'
+              );
+              
+              // 只有在状态真正变化时才更新
+              if (set.hasAccess !== newStatus.hasAccess || 
+                  set.accessType !== newStatus.accessType || 
+                  set.remainingDays !== newStatus.remainingDays) {
+                
+                console.log(`[HomePage] 题库状态有变化: ${set.accessType} -> ${newStatus.accessType}, hasAccess: ${set.hasAccess} -> ${newStatus.hasAccess}`);
+                hasChanged = true;
+                
+                // 标记为最近更新
+                setRecentlyUpdatedSets(prev => ({
+                  ...prev,
+                  [set.id]: Date.now()
+                }));
+                
+                // 返回更新后的题库对象
+                return {
+                  ...set,
+                  ...newStatus
+                };
+              }
+            }
+            
+            return set;
+          });
+          
+          // 清空Socket数据引用
+          socketDataRef.current = {};
+          
+          // 只有在实际有变化时才返回新数组，避免不必要的重渲染
+          return hasChanged ? updatedSets : prevSets;
+        });
+        
+        lastSocketUpdateTime.current = now;
+      }, 1000); // 1秒防抖时间
+    };
+    
+    // 注册Socket事件监听
+    socket.on('questionSet:accessUpdate', handleAccessUpdate);
+    socket.on('user:deviceSync', handleDeviceSync);
+    socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
+    
+    return () => {
+      // 清理事件监听
+      socket.off('questionSet:accessUpdate', handleAccessUpdate);
+      socket.off('user:deviceSync', handleDeviceSync);
+      socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
+      
+      // 清理定时器
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets, determineAccessStatus]); // 移除 questionSets.length
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
   useEffect(() => {
