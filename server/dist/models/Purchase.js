@@ -34,7 +34,8 @@ Purchase.init({
         references: {
             model: 'users',
             key: 'id'
-        }
+        },
+        onDelete: 'CASCADE'
     },
     questionSetId: {
         type: sequelize_1.DataTypes.UUID,

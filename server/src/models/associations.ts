@@ -56,16 +56,20 @@ export const setupAssociations = () => {
     as: 'progressQuestionSet'
   });
 
-  // User 和 Purchase 的关联
+  // User 和 Purchase 的关联 - 明确设置onDelete为CASCADE
   User.hasMany(Purchase, {
-    foreignKey: 'userId',
-    as: 'userPurchaseRecords',
-    onDelete: 'CASCADE'
+    foreignKey: 'user_id',  // 确保使用正确的列名
+    sourceKey: 'id',
+    as: 'userPurchases',    // 使用一致的关联名
+    onDelete: 'CASCADE',    // 明确指定CASCADE删除
+    hooks: true             // 启用钩子以确保CASCADE正常工作
   });
 
   Purchase.belongsTo(User, {
-    foreignKey: 'userId',
-    as: 'user'
+    foreignKey: 'user_id',  // 确保使用正确的列名
+    targetKey: 'id',
+    as: 'user',
+    onDelete: 'CASCADE'     // 确保双向关联都是CASCADE
   });
 
   // Purchase 和 QuestionSet 的关联

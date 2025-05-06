@@ -38,7 +38,8 @@ Purchase.init(
       references: {
         model: 'users',
         key: 'id'
-      }
+      },
+      onDelete: 'CASCADE'
     },
     questionSetId: {
       type: DataTypes.UUID,
