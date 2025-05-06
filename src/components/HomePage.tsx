@@ -198,11 +198,11 @@ export const saveAccessToLocalStorage = (
   try {
     const key = `access_${questionSetId}`;
     const value = JSON.stringify({
-      hasAccess,
+        hasAccess,
       userId,
-      remainingDays,
+        remainingDays,
       paymentMethod,
-      timestamp: Date.now()
+        timestamp: Date.now()
     });
     localStorage.setItem(key, value);
     console.log(`[HomePage] Saved access data to localStorage: ${questionSetId}, hasAccess=${hasAccess}`);
@@ -407,6 +407,7 @@ const HomePage: React.FC = () => {
     // 记录关键信息以方便调试
     console.log(`[HomePage] fetchQuestionSets 使用的用户ID: ${currentUserId}`);
     console.log(`[HomePage] 当前保存的引用用户ID: ${currentUserIdRef.current}`);
+    console.log(`[HomePage] 当前题库列表数量: ${questionSets.length}`);
     
     // 验证用户ID一致性
     if (currentUserId !== currentUserIdRef.current) {
@@ -441,14 +442,14 @@ const HomePage: React.FC = () => {
       console.log(`[HomePage] 上次请求在 ${(now - lastFetchTimeRef.current)/1000}秒前，跳过请求`);
       setLoading(false); // Make sure to set loading to false when skipping
       clearTimeout(loadingTimeoutRef.current);
-      return questionSets;
+      return [];
     }
     
     // 防止并发请求
     if (pendingFetchRef.current) {
       console.log(`[HomePage] 有请求正在进行中，跳过重复请求`);
       // Don't set loading to false here to maintain the loading indicator
-      return questionSets;
+      return [];
     }
     
     try {
@@ -472,7 +473,7 @@ const HomePage: React.FC = () => {
         signal: options.signal
       });
       
-      console.log(`[HomePage] API响应:`, response);
+      console.log(`[HomePage] API响应状态:`, response?.success);
       
       // 请求完成后保存最后请求时间
       lastFetchTimeRef.current = now;
@@ -481,7 +482,7 @@ const HomePage: React.FC = () => {
       if (options.signal?.aborted) {
         console.log('[HomePage] 请求已被中止');
         pendingFetchRef.current = false;
-        return questionSets;
+        return [];
       }
       
       // 改进的响应处理，支持取消请求
@@ -490,7 +491,7 @@ const HomePage: React.FC = () => {
         setLoading(false);
         clearTimeout(loadingTimeoutRef.current);
         pendingFetchRef.current = false;
-        return questionSets;
+        return [];
       }
       
       // 处理响应数据
@@ -533,12 +534,12 @@ const HomePage: React.FC = () => {
             remainingDays,
             paymentMethod
           );
-          
-          return {
-            ...set,
+      
+      return {
+        ...set,
             questionCount,
             hasAccess: finalHasAccess,
-            accessType,
+        accessType,
             remainingDays,
             paymentMethod,
             validityPeriod: set.validityPeriod || 180 // 默认有效期为180天
@@ -564,7 +565,7 @@ const HomePage: React.FC = () => {
         setErrorMessage(errorMsg);
         setLoading(false);
         clearTimeout(loadingTimeoutRef.current);
-        return questionSets;
+        return [];
       }
     } catch (error) {
       console.error('[HomePage] 获取题库列表失败:', error);
@@ -576,11 +577,11 @@ const HomePage: React.FC = () => {
       setErrorMessage(errorMsg);
       setLoading(false);
       clearTimeout(loadingTimeoutRef.current);
-      return questionSets;
+      return [];
     } finally {
       pendingFetchRef.current = false;
     }
-  }, [user, questionSets, determineAccessStatus, calculateQuestionCount]);
+  }, [user, determineAccessStatus, calculateQuestionCount]);
 
   // 重置网络状态
   const resetNetworkState = useCallback(() => {
@@ -1250,8 +1251,8 @@ const HomePage: React.FC = () => {
               // Check if this access entry belongs to current user
               if (accessData.userId === user.id) {
                 const { questionSetId, hasAccess, remainingDays } = accessData;
-                
-                if (questionSetId && hasAccess !== undefined) {
+        
+        if (questionSetId && hasAccess !== undefined) {
                   console.log(`[HomePage] Found access in localStorage: questionSetId=${questionSetId}, hasAccess=${hasAccess}`);
                   
                   // Update question set access in state
@@ -1264,9 +1265,9 @@ const HomePage: React.FC = () => {
                             remainingDays: remainingDays || null,
                             recentlyUpdated: true 
                           } 
-                        : set
-                    )
-                  );
+                : set
+            )
+          );
                 }
               }
             } catch (err) {
@@ -1442,10 +1443,10 @@ const HomePage: React.FC = () => {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Skeleton active paragraph={{ rows: 10 }} />
-      </div>
-    );
-  }
-
+                </div>
+              );
+            }
+            
   // Add a useEffect hook to fetch question sets when the component mounts
   useEffect(() => {
     console.log('[HomePage] Component mounted, fetching question sets...');
@@ -1455,7 +1456,7 @@ const HomePage: React.FC = () => {
     abortControllerRef.current = controller;
     
     // Fetch question sets with the abort signal
-    fetchQuestionSets({ signal: controller.signal })
+    fetchQuestionSets({ signal: controller.signal, forceFresh: true })
       .then(sets => {
         console.log(`[HomePage] Successfully fetched ${sets.length} question sets`);
       })
@@ -1471,7 +1472,12 @@ const HomePage: React.FC = () => {
       console.log('[HomePage] Unmounting component, aborting fetch requests');
       controller.abort('Component unmounting');
     };
-  }, [fetchQuestionSets]); // Add fetchQuestionSets as a dependency
+  }, [fetchQuestionSets]); // Keep fetchQuestionSets as a dependency, which now has stable dependencies
+
+  // Add additional useEffect to monitor state changes for debugging
+  useEffect(() => {
+    console.log(`[HomePage] Question sets state updated: ${questionSets.length} sets available`);
+  }, [questionSets.length]);
 
   // Return a simplified component structure for debugging
   return (
@@ -1495,6 +1501,13 @@ const HomePage: React.FC = () => {
           )}
         </div>
         
+        {/* Add examCountdown component here if it should be displayed */}
+        {user && !loading && questionSets.length > 0 && (
+          <div className="mb-6">
+            <ExamCountdownWidget />
+          </div>
+        )}
+        
         {/* Loading state */}
         {loading ? (
           <div className="flex justify-center items-center py-20">
@@ -1504,26 +1517,44 @@ const HomePage: React.FC = () => {
           <>
             {/* Question set grid */}
             {questionSets.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {getFilteredQuestionSets().map((set: PreparedQuestionSet) => (
-                  <div key={set.id} className="bg-white shadow-md rounded-lg p-4">
-                    <h2 className="text-lg font-semibold">{set.title}</h2>
-                    <p className="text-sm text-gray-600 mt-1">{set.description}</p>
-                    <div className="mt-4">
-                      <button
-                        onClick={() => handleStartQuiz(set)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md"
-                      >
-                        {set.hasAccess ? "开始答题" : "查看详情"}
-                      </button>
-                    </div>
+              <>
+                {/* Categories filtering - simplified for now */}
+                <div className="mb-6">
+                  <div className="flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => setActiveCategory('all')}
+                      className={`px-3 py-1 rounded-full text-sm ${activeCategory === 'all' ? 
+                        'bg-blue-500 text-white' : 
+                        'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    >
+                      全部题库
+                    </button>
+                    {/* You can add more category buttons here */}
                   </div>
-                ))}
-              </div>
+                </div>
+                
+                {/* Grid of question set cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {getFilteredQuestionSets().map((set: PreparedQuestionSet) => (
+                    <BaseCard
+                      key={set.id}
+                      set={set}
+                      onStartQuiz={handleStartQuiz}
+                    />
+                  ))}
+                </div>
+                
+                {/* Show message when filtered results are empty */}
+                {getFilteredQuestionSets().length === 0 && (
+                  <div className="text-center py-10">
+                    <p className="text-lg text-gray-500">当前分类下没有题库</p>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-10">
                 <p className="text-lg text-gray-500">
-                  {errorMessage ? '加载失败，请尝试刷新页面' : '没有找到匹配的题库'}
+                  {errorMessage ? '加载失败，请尝试刷新页面' : '没有找到题库'}
                 </p>
                 <button 
                   onClick={() => {
