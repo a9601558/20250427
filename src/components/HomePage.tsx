@@ -116,6 +116,8 @@ const HomePage: React.FC = () => {
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
+  // Add hasRequestedAccess ref to track if access has been requested
+  const hasRequestedAccess = useRef<boolean>(false);
 
   // 切换分类
   const handleCategoryChange = (category: string) => {
@@ -1347,8 +1349,8 @@ const HomePage: React.FC = () => {
   }, [user?.id, saveAccessToLocalStorage]);
 
   // 添加请求状态跟踪
-  const hasRequestedAccess = useRef<boolean>(false);
-
+  // Remove the duplicate declaration of hasRequestedAccess here
+  
   // 向服务器请求所有题库的最新访问权限状态
   const requestAccessStatusForAllQuestionSets = useCallback((sets: PreparedQuestionSet[] = []) => {
     if (!socket || !user?.id) return;
@@ -1388,7 +1390,6 @@ const HomePage: React.FC = () => {
     
     // 方式2已移除，只保留批量检查
   }, [socket, user?.id, questionSets]);
-
 
   // 优化Socket通信 - 接收权限更新和设备同步事件
   useEffect(() => {
@@ -1666,84 +1667,48 @@ const HomePage: React.FC = () => {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets, questionSets.length]);
+  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets]); // Remove questionSets.length from dependencies
 
   // 登录状态变化后重新获取题库数据
   useEffect(() => {
-    if (user?.id) {
-      console.log('[HomePage] 用户登录事件触发，开始处理登录流程');
-      
-      // 防止多次触发 - 使用sessionStorage标记
-      const loginKey = `user_login_${user.id}_${Date.now()}`;
-      const processedLogin = sessionStorage.getItem(loginKey);
-      
-      if (processedLogin) {
-        console.log('[HomePage] 此登录事件已处理，跳过');
-        return;
-      }
-      
-      // 标记为已处理
-      sessionStorage.setItem(loginKey, 'true');
-      
-      // 重置请求标记，允许在新登录时请求权限
+    if (!user?.id) {
+      // Reset the flag when user logs out
       hasRequestedAccess.current = false;
-      lastSocketUpdateTime.current = 0;
-      
-      // 完全重写登录流程，按顺序执行，避免竞态条件
-      (async () => {
-        try {
-          // 第1步：通过syncAccessRights同步最新权限数据
-          console.log('[HomePage] 1. 开始同步访问权限数据');
-          await syncAccessRights();
-          console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
-          
-          // 确保有足够的间隔
-          await new Promise(resolve => setTimeout(resolve, 800));
-          
-          // 第2步：使用最新的权限信息，获取并处理题库列表
-          console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
-          const freshSets = await fetchQuestionSets({ forceFresh: true });
-          console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
-          
-          // 确保有足够的间隔
-          await new Promise(resolve => setTimeout(resolve, 1200));
-          
-          // 第3步：向服务器请求各题库的最新访问权限状态，使用防抖处理多次更新
-          console.log('[HomePage] 3. 向服务器请求各题库的最新权限状态');
-          if (freshSets && freshSets.length > 0 && !hasRequestedAccess.current) {
-            requestAccessStatusForAllQuestionSets(freshSets);
-          }
-          
-          // 确保有足够的间隔
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // 第4步：通知其他组件用户已登录
-          console.log('[HomePage] 4. 发送用户登录事件');
-          window.dispatchEvent(new CustomEvent('user:loggedIn', {
-            detail: {
-              userId: user.id,
-              timestamp: Date.now()
-            }
-          }));
-          
-          // 确保有足够的间隔
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // 第5步：如果有socket连接，检查其他设备同步，仅在所有操作完成后执行
-          if (socket) {
-            console.log('[HomePage] 5. 发送设备同步请求');
-            socket.emit('user:requestDeviceSync', {
-              userId: user.id,
-              deviceInfo: navigator.userAgent,
-              timestamp: Date.now()
-            });
-          }
-        } catch (error) {
-          console.error('[HomePage] 登录流程处理错误:', error);
-        }
-      })();
+      return;
     }
-  }, [user?.id, syncAccessRights, fetchQuestionSets, socket, requestAccessStatusForAllQuestionSets]);
+    
+    console.log('[HomePage] 用户登录事件触发，开始处理登录流程');
+    
+    // 防止多次触发 - 使用ref标记代替sessionStorage
+    if (hasRequestedAccess.current) {
+      console.log('[HomePage] 已在处理登录流程，跳过重复请求');
+      return;
+    }
+    
+    // 标记为已处理
+    hasRequestedAccess.current = true;
+    
+    // 完全重写登录流程，按顺序执行，避免竞态条件
+    (async () => {
+      try {
+        // 第1步：通过syncAccessRights同步最新权限数据
+        console.log('[HomePage] 1. 开始同步访问权限数据');
+        await syncAccessRights();
+        console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
+        
+        // 第2步：使用最新的权限信息，获取并处理题库列表
+        console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
+        await fetchQuestionSets({ forceFresh: true });
+        console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
+        
+        // 不要再次调用requestAccessStatusForAllQuestionSets，因为fetchQuestionSets已经处理了权限
+      } catch (error) {
+        console.error('[HomePage] 登录流程处理出错:', error);
+        // Reset the flag on error so we can try again
+        hasRequestedAccess.current = false;
+      }
+    })();
+  }, [user?.id, syncAccessRights, fetchQuestionSets]);
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
   useEffect(() => {
@@ -1800,6 +1765,31 @@ const HomePage: React.FC = () => {
       console.warn('[HomePage] 已中断可能的无限循环，暂停操作5秒');
     }
   }, [user?.id]);
+
+  // 添加监听题库更新的useEffect
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+      // Only log if we're not already requesting access
+      if (!hasRequestedAccess.current) {
+        console.log('[HomePage] 题库列表更新，可能需要请求最新权限状态');
+        
+        // Only make an access request if all conditions are met and we haven't recently made a request
+        const now = Date.now();
+        if (user?.id && socket && questionSets.length > 0 && 
+            !hasRequestedAccess.current && 
+            now - lastSocketUpdateTime.current > 15000) { // Add a time threshold (15 seconds)
+          requestAccessStatusForAllQuestionSets();
+        } else {
+          console.log('[HomePage] 跳过权限请求: 最近已请求过或条件不满足');
+        }
+      } else {
+        console.log('[HomePage] 题库列表更新，但已有请求正在进行，跳过');
+      }
+    } else {
+      console.log('[HomePage] 初次加载，跳过权限检查');
+      isInitialLoad.current = false;
+    }
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
 
   if (loading) {
     return (
