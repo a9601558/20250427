@@ -1020,6 +1020,215 @@ const HomePage: React.FC = () => {
     };
   }, [socket, user?.id, syncAccessRights, fetchQuestionSets]);
 
+  // 添加直接从API获取购买记录的函数
+  const fetchPurchaseRecords = useCallback(async () => {
+    if (!user?.id) return [];
+    
+    try {
+      console.log('[HomePage] 直接从API获取用户购买记录');
+      const response = await apiClient.get('/api/purchases/user', undefined, {
+        cacheDuration: 0, // 不使用缓存，确保获取最新数据
+      });
+      
+      if (response && response.success && Array.isArray(response.data)) {
+        console.log(`[HomePage] 成功获取 ${response.data.length} 条购买记录`);
+        return response.data;
+      } else {
+        console.error('[HomePage] 获取购买记录返回格式错误:', response);
+        return [];
+      }
+    } catch (error) {
+      console.error('[HomePage] 获取购买记录失败:', error);
+      return [];
+    }
+  }, [user?.id]);
+
+  // 添加根据购买记录立即更新题库状态的函数
+  const updateQuestionSetsFromPurchases = useCallback((purchases: any[]) => {
+    if (!purchases.length) return;
+    
+    console.log(`[HomePage] 根据 ${purchases.length} 条购买记录更新题库状态`);
+    
+    setQuestionSets(prevSets => {
+      // 创建一个购买记录的映射，方便查找
+      const purchaseMap = new Map();
+      purchases.forEach(purchase => {
+        const qsId = String(purchase.questionSetId || '').trim();
+        if (qsId) {
+          purchaseMap.set(qsId, purchase);
+        }
+      });
+      
+      // 更新每个题库的状态
+      return prevSets.map(set => {
+        const setId = String(set.id).trim();
+        const purchase = purchaseMap.get(setId);
+        
+        // 如果没有找到购买记录，保持原状态
+        if (!purchase) return set;
+        
+        console.log(`[HomePage] 发现题库 "${set.title}" 的购买记录`);
+        
+        // 检查购买记录是否有效
+        const now = new Date();
+        const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
+        const isExpired = expiryDate && expiryDate <= now;
+        const isActive = !isExpired && 
+                        (purchase.status === 'active' || 
+                         purchase.status === 'completed' || 
+                         !purchase.status);
+        
+        // 计算剩余天数
+        let remainingDays = null;
+        if (expiryDate && !isExpired) {
+          const diffTime = expiryDate.getTime() - now.getTime();
+          remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+        
+        // 确定购买类型
+        const accessType: AccessType = purchase.paymentMethod === 'redeem' ? 'redeemed' : 'paid';
+        
+        // 如果购买有效，更新状态并保存到本地缓存
+        if (isActive) {
+          // 更新本地缓存
+          if (user?.id) {
+            saveAccessToLocalStorage(setId, true, remainingDays);
+          }
+          
+          // 标记为最近更新
+          setRecentlyUpdatedSets(prev => ({
+            ...prev,
+            [setId]: Date.now()
+          }));
+          
+          // 返回更新后的题库对象
+          return {
+            ...set,
+            hasAccess: true,
+            accessType,
+            remainingDays
+          };
+        }
+        
+        // 如果购买已过期，标记为过期
+        if (isExpired) {
+          return {
+            ...set,
+            hasAccess: false,
+            accessType: 'expired',
+            remainingDays: 0
+          };
+        }
+        
+        return set;
+      });
+    });
+  }, [user?.id, saveAccessToLocalStorage]);
+
+  // 增强登录后的行为，立即从数据库获取购买信息
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[HomePage] 用户登录，立即从数据库获取购买信息');
+      
+      // 先同步访问权限
+      syncAccessRights().then(() => {
+        // 然后直接从API获取最新购买记录
+        fetchPurchaseRecords().then(purchases => {
+          if (purchases.length > 0) {
+            // 立即根据购买记录更新题库状态
+            updateQuestionSetsFromPurchases(purchases);
+            
+            // 然后再获取完整的题库列表（作为备份）
+            setTimeout(() => {
+              fetchQuestionSets();
+            }, 2000);
+          } else {
+            // 如果没有获取到购买记录，则直接刷新题库列表
+            fetchQuestionSets();
+          }
+        });
+        
+        // 触发全局事件，通知其他组件用户已登录
+        window.dispatchEvent(new CustomEvent('user:loggedIn', {
+          detail: {
+            userId: user.id,
+            timestamp: Date.now()
+          }
+        }));
+      });
+    }
+  }, [user?.id, syncAccessRights, fetchPurchaseRecords, updateQuestionSetsFromPurchases, fetchQuestionSets]);
+
+  // 添加专门处理后端批量访问检查结果的处理器
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    
+    // 监听批量访问检查结果
+    const handleBatchAccessResult = (data: any) => {
+      console.log("[HomePage] 收到批量访问检查结果:", data);
+      
+      if (data.userId === user.id && Array.isArray(data.results)) {
+        // 更新题库状态
+        setQuestionSets(prevSets => {
+          return prevSets.map(set => {
+            // 在结果中查找当前题库
+            const result = data.results.find((r: any) => 
+              String(r.questionSetId).trim() === String(set.id).trim()
+            );
+            
+            // 如果找到了结果且有访问权限，更新题库状态
+            if (result && result.hasAccess) {
+              console.log(`[HomePage] 批量检查结果: 题库 ${set.title} 有访问权限`);
+              
+              // 标记为最近更新
+              setRecentlyUpdatedSets(prev => ({
+                ...prev,
+                [set.id]: Date.now()
+              }));
+              
+              // 保存到本地缓存
+              if (user?.id) {
+                saveAccessToLocalStorage(set.id, true, result.remainingDays);
+              }
+              
+              // 返回更新后的题库对象
+              return {
+                ...set,
+                hasAccess: true,
+                accessType: result.paymentMethod === 'redeem' ? 'redeemed' : 'paid',
+                remainingDays: result.remainingDays || set.remainingDays
+              };
+            }
+            
+            return set;
+          });
+        });
+      }
+    };
+    
+    // 注册Socket事件监听
+    socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
+    
+    return () => {
+      socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
+    };
+  }, [socket, user?.id, saveAccessToLocalStorage]);
+
+  // 在组件挂载时直接检查已登录用户的购买记录
+  useEffect(() => {
+    if (user?.id && questionSets.length > 0) {
+      console.log('[HomePage] 组件挂载且用户已登录，检查购买记录');
+      
+      // 直接从API获取最新购买记录
+      fetchPurchaseRecords().then(purchases => {
+        if (purchases.length > 0) {
+          // 立即根据购买记录更新题库状态
+          updateQuestionSetsFromPurchases(purchases);
+        }
+      });
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
