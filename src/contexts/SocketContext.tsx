@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { 
   initializeSocket, 
@@ -9,7 +9,6 @@ import {
   stopHeartbeat,
   attemptReconnect
 } from '../config/socket';
-import { useUser } from './UserContext';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -21,9 +20,11 @@ interface SocketContextType {
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, userChangeEvent } = useUser();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
+  
+  // Add refs to track current user details without depending on UserContext
+  const currentUserIdRef = useRef<string | null>(null);
   
   // 在组件挂载时初始化Socket
   useEffect(() => {
@@ -45,6 +46,23 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     socketInstance.on('connect', handleConnect);
     socketInstance.on('disconnect', handleDisconnect);
     
+    // Try to initialize with existing token
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (token && storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        if (userData && userData.id) {
+          currentUserIdRef.current = userData.id;
+          authenticateUser(userData.id, token);
+          console.log(`[SocketContext] 使用存储的用户信息初始化: userId=${userData.id}`);
+        }
+      } catch (e) {
+        console.error('[SocketContext] 解析存储的用户信息失败', e);
+      }
+    }
+    
     // 组件卸载时清理
     return () => {
       console.log('[SocketContext] 清理Socket提供者');
@@ -54,26 +72,43 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
   }, []);
   
-  // 监听用户变更事件
+  // Listen for user change events via DOM events instead of React context
   useEffect(() => {
-    if (!socket || !userChangeEvent) return;
-    
-    console.log(`[SocketContext] 检测到用户变更事件: 用户=${userChangeEvent.userId}, 类型=${userChangeEvent.type}`);
-    
-    // 根据用户变更类型处理Socket连接
-    if (userChangeEvent.type === 'login' && userChangeEvent.userId) {
-      // 登录 - 使用新用户认证
-      const token = localStorage.getItem('token');
-      if (token) {
-        console.log(`[SocketContext] 用户登录，使用新凭据认证Socket: ${userChangeEvent.userId}`);
-        authenticateUser(userChangeEvent.userId, token);
+    // Handler for user login/change events
+    const handleUserChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        userId: string | null;
+        type?: 'login' | 'logout' | 'access_rights_updated' | 'user_updated';
+        timestamp: number;
+      }>;
+      
+      const { userId, type, timestamp } = customEvent.detail || {};
+      
+      if (!socket) return;
+      
+      console.log(`[SocketContext] 收到用户变更事件: userId=${userId}, type=${type}, timestamp=${timestamp}`);
+      
+      if (type === 'login' && userId) {
+        const token = localStorage.getItem('token');
+        if (token) {
+          currentUserIdRef.current = userId;
+          authenticateUser(userId, token);
+          console.log(`[SocketContext] 用户登录认证: ${userId}`);
+        }
+      } else if (type === 'logout') {
+        deauthenticateSocket();
+        currentUserIdRef.current = null;
+        console.log('[SocketContext] 用户登出，清除认证');
       }
-    } else if (userChangeEvent.type === 'logout') {
-      // 登出 - 清除认证并断开
-      console.log('[SocketContext] 用户登出，清除Socket认证');
-      deauthenticateSocket();
-    }
-  }, [socket, userChangeEvent]);
+    };
+    
+    // Create a custom event for listening to user changes
+    window.addEventListener('user:change', handleUserChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('user:change', handleUserChange as EventListener);
+    };
+  }, [socket]);
   
   // 监听全局Socket重置事件
   useEffect(() => {
@@ -85,6 +120,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       
       if (userId && token) {
         console.log(`[SocketContext] 收到Socket重置事件: 用户=${userId}`);
+        currentUserIdRef.current = userId;
         authenticateUser(userId, token);
       }
     };
@@ -93,33 +129,54 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (!socket) return;
       console.log('[SocketContext] 收到Socket断开事件');
       deauthenticateSocket();
+      currentUserIdRef.current = null;
+    };
+    
+    // Listen for access update events
+    const handleAccessUpdate = (event: Event) => {
+      if (!socket) return;
+      
+      const customEvent = event as CustomEvent<{
+        userId: string;
+        questionSetId: string;
+        hasAccess: boolean;
+        purchaseId?: string;
+        expiryDate?: string;
+      }>;
+      
+      const { userId, questionSetId, hasAccess, purchaseId, expiryDate } = customEvent.detail || {};
+      
+      if (userId && questionSetId) {
+        console.log(`[SocketContext] 收到访问更新事件: 用户=${userId}, 题库=${questionSetId}, 权限=${hasAccess}`);
+        
+        // Forward to socket events
+        socket.emit('questionSet:accessUpdate', {
+          userId,
+          questionSetId,
+          hasAccess
+        });
+        
+        if (purchaseId) {
+          socket.emit('purchase:success', {
+            userId,
+            questionSetId,
+            purchaseId,
+            expiryDate
+          });
+        }
+      }
     };
     
     window.addEventListener('socket:reset', handleSocketReset as EventListener);
     window.addEventListener('socket:disconnect', handleSocketDisconnect);
+    window.addEventListener('access:update', handleAccessUpdate as EventListener);
     
     return () => {
       window.removeEventListener('socket:reset', handleSocketReset as EventListener);
       window.removeEventListener('socket:disconnect', handleSocketDisconnect);
+      window.removeEventListener('access:update', handleAccessUpdate as EventListener);
     };
   }, [socket]);
-  
-  // 确保当前用户和Socket认证匹配
-  useEffect(() => {
-    if (!socket || !user) return;
-    
-    const token = localStorage.getItem('token');
-    if (user.id && token) {
-      // 获取当前Socket认证信息
-      const currentAuth = (socket as any).auth || {};
-      
-      // 如果Socket认证的用户ID与当前用户不匹配，重新认证
-      if (currentAuth.userId !== user.id) {
-        console.log(`[SocketContext] Socket认证用户(${currentAuth.userId || 'none'})与当前用户(${user.id})不匹配，重新认证`);
-        authenticateUser(user.id, token);
-      }
-    }
-  }, [socket, user]);
   
   // 提供重连方法
   const reconnect = () => {
@@ -127,11 +184,11 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     console.log('[SocketContext] 手动重连Socket');
     
-    // 如果已有用户，重新认证
-    if (user?.id) {
+    // 如果有用户ID，重新认证
+    if (currentUserIdRef.current) {
       const token = localStorage.getItem('token');
       if (token) {
-        authenticateUser(user.id, token);
+        authenticateUser(currentUserIdRef.current, token);
       }
     }
     

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import Layout from './components/Layout';
@@ -13,11 +13,19 @@ import RedeemCodeAdmin from './components/RedeemCodeAdmin';
 import { SocketProvider } from './contexts/SocketContext';
 import { ToastContainer } from 'react-toastify';
 import { UserProgressProvider } from './contexts/UserProgressContext';
+import 'react-toastify/dist/ReactToastify.css';
+
+// Create a standalone SocketProviderWithoutUser component that doesn't depend on UserContext
+const SocketProviderWrapper: React.FC<{children: ReactNode}> = ({ children }) => {
+  // This is a wrapper that doesn't use the useUser hook internally
+  return <SocketProvider>{children}</SocketProvider>;
+};
 
 const App: React.FC = () => {
   return (
-    <UserProvider>
-      <SocketProvider>
+    // Use a different provider order to break circular dependency
+    <SocketProviderWrapper>
+      <UserProvider>
         <UserProgressProvider>
           <Router>
             <Layout>
@@ -54,8 +62,8 @@ const App: React.FC = () => {
             pauseOnHover
           />
         </UserProgressProvider>
-      </SocketProvider>
-    </UserProvider>
+      </UserProvider>
+    </SocketProviderWrapper>
   );
 };
 

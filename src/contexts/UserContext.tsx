@@ -1,10 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
-import { initializeSocket, authenticateUser } from '../config/socket';
-import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
-import { userProgressService } from '../services/UserProgressService';
 import { toast } from 'react-toastify';
 
 // 添加事件类型定义
@@ -88,119 +85,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const lastNotifyTimeRef = useRef<number>(0);
   // 添加当前用户ID引用，用于比较
   const prevUserIdRef = useRef<string | null>(null);
-  const { socket } = useSocket();
+  
+  // Remove socket reference, it will be injected by SocketProvider
+  // const { socket } = useSocket();
 
-  // 修改通知用户变化的函数
-  const notifyUserChange = useCallback((newUser: User | null, eventDetails?: Partial<UserChangeEvent>) => {
-    // 获取新用户ID
-    const newUserId = newUser?.id || null;
-    // 获取当前时间
-    const now = Date.now();
-    
-    // 确定事件类型
-    let eventType: UserChangeEvent['type'];
-    if (!newUserId && prevUserIdRef.current) {
-      eventType = 'logout';
-    } else if (newUserId && !prevUserIdRef.current) {
-      eventType = 'login';
-    } else if (eventDetails?.type) {
-      eventType = eventDetails.type;
-    } else {
-      eventType = 'user_updated';
-    }
-    
-    // 如果与上次通知的用户ID相同且时间间隔小于500ms，则忽略此次通知
-    // 除非是特殊事件类型（如权限更新）
-    if (newUserId === prevUserIdRef.current && 
-        now - lastNotifyTimeRef.current < 500 && 
-        eventType !== 'access_rights_updated') {
-      console.log(`[UserContext] 忽略重复的用户变更通知: ${newUserId} (${eventType})`);
-      return;
-    }
-    
-    // 更新上次通知时间和用户ID
-    lastNotifyTimeRef.current = now;
-    const oldUserId = prevUserIdRef.current;
-    prevUserIdRef.current = newUserId;
-    
-    // 触发事件
-    console.log(`[UserContext] 发送用户变更通知: ${oldUserId} -> ${newUserId}, 类型: ${eventType}`);
-    
-    // 创建详细的变更事件
-    const fullEvent: UserChangeEvent = {
-      userId: newUserId,
-      timestamp: now,
-      type: eventType,
-      ...eventDetails
-    };
-    
-    // 如果用户ID变化，重置Socket连接
-    if (oldUserId !== newUserId && (eventType === 'login' || eventType === 'logout')) {
-      // 处理Socket连接，在单独的useEffect中进行，避免依赖循环
-      if (newUserId) {
-        // 保存token以方便在外部调用
-        const token = localStorage.getItem('token');
-        console.log(`[UserContext] 用户变更重置Socket连接: ${oldUserId} -> ${newUserId}`);
-        
-        // 以下代码不直接调用Socket函数，而是触发一个自定义事件
-        // Socket连接的管理在SocketContext中处理
-        const socketResetEvent = new CustomEvent('socket:reset', {
-          detail: { userId: newUserId, token }
-        });
-        window.dispatchEvent(socketResetEvent);
-      } else {
-        // 如果是登出，触发Socket断开事件
-        const socketDisconnectEvent = new CustomEvent('socket:disconnect');
-        window.dispatchEvent(socketDisconnectEvent);
-      }
-    }
-    
-    // 触发用户变更事件
-    setUserChangeEvent(fullEvent);
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetchCurrentUser();
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  // 初始化Socket.IO连接并处理实时进度更新及获取初始进度
-  useEffect(() => {
-    if (!user) return;
-
-    // 使用防抖，确保socket只初始化一次
-    const timer = setTimeout(() => {
-    const socket = initializeSocket();
-    authenticateUser(user.id, localStorage.getItem('token') || '');
-    
-    socket.on('progress:update', (data: ProgressUpdateEvent) => {
-      setUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          progress: {
-            ...prev.progress,
-            [data.questionSetId]: {
-              ...data.progress,
-                lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
-            }
-          }
-        };
-      });
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-    }, 300);
-    
-    return () => clearTimeout(timer);
-  }, [user?.id]); // 只监听user.id，而不是整个user对象，减少不必要的重新渲染
-
+  // Define fetchCurrentUser function at the top level so it can be referenced in other functions
   const fetchCurrentUser = async () => {
     setLoading(true);
     try {
@@ -246,6 +135,125 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
     }
   };
+
+  // 修改通知用户变化的函数
+  const notifyUserChange = useCallback((newUser: User | null, eventDetails?: Partial<UserChangeEvent>) => {
+    // 获取新用户ID
+    const newUserId = newUser?.id || null;
+    // 获取当前时间
+    const now = Date.now();
+    
+    // 确定事件类型
+    let eventType: UserChangeEvent['type'];
+    if (!newUserId && prevUserIdRef.current) {
+      eventType = 'logout';
+    } else if (newUserId && !prevUserIdRef.current) {
+      eventType = 'login';
+    } else if (eventDetails?.type) {
+      eventType = eventDetails.type;
+    } else {
+      eventType = 'user_updated';
+    }
+    
+    // 如果与上次通知的用户ID相同且时间间隔小于500ms，则忽略此次通知
+    // 除非是特殊事件类型（如权限更新）
+    if (newUserId === prevUserIdRef.current && 
+        now - lastNotifyTimeRef.current < 500 && 
+        eventType !== 'access_rights_updated') {
+      console.log(`[UserContext] 忽略重复的用户变更通知: ${newUserId} (${eventType})`);
+      return;
+    }
+    
+    // 更新上次通知时间和用户ID
+    lastNotifyTimeRef.current = now;
+    const oldUserId = prevUserIdRef.current;
+    prevUserIdRef.current = newUserId;
+    
+    // 触发事件
+    console.log(`[UserContext] 发送用户变更通知: ${oldUserId} -> ${newUserId}, 类型: ${eventType}`);
+    
+    // 创建详细的变更事件
+    const fullEvent: UserChangeEvent = {
+      userId: newUserId,
+      timestamp: now,
+      type: eventType,
+      ...eventDetails
+    };
+    
+    // 如果用户ID变化，通知Socket连接变更
+    if (oldUserId !== newUserId || eventType === 'access_rights_updated') {
+      console.log(`[UserContext] 发送全局用户变更事件: ${oldUserId} -> ${newUserId}, 类型: ${eventType}`);
+      
+      // 使用自定义事件通知其他组件（如SocketContext）
+      const userChangeEvent = new CustomEvent('user:change', {
+        detail: fullEvent
+      });
+      
+      // 触发全局事件
+      window.dispatchEvent(userChangeEvent);
+
+      // Also emit socket events for login/logout to maintain compatibility
+      if (eventType === 'login' && newUserId) {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const socketResetEvent = new CustomEvent('socket:reset', {
+            detail: { userId: newUserId, token }
+          });
+          window.dispatchEvent(socketResetEvent);
+        }
+      } else if (eventType === 'logout') {
+        const socketDisconnectEvent = new CustomEvent('socket:disconnect');
+        window.dispatchEvent(socketDisconnectEvent);
+      }
+    }
+    
+    // 更新本地状态
+    setUserChangeEvent(fullEvent);
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchCurrentUser();
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  // Comment out the problematic useEffect that causes circular dependencies
+  /*
+  useEffect(() => {
+    if (!user) return;
+
+    // 使用防抖，确保socket只初始化一次
+    const timer = setTimeout(() => {
+      const socket = initializeSocket();
+      authenticateUser(user.id, localStorage.getItem('token') || '');
+      
+      socket.on('progress:update', (data: ProgressUpdateEvent) => {
+        setUser(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            progress: {
+              ...prev.progress,
+              [data.questionSetId]: {
+                ...data.progress,
+                lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
+              }
+            }
+          };
+        });
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [user?.id]);
+  */
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setLoading(true);
@@ -301,15 +309,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('question_set_access');
     localStorage.removeItem('redeemedQuestionSetIds');
     
-    // 清理Socket连接状态
-    if (socket) {
-      console.log('[UserContext] 断开Socket连接');
-      try {
-        socket.disconnect();
-      } catch (e) {
-        console.error('断开Socket连接失败', e);
-      }
-    }
+    // 清理Socket连接状态 - 使用事件代替直接引用
+    console.log('[UserContext] 断开Socket连接');
+    const socketDisconnectEvent = new CustomEvent('socket:disconnect');
+    window.dispatchEvent(socketDisconnectEvent);
     
     // 重置状态
     setUser(null);
@@ -420,7 +423,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 确保ID格式正确
       const formattedPurchase = {
         ...purchase,
-        questionSetId: String(purchase.questionSetId).trim()
+        questionSetId: String(purchase.questionSetId || '').trim()
       };
       
       // 检查是否已存在相同ID的购买记录
@@ -440,22 +443,21 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // 更新用户状态
         setUser(updatedUser);
         
-        // 尝试通过socket通知权限更新
-        if (socket) {
-          console.log(`[addPurchase] 通过socket发送权限更新通知: ${formattedPurchase.questionSetId}`);
-          socket.emit('questionSet:accessUpdate', {
-            userId: user.id,
-            questionSetId: formattedPurchase.questionSetId,
-            hasAccess: true
-          });
+        // Dispatch event instead of directly using socket
+        if (user.id) {
+          console.log(`[addPurchase] 发送权限更新通知: ${formattedPurchase.questionSetId}`);
           
-          // 发送购买成功事件
-          socket.emit('purchase:success', {
-            userId: user.id,
-            questionSetId: formattedPurchase.questionSetId,
-            purchaseId: formattedPurchase.id,
-            expiryDate: formattedPurchase.expiryDate
+          // Emit custom event for access update
+          const accessUpdateEvent = new CustomEvent('access:update', {
+            detail: {
+              userId: user.id,
+              questionSetId: formattedPurchase.questionSetId,
+              hasAccess: true,
+              purchaseId: formattedPurchase.id,
+              expiryDate: formattedPurchase.expiryDate
+            }
           });
+          window.dispatchEvent(accessUpdateEvent);
         }
         
         // 通知用户状态变化
@@ -636,14 +638,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // 同步更新缓存和状态
         saveAccessToLocalStorage(questionSetId, true, null);
         
-        // 同步其他设备
-        if (socket) {
-          socket.emit('questionSet:accessUpdate', {
-            userId: user.id,
-            questionSetId: questionSetId,
-            hasAccess: true,
-            source: 'db_check'
+        // 使用事件通知其他设备
+        if (user?.id) {
+          const accessUpdateEvent = new CustomEvent('access:update', {
+            detail: {
+              userId: user.id,
+              questionSetId: questionSetId,
+              hasAccess: true,
+              source: 'db_check'
+            }
           });
+          window.dispatchEvent(accessUpdateEvent);
         }
         
         return true;
@@ -655,7 +660,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 所有检查都失败，无权限
     console.log(`[hasAccessToQuestionSet] 无权限访问`);
     return false;
-  }, [user, socket, hasAccessInDatabase]);
+  }, [user, hasAccessInDatabase]);
 
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
@@ -775,14 +780,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             setUser(updatedUser);
             
-            // 尝试通过socket通知权限更新
-            if (socket) {
-              console.log(`[RedeemCode] 通过socket发送权限更新通知: ${questionSetId}`);
-              socket.emit('questionSet:accessUpdate', {
-                userId: user.id,
-                questionSetId: String(questionSetId).trim(),
-                hasAccess: true
+            // 尝试通过事件通知权限更新
+            if (user.id && questionSetId) {
+              console.log(`[RedeemCode] 发送权限更新通知: ${questionSetId}`);
+              
+              const accessUpdateEvent = new CustomEvent('access:update', {
+                detail: {
+                  userId: user.id,
+                  questionSetId: String(questionSetId).trim(),
+                  hasAccess: true
+                }
               });
+              window.dispatchEvent(accessUpdateEvent);
             }
             
             // 通知用户状态变化
