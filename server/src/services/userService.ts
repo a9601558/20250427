@@ -32,7 +32,7 @@ export const getUserById = async (userId: string, options: GetUserOptions = {}):
           attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
         },
         {
-          association: 'redeemCodes'
+          association: 'userRedeemCodes'
         }
       ];
     }

@@ -84,7 +84,7 @@ const setupAssociations = () => {
     });
     User_1.default.hasMany(RedeemCode_1.default, {
         foreignKey: 'usedBy',
-        as: 'redeemCodes',
+        as: 'userRedeemCodes',
         onDelete: 'SET NULL'
     });
     // WrongAnswer 关联

@@ -184,7 +184,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
           attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
         },
         {
-          association: 'redeemCodes'
+          association: 'userRedeemCodes'
         }
       ],
       // 记录请求信息以帮助调试跨设备同步问题
@@ -203,6 +203,14 @@ export const getUserProfile = async (req: Request, res: Response) => {
         delete userData.userPurchases; // 删除多余字段
       } else {
         userData.purchases = [];
+      }
+      
+      // 为了保持兼容性，将userRedeemCodes映射回redeemCodes字段
+      if ((userData as any).userRedeemCodes) {
+        userData.redeemCodes = (userData as any).userRedeemCodes;
+        delete (userData as any).userRedeemCodes; // 删除多余字段
+      } else {
+        userData.redeemCodes = [];
       }
       
       // 确保purchases字段是数组

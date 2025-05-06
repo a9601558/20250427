@@ -27,7 +27,7 @@ const getUserById = async (userId, options = {}) => {
                     attributes: ['id', 'questionSetId', 'purchaseDate', 'expiryDate', 'status', 'paymentMethod', 'amount', 'transactionId']
                 },
                 {
-                    association: 'redeemCodes'
+                    association: 'userRedeemCodes'
                 }
             ];
         }

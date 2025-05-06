@@ -92,7 +92,7 @@ export const setupAssociations = () => {
 
   User.hasMany(RedeemCode, {
     foreignKey: 'usedBy',
-    as: 'redeemCodes',
+    as: 'userRedeemCodes',
     onDelete: 'SET NULL'
   });
 
