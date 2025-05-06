@@ -268,6 +268,9 @@ User.beforeCreate((user: User) => {
   console.log('用户初始化默认值完成');
 });
 
+/* 
+ * 关联关系已移至associations.ts中集中定义，避免重复定义导致别名冲突
+ * 
 // 定义关联关系
 User.hasMany(Purchase, {
   foreignKey: 'user_id',
@@ -282,5 +285,6 @@ User.belongsToMany(QuestionSet, {
   otherKey: 'question_set_id',
   as: 'questionSets'
 });
+*/
 
 export default User; 

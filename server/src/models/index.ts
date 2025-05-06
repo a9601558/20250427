@@ -17,8 +17,8 @@ import WrongAnswer from './WrongAnswer';
 console.log('模型已导入，关联将在应用启动时初始化');
 
 // 注释掉所有的关联设置，改为使用associations.ts中的设置
-// 设置模型关联
-/*
+/* 设置模型关联
+
 // User与Question的关联（用户创建的题目）
 User.hasMany(Question, { as: 'createdQuestions', foreignKey: 'createdBy' });
 Question.belongsTo(User, { as: 'creator', foreignKey: 'createdBy' });
