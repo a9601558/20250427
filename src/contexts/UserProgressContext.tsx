@@ -98,8 +98,8 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // 添加请求计数器，用于调试
   const requestCountRef = useRef(0);
 
-  // 添加全局引用用于调试
-  if (process.env.NODE_ENV !== 'production') {
+  // 添加全局引用用于调试 - 使用window.location.hostname检查而不是process.env
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     (window as any).__UserProgressContext = {
       progressStats,
       user,

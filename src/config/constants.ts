@@ -5,8 +5,9 @@ const getApiBaseUrl = () => {
     return window.location.origin;
   }
   
-  // In development, use the local server
-  return process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  // In development, use a hardcoded local server URL
+  // No dependency on environment variables
+  return 'http://localhost:5000';
 };
 
 export const API_BASE_URL = getApiBaseUrl(); 
