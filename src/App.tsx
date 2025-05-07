@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import Layout from './components/Layout';
 import HomePage from './components/HomePage';
@@ -39,6 +39,7 @@ const App: React.FC = () => {
                   </AdminRoute>
                 } />
                 <Route path="/quiz/:questionSetId" element={<QuizPage />} />
+                <Route path="/payment/:id" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
           </Router>

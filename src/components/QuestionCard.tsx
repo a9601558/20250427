@@ -5,6 +5,8 @@ import QuestionOption from './QuestionOption';
 import RedeemCodeForm from './RedeemCodeForm';
 import { toast } from 'react-toastify';
 import { useUser } from '../contexts/UserContext';
+import { useSocket } from '../contexts/SocketContext';
+import PaymentModal from './PaymentModal';
 
 interface QuestionWithCode extends Question {
   code?: string;
@@ -72,6 +74,7 @@ const QuestionCard = ({
   const isSubmittingRef = useRef<boolean>(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
   
@@ -83,6 +86,7 @@ const QuestionCard = ({
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
   
   const { user, syncAccessRights } = useUser();
+  const { socket } = useSocket();
   
   // 当userAnsweredQuestion存在时预填选项
   useEffect(() => {
@@ -957,7 +961,7 @@ const QuestionCard = ({
               <button 
                 onClick={() => {
                   setShowRedeemCodeModal(false);
-                  navigate(`/payment/${questionSetId}`);
+                  setShowPaymentModal(true);
                 }}
                 className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all"
               >
@@ -966,6 +970,84 @@ const QuestionCard = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* 添加支付模态窗口 */}
+      {showPaymentModal && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          questionSet={{
+            id: questionSetId,
+            title: quizTitle,
+            price: isPaid ? 99 : 0, // Default price if we don't know the actual price
+            description: `${quizTitle || '题库'} - 包含 ${totalQuestions} 道题目`,
+            category: '',
+            icon: '',
+            isPaid: isPaid,
+            trialQuestions: trialQuestions,
+            questionCount: totalQuestions,
+          }}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={(purchaseInfo) => {
+            console.log(`[QuestionCard] 支付成功回调，更新访问权限`, purchaseInfo);
+            setShowPaymentModal(false);
+            
+            // 保存访问权限到localStorage
+            if (questionSetId) {
+              try {
+                const accessRightsStr = localStorage.getItem('quizAccessRights');
+                let accessRights: {[key: string]: boolean} = {};
+                
+                if (accessRightsStr) {
+                  accessRights = JSON.parse(accessRightsStr);
+                }
+                
+                // 更新访问权限
+                accessRights[questionSetId] = true;
+                
+                // 保存回localStorage
+                localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
+              } catch (e) {
+                console.error('[支付] 保存访问权限到localStorage失败', e);
+              }
+            }
+            
+            // 触发重新检查权限
+            window.dispatchEvent(new CustomEvent('accessRights:updated', {
+              detail: {
+                userId: user?.id,
+                questionSetId: questionSetId,
+                hasAccess: true,
+                source: 'payment'
+              }
+            }));
+            
+            // 尝试通过Socket再次检查权限，确保状态一致性
+            if (socket && user) {
+              setTimeout(() => {
+                console.log(`[QuestionCard] 支付成功后检查权限`);
+                socket.emit('questionSet:checkAccess', {
+                  userId: user.id,
+                  questionSetId: String(questionSetId).trim()
+                });
+                
+                // 明确告知服务器更新访问权限
+                socket.emit('questionSet:accessUpdate', {
+                  userId: user.id,
+                  questionSetId: String(questionSetId).trim(),
+                  hasAccess: true,
+                  source: 'payment'
+                });
+              }, 300);
+            }
+            
+            // 显示成功消息
+            toast.success(`成功购买《${quizTitle || '题库'}》，现在您可以访问全部题目了！`, {
+              position: 'top-center',
+              autoClose: 5000
+            });
+          }}
+        />
       )}
     </div>
   );
