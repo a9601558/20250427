@@ -1331,36 +1331,29 @@ function QuizPage(): JSX.Element {
       // 使用正确的参数顺序调用handleAnswerSubmit
       handleAnswerSubmit(selectedOption, isCorrect, currentQ, currentQuestionIndex);
       
-      // 添加答案提交后的试用模式检查
+      console.log('[QuizPage] 答题后立即检查试用限制:', {
+        answered: answeredQuestions.length + 1, // +1因为这个状态更新是异步的
+        limit: questionSet?.trialQuestions
+      });
+      
+      // 延迟检查是否达到试用限制，确保answeredQuestions状态已更新
       setTimeout(() => {
-        // 检查是否已达到试用限制
-        const isAtTrialLimit = questionSet?.isPaid && 
-                              !hasAccessToFullQuiz && 
-                              !hasRedeemed && 
-                              questionSet?.trialQuestions && 
-                              questionSet.trialQuestions > 0 && 
-                              answeredQuestions.length >= questionSet.trialQuestions;
-        
-        if (isAtTrialLimit && questionSet?.trialQuestions) {
-          console.log('[QuizPage] 已达到试用题目限制，显示购买提示:', {
-            answeredCount: answeredQuestions.length,
-            trialLimit: questionSet.trialQuestions
-          });
+        if (questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && 
+            questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
+          
+          console.log('[QuizPage] 达到试用限制，显示购买窗口');
+          
+          // 立即显示购买窗口
+          setShowPaymentModal(true);
           
           // 显示提示信息
-          toast.info(`您已完成 ${questionSet.trialQuestions} 道试用题目，请购买完整版或使用兑换码继续`, {
+          toast.info(`您已达到试用题目限制，请购买完整版继续`, {
             position: "top-center",
-            autoClose: 8000,
-            toastId: "trial-limit-toast",
+            autoClose: 5000,
+            toastId: "answer-trial-limit"
           });
-          
-          // 延迟显示购买模态窗口，确保用户能看到结果
-          setTimeout(() => {
-            console.log('[QuizPage] 显示购买模态窗口');
-            setShowPaymentModal(true);
-          }, 1500);
         }
-      }, 500); // 给一些时间让UI更新
+      }, 1000); // 给足够时间让状态更新
     }
   }, [questions, currentQuestionIndex, handleAnswerSubmit, questionSet, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length]);
 
@@ -1637,7 +1630,7 @@ function QuizPage(): JSX.Element {
           
           <div className="flex items-center">
             {/* 添加试用模式下的购买和兑换按钮 */}
-            {isInTrialMode && questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && (
+            {(isInTrialMode || (questionSet?.isPaid && !hasAccessToFullQuiz)) && (
               <div className="flex mr-4 space-x-2">
                 <button
                   onClick={() => {
@@ -2719,6 +2712,86 @@ function QuizPage(): JSX.Element {
     }
   }, [loading, questionSet, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length, trialEnded, showPaymentModal]);
   
+  // 在获取题库和题目数据的useEffect后，添加自动检查并显示购买窗口的代码
+  useEffect(() => {
+    // 确保questionSet已加载
+    if (!questionSet || loading) return;
+    
+    // 检查是否需要显示购买窗口
+    // 1. 必须是付费题库
+    // 2. 用户没有完整访问权限
+    // 3. 已答题数量达到或超过试用限制
+    const shouldShowPurchase = 
+      questionSet.isPaid && 
+      !hasAccessToFullQuiz && 
+      !hasRedeemed && 
+      questionSet.trialQuestions && 
+      answeredQuestions.length >= questionSet.trialQuestions;
+    
+    if (shouldShowPurchase) {
+      console.log('[QuizPage] 自动检测：应该显示购买窗口', {
+        isPaid: questionSet.isPaid,
+        hasAccess: hasAccessToFullQuiz,
+        answered: answeredQuestions.length,
+        limit: questionSet.trialQuestions
+      });
+      
+      // 自动弹出购买窗口
+      setShowPaymentModal(true);
+      
+      // 显示提示信息
+      toast.info(`您已完成 ${questionSet.trialQuestions} 道试用题目，需要购买完整版继续`, {
+        position: "top-center",
+        autoClose: 8000,
+        toastId: "auto-trial-limit",
+      });
+    }
+
+    console.log('[QuizPage] 试用模式状态检查:', {
+      isInTrialMode,
+      isPaid: questionSet?.isPaid,
+      hasAccess: hasAccessToFullQuiz,
+      answered: answeredQuestions.length,
+      trialLimit: questionSet?.trialQuestions
+    });
+  }, [questionSet, loading, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length, isInTrialMode]);
+  
+  // 在组件的开始部分，添加一个明确的函数来检查是否超出试用限制
+  const checkTrialLimitExceeded = useCallback(() => {
+    if (!questionSet) return false;
+    
+    // 简化判断逻辑：付费题库 + 无访问权限 + 已答题数量 >= 试用限制
+    return (
+      questionSet.isPaid && 
+      !hasAccessToFullQuiz && 
+      !hasRedeemed && 
+      questionSet.trialQuestions && 
+      answeredQuestions.length >= questionSet.trialQuestions
+    );
+  }, [questionSet, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length]);
+
+  // 添加一个新的useEffect，专门用于检查并强制显示购买模态窗口
+  useEffect(() => {
+    // 等待组件加载完成且题库数据可用
+    if (loading || !questionSet) return;
+    
+    // 使用检查函数判断是否超出试用限制
+    const isLimitExceeded = checkTrialLimitExceeded();
+    
+    if (isLimitExceeded) {
+      console.log('[QuizPage] 强制检查：试用题目限制已超出，显示购买窗口', {
+        answeredCount: answeredQuestions.length,
+        trialLimit: questionSet.trialQuestions
+      });
+      
+      // 设置试用结束标志
+      setTrialEnded(true);
+      
+      // 直接显示购买窗口
+      setShowPaymentModal(true);
+    }
+  }, [loading, questionSet, checkTrialLimitExceeded]);
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -3110,12 +3183,34 @@ function QuizPage(): JSX.Element {
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold">{questionSet.title}</h1>
-                <button
-                  onClick={handleNavigateHome}
-                  className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded text-sm hover:bg-gray-200"
-                >
-                  返回首页
-                </button>
+                
+                {/* 顶部导航区域 - 添加购买和兑换按钮 */}
+                <div className="flex items-center space-x-2">
+                  {/* 当题库是付费且用户没有完整访问权限时显示按钮 */}
+                  {questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed && (
+                    <>
+                      <button
+                        onClick={() => setShowPaymentModal(true)}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none"
+                      >
+                        购买完整版
+                      </button>
+                      <button
+                        onClick={() => setShowRedeemCodeModal(true)}
+                        className="px-3 py-1.5 bg-green-50 text-green-700 text-sm border border-green-300 rounded hover:bg-green-100 focus:outline-none"
+                      >
+                        使用兑换码
+                      </button>
+                    </>
+                  )}
+                  
+                  <button
+                    onClick={handleNavigateHome}
+                    className="bg-gray-100 text-gray-800 px-3 py-1.5 rounded text-sm hover:bg-gray-200"
+                  >
+                    返回首页
+                  </button>
+                </div>
               </div>
               
               {!questionSet.isPaid ? (
