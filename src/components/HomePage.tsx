@@ -186,6 +186,24 @@ const HomePage: React.FC = () => {
     const isRedeemed = set.accessType === 'redeemed';
     const isExpired = set.accessType === 'expired';
     const hasAccess = set.hasAccess;
+    
+    // 确定卡片的访问类型标签
+    const getAccessTypeLabel = () => {
+      if (!set.isPaid) return '免费';
+      if (set.accessType === 'paid') return hasAccess ? '已购买' : '付费';
+      if (set.accessType === 'redeemed') return '已兑换';
+      if (set.accessType === 'expired') return '已过期';
+      return '付费';
+    };
+    
+    // 确定标签的颜色
+    const getAccessTypeBadgeClass = () => {
+      if (!set.isPaid) return 'bg-blue-100 text-blue-800';
+      if (set.accessType === 'paid') return hasAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+      if (set.accessType === 'redeemed') return 'bg-purple-100 text-purple-800';
+      if (set.accessType === 'expired') return 'bg-red-100 text-red-800';
+      return 'bg-yellow-100 text-yellow-800';
+    };
 
     return (
       <div className="relative overflow-hidden group bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
@@ -198,16 +216,8 @@ const HomePage: React.FC = () => {
           {/* 标题和分类 */}
           <div className="flex justify-between items-start mb-3">
             <h3 className="text-lg font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{set.title}</h3>
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              set.accessType === 'trial' ? 'bg-blue-100 text-blue-800' : 
-              set.accessType === 'paid' ? 'bg-green-100 text-green-800' :
-              set.accessType === 'redeemed' ? 'bg-purple-100 text-purple-800' :
-              'bg-red-100 text-red-800'
-            }`}>
-              {set.accessType === 'trial' ? '免费' : 
-               set.accessType === 'paid' ? '已购买' :
-               set.accessType === 'redeemed' ? '已兑换' :
-               '已过期'}
+            <span className={`text-xs px-2 py-1 rounded-full ${getAccessTypeBadgeClass()}`}>
+              {getAccessTypeLabel()}
             </span>
           </div>
           
@@ -324,8 +334,10 @@ const HomePage: React.FC = () => {
     // 添加时间戳参数，避免缓存
     urlParams.append('t', Date.now().toString());
     
-    // 构建完整URL
+    // 构建完整URL - 修复参数拼接方式
     const quizUrl = `/quiz/${set.id}${urlParams.toString() ? `?${urlParams.toString()}` : ''}`;
+    
+    console.log(`[HomePage] 跳转到URL: ${quizUrl}, 试用模式: ${set.isPaid && !set.hasAccess ? '是' : '否'}`);
     
     // 使用navigate进行路由跳转
     navigate(quizUrl);
@@ -365,7 +377,7 @@ const HomePage: React.FC = () => {
     );
     
     const free = questionSets.filter((set: PreparedQuestionSet) => 
-      set.accessType === 'trial' && !set.isPaid
+      !set.isPaid // 只有真正的免费题库才显示在免费区域
     );
     
     const paid = questionSets.filter((set: PreparedQuestionSet) => 
@@ -515,7 +527,7 @@ const HomePage: React.FC = () => {
     }
     
     // 优化访问类型判断逻辑
-    let accessType: AccessType = 'trial';
+    let accessType: AccessType;
     let finalHasAccess = hasAccessValue;
     
     // 根据支付方式优先判断
@@ -527,7 +539,10 @@ const HomePage: React.FC = () => {
     } else if (hasAccessValue) {
       accessType = 'paid';
     } else {
-      accessType = 'trial';
+      // 重要：付费题库未购买时，accessType不应该是'trial'，应该是'paid'但hasAccess为false
+      // 这样避免在UI上显示"免费"标签
+      accessType = 'paid';
+      finalHasAccess = false;
     }
     
     console.log(`[determineAccessStatus] 题库ID=${set.id}, 标题="${set.title}" - 付费=${set.isPaid}, 有权限=${finalHasAccess}, 类型=${accessType}, 支付方式=${paymentMethod || '未知'}, 剩余天数=${remainingDays}`);
