@@ -159,7 +159,12 @@ const QuestionCard = ({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e?: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent default browser behavior to avoid page refresh
+    if (e) {
+      e.preventDefault();
+    }
+    
     // 如果已提交且显示解析中，则转为下一题逻辑
     if (isSubmitted && showExplanation) {
       handleNext();
@@ -707,55 +712,107 @@ const QuestionCard = ({
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-      {/* 题目信息 */}
-      <div className="mb-4 flex justify-between items-center">
+      {/* 题目头部 */}
+      <div className="flex justify-between items-start mb-6">
         <div className="flex items-center">
-          <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full font-medium mr-2">
+          <div className="bg-blue-100 text-blue-800 font-medium px-3 py-1 rounded-full text-sm mr-3">
             {questionNumber} / {totalQuestions}
-          </span>
-          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-            {question.questionType === 'single' ? '单选题' : '多选题'}
-          </span>
+          </div>
+          {question.questionType === 'single' ? (
+            <div className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
+              单选题
+            </div>
+          ) : (
+            <div className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs">
+              多选题
+            </div>
+          )}
         </div>
         
-        {/* 添加试用限制标志 */}
-        {isPaid && !hasFullAccess && trialLimitReached && (
-          <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded">
-            试用已结束
-          </span>
+        {/* 如果是付费题库，显示状态标签 */}
+        {isPaid && (
+          <div className={`px-2 py-0.5 rounded-full text-xs ${
+            hasFullAccess 
+              ? 'bg-green-100 text-green-800' 
+              : trialLimitReached 
+                ? 'bg-red-100 text-red-800 animate-pulse' 
+                : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {hasFullAccess 
+              ? '完整版' 
+              : trialLimitReached 
+                ? '试用已结束' 
+                : `试用模式 (${questionNumber}/${trialQuestions}题)`
+            }
+          </div>
         )}
       </div>
 
       {/* 题目内容 */}
-      <h2 className="text-lg font-semibold text-gray-800 mb-5">{question.question || question.text}</h2>
+      <div className="mb-6">
+        <h3 className="text-lg font-medium text-gray-800 mb-2">{question.question}</h3>
+      </div>
 
       {/* 选项列表 */}
-      <div className="space-y-3 mt-4">
+      <div className="space-y-3 mb-6">
         {question.options.map((option, index) => (
           <div
             key={option.id}
-            className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all duration-150 ${getOptionClass(option)}`}
-            onClick={() => !showExplanation && !trialLimitReached && handleOptionClick(option.text, option.id)}
+            className={`p-3 border rounded-lg cursor-pointer transition-colors ${getOptionClass(option)}`}
+            onClick={() => handleOptionClick(option.text, option.id)}
+            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
+            tabIndex={0}
+            role="button"
+            aria-pressed={selectedOptions.includes(option.id)}
           >
-            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mr-3 ${
-              showExplanation && option.isCorrect 
-                ? 'bg-green-100 text-green-700' 
-                : (showExplanation && selectedOptions.includes(option.id)) 
-                  ? 'bg-red-100 text-red-700' 
-                  : selectedOptions.includes(option.id)
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-700'
-            }`}>
-              {String.fromCharCode(65 + index)}
+            <div className="flex items-start">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center border mr-3 flex-shrink-0 ${
+                selectedOptions.includes(option.id) 
+                  ? 'bg-blue-500 border-blue-500 text-white' 
+                  : 'border-gray-300'
+              }`}>
+                {question.questionType === 'single' ? (
+                  <span className="text-sm font-medium">
+                    {/* 选项序号 A-Z */}
+                    {String.fromCharCode(65 + index)}
+                  </span>
+                ) : (
+                  <span className="text-sm">
+                    {selectedOptions.includes(option.id) && (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                )}
+              </div>
+              <div className="text-gray-700">
+                {option.text}
+              </div>
             </div>
-            <div className="mt-0.5 text-sm">{option.text}</div>
           </div>
         ))}
       </div>
 
+      {/* 显示解析 */}
+      {showExplanation && question.explanation && (
+        <div className="mb-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h4 className="font-semibold text-yellow-800 mb-2 flex items-center">
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              解析
+            </h4>
+            <div className="text-yellow-700 text-sm" dangerouslySetInnerHTML={{__html: question.explanation}} />
+          </div>
+        </div>
+      )}
+
       {/* 合并提交答案与下一题按钮 */}
       <div className="mt-6">
         <button
+          type="button"
           onClick={handleSubmit}
           disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached}
           className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
@@ -784,112 +841,23 @@ const QuestionCard = ({
         </button>
       </div>
       
-      {/* 解析显示区域 */}
-      {showExplanation && (
-        <div className="mt-5">
-          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <div className="flex items-start">
-              <div className="bg-blue-100 p-1 rounded-md text-blue-700 mr-3 flex-shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-medium text-blue-800 mb-1">解析</h3>
-                <p className="text-sm text-blue-700">{question.explanation || "本题暂无解析"}</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* 答案正确/错误提示 */}
-          <div className="mt-4 text-center">
-            <div className={`inline-block px-4 py-2 rounded-full font-medium text-sm ${
-              selectedOptions.some(id => 
-                question.options.find(opt => opt.id === id)?.isCorrect
-              ) 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {selectedOptions.some(id => 
-                question.options.find(opt => opt.id === id)?.isCorrect
-              ) 
-                ? '答对了' 
-                : '答错了'
-              }
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 题目导航与辅助按钮 */}
-      <div className="mt-6 flex justify-between items-center">
-        <button
-          onClick={handlePrevious}
-          className={`px-5 py-2 rounded-md flex items-center ${
-            questionNumber > 1 && !trialLimitReached 
-              ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
-              : 'text-gray-400 bg-gray-50 cursor-not-allowed'
-          }`}
-          disabled={questionNumber <= 1 || trialLimitReached}
-        >
-          <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          上一题
-        </button>
-      </div>
-      
-      {/* 键盘快捷键提示 */}
-      <div className="mt-4 text-center text-xs text-gray-500">
-        <span className="bg-gray-100 rounded px-1.5 py-0.5 mr-1">←</span>上一题
-        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">Space</span>
-        {isSubmitted ? '下一题' : '提交答案'}
-        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">1-9</span>选择选项
-      </div>
-      
-      {/* 添加清空答题按钮 */}
-      <div className="mt-3 text-center">
-        <button
-          onClick={() => {
-            if (window.confirm('确定要清空当前题目的答题记录吗？')) {
-              try {
-                // 清除当前题目的状态记录
-                if (questionSetId && question.id) {
-                  const storageKey = `quiz_state_${questionSetId}_${question.id}`;
-                  localStorage.removeItem(storageKey);
-                  
-                  // 重置组件状态
-                  setSelectedOption(null);
-                  setSelectedOptions([]);
-                  setIsSubmitted(false);
-                  setShowExplanation(false);
-                  
-                  // 展示成功消息
-                  toast.success('已清空当前题目的答题记录');
-                }
-              } catch (e) {
-                console.error('清空答题记录失败:', e);
-                toast.error('清空答题记录失败');
-              }
-            }
-          }}
-          className="text-gray-500 hover:text-red-600 text-xs underline transition-colors"
-        >
-          清空当前题目答题记录
-        </button>
-      </div>
-
-      {/* 在需要时显示试用限制警告 */}
-      {isPaid && !hasFullAccess && trialLimitReached && (
-        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-center text-yellow-700">
-            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      {/* 题目导航：添加上一题和下一题按钮 */}
+      {questionNumber > 1 && !trialLimitReached && (
+        <div className="mt-4">
+          <button 
+            onClick={handlePrevious}
+            className="text-gray-500 hover:text-gray-700 text-sm flex items-center"
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            <span>您已达到试用题目限制，需要购买完整版或使用兑换码继续使用。无法回看已答题目。</span>
-          </div>
+            上一题
+          </button>
         </div>
       )}
+      
+      {/* 答题进度指示器 */}
+      {renderNumberButtons()}
     </div>
   );
 };
