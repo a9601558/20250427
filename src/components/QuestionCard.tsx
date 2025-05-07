@@ -40,7 +40,8 @@ const MESSAGES = {
   SHOW_EXPLANATION: '查看解析',
   HIDE_EXPLANATION: '隐藏解析',
   ANALYSIS: '解析:',
-  NEXT_QUESTION: '下一题'
+  NEXT_QUESTION: '下一题',
+  COMPLETE_EXERCISE: '完成练习'
 };
 
 const QuestionCard = ({ 
@@ -92,6 +93,16 @@ const QuestionCard = ({
     }
   }, [userAnsweredQuestion]);
 
+  // 清除本地数据
+  useEffect(() => {
+    return () => {
+      // 组件卸载时清理
+      setSelectedOptions([]);
+      setIsSubmitted(false);
+      setShowExplanation(false);
+    };
+  }, []);
+
   // 判断答案是否正确
   const checkIsCorrect = (): boolean => {
     if (question.questionType === 'single') {
@@ -121,6 +132,54 @@ const QuestionCard = ({
     }
   };
 
+  // 处理选项点击
+  const handleOptionClick = (optionId: string) => {
+    // 如果已提交答案，不允许更改选择
+    if (isSubmitted || isSubmittingRef.current) {
+      return;
+    }
+    
+    if (question.questionType === 'single') {
+      // 单选题: 直接设置为当前选择
+      setSelectedOptions([optionId]);
+    } else {
+      // 多选题: 切换选中状态
+      if (selectedOptions.includes(optionId)) {
+        setSelectedOptions(selectedOptions.filter(id => id !== optionId));
+      } else {
+        setSelectedOptions([...selectedOptions, optionId]);
+      }
+    }
+  };
+
+  // 处理下一题
+  const handleNext = () => {
+    console.log('[QuestionCard] 调用handleNext，准备进入下一题');
+    
+    // 重置状态
+    setSelectedOptions([]);
+    setIsSubmitted(false);
+    setShowExplanation(false);
+    
+    // 如果已达到试用限制，显示提示但不继续
+    if (isPaid && !hasFullAccess && trialLimitReached) {
+      toast.warning('试用题目已达上限，请购买完整版或使用兑换码继续');
+      return;
+    }
+    
+    // 调用父组件传入的onNext函数
+    if (typeof onNext === 'function') {
+      try {
+        console.log('[QuestionCard] 调用父组件onNext函数');
+        onNext();
+      } catch (error) {
+        console.error('[QuestionCard] 调用onNext函数出错:', error);
+      }
+    } else {
+      console.error('[QuestionCard] onNext不是函数');
+    }
+  };
+
   // 提交答案处理函数
   const handleSubmit = (e: React.MouseEvent<HTMLButtonElement>) => {
     // 阻止表单提交默认行为
@@ -130,35 +189,37 @@ const QuestionCard = ({
     // 如果已提交并显示解析，点击"下一题"
     if (isSubmitted && showExplanation) {
       console.log('[QuestionCard] 已提交答案，准备进入下一题');
-      onNext();
+      handleNext();
       return;
     }
     
     // 防止重复提交
-    if (isSubmittingRef.current || isSubmitted) {
-      console.log('[QuestionCard] 正在提交或已提交，忽略操作');
+    if (isSubmittingRef.current) {
+      console.log('[QuestionCard] 正在提交中，忽略操作');
       return;
     }
     
     // 检查是否选择了答案
     if (selectedOptions.length === 0) {
-      toast.warning('请至少选择一个选项');
+      toast.warning(MESSAGES.SELECT_AT_LEAST_ONE);
       return;
     }
     
     // 设置提交中状态
     isSubmittingRef.current = true;
+    console.log('[QuestionCard] 开始提交答案');
     
     try {
       // 判断答案是否正确
       const isCorrect = checkIsCorrect();
+      console.log(`[QuestionCard] 答案正确性: ${isCorrect}`);
       
-      // 更新UI状态
+      // 更新UI状态 - 确保这里设置isSubmitted为true
       setIsSubmitted(true);
-      setShowExplanation(true);
+            setShowExplanation(true);
       
       // 调用父组件回调，传递结果
-      if (onAnswerSubmitted) {
+        if (onAnswerSubmitted) {
         console.log(`[QuestionCard] 调用父组件onAnswerSubmitted回调, 答案正确: ${isCorrect}`);
         if (question.questionType === 'single') {
           onAnswerSubmitted(isCorrect, selectedOptions[0]);
@@ -166,6 +227,12 @@ const QuestionCard = ({
           onAnswerSubmitted(isCorrect, selectedOptions);
         }
       }
+      
+      // 显示答题结果提示
+      toast(isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER, {
+        type: isCorrect ? 'success' : 'error',
+        autoClose: 3000
+      });
       
       // 本地存储答题记录
       const storageKey = `quiz_answer_${questionSetId}_${question.id}`;
@@ -176,7 +243,7 @@ const QuestionCard = ({
       }));
       
       // 如果答错，记录错题
-      if (!isCorrect) {
+        if (!isCorrect) {
         saveWrongAnswer();
       }
     } catch (error) {
@@ -185,6 +252,7 @@ const QuestionCard = ({
     } finally {
       // 延迟释放提交锁，防止重复点击
       setTimeout(() => {
+        console.log('[QuestionCard] 释放提交锁');
         isSubmittingRef.current = false;
       }, 800);
     }
@@ -238,37 +306,6 @@ const QuestionCard = ({
     }
   };
 
-  const handleNext = () => {
-    console.log('[QuestionCard] handleNext called - moving to next question');
-    
-    // Debug information to identify potential issues
-    console.log(`[QuestionCard] Current state: isSubmitted=${isSubmitted}, showExplanation=${showExplanation}`);
-    
-    // Clear any selected options immediately
-    setSelectedOptions([]);
-    setIsSubmitted(false);
-    setShowExplanation(false);
-    
-    // 使用props传入的trialLimitReached判断
-    if (isPaid && !hasFullAccess && trialLimitReached) {
-      console.log('[QuestionCard] Trial limit reached in handleNext, blocking next question');
-      toast?.('试用题目已达上限，请购买完整版或使用兑换码继续', { type: 'warning' });
-      return; // 不继续执行下一题
-    }
-    
-    // Explicitly call the onNext prop function with better error handling
-    if (typeof onNext === 'function') {
-      try {
-        console.log('[QuestionCard] Calling onNext function from props');
-        onNext();
-      } catch (error) {
-        console.error('[QuestionCard] Error calling onNext function:', error);
-      }
-    } else {
-      console.error('[QuestionCard] onNext function is not properly defined, type:', typeof onNext);
-    }
-  };
-  
   // Add a useEffect to handle cross-device access synchronization
   useEffect(() => {
     if (!user?.id || !questionSetId) return;
@@ -485,24 +522,7 @@ const QuestionCard = ({
           <div
             key={option.id}
             className={`p-3 border rounded-lg cursor-pointer transition-colors ${getOptionClass(option)}`}
-            onClick={() => {
-              // 如果已提交答案，不允许更改选择
-              if (isSubmitted || isSubmittingRef.current) {
-                return;
-              }
-              
-              if (question.questionType === 'single') {
-                // 单选题: 直接设置为当前选择
-                setSelectedOptions([option.id]);
-              } else {
-                // 多选题: 切换选中状态
-                if (selectedOptions.includes(option.id)) {
-                  setSelectedOptions(selectedOptions.filter(id => id !== option.id));
-                } else {
-                  setSelectedOptions([...selectedOptions, option.id]);
-                }
-              }
-            }}
+            onClick={() => handleOptionClick(option.id)}
             role="button"
             tabIndex={0}
           >
@@ -523,8 +543,8 @@ const QuestionCard = ({
           </div>
         ))}
       </div>
-
-      {/* 显示解析 */}
+          
+      {/* 解析显示 */}
       {showExplanation && question.explanation && (
         <div className="mb-6">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -538,8 +558,8 @@ const QuestionCard = ({
           </div>
         </div>
       )}
-
-      {/* 修改合并提交答案与下一题按钮 */}
+      
+      {/* 答题/下一题按钮 */}
       <div className="mt-6">
         <button
           type="button"
@@ -555,17 +575,17 @@ const QuestionCard = ({
         >
           {isSubmitted ? (
             <>
-              <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              {isLast ? '完成练习' : '下一题'}
+              {isLast ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
             </>
           ) : (
             <>
-              <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              提交答案
+              {MESSAGES.SUBMIT_ANSWER}
             </>
           )}
         </button>
