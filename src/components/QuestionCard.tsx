@@ -583,18 +583,9 @@ const QuestionCard = ({
             setIsSubmitted(true);
             setIsCorrectAnswer(savedState.isCorrect || false);
             
-            // 如果之前已经提交过答案，同时通知父组件
-            if (onAnswerSubmitted && !userAnsweredQuestion) {
-              const isCorrect = savedState.isCorrect;
-              const selectedOpt = question.questionType === 'single' 
-                ? savedState.selectedOption 
-                : savedState.selectedOptions;
-                
-              // 延迟触发以确保组件已完全加载
-              setTimeout(() => {
-                onAnswerSubmitted(isCorrect, selectedOpt);
-              }, TIMEOUTS.SHORT);
-            }
+            // 移除对父组件的回调，防止自动答题
+            // 注意：不再调用onAnswerSubmitted，仅恢复UI状态
+            // 父组件应通过userAnsweredQuestion提供已处理答案的历史记录
             
             // 自动显示解析
             if (savedState.showExplanation) {
@@ -639,7 +630,7 @@ const QuestionCard = ({
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [question.id, questionSetId, question.questionType, userAnsweredQuestion, onAnswerSubmitted]);
+  }, [question.id, questionSetId, question.questionType, userAnsweredQuestion]);
 
   // 修改handleOptionKeyDown函数，确保键盘操作也不会自动提交
   const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
