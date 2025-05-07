@@ -144,29 +144,148 @@ const HomePage: React.FC = () => {
     set: PreparedQuestionSet;
     onStartQuiz: (set: PreparedQuestionSet) => void;
   }> = ({ set, onStartQuiz }) => {
+    // 格式化剩余天数的显示
+    const formatRemainingDays = (days: number | null) => {
+      if (days === null) return "永久有效";
+      if (days <= 0) return "已过期";
+      if (days === 1) return "剩余1天";
+      if (days < 30) return `剩余${days}天`;
+      const months = Math.floor(days / 30);
+      return `剩余${months}个月${days % 30 > 0 ? ` ${days % 30}天` : ''}`;
+    };
+
+    // 根据剩余时间计算进度条颜色和百分比
+    const getRemainingTimeDisplay = () => {
+      if (set.remainingDays === null) return { color: 'bg-green-500', percent: 100 };
+      if (set.remainingDays <= 0) return { color: 'bg-red-500', percent: 0 };
+      if (set.validityPeriod === 0) return { color: 'bg-green-500', percent: 100 };
+      
+      const percent = Math.min(100, Math.round((set.remainingDays / set.validityPeriod) * 100));
+      let color = 'bg-green-500';
+      if (percent < 20) color = 'bg-red-500';
+      else if (percent < 50) color = 'bg-yellow-500';
+      return { color, percent };
+    };
+
+    const { color, percent } = getRemainingTimeDisplay();
+    const isPaid = set.isPaid && set.accessType !== 'trial';
+    const isRedeemed = set.accessType === 'redeemed';
+    const isExpired = set.accessType === 'expired';
+    const hasAccess = set.hasAccess;
+
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-300">
-        <h3 className="text-lg font-semibold mb-2">{set.title}</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{set.description}</p>
-        <div className="flex justify-between items-center">
-          <span className={`text-xs px-2 py-1 rounded ${set.hasAccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-            {set.accessType === 'trial' ? '免费' : 
-             set.accessType === 'paid' ? '已购买' :
-             set.accessType === 'redeemed' ? '已兑换' :
-             set.accessType === 'expired' ? '已过期' : '未知'}
-          </span>
-          <button
-            onClick={() => onStartQuiz(set)}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            开始
-          </button>
+      <div className="relative overflow-hidden group bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+        {/* 背景装饰 - 增加科技感 */}
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-10 rounded-full blur-lg group-hover:bg-indigo-600 group-hover:opacity-20 transition-all"></div>
+        <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-purple-500 opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-all"></div>
+        
+        {/* 卡片内容 */}
+        <div className="p-6 relative z-10">
+          {/* 标题和分类 */}
+          <div className="flex justify-between items-start mb-3">
+            <h3 className="text-lg font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{set.title}</h3>
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              set.accessType === 'trial' ? 'bg-blue-100 text-blue-800' : 
+              set.accessType === 'paid' ? 'bg-green-100 text-green-800' :
+              set.accessType === 'redeemed' ? 'bg-purple-100 text-purple-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {set.accessType === 'trial' ? '免费' : 
+               set.accessType === 'paid' ? '已购买' :
+               set.accessType === 'redeemed' ? '已兑换' :
+               '已过期'}
+            </span>
+          </div>
+          
+          {/* 描述 */}
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">{set.description}</p>
+          
+          {/* 题库信息 */}
+          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4 space-x-4">
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{calculateQuestionCount(set)}题</span>
+            </div>
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span>{set.category}</span>
+            </div>
+          </div>
+          
+          {/* 剩余有效期 - 仅对已购买或已兑换的题库显示 */}
+          {(isPaid || isRedeemed) && hasAccess && !isExpired && (
+            <div className="mb-4">
+              <div className="flex justify-between text-xs mb-1">
+                <span>有效期</span>
+                <span className={`font-medium ${
+                  percent < 20 ? 'text-red-600' : 
+                  percent < 50 ? 'text-yellow-600' : 
+                  'text-green-600'
+                }`}>
+                  {formatRemainingDays(set.remainingDays)}
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full ${color} transition-all duration-500`}
+                  style={{ width: `${percent}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+          
+          {/* 价格信息 - 仅对未购买的付费题库显示 */}
+          {set.isPaid && !hasAccess && (
+            <div className="mb-4 flex items-baseline">
+              <span className="text-lg font-bold text-blue-600">¥{set.price}</span>
+              {set.trialQuestions && (
+                <span className="ml-2 text-xs text-gray-500">
+                  可试用{set.trialQuestions}题
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* 操作按钮 */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => onStartQuiz(set)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
+                hasAccess 
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-md hover:shadow-lg' 
+                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-md hover:shadow-lg'
+              } flex items-center`}
+            >
+              {hasAccess ? (
+                <>
+                  <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  </svg>
+                  开始练习
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                  </svg>
+                  试用练习
+                </>
+              )}
+            </button>
+          </div>
         </div>
+        
+        {/* 闪光效果 */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-10 dark:group-hover:opacity-5 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out"></div>
       </div>
     );
   };
   
-  // 添加handleStartQuiz函数（组件内部）
+  // 添加handleStartQuiz函数，允许未购买题库进入试用模式
   const handleStartQuiz = useCallback((set: PreparedQuestionSet) => {
     console.log(`[HomePage] 开始答题:`, set);
     
@@ -177,18 +296,22 @@ const HomePage: React.FC = () => {
       return;
     }
     
-    // 检查是否有访问权限
-    if (!set.hasAccess && set.isPaid) {
-      console.log(`[HomePage] 无权访问付费题库: ${set.title} (ID: ${set.id})`);
-      // 显示付款模态框
-      setSelectedQuestionSet(set);
-      setShowPaymentModal(true);
-      return;
-    }
-    
-    // 使用navigate进行路由跳转，而不是直接修改window.location
+    // 直接跳转到答题页面，无论是否有访问权限
+    // QuizPage会基于试用题目数量限制来处理付费题库的试用访问
     navigate(`/quiz/${set.id}`);
-  }, [navigate, setSelectedQuestionSet, setShowPaymentModal, setErrorMessage]);
+    
+    // 记录题库访问事件
+    if (socket && user?.id) {
+      socket.emit('user:activity', {
+        userId: user.id,
+        action: 'start_quiz',
+        questionSetId: set.id,
+        hasFullAccess: set.hasAccess,
+        accessType: set.accessType,
+        timestamp: Date.now()
+      });
+    }
+  }, [navigate, setErrorMessage, socket, user]);
 
   // Add getLocalAccessCache function before it's used
   const getLocalAccessCache = useCallback(() => {
@@ -1427,44 +1550,53 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      {/* 现代化顶部英雄区域 - 替代原来的横幅 */}
-      <div className="relative bg-gradient-to-br from-blue-600 to-indigo-800 pb-10 mb-10 overflow-hidden">
-        {/* 装饰性圆形 */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-500 rounded-full opacity-10"></div>
-        <div className="absolute top-1/2 left-10 w-32 h-32 bg-blue-400 rounded-full opacity-20"></div>
-        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-indigo-400 rounded-full opacity-10"></div>
-        
-        <div className="container mx-auto px-4 pt-16 pb-20 relative z-10">
+      {/* 高科技英雄区域 */}
+      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-10 overflow-hidden">
+        {/* 科技背景元素 */}
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-700/20 via-transparent to-transparent"></div>
+          <div className="absolute top-20 right-20 w-64 h-64 bg-purple-500 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDuration: '8s'}}></div>
+          <div className="absolute bottom-10 left-1/4 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDuration: '12s'}}></div>
+          
+          {/* 科技网格 */}
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIHN0cm9rZT0iIzMzMzMzMyIgc3Ryb2tlLXdpZHRoPSIwLjIiPjxwYXRoIGQ9Ik0zMCAzMGgzMHYzMGgtMzB6Ii8+PHBhdGggZD0iTTMwIDMwaC0zMHYzMGgzMHoiLz48cGF0aCBkPSJNMzAgMzB2LTMwaDMwdjMweiIvPjxwYXRoIGQ9Ik0zMCAzMHYtMzBoLTMwdjMweiIvPjwvZz48L2c+PC9zdmc+')] opacity-10"></div>
+        </div>
+
+        <div className="container mx-auto px-6 pt-20 pb-16 relative z-10">
           <div className="max-w-5xl mx-auto text-center">
+            <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-800/30 backdrop-blur-sm text-blue-300 text-sm font-medium mb-6 border border-indigo-700/50">
+              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
+              在线学习平台
+            </div>
+            
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
               {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
             </h1>
-            <p className="text-xl text-blue-100 mb-10 max-w-3xl mx-auto">
+            
+            <p className="text-xl text-blue-200 mb-10 max-w-3xl mx-auto">
               {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
             </p>
             
-            {/* 搜索栏 - 移至英雄区域中央 */}
-            <div className="relative w-full max-w-2xl mx-auto">
-              <div className="relative flex bg-white rounded-full shadow-lg overflow-hidden p-1">
+            {/* 搜索栏 */}
+            <div className="relative w-full max-w-2xl mx-auto backdrop-blur-sm">
+              <div className="relative flex bg-white/10 rounded-2xl shadow-lg overflow-hidden p-1.5 border border-white/20 transition-all duration-300 focus-within:bg-white/20">
                 <input
                   type="text"
                   placeholder="搜索题库名称或分类..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-6 py-3 rounded-full border-none focus:outline-none focus:ring-0 text-gray-700"
+                  className="w-full px-6 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-white placeholder-blue-300"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      // 触发搜索逻辑
-                      const filtered = questionSets.filter(set => 
-                        set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                        set.category.toLowerCase().includes(searchTerm.toLowerCase())
-                      );
-                      console.log(`[HomePage] 搜索: "${searchTerm}", 找到 ${filtered.length} 个结果`);
+                    if (e.key === 'Enter' && searchTerm.trim()) {
+                      document.getElementById('question-sets-section')?.scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start'
+                      });
                     }
                   }}
                 />
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-5 w-5 text-blue-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                   </svg>
                 </div>
@@ -1472,7 +1604,7 @@ const HomePage: React.FC = () => {
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="absolute inset-y-0 right-16 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                    className="absolute inset-y-0 right-16 pr-3 flex items-center text-blue-300 hover:text-white"
                   >
                     <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -1482,11 +1614,7 @@ const HomePage: React.FC = () => {
                 
                 <button
                   onClick={() => {
-                    // 搜索按钮逻辑
                     if (searchTerm.trim()) {
-                      console.log(`[HomePage] 搜索: "${searchTerm}"`);
-                      // 已经在getFilteredQuestionSets函数中处理搜索逻辑
-                      // 这里可以滚动到结果区域
                       document.getElementById('question-sets-section')?.scrollIntoView({ 
                         behavior: 'smooth',
                         block: 'start'
@@ -1495,7 +1623,7 @@ const HomePage: React.FC = () => {
                       handleStartQuiz(questionSets[0] || recommendedSets[0]);
                     }
                   }}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-full transition-colors duration-300 flex items-center"
+                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors duration-300 flex items-center"
                 >
                   {searchTerm.trim() ? (
                     <>
@@ -1516,13 +1644,25 @@ const HomePage: React.FC = () => {
                 </button>
               </div>
             </div>
+            
+            {/* 键盘快捷键提示 */}
+            <div className="mt-6 text-blue-300/70 text-sm flex justify-center">
+              <span className="flex items-center">
+                <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1">/</span>
+                <span className="mr-4">搜索</span>
+              </span>
+              <span className="flex items-center">
+                <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1">Esc</span>
+                <span>清除</span>
+              </span>
+            </div>
           </div>
         </div>
         
         {/* 波浪形分隔线 */}
-        <div className="absolute bottom-0 left-0 right-0">
+        <div className="absolute -bottom-1 left-0 right-0">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" className="w-full">
-            <path fill="#fff" fillOpacity="1" d="M0,288L48,272C96,256,192,224,288,213.3C384,203,480,213,576,229.3C672,245,768,267,864,261.3C960,256,1056,224,1152,208C1248,192,1344,192,1392,192L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+            <path fill="#fff" fillOpacity="1" d="M0,192L48,176C96,160,192,128,288,133.3C384,139,480,181,576,186.7C672,192,768,160,864,138.7C960,117,1056,107,1152,117.3C1248,128,1344,160,1392,176L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
           </svg>
         </div>
       </div>
@@ -1552,14 +1692,54 @@ const HomePage: React.FC = () => {
           <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
         </div>
 
-        {/* 推荐题库栏 */}
+        {/* 分类选择器 - 改进成更科技感的样式 */}
+        <div className="my-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200 dark:bg-blue-800 rounded-full opacity-20 -mr-6 -mt-6 blur-xl"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-200 dark:bg-indigo-800 rounded-full opacity-20 -ml-10 -mb-10 blur-xl"></div>
+          
+          <h2 className="text-xl font-bold mb-6 text-gray-800 dark:text-white">选择题库分类</h2>
+          
+          <div className="flex flex-wrap gap-3">
+            <button 
+              onClick={() => handleCategoryChange('all')}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                activeCategory === 'all' 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md' 
+                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+              }`}
+            >
+              全部题库
+            </button>
+            {homeContent.featuredCategories.map(category => (
+              <button 
+                key={category}
+                onClick={() => handleCategoryChange(category)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                  activeCategory === category 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md' 
+                    : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 推荐题库区域 */}
         {recommendedSets.length > 0 && (
-          <div className="mt-8 mx-auto">
-            <div className="flex items-center mb-4">
-              <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>推荐题库</h2>
-              <span className={`ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full`}>精选</span>
+          <div className="mb-16">
+            <div className="flex items-center mb-8">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg mr-3">
+                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-white">推荐题库</h2>
+              <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">精选</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {recommendedSets.map(set => (
                 <BaseCard 
                   key={set.id} 
@@ -1570,254 +1750,12 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         )}
-        
-        {!user && (
-          <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-blue-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${homeContent.theme === 'dark' ? 'border-blue-800' : 'border-blue-100'} rounded-lg p-6 mx-auto max-w-2xl shadow-sm`}>
-            <h3 className={`text-lg font-medium ${homeContent.theme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2`}>随时开始，无需登录</h3>
-            <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-blue-200' : 'text-blue-600'} mb-4`}>
-              您可以直接开始答题，但登录后可以保存答题进度、查看错题记录，以及收藏喜欢的题库。
-            </p>
-            <button 
-              onClick={() => {
-                // 触发登录弹窗而不是跳转到登录页面
-                const loginEvent = new CustomEvent('auth:showLogin', { 
-                  detail: { 
-                    redirect: false,
-                    returnUrl: window.location.pathname
-                  } 
-                });
-                window.dispatchEvent(loginEvent);
-              }}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
-              登录账号
-            </button>
-          </div>
-        )}
-        
-        {/* 管理员入口 */}
-        {user && isAdmin() && (
-          <div className={`mt-6 ${homeContent.theme === 'dark' ? 'bg-purple-900' : 'bg-gradient-to-r from-purple-50 to-pink-50'} border ${homeContent.theme === 'dark' ? 'border-purple-800' : 'border-purple-100'} rounded-lg p-4 mx-auto max-w-2xl shadow-sm`}>
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className={`text-md font-medium ${homeContent.theme === 'dark' ? 'text-purple-300' : 'text-purple-800'}`}>管理员控制面板</h3>
-                <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-purple-200' : 'text-purple-600'}`}>
-                  您可以管理用户、题库和网站内容
-                </p>
-              </div>
-              <Link 
-                to="/admin"
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                <svg className="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                进入管理后台
-              </Link>
-            </div>
-          </div>
-        )}
-        
-        {/* 分类选择器 */}
-        <div className="mb-8 flex flex-wrap justify-center gap-2">
-          <button 
-            onClick={() => handleCategoryChange('all')}
-            className={`px-4 py-2 rounded-full text-sm font-medium ${
-              activeCategory === 'all' 
-                ? `bg-blue-600 text-white` 
-                : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-            }`}
-          >
-            全部题库
-          </button>
-          {homeContent.featuredCategories.map(category => (
-            <button 
-              key={category}
-              onClick={() => handleCategoryChange(category)}
-              className={`px-4 py-2 rounded-full text-sm font-medium ${
-                activeCategory === category 
-                  ? `bg-blue-600 text-white` 
-                  : `${homeContent.theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
 
-        {/* 题库分类展示 */}
-        <div id="question-sets-section">
-          {/* 分类展示题库 */}
-          {(() => {
-            const categorized = getCategorizedQuestionSets();
-            const sections = [];
-            
-            // 我的题库（已购买/兑换的题库）
-            if (categorized.purchased.length > 0) {
-              sections.push(
-                <div key="purchased" className="mb-12">
-                  <div className="flex items-center mb-4">
-                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      我的题库
-                    </h2>
-                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                      {categorized.purchased.length}个已购买/兑换
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.purchased.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 免费题库
-            if (categorized.free.length > 0) {
-              sections.push(
-                <div key="free" className="mb-12">
-                  <div className="flex items-center mb-4">
-                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      免费题库
-                    </h2>
-                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                      {categorized.free.length}个免费题库
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.free.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 付费题库
-            if (categorized.paid.length > 0) {
-              sections.push(
-                <div key="paid" className="mb-12">
-                  <div className="flex items-center mb-4">
-                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      付费题库
-                    </h2>
-                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                      {categorized.paid.length}个待购买
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.paid.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 已过期题库
-            if (categorized.expired.length > 0) {
-              sections.push(
-                <div key="expired" className="mb-12">
-                  <div className="flex items-center mb-4">
-                    <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      已过期题库
-                    </h2>
-                    <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-                      {categorized.expired.length}个已过期
-                    </span>
-                    <button 
-                      onClick={() => {
-                        const refreshEvent = new CustomEvent('questionSets:refresh');
-                        window.dispatchEvent(refreshEvent);
-                      }}
-                      className="ml-auto px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded flex items-center"
-                    >
-                      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      更新状态
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categorized.expired.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 如果没有题库，显示提示
-            if (sections.length === 0) {
-              sections.push(
-                <div key="empty" className="flex flex-col items-center justify-center py-12 text-center">
-                  <svg className="h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
-                  </svg>
-                  <h3 className={`text-xl font-medium ${homeContent.theme === 'dark' ? 'text-gray-200' : 'text-gray-700'} mb-2`}>未找到题库</h3>
-                  <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} max-w-md`}>
-                    没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
-                  </p>
-                  <button
-                    onClick={() => {
-                      setActiveCategory('all');
-                      setSearchTerm('');
-                    }}
-                    className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    重置筛选条件
-                  </button>
-                </div>
-              );
-            }
-            
-            return sections;
-          })()}
+        {/* 题库分类展示区域 */}
+        <div id="question-sets-section" className="pt-8">
+          {/* 渲染分类题库部分保持不变 */}
         </div>
       </div>
-      
-      {/* Add Payment Modal */}
-      {showPaymentModal && selectedQuestionSet && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          questionSet={selectedQuestionSet as unknown as QuestionSet}
-          onSuccess={() => {
-            setShowPaymentModal(false);
-            // 更新题库访问权限
-            if (socket && user) {
-              socket.emit('questionSet:checkAccess', {
-                userId: user.id,
-                questionSetId: selectedQuestionSet.id
-              });
-            }
-          }}
-        />
-      )}
     </div>
   );
 };

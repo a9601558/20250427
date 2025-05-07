@@ -6,8 +6,12 @@ import RedeemCodeForm from './RedeemCodeForm';
 import { toast } from 'react-toastify';
 import { useUser } from '../contexts/UserContext';
 
+interface QuestionWithCode extends Question {
+  code?: string;
+}
+
 interface QuestionCardProps {
-  question: Question;
+  question: QuestionWithCode;
   onAnswerSubmitted?: (isCorrect: boolean, selectedOption: string | string[]) => void;
   onNext?: () => void;
   isLast?: boolean;
@@ -297,7 +301,7 @@ const QuestionCard = ({
   };
 
   const handleSubmit = () => {
-    // 防重复提交机制
+    // 防止重复提交
     if (isSubmittingRef.current || isSubmitted) return;
     isSubmittingRef.current = true;
     
@@ -748,175 +752,186 @@ const QuestionCard = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showExplanation, canProceed, question.options]);
 
-  return (
-    <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-      {/* 题目信息 */}
-      <div className="mb-4 flex justify-between items-center">
+  // 添加试用信息组件
+  const TrialInfoBanner = () => {
+    // 如果不是付费题库或者用户有完整访问权限，不显示试用信息
+    if (!isPaid || hasFullAccess) return null;
+    
+    // 这里显示试用信息，包括当前是第几题、试用总题数等
+    return (
+      <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg p-3">
         <div className="flex items-center">
-          <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full font-medium mr-2">
-            {questionNumber} / {totalQuestions}
-          </span>
-          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-            {question.questionType === 'single' ? '单选题' : '多选题'}
+          <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-sm text-blue-800">
+            您正在试用模式下答题 <span className="font-medium">({questionNumber} / {totalQuestions}题)</span>
           </span>
         </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg p-6 mb-6 transition-all">
+      {/* 试用信息横幅 */}
+      <TrialInfoBanner />
+      
+      {/* 题目信息 */}
+      <div className="flex justify-between items-start mb-6">
+        <div className="flex items-center">
+          <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-medium text-lg mr-3">
+            {questionNumber}
+          </span>
+          <h3 className="text-lg font-semibold text-gray-800">
+            {question.questionType === 'single' ? '[单选题]' : '[多选题]'}
+          </h3>
+        </div>
+        <span className="text-sm text-gray-500">
+          {questionNumber} / {totalQuestions}
+        </span>
       </div>
 
       {/* 题目内容 */}
-      <h2 className="text-lg font-semibold text-gray-800 mb-5">{question.question || question.text}</h2>
+      <div className="mb-6">
+        <p className="text-gray-800 text-base whitespace-pre-wrap mb-2">{question.question}</p>
+        {question.code && (
+          <div className="bg-gray-900 rounded-md p-4 my-3 overflow-x-auto">
+            <pre className="text-sm text-gray-100 font-mono">{question.code}</pre>
+          </div>
+        )}
+      </div>
 
       {/* 选项列表 */}
-      <div className="space-y-3 mt-4">
+      <div className="space-y-3 mb-6">
         {question.options.map((option, index) => (
           <div
             key={option.id}
-            className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all duration-150 ${getOptionClass(option)}`}
-            onClick={() => !showExplanation && handleOptionClick(option.text, option.id)}
+            tabIndex={0}
+            className={`relative p-4 border rounded-lg cursor-pointer transition-all 
+              ${getOptionClass(option)}
+              ${!isSubmitted ? 'hover:border-blue-300' : ''}
+            `}
+            onClick={() => !isSubmitted && handleOptionClick(option.text, option.id)}
+            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
           >
-            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mr-3 ${
-              showExplanation && option.isCorrect 
-                ? 'bg-green-100 text-green-700' 
-                : (showExplanation && selectedOptions.includes(option.id)) 
-                  ? 'bg-red-100 text-red-700' 
-                  : selectedOptions.includes(option.id)
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-700'
-            }`}>
-              {String.fromCharCode(65 + index)}
+            <div className="flex items-start">
+              <div className={`flex-shrink-0 w-6 h-6 ${isSubmitted ? '' : 'border'} rounded-full flex items-center justify-center mr-3 mt-0.5 transition-colors ${
+                selectedOptions.includes(option.id) 
+                  ? (isSubmitted 
+                      ? (isCorrect ? 'bg-green-500 text-white border-green-500' : 'bg-red-500 text-white border-red-500') 
+                      : 'bg-blue-500 text-white border-blue-500'
+                    )
+                  : 'border-gray-300 text-transparent'
+              }`}>
+                {selectedOptions.includes(option.id) && (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <span className="text-md text-gray-800">{option.label}. {option.text}</span>
+                {/* 解释 */}
+                {isSubmitted && option.isCorrect && showExplanation && question.explanation && (
+                  <div className="mt-2 text-sm text-green-700 bg-green-50 p-3 rounded-md">
+                    <p className="font-medium mb-1">解释:</p>
+                    <p className="whitespace-pre-wrap">{question.explanation}</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="mt-0.5 text-sm">{option.text}</div>
+            
+            {/* 正确/错误指示器 */}
+            {isSubmitted && (
+              <div className="absolute right-4 top-4">
+                {option.isCorrect ? (
+                  <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : selectedOptions.includes(option.id) ? (
+                  <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : null}
+              </div>
+            )}
           </div>
         ))}
       </div>
-
-      {/* 多选题提交按钮 */}
-      {question.questionType === 'multiple' && !showExplanation && (
-        <div className="mt-4">
-          <button
-            onClick={handleSubmit}
-            disabled={selectedOptions.length === 0 || isSubmittingRef.current}
-            className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
-              selectedOptions.length === 0 || isSubmittingRef.current
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            提交答案
-          </button>
-        </div>
-      )}
       
-      {/* 解析显示区域 */}
-      {showExplanation && (
-        <div className="mt-5">
-          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <div className="flex items-start">
-              <div className="bg-blue-100 p-1 rounded-md text-blue-700 mr-3 flex-shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-medium text-blue-800 mb-1">解析</h3>
-                <p className="text-sm text-blue-700">{question.explanation || "本题暂无解析"}</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* 答案正确/错误提示 */}
-          <div className="mt-4 text-center">
-            <div className={`inline-block px-4 py-2 rounded-full font-medium text-sm ${
-              selectedOptions.some(id => 
-                question.options.find(opt => opt.id === id)?.isCorrect
-              ) 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {selectedOptions.some(id => 
-                question.options.find(opt => opt.id === id)?.isCorrect
-              ) 
-                ? '答对了' 
-                : '答错了'
-              }
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 导航按钮区域 - 上一题和下一题 */}
-      <div className="mt-6 flex justify-between">
+      {/* 操作按钮 */}
+      <div className="flex justify-between">
         <button
           onClick={handlePrevious}
-          className={`px-5 py-2 rounded-md flex items-center ${
-            questionNumber > 1 
-              ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
-              : 'text-gray-400 bg-gray-50 cursor-not-allowed'
-          }`}
-          disabled={questionNumber <= 1}
+          className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
         >
-          <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           上一题
         </button>
         
-        <button
-          onClick={handleNext}
-          className={`next-question-button px-5 py-2 rounded-md flex items-center ${
-            (showExplanation || canProceed) 
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-          disabled={!showExplanation && !canProceed}
-        >
-          下一题
-          <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        <div>
+          {!isSubmitted ? (
+            <button
+              onClick={handleSubmit}
+              disabled={selectedOptions.length === 0 || isSubmittingRef.current}
+              className={`px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center ${
+                isSubmittingRef.current ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSubmittingRef.current ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  提交中...
+                </>
+              ) : (
+                <>提交答案</>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={handleNext}
+              className={`px-6 py-2 rounded-lg ${
+                isLast ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+              } text-white transition-colors flex items-center`}
+            >
+              {isLast ? '完成答题' : '下一题'}
+              <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       
-      {/* 键盘快捷键提示 */}
-      <div className="mt-4 text-center text-xs text-gray-500">
-        <span className="bg-gray-100 rounded px-1.5 py-0.5 mr-1">←</span>上一题
-        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">→</span>下一题
-        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">1-9</span>选择选项
-      </div>
-      
-      {/* 添加清空答题按钮 */}
-      <div className="mt-3 text-center">
+      {/* 解释开关 */}
+      {isSubmitted && question.explanation && (
         <button
-          onClick={() => {
-            if (window.confirm('确定要清空当前题目的答题记录吗？')) {
-              try {
-                // 清除当前题目的状态记录
-                if (questionSetId && question.id) {
-                  const storageKey = `quiz_state_${questionSetId}_${question.id}`;
-                  localStorage.removeItem(storageKey);
-                  
-                  // 重置组件状态
-                  setSelectedOption(null);
-                  setSelectedOptions([]);
-                  setIsSubmitted(false);
-                  setShowExplanation(false);
-                  
-                  // 展示成功消息
-                  toast.success('已清空当前题目的答题记录');
-                }
-              } catch (e) {
-                console.error('清空答题记录失败:', e);
-                toast.error('清空答题记录失败');
-              }
-            }
-          }}
-          className="text-gray-500 hover:text-red-600 text-xs underline transition-colors"
+          onClick={() => setShowExplanation(!showExplanation)}
+          className="mt-4 text-sm text-blue-600 hover:text-blue-800 flex items-center"
         >
-          清空当前题目答题记录
+          {showExplanation ? (
+            <>
+              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              隐藏解释
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              查看解释
+            </>
+          )}
         </button>
-      </div>
+      )}
     </div>
   );
 };
