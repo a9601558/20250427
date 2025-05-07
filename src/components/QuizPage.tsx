@@ -2499,40 +2499,46 @@ function QuizPage(): JSX.Element {
               您已经完成了 {answeredQuestions.length} 道题目，其中答对了 {correctAnswers} 题。
             </p>
             <div className="flex flex-col space-y-3">
-            <button 
-              onClick={() => setShowPaymentModal(true)}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-            >
-              立即购买
-            </button>
+              <button 
+                onClick={() => {
+                  console.log('[QuizPage] 点击购买按钮，打开支付模态框');
+                  setShowPaymentModal(true);
+                }}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              >
+                立即购买
+              </button>
               
               <button
-                onClick={() => setShowRedeemCodeModal(true)}
-                className="w-full bg-green-50 text-green-700 border border-green-300 py-2 px-4 rounded hover:bg-green-100"
+                onClick={() => {
+                  console.log('[QuizPage] 点击兑换码按钮，打开兑换模态框');
+                  setShowRedeemCodeModal(true);
+                }}
+                className="w-full bg-green-50 text-green-700 border border-green-300 py-2 px-4 rounded hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
               >
                 使用兑换码
-            </button>
+              </button>
             </div>
           </div>
           
           <div className="flex justify-between mt-4">
             <button
               onClick={handleNavigateHome}
-              className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200"
+              className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200 transition-colors duration-200"
             >
               返回首页
             </button>
             {user ? (
               <button
                 onClick={() => navigate('/profile')}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors duration-200"
               >
                 查看已购题库
               </button>
             ) : (
               <button
                 onClick={() => navigate('/login')}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors duration-200"
               >
                 登录/注册
               </button>
@@ -2546,8 +2552,8 @@ function QuizPage(): JSX.Element {
             isOpen={showPaymentModal}
             questionSet={questionSet}
             onClose={() => setShowPaymentModal(false)}
-            onSuccess={() => {
-              console.log(`[QuizPage] 支付成功回调，更新访问权限`);
+            onSuccess={(purchaseInfo) => {
+              console.log(`[QuizPage] 支付成功回调，更新访问权限`, purchaseInfo);
               setHasAccessToFullQuiz(true);
               setTrialEnded(false);
               setShowPaymentModal(false);
@@ -2575,6 +2581,12 @@ function QuizPage(): JSX.Element {
                   });
                 }, 300);
               }
+              
+              // 显示成功消息
+              toast.success(`成功购买《${questionSet.title}》，现在您可以访问全部 ${questions.length} 道题目了！`, {
+                position: 'top-center',
+                autoClose: 5000
+              });
             }}
           />
         )}
