@@ -299,7 +299,7 @@ const HomePage: React.FC = () => {
     );
   };
   
-  // 添加handleStartQuiz函数，允许未购买题库进入试用模式
+  // 修改handleStartQuiz函数，添加试用模式参数
   const handleStartQuiz = useCallback((set: PreparedQuestionSet) => {
     console.log(`[HomePage] 开始答题:`, set);
     
@@ -310,9 +310,25 @@ const HomePage: React.FC = () => {
       return;
     }
     
-    // 直接跳转到答题页面，无论是否有访问权限
-    // QuizPage会基于试用题目数量限制来处理付费题库的试用访问
-    navigate(`/quiz/${set.id}`);
+    // 构建URL参数
+    const urlParams = new URLSearchParams();
+    
+    // 如果是付费题库且用户没有访问权限，添加试用模式参数
+    if (set.isPaid && !set.hasAccess) {
+      urlParams.append('mode', 'trial');
+      if (set.trialQuestions) {
+        urlParams.append('trialLimit', String(set.trialQuestions));
+      }
+    }
+    
+    // 添加时间戳参数，避免缓存
+    urlParams.append('t', Date.now().toString());
+    
+    // 构建完整URL
+    const quizUrl = `/quiz/${set.id}${urlParams.toString() ? `?${urlParams.toString()}` : ''}`;
+    
+    // 使用navigate进行路由跳转
+    navigate(quizUrl);
     
     // 记录题库访问事件
     if (socket && user?.id) {
@@ -322,6 +338,7 @@ const HomePage: React.FC = () => {
         questionSetId: set.id,
         hasFullAccess: set.hasAccess,
         accessType: set.accessType,
+        mode: set.isPaid && !set.hasAccess ? 'trial' : 'normal',
         timestamp: Date.now()
       });
     }

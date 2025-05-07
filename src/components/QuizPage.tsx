@@ -589,6 +589,7 @@ function QuizPage(): JSX.Element {
         // 解析URL参数
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
+        const trialLimit = urlParams.get('trialLimit');
         const specificQuestions = urlParams.get('questions');
         
         // 获取题库详情
@@ -607,7 +608,10 @@ function QuizPage(): JSX.Element {
             isFeatured: response.data.isFeatured || false,
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
-            trialQuestions: response.data.trialQuestions,
+            // 如果是试用模式，使用URL参数中的试用题目数量
+            trialQuestions: mode === 'trial' && trialLimit 
+              ? parseInt(trialLimit, 10) 
+              : response.data.trialQuestions,
             questionCount: getQuestions(response.data).length,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -672,6 +676,11 @@ function QuizPage(): JSX.Element {
               }
             } else {
               setQuestions(processedQuestions);
+            }
+            
+            // 如果是试用模式，显示提示
+            if (mode === 'trial') {
+              toast.info(`您正在试用模式下答题，可以答${trialLimit || questionSetData.trialQuestions}道题`);
             }
           } else {
             console.error("题库中没有题目");

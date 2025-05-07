@@ -62,17 +62,18 @@ const QuestionCard = ({
   isLast = false,
   isSubmittingAnswer = false
 }: QuestionCardProps) => {
-  // 单选题选择一个选项，多选题选择多个选项
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(!!userAnsweredQuestion);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCorrectAnswer, setIsCorrectAnswer] = useState(false);
+  const isSubmittingRef = useRef<boolean>(false);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
   
   // 添加ref以防止重复点击和提交
-  const isSubmittingRef = useRef<boolean>(false);
   const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSubmitTimeRef = useRef<number>(0);
   
@@ -300,124 +301,76 @@ const QuestionCard = ({
     }
   };
 
-  const handleSubmit = () => {
-    // 防止重复提交
+  const handleSubmit = async () => {
     if (isSubmittingRef.current || isSubmitted) return;
     isSubmittingRef.current = true;
-    
-    try {
-      if (question.questionType === 'single' && selectedOption) {
-        setIsSubmitted(true);
-        
-        // 修改判断逻辑，找到正确选项的ID比较
-        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
-        const isCorrect = selectedOption === correctOptionId;
-        
-        if (onAnswerSubmitted) {
-          onAnswerSubmitted(isCorrect, selectedOption);
-        }
+    setIsSubmitting(true);
 
-        // 如果回答错误，保存到错题集
-        if (!isCorrect) {
-          // 检查此题是否最近已保存过，避免重复保存
-          const wrongAnswerKey = `wrong_answer_${question.id}`;
-          const lastSaved = localStorage.getItem(wrongAnswerKey);
-          const now = Date.now();
-          
-          if (!lastSaved || now - parseInt(lastSaved) > 5000) { // 5秒内不重复保存
-            localStorage.setItem(wrongAnswerKey, now.toString());
-            // 修复: 确保包含完整的 question 字段
-            const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-              detail: {
-                questionId: question.id,
-                questionSetId: questionSetId,
-                question: question.question || question.text, // 使用 question.question 或 question.text 字段
-                questionText: question.question || question.text, // 额外提供字段以防模型需要
-                questionType: question.questionType,
-                options: question.options,
-                selectedOption: selectedOption,
-                correctOption: correctOptionId,
-                explanation: question.explanation
-              }
-            });
-            window.dispatchEvent(wrongAnswerEvent);
-            
-            // 错误时显示解析
-            setShowExplanation(true);
-          }
-        } else {
-          // 答对自动更快地跳到下一题 (400ms)
-          timeoutId = setTimeout(() => {
-            handleNext();
-          }, 400);
-        }
-      } else if (question.questionType === 'multiple' && selectedOptions.length > 0) {
-        setIsSubmitted(true);
-        
-        // 修改多选题判断逻辑
+    try {
+      // 检查是否选择了选项
+      if (selectedOptions.length === 0) {
+        toast.error('请选择一个选项');
+        return;
+      }
+
+      // 判断答案是否正确
+      let isCorrect = false;
+      if (question.questionType === 'single') {
+        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+        isCorrect = selectedOptions[0] === correctOptionId;
+      } else {
         const correctOptionIds = question.options
           .filter(opt => opt.isCorrect)
           .map(opt => opt.id);
         
-        const lengthMatch = selectedOptions.length === correctOptionIds.length;
-        const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
-        const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
-        const isCorrect = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
-        
-        if (onAnswerSubmitted) {
-          onAnswerSubmitted(isCorrect, selectedOptions);
-        }
-
-        // 如果回答错误，保存到错题集
-        if (!isCorrect) {
-          // 检查此题是否最近已保存过，避免重复保存
-          const wrongAnswerKey = `wrong_answer_${question.id}`;
-          const lastSaved = localStorage.getItem(wrongAnswerKey);
-          const now = Date.now();
-          
-          if (!lastSaved || now - parseInt(lastSaved) > 5000) { // 5秒内不重复保存
-            localStorage.setItem(wrongAnswerKey, now.toString());
-            // 修复: 确保包含完整的 question 字段
-            const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-              detail: {
-                questionId: question.id,
-                questionSetId: questionSetId,
-                question: question.question || question.text, // 使用 question.question 或 question.text 字段
-                questionText: question.question || question.text, // 额外提供字段以防模型需要
-                questionType: question.questionType,
-                options: question.options,
-                selectedOptions: selectedOptions,
-                correctOptions: correctOptionIds,
-                explanation: question.explanation
-              }
-            });
-            window.dispatchEvent(wrongAnswerEvent);
-            
-            // 错误时显示解析
-            setShowExplanation(true);
-          }
-        } else {
-          // 答对自动更快地跳到下一题 (400ms)
-          timeoutId = setTimeout(() => {
-            handleNext();
-          }, 400);
-        }
+        const allCorrectSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+        const noIncorrectSelected = selectedOptions.every(id => correctOptionIds.includes(id));
+        isCorrect = allCorrectSelected && noIncorrectSelected;
       }
+
+      setIsCorrectAnswer(isCorrect);
+      setIsSubmitted(true);
+      setShowExplanation(true);
+
+      // 调用父组件的回调
+      if (onAnswerSubmitted) {
+        onAnswerSubmitted(isCorrect, selectedOptions);
+      }
+
+      // 如果答错了，保存错题记录
+      if (!isCorrect) {
+        const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+          detail: {
+            questionId: question.id,
+            questionSetId,
+            question: question.question,
+            selectedOption: selectedOptions,
+            correctAnswer: question.options.filter(opt => opt.isCorrect).map(opt => opt.id),
+            isCorrect: false
+          }
+        });
+        window.dispatchEvent(wrongAnswerEvent);
+      }
+
     } finally {
-      // 1秒后才能再次提交，防止快速点击
+      setIsSubmitting(false);
       setTimeout(() => {
         isSubmittingRef.current = false;
-      }, 1000);
+      }, 500);
     }
   };
 
-  const handleNext = () => {
-    setSelectedOption(null);
+  const handleNext = useCallback(() => {
+    if (!isSubmitted && !isCorrectAnswer) return;
+    
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
+    setIsCorrectAnswer(false);
+    
+    // 调用父组件的onNext回调
     onNext();
-  };
+  }, [isSubmitted, isCorrectAnswer, onNext]);
   
   // Add a useEffect to handle cross-device access synchronization
   useEffect(() => {
@@ -876,12 +829,12 @@ const QuestionCard = ({
           {!isSubmitted ? (
             <button
               onClick={handleSubmit}
-              disabled={selectedOptions.length === 0 || isSubmittingRef.current}
+              disabled={selectedOptions.length === 0 || isSubmitting}
               className={`px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center ${
-                isSubmittingRef.current ? 'opacity-70 cursor-not-allowed' : ''
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >
-              {isSubmittingRef.current ? (
+              {isSubmitting ? (
                 <>
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
