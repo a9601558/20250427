@@ -405,20 +405,7 @@ const QuestionCard = ({
     }
   };
 
-  // 增加一个专门监控试用模式状态的useEffect
-  useEffect(() => {
-    if (isTrialMode && !hasFullAccess && trialQuestions && questionNumber > trialQuestions) {
-      console.log(`[QuestionCard] 检测到超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
-      
-      // 显示购买或兑换提示
-      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions));
-      
-      // 自动显示购买模态窗口
-      setShowPaymentModal(true);
-    }
-  }, [isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
-
-  // 修改handleNext函数，确保在试用模式下正确处理限制
+  // 修改handleNext函数，增强试用限制检查
   const handleNext = () => {
     // 记录当前状态
     saveCurrentState();
@@ -441,6 +428,28 @@ const QuestionCard = ({
       onNext();
     }
   };
+
+  // 增强试用模式状态监控的useEffect
+  useEffect(() => {
+    // 检查是否超出试用题目限制
+    if (isTrialMode && !hasFullAccess && trialQuestions) {
+      // 检查当前题目或下一题是否会超过限制
+      if (questionNumber > trialQuestions) {
+        console.log(`[QuestionCard] 检测到超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
+        
+        // 显示购买或兑换提示
+        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
+          position: "top-center",
+          autoClose: 5000,
+        });
+        
+        // 强制显示购买模态窗口，确保不会忽略
+        setTimeout(() => {
+          setShowPaymentModal(true);
+        }, 300);
+      }
+    }
+  }, [isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
 
   // 监听全局事件
   useEffect(() => {
@@ -843,13 +852,15 @@ const QuestionCard = ({
       {/* 操作按钮 */}
       {renderButtonArea()}
       
-      {/* 题目导航 */}
-      <div className="mt-8">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">题目导航</h4>
-        <div className="flex flex-wrap gap-2">
-          {renderNumberButtons()}
-            </div>
+      {/* 题目导航 - 只在非试用模式或有完整访问权限时显示 */}
+      {(!isTrialMode || hasFullAccess) && (
+        <div className="mt-8">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">题目导航</h4>
+          <div className="flex flex-wrap gap-2">
+            {renderNumberButtons()}
           </div>
+        </div>
+      )}
       
       {/* 解释开关 */}
       {isSubmitted && question.explanation && (
