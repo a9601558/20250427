@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { QuestionSet } from '../types';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { createMockPaymentIntent, confirmMockPayment, processPayment } from '../utils/paymentUtils';
+import { questionSetApi } from '../utils/api';
 
 interface PaymentModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  questionSet: QuestionSet;
+  questionSet?: QuestionSet;
+  questionSetId?: string;
   onSuccess: (purchaseInfo: {
     questionSetId: string;
     remainingDays: number;
@@ -19,7 +21,7 @@ interface PaymentModalProps {
 const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || 
   'pk_test_51RHMVW4ec3wxfwe9vME773VFyquoIP1bVWbsCDZgrgerfzp8YMs0rLS4ZSleICEcIf9gmLIEftwXvPygbLp1LEkv00r5M3rCIV';
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSet, onSuccess }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, questionSet: propQuestionSet, questionSetId, onSuccess }) => {
   const { user, addPurchase } = useUser();
   const { socket } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -31,6 +33,34 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const scriptRef = useRef<HTMLScriptElement | null>(null);
   const cardRef = useRef<any>(null);
+  const [questionSet, setQuestionSet] = useState<QuestionSet | undefined>(propQuestionSet);
+  const [isLoading, setIsLoading] = useState(!!questionSetId && !propQuestionSet);
+
+  // 如果提供了questionSetId但没有questionSet，则加载questionSet
+  useEffect(() => {
+    if (questionSetId && !propQuestionSet) {
+      const fetchQuestionSet = async () => {
+        setIsLoading(true);
+        try {
+          const response = await questionSetApi.getQuestionSetById(questionSetId);
+          if (response.success && response.data) {
+            setQuestionSet(response.data);
+          } else {
+            setError('无法加载题库信息，请刷新页面重试');
+          }
+        } catch (error) {
+          console.error('加载题库失败:', error);
+          setError('加载题库信息出错，请刷新页面重试');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchQuestionSet();
+    } else if (propQuestionSet) {
+      setQuestionSet(propQuestionSet);
+    }
+  }, [questionSetId, propQuestionSet]);
 
   // 加载Stripe
   useEffect(() => {
@@ -190,12 +220,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
     try {
       // 1. 创建支付Intent - 根据环境使用真实或模拟API
       const intentData = await processPayment(
-        questionSet.price || 0, 
+        questionSet?.price || 0, 
         'cny',
         {
           userId: user?.id || 'anonymous',
-          questionSetId: String(questionSet.id).trim(),
-          questionSetTitle: questionSet.title
+          questionSetId: String(questionSet?.id || '').trim(),
+          questionSetTitle: questionSet?.title ?? '未知题库'
         }
       );
       
@@ -279,13 +309,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       const purchase = {
         id: `purchase_${Math.random().toString(36).substring(2, 12)}`, // 确保有唯一ID
         userId: user.id,
-        questionSetId: String(questionSet.id).trim(), // 确保ID格式一致
+        questionSetId: String(questionSet?.id).trim(), // 确保ID格式一致
         purchaseDate: new Date().toISOString(),
         expiryDate: expiryDate,
         transactionId: transactionId,
         paymentMethod: paymentMethod,
         status: 'active', // 确保状态是active
-        amount: questionSet.price || 0
+        amount: questionSet?.price || 0
       };
 
       console.log(`[支付] 创建购买记录:`, purchase);
@@ -315,7 +345,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
       }
       
       // 显示成功消息
-      setSuccessMessage(`支付成功！您现在可以访问《${questionSet.title}》题库的所有内容，有效期至 ${new Date(expiryDate).toLocaleDateString()}`);
+      setSuccessMessage(`支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${new Date(expiryDate).toLocaleDateString()}`);
       
       // 保存访问记录到localStorage
       try {
@@ -328,7 +358,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, questionSe
         }
         
         // 更新访问权限
-        accessRights[String(questionSet.id).trim()] = true;
+        accessRights[String(questionSet?.id).trim()] = true;
         
         // 保存回localStorage
         localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));

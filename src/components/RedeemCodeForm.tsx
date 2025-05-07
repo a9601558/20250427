@@ -13,9 +13,10 @@ interface RedeemCodeResult {
 
 interface RedeemCodeFormProps {
   onRedeemSuccess?: (questionSetId: string) => void;
+  questionSetId?: string;
 }
 
-const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
+const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questionSetId }) => {
   const [redeemCode, setRedeemCode] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
