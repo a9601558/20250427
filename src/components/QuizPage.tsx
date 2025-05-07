@@ -111,25 +111,32 @@ function QuizPage(): JSX.Element {
   const { socket } = useSocket();
   const { fetchUserProgress } = useUserProgress();
   
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [showExplanation, setShowExplanation] = useState(false);
+  // 状态管理
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
+  const [questionSet, setQuestionSet] = useState<IQuestionSet | null>(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
+  const [showHints, setShowHints] = useState<boolean>(false);
   const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([]);
+  const [showExplanation, setShowExplanation] = useState<boolean>(false);
+  const [showAllExplanations, setShowAllExplanations] = useState<boolean>(false);
+  const [showReviewMode, setShowReviewMode] = useState<boolean>(false);
+  const [showWrongAnswers, setShowWrongAnswers] = useState<boolean>(false);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(0);
+  const [accessChecked, setAccessChecked] = useState<boolean>(false);
+  const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState<boolean>(false);
+  const [hasRedeemed, setHasRedeemed] = useState<boolean>(false);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState<boolean>(false);
+  const [trialEnded, setTrialEnded] = useState(false);
+  const [isInTrialMode, setIsInTrialMode] = useState<boolean>(false);
+  const timeoutId = useRef<NodeJS.Timeout>();
+  const [isRandomMode, setIsRandomMode] = useState(false);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [correctAnswers, setCorrectAnswers] = useState<number>(0);
   const [quizComplete, setQuizComplete] = useState(false);
-  const [questionSet, setQuestionSet] = useState<IQuestionSet | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState(false);
-  const [trialEnded, setTrialEnded] = useState(false);
-  const [questionStartTime, setQuestionStartTime] = useState(0);
-  const [hasRedeemed, setHasRedeemed] = useState(false); // Track if user has redeemed a code
-  const timeoutId = useRef<NodeJS.Timeout>();
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
-  const [isRandomMode, setIsRandomMode] = useState(false);
-  const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
   
   // 存储上次提交时间的外部变量，使用useRef避免重新渲染时重置
   const lastSubmitTimeRef = useRef<number>(0);
@@ -582,33 +589,51 @@ function QuizPage(): JSX.Element {
   
   // 获取题库和题目数据
   useEffect(() => {
+    if (!questionSetId) return;
+    
     const fetchQuestionSet = async () => {
-      if (!questionSetId) {
-        setError('无效的题库ID');
-        setLoading(false);
-        return;
-      }
+      setLoading(true);
+      setError(null);
       
       try {
-        setLoading(true);
-        
         // 解析URL参数
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
         const trialLimit = urlParams.get('trialLimit');
         const specificQuestions = urlParams.get('questions');
         
+        // 检查URL中的trial参数，支持两种形式："?mode=trial" 或 "?trial=true"
+        // 这样可以确保向后兼容性
+        const isTrialParam = mode === 'trial' || urlParams.get('trial') === 'true';
+        
+        // 增强调试日志
+        console.log('[QuizPage] URL 参数解析:', {
+          fullUrl: window.location.href,
+          search: window.location.search,
+          mode,
+          trialLimit,
+          specificQuestions,
+          isTrialParam,
+          rawParams: Array.from(urlParams.entries())
+        });
+        
         // 获取题库详情
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
         if (response.success && response.data) {
-          // 判断是否是试用模式
-          const isTrialMode = mode === 'trial';
+          // 判断是否是试用模式 - 改进检测方式
+          const isTrialMode = isTrialParam;
+          console.log(`[QuizPage] 试用模式检测结果: mode参数=${mode}, isTrialMode=${isTrialMode}`);
+          
+          // 更新明确的试用模式状态
+          setIsInTrialMode(isTrialMode);
           
           // 设置试用题目数量，优先使用URL参数中的值
           const trialQuestionCount = isTrialMode && trialLimit 
             ? parseInt(trialLimit, 10) 
             : response.data.trialQuestions;
+          
+          console.log(`[QuizPage] 试用题目设置: 数量=${trialQuestionCount}, 来源=${isTrialMode && trialLimit ? 'URL参数' : '题库默认值'}`);
           
           const questionSetData: IQuestionSet = {
             id: response.data.id,
@@ -628,15 +653,61 @@ function QuizPage(): JSX.Element {
             updatedAt: new Date()
           };
           
+          console.log(`[QuizPage] 题库数据处理: isPaid=${questionSetData.isPaid}, trialQuestions=${questionSetData.trialQuestions}`);
+          
           setQuestionSet(questionSetData);
           
           // 如果是试用模式，确保相关状态正确设置
           if (isTrialMode && questionSetData.isPaid) {
-            console.log(`[QuizPage] 进入试用模式，限制题目数: ${trialQuestionCount}`);
-            // 确保没有错误地标记为有完全访问权限
+            console.log(`[QuizPage] 确认进入试用模式: isPaid=${questionSetData.isPaid}, 限制题目数=${trialQuestionCount}`);
+            // 显式设置没有完全访问权限
             setHasAccessToFullQuiz(false);
+            setHasRedeemed(false);
+            // 显式设置试用模式
+            setIsInTrialMode(true);
+            document.title = `${questionSetData.title} (试用模式) - 答题系统`;
+            
+            // 强制将当前模式存储在sessionStorage中，确保页面刷新后仍保持试用模式
+            sessionStorage.setItem(`quiz_${questionSetId}_trial_mode`, 'true');
+            if (trialQuestionCount) {
+              sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(trialQuestionCount));
+            }
+          } else {
+            // 检查是否有存储的试用模式状态
+            const storedTrialMode = sessionStorage.getItem(`quiz_${questionSetId}_trial_mode`) === 'true';
+            const storedTrialLimit = sessionStorage.getItem(`quiz_${questionSetId}_trial_limit`);
+            
+            if (storedTrialMode && questionSetData.isPaid) {
+              console.log(`[QuizPage] 从sessionStorage恢复试用模式, 限制题目数=${storedTrialLimit || questionSetData.trialQuestions}`);
+              
+              // 恢复试用模式设置
+              setHasAccessToFullQuiz(false);
+              setHasRedeemed(false);
+              setIsInTrialMode(true);
+              
+              // 更新题目限制
+              if (storedTrialLimit) {
+                questionSetData.trialQuestions = parseInt(storedTrialLimit, 10);
+                setQuestionSet({...questionSetData});
+              }
+              
+              document.title = `${questionSetData.title} (试用模式) - 答题系统`;
+              
+              // 显示试用模式提示
+              const trialCount = questionSetData.trialQuestions || 3;
+              toast.info(`您正在试用模式下答题，可以答${trialCount}道题`, {
+                duration: 5000,
+                icon: '🔍'
+              } as any);
+            } else {
+              setIsInTrialMode(false);
+              document.title = `${questionSetData.title} - 答题系统`;
+              // 清除可能的试用模式标记
+              sessionStorage.removeItem(`quiz_${questionSetId}_trial_mode`);
+              sessionStorage.removeItem(`quiz_${questionSetId}_trial_limit`);
+            }
           }
-          
+
           // 使用题库中包含的题目数据
           const questionsData = getQuestions(questionSetData);
           if (questionsData.length > 0) {
@@ -700,13 +771,17 @@ function QuizPage(): JSX.Element {
             // 如果是试用模式，显示提示
             if (isTrialMode) {
               const trialCount = trialQuestionCount || questionSetData.trialQuestions || 3; // 默认至少显示3题
-              toast.info(`您正在试用模式下答题，可以答${trialCount}道题`);
+              toast.info(`您正在试用模式下答题，可以答${trialCount}道题`, {
+                duration: 5000,
+                icon: '🔍'
+              } as any);
               
               // 确保购买和兑换按钮在试用模式下可用
               if (questionSetData.isPaid) {
                 console.log('[QuizPage] 试用付费题库，设置相关状态');
                 // 根据URL参数设置状态以确保试用功能正常
                 setHasAccessToFullQuiz(false);
+                setHasRedeemed(false);
                 // 清除试用结束状态，允许用户开始试用
                 setTrialEnded(false);
               }
@@ -1443,7 +1518,7 @@ function QuizPage(): JSX.Element {
             questionSetId={questionSetId || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
-            isTrialMode={questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed}
+            isTrialMode={isInTrialMode}
           />
         )}
         
@@ -2793,7 +2868,7 @@ function QuizPage(): JSX.Element {
                     answeredQuestions={answeredQuestions}
                     currentIndex={currentQuestionIndex}
                     trialLimit={questionSet.trialQuestions}
-                    isTrialMode={questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed}
+                    isTrialMode={isInTrialMode}
                     onJump={(index) => {
                       // 如果试用已结束且没有购买，不允许跳转
                       if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
@@ -2854,7 +2929,7 @@ function QuizPage(): JSX.Element {
                 questionSetId={questionSet?.id || ''}
                 isLast={currentQuestionIndex === questions.length - 1}
                 trialQuestions={questionSet?.trialQuestions}
-                isTrialMode={questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed}
+                isTrialMode={isInTrialMode}
               />
             )}
           </>
