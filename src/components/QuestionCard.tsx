@@ -139,15 +139,18 @@ const QuestionCard = ({
       setIsSubmitted(true);
       if (question.questionType === 'single') {
         setSelectedOption(userAnsweredQuestion.selectedOption as string);
+        setSelectedOptions([userAnsweredQuestion.selectedOption as string]);
       } else {
         setSelectedOptions(userAnsweredQuestion.selectedOption as string[]);
       }
     }
   }, [userAnsweredQuestion, question.questionType]);
 
+  // 添加一个明确的注释和更多检查，确保不会自动提交
+  // 修改 handleOptionClick 函数，确保不会自动提交答案
   const handleOptionClick = (optionText: string, optionId: string) => {
-    if (isSubmittingRef.current) {
-      console.log('[QuestionCard] 正在提交答案中，忽略点击');
+    if (isSubmittingRef.current || isSubmitted) {
+      console.log('[QuestionCard] 正在提交答案中或已提交，忽略点击');
       return;
     }
     
@@ -163,18 +166,21 @@ const QuestionCard = ({
       // 显示购买或兑换提示
       toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions));
       
-      // 立即显示购买或兑换模态窗口
-      setShowRedeemCodeModal(true);
+      // 立即显示购买模态窗口
+      setShowPaymentModal(true);
       return;
     }
     
-    // 单选题模式
+    // 单选题模式 - 确保不会自动提交
     if (question.questionType === 'single') {
       if (selectedOptions.includes(optionId)) {
         return; // 已选中，不做处理
       }
+      
+      // 只更新选择状态，不自动提交 - 用户需要点击"提交答案"按钮
       setSelectedOptions([optionId]);
       setSelectedOption(optionId);
+      console.log('[QuestionCard] 已选择单选项，等待用户手动提交');
     } 
     // 多选题模式
     else {
@@ -403,7 +409,7 @@ const QuestionCard = ({
     
     console.log(`[QuestionCard] handleNext检查: hasFullAccess=${hasFullAccess}, hasLocalAccess=${hasLocalAccess}, hasRedeemedLocal=${hasRedeemedLocal}, isTrialMode=${isTrialMode}, trialQuestions=${trialQuestions}, questionNumber=${questionNumber}`);
     
-    // 试用模式检查 - 如果已达到试用题目数量且没有访问权限，显示提示
+    // 增强试用模式检查 - 如果已达到试用题目数量且没有访问权限，显示提示
     if (isTrialMode && trialQuestions && questionNumber >= trialQuestions && !userHasAccess) {
       console.log(`[QuestionCard] 试用题目已达上限 (${questionNumber}/${trialQuestions})，显示提示`);
       toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
@@ -412,12 +418,25 @@ const QuestionCard = ({
       });
       
       // 显示兑换码或购买窗口
-      setShowRedeemCodeModal(true);
+      setShowPaymentModal(true); // 优先显示购买窗口而不是兑换窗口
+      return;
+    }
+    
+    // 检查下一题是否超出试用限制
+    if (isTrialMode && trialQuestions && questionNumber + 1 > trialQuestions && !userHasAccess) {
+      console.log(`[QuestionCard] 下一题将超出试用限制，显示购买提示`);
+      toast.info(`您已完成试用题目，请购买完整版或使用兑换码继续答题。`, {
+        position: "top-center",
+        autoClose: 5000,
+      });
+      
+      // 显示购买窗口
+      setShowPaymentModal(true);
       return;
     }
     
     onNext();
-  }, [isTrialMode, trialQuestions, questionNumber, isSubmitted, isCorrectAnswer, checkLocalRedeemedStatus, checkLocalAccessRights, questionSetId, hasFullAccess, onNext]);
+  }, [isTrialMode, trialQuestions, questionNumber, checkLocalRedeemedStatus, checkLocalAccessRights, questionSetId, hasFullAccess, onNext]);
 
   // 监听全局事件
   useEffect(() => {
@@ -550,6 +569,7 @@ const QuestionCard = ({
           // 恢复已选择的选项
           if (question.questionType === 'single' && savedState.selectedOption) {
             setSelectedOption(savedState.selectedOption);
+            setSelectedOptions([savedState.selectedOption]);
           } else if (question.questionType === 'multiple' && savedState.selectedOptions) {
             setSelectedOptions(savedState.selectedOptions);
           }
@@ -557,6 +577,7 @@ const QuestionCard = ({
           // 恢复已提交状态
           if (savedState.isSubmitted) {
             setIsSubmitted(true);
+            setIsCorrectAnswer(savedState.isCorrect || false);
             
             // 如果之前已经提交过答案，同时通知父组件
             if (onAnswerSubmitted && !userAnsweredQuestion) {
@@ -616,14 +637,87 @@ const QuestionCard = ({
     };
   }, [question.id, questionSetId, question.questionType, userAnsweredQuestion, onAnswerSubmitted]);
 
-  // 处理选项键盘操作
+  // 恢复handleOptionKeyDown函数，但确保它不会自动提交答案
   const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
-    // 空格键或回车键选择选项
+    // 如果已经提交或正在提交，忽略键盘事件
+    if (isSubmittingRef.current || isSubmitted) return;
+    
+    // 空格键或回车键仅选择选项，不自动提交
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       handleOptionClick(question.options[index].text, optionId);
+      
+      // 显示需要手动提交的提示
+      if (question.questionType === 'single') {
+        toast.info('已选择选项，请点击"提交答案"按钮确认', {
+          autoClose: 1500,
+          position: 'bottom-center'
+        });
+      }
     }
   };
+
+  // 修复全局键盘事件处理器的依赖项列表，同时确保试用模式结束时始终显示购买窗口
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // 如果已经提交或正在提交，忽略键盘事件
+      if (isSubmittingRef.current || isSubmitted && e.key !== 'ArrowRight') return;
+      
+      // 左右箭头控制上一题/下一题
+      if (e.key === 'ArrowLeft') {
+        handlePrevious();
+      } else if (e.key === 'ArrowRight' && isSubmitted) {
+        handleNext();
+      } else if (e.key === 'Enter' && selectedOptions.length > 0 && !isSubmitted) {
+        // 只有在已经选择了选项的情况下，按Enter键才提交答案
+        e.preventDefault(); // 防止页面滚动
+        handleSubmit();
+      }
+      
+      // 数字键选择选项 (1-9)
+      const num = parseInt(e.key);
+      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length && !isSubmitted) {
+        const optionIndex = num - 1;
+        const option = question.options[optionIndex];
+        
+        if (option) {
+          // 模拟点击选项，但不自动提交
+          handleOptionClick(option.text, option.id);
+          
+          // 显示提示，告诉用户需要手动提交
+          if (question.questionType === 'single') {
+            toast.info('已选择选项，请点击"提交答案"按钮确认', {
+              autoClose: 1500,
+              position: 'bottom-center'
+            });
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSubmitted, selectedOptions, question.options, question.questionType]);
+
+  // 确保试用模式结束时显示购买窗口
+  useEffect(() => {
+    // 如果处于试用模式，且已达到试用限制，且用户没有完整访问权限
+    const hasTrialEnded = 
+      isTrialMode && 
+      trialQuestions && 
+      questionNumber >= trialQuestions && 
+      !(hasFullAccess || checkLocalRedeemedStatus(questionSetId) || checkLocalAccessRights(questionSetId));
+    
+    if (hasTrialEnded) {
+      console.log(`[QuestionCard] 检测到试用已结束: ${questionNumber}/${trialQuestions}`);
+      // 在组件挂载后，如果试用已结束，立即显示购买窗口
+      const timer = setTimeout(() => {
+        setShowPaymentModal(true);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isTrialMode, trialQuestions, questionNumber, hasFullAccess, questionSetId]);
 
   // 处理上一题按钮点击
   const handlePrevious = () => {
@@ -631,31 +725,6 @@ const QuestionCard = ({
       onJumpToQuestion(questionNumber - 2); // 因为索引从0开始，问题编号从1开始
     }
   };
-
-  // 添加快捷键支持
-  useEffect(() => {
-    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // 左右箭头控制上一题/下一题
-      if (e.key === 'ArrowLeft') {
-        handlePrevious();
-      } else if (e.key === 'ArrowRight' && isSubmitted) {
-        handleNext();
-      }
-      
-      // 数字键选择选项 (1-9)
-      const num = parseInt(e.key);
-      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length) {
-        const optionIndex = num - 1;
-        const option = question.options[optionIndex];
-        if (option && !isSubmitted) {
-          handleOptionClick(option.text, option.id);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitted, question.options]);
 
   // 修复按钮点击函数调用
   const renderButtonArea = () => (
@@ -758,9 +827,9 @@ const QuestionCard = ({
                       ? (option.isCorrect ? 'bg-green-500 text-white border-green-500' : 'bg-red-500 text-white border-red-500') 
                       : 'bg-blue-500 text-white border-blue-500'
                     )
-                  : 'border-gray-300 text-transparent'
+                  : (isSubmitted && option.isCorrect ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 text-transparent')
               }`}>
-                {selectedOptions.includes(option.id) && (
+                {(selectedOptions.includes(option.id) || (isSubmitted && option.isCorrect)) && (
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
