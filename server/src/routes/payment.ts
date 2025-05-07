@@ -1,13 +1,14 @@
 import express from 'express';
-import { stripePaymentIntent, verifyPaymentIntent } from '../services/stripe';
-import { authenticateToken } from '../middlewares/authMiddleware';
+import { stripePaymentIntent, verifyPaymentIntent, constructEvent } from '../services/stripe';
+import { authenticateJwt } from '../middlewares/auth';
 import db from '../models';
 import { v4 as uuidv4 } from 'uuid';
+import Stripe from 'stripe';
 
 const router = express.Router();
 
 // 创建支付Intent
-router.post('/create-intent', authenticateToken, async (req, res) => {
+router.post('/create-intent', authenticateJwt, async (req, res) => {
   try {
     const { amount, currency, metadata } = req.body;
     
@@ -55,7 +56,7 @@ router.post('/create-intent', authenticateToken, async (req, res) => {
 });
 
 // 验证支付状态
-router.get('/verify/:paymentIntentId', authenticateToken, async (req, res) => {
+router.get('/verify/:paymentIntentId', authenticateJwt, async (req, res) => {
   try {
     const { paymentIntentId } = req.params;
     
@@ -138,19 +139,21 @@ router.get('/verify/:paymentIntentId', authenticateToken, async (req, res) => {
 
 // Stripe Webhook接收端点
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const signature = req.headers['stripe-signature'];
+  const signature = req.headers['stripe-signature'] as string;
   
   if (!signature) {
     return res.status(400).send('缺少Stripe签名');
   }
   
   try {
-    const event = verifyPaymentIntent(req.body, signature);
+    // Convert request body to string for constructEvent
+    const payload = req.body.toString();
+    const event = constructEvent(payload, signature);
     
     // 处理不同类型的事件
     switch (event.type) {
       case 'payment_intent.succeeded':
-        const paymentIntent = event.data.object;
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
         
         // 处理成功的支付
         console.log('支付成功:', paymentIntent.id);
@@ -210,7 +213,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         break;
         
       case 'payment_intent.payment_failed':
-        const failedPaymentIntent = event.data.object;
+        const failedPaymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log('支付失败:', failedPaymentIntent.id, failedPaymentIntent.last_payment_error?.message);
         break;
         
