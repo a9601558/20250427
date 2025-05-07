@@ -408,11 +408,21 @@ const QuestionCard = ({
   };
 
   const handleNext = () => {
+    console.log('[QuestionCard] handleNext called - moving to next question');
+    
+    // Clean up state for next question
     setSelectedOption(null);
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
-    onNext();
+    
+    // Explicitly call the onNext prop function
+    if (typeof onNext === 'function') {
+      console.log('[QuestionCard] Calling onNext function from props');
+      onNext();
+    } else {
+      console.error('[QuestionCard] onNext function is not properly defined');
+    }
   };
   
   // Add a useEffect to handle cross-device access synchronization

@@ -1614,7 +1614,18 @@ const HomePage: React.FC = () => {
                     >
                       全部题库
                     </button>
-                    {/* You can add more category buttons here */}
+                    {/* Display featured categories dynamically */}
+                    {homeContent.featuredCategories && homeContent.featuredCategories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        className={`px-3 py-1 rounded-full text-sm ${activeCategory === category ? 
+                          'bg-blue-500 text-white' : 
+                          'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                        {category}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 
