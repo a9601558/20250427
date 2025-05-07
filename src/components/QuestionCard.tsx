@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, KeyboardEvent, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
@@ -60,234 +60,181 @@ const QuestionCard = ({
   isSubmittingAnswer = false,
   trialLimitReached = false
 }: QuestionCardProps) => {
-  // 单选题选择一个选项，多选题选择多个选项
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  // 状态管理
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [isSubmitted, setIsSubmitted] = useState(!!userAnsweredQuestion);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
   
-  // 添加ref以防止重复点击和提交
+  // 防止重复提交的ref
   const isSubmittingRef = useRef<boolean>(false);
-  const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSubmitTimeRef = useRef<number>(0);
   
   // 为键盘导航跟踪当前选项
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
   
   const { user, syncAccessRights } = useUser();
   
-  // 当userAnsweredQuestion存在时预填选项
+  // 当用户已回答过该问题时，加载已选答案
   useEffect(() => {
     if (userAnsweredQuestion) {
       setIsSubmitted(true);
-      if (question.questionType === 'single') {
-        setSelectedOption(userAnsweredQuestion.selectedOption as string);
+      
+      const selectedOption = userAnsweredQuestion.selectedOption;
+      if (Array.isArray(selectedOption)) {
+        setSelectedOptions(selectedOption);
       } else {
-        setSelectedOptions(userAnsweredQuestion.selectedOption as string[]);
+        setSelectedOptions([selectedOption]);
       }
+      
+      setShowExplanation(true);
     }
-  }, [userAnsweredQuestion, question.questionType]);
+  }, [userAnsweredQuestion]);
 
-  // 修复的正确性检查逻辑
-  const isCorrect = userAnsweredQuestion
-    ? userAnsweredQuestion.isCorrect
-    : isSubmitted && (
-        question.questionType === 'single'
-          ? (() => {
-              // 找到正确选项的ID
-              const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
-              return selectedOption === correctOptionId;
-            })()
-          : (() => {
-              // 对于多选题，找出所有正确选项的ID
-              const correctOptionIds = question.options
-                .filter(opt => opt.isCorrect)
-                .map(opt => opt.id);
-              
-              const lengthMatch = selectedOptions.length === correctOptionIds.length;
-              const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
-              const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
-                
-              return (
-                lengthMatch &&
-                allSelectedAreCorrect &&
-                allCorrectAreSelected
-              );
-            })()
-      );
-
-  const handleOptionClick = (optionText: string, optionId: string) => {
-    if (isSubmittingRef.current) {
-      console.log('[QuestionCard] 正在提交答案中，忽略点击');
-      return;
-    }
-    
-    if (showExplanation) {
-      console.log('[QuestionCard] 已显示解析，忽略点击');
-      return;
-    }
-    
-    // 单选题模式
+  // 判断答案是否正确
+  const checkIsCorrect = (): boolean => {
     if (question.questionType === 'single') {
-      // 更新选择状态
-      setSelectedOption(optionId);
-      setSelectedOptions([optionId]);
+      // 单选题: 检查选择的答案是否正确
+      const correctOption = question.options.find(opt => opt.isCorrect);
+      return selectedOptions[0] === correctOption?.id;
+    } else {
+      // 多选题: 检查是否所有正确答案都选中，且没有选错
+      const correctOptionIds = question.options
+        .filter(opt => opt.isCorrect)
+        .map(opt => opt.id);
       
-      // 禁用自动提交功能，要求用户手动提交答案
-      console.log('[QuestionCard] 单选题选中选项:', optionId);
+      // 检查所有正确答案是否都被选中
+      const allCorrectSelected = correctOptionIds.every(id => 
+        selectedOptions.includes(id)
+      );
       
-      // 清除任何可能存在的自动提交定时器
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
-      }
+      // 检查是否有选择错误的答案
+      const noIncorrectSelected = selectedOptions.every(id => 
+        correctOptionIds.includes(id)
+      );
       
-      // 移除自动提交行为，改为要求手动提交
-      // 这样可以防止用户意外提交和在切换题目后自动选择问题
-    } 
-    // 多选题模式
-    else {
-      const updatedSelection = selectedOptions.includes(optionId)
-        ? selectedOptions.filter(id => id !== optionId)
-        : [...selectedOptions, optionId];
+      // 检查选择数量是否一致
+      const countMatch = correctOptionIds.length === selectedOptions.length;
       
-      setSelectedOptions(updatedSelection);
-      console.log('[QuestionCard] 多选题更新选项:', updatedSelection);
+      return allCorrectSelected && noIncorrectSelected && countMatch;
     }
   };
 
-  const handleSubmit = (e?: React.MouseEvent<HTMLButtonElement>) => {
-    // Prevent default browser behavior to avoid page refresh
-    if (e) {
-      e.preventDefault();
-    }
+  // 提交答案处理函数
+  const handleSubmit = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // 阻止表单提交默认行为
+    e.preventDefault();
+    e.stopPropagation();
     
-    // 如果已提交且显示解析中，则转为下一题逻辑
+    // 如果已提交并显示解析，点击"下一题"
     if (isSubmitted && showExplanation) {
-      handleNext();
+      console.log('[QuestionCard] 已提交答案，准备进入下一题');
+      onNext();
       return;
     }
-
-    // 防重复提交机制
-    if (isSubmittingRef.current || isSubmitted) return;
+    
+    // 防止重复提交
+    if (isSubmittingRef.current || isSubmitted) {
+      console.log('[QuestionCard] 正在提交或已提交，忽略操作');
+      return;
+    }
+    
+    // 检查是否选择了答案
+    if (selectedOptions.length === 0) {
+      toast.warning('请至少选择一个选项');
+      return;
+    }
+    
+    // 设置提交中状态
     isSubmittingRef.current = true;
     
     try {
-      // 先检查是否已选择答案
-      if (selectedOptions.length === 0) {
-        // 未选择任何选项，显示提示
-        toast?.('请至少选择一个选项', { type: 'warning' });
-        isSubmittingRef.current = false;
-        return;
-      }
+      // 判断答案是否正确
+      const isCorrect = checkIsCorrect();
       
-      // 标记为已提交
+      // 更新UI状态
       setIsSubmitted(true);
+      setShowExplanation(true);
       
-      // 单选题处理
-      if (question.questionType === 'single') {
-        // 获取单选题的选择
-        const selectedId = selectedOptions[0];
-        const selectedText = question.options.find(opt => opt.id === selectedId)?.text || '';
-        
-        // 判断答案是否正确
-        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
-        const isCorrect = selectedId === correctOptionId;
-        
-        console.log(`[QuestionCard] 提交单选题: 选择=${selectedId}, 正确答案=${correctOptionId}, 正确=${isCorrect}`);
-        
-        // 显示解析
-        setShowExplanation(true);
-        
-        // 调用父组件回调
-        if (onAnswerSubmitted) {
-          onAnswerSubmitted(isCorrect, selectedId);
-        }
-        
-        // 处理错题保存和答对自动跳转
-        if (!isCorrect) {
-          // 保存错题
-          saveWrongAnswer(selectedId);
-        }
-      } 
-      // 多选题处理
-      else {
-        // 收集选择的选项ID和文本
-        const selectedIds = [...selectedOptions];
-        const selectedTexts = selectedIds.map(id => 
-          question.options.find(opt => opt.id === id)?.text || ''
-        );
-        
-        // 判断答案是否正确
-        const correctOptionIds = question.options
-          .filter(opt => opt.isCorrect)
-          .map(opt => opt.id);
-        
-        // 需要所有正确答案都被选中，且不能选错
-        const allCorrectSelected = correctOptionIds.every(id => selectedIds.includes(id));
-        const noIncorrectSelected = selectedIds.every(id => correctOptionIds.includes(id));
-        const isCorrect = allCorrectSelected && noIncorrectSelected;
-        
-        console.log(`[QuestionCard] 提交多选题: 选择=[${selectedIds.join(',')}], 正确答案=[${correctOptionIds.join(',')}], 正确=${isCorrect}`);
-        
-        // 显示解析
-        setShowExplanation(true);
-        
-        // 调用父组件回调
-        if (onAnswerSubmitted) {
-          onAnswerSubmitted(isCorrect, selectedIds);
-        }
-        
-        // 处理错题保存和答对自动跳转
-        if (!isCorrect) {
-          // 保存错题
-          saveWrongAnswer(selectedIds);
+      // 调用父组件回调，传递结果
+      if (onAnswerSubmitted) {
+        console.log(`[QuestionCard] 调用父组件onAnswerSubmitted回调, 答案正确: ${isCorrect}`);
+        if (question.questionType === 'single') {
+          onAnswerSubmitted(isCorrect, selectedOptions[0]);
+        } else {
+          onAnswerSubmitted(isCorrect, selectedOptions);
         }
       }
       
-      // 允许跳转到下一题
-      setCanProceed(true);
+      // 本地存储答题记录
+      const storageKey = `quiz_answer_${questionSetId}_${question.id}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        selectedOptions,
+        isCorrect,
+        timestamp: new Date().toISOString()
+      }));
       
-      // 保存答题状态
-      saveCurrentState();
-      
+      // 如果答错，记录错题
+      if (!isCorrect) {
+        saveWrongAnswer();
+      }
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
+      toast.error('提交答案时出错，请重试');
     } finally {
-      // 延迟释放提交锁
+      // 延迟释放提交锁，防止重复点击
       setTimeout(() => {
         isSubmittingRef.current = false;
-      }, 1000);
+      }, 800);
     }
   };
 
-  // 添加状态来控制是否可以继续到下一题
-  const [canProceed, setCanProceed] = useState(false);
+  // 保存错题函数
+  const saveWrongAnswer = () => {
+    const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+      detail: {
+        questionId: question.id,
+        questionSetId: questionSetId,
+        question: question.question || question.text,
+        questionType: question.questionType,
+        options: question.options,
+        selectedOption: question.questionType === 'single' ? selectedOptions[0] : undefined,
+        selectedOptions: question.questionType === 'multiple' ? selectedOptions : undefined,
+        correctOption: question.questionType === 'single' 
+          ? question.options.find(opt => opt.isCorrect)?.id 
+          : undefined,
+        correctOptions: question.questionType === 'multiple'
+          ? question.options.filter(opt => opt.isCorrect).map(opt => opt.id)
+          : undefined,
+        explanation: question.explanation
+      }
+    });
+    
+    window.dispatchEvent(wrongAnswerEvent);
+  };
 
-  // 修改getOptionClass函数，在试用限制时禁用交互
+  // 获取选项样式类
   const getOptionClass = (option: any) => {
-    // 如果已达到试用限制，禁用所有选项
+    // 试用限制时禁用选项
     if (isPaid && !hasFullAccess && trialLimitReached) {
       return 'border-gray-300 bg-gray-50 opacity-60 pointer-events-none';
     }
     
+    // 未提交答案时的样式
     if (!showExplanation) {
-      // 没有提交答案时的样式
       return selectedOptions.includes(option.id)
         ? 'border-blue-300 bg-blue-50'
         : 'border-gray-300 bg-white hover:bg-gray-50';
     }
     
-    // 已经提交答案，显示正确与错误状态
+    // 已提交后的样式
     if (option.isCorrect) {
       return 'border-green-500 bg-green-50 text-green-700'; // 正确答案
     } else if (selectedOptions.includes(option.id)) {
-      return 'border-red-500 bg-red-50 text-red-700'; // 选择了错误答案
+      return 'border-red-500 bg-red-50 text-red-700'; // 错误答案
     } else {
-      return 'border-gray-300 bg-gray-50 opacity-60'; // 其他未选答案
+      return 'border-gray-300 bg-gray-50 opacity-60'; // 未选答案
     }
   };
 
@@ -298,11 +245,9 @@ const QuestionCard = ({
     console.log(`[QuestionCard] Current state: isSubmitted=${isSubmitted}, showExplanation=${showExplanation}`);
     
     // Clear any selected options immediately
-    setSelectedOption(null);
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
-    setCanProceed(false); // Reset canProceed to prevent auto-submission
     
     // 使用props传入的trialLimitReached判断
     if (isPaid && !hasFullAccess && trialLimitReached) {
@@ -354,7 +299,8 @@ const QuestionCard = ({
       console.log('[QuestionCard] Detected trial ended event');
       // This helps coordinate with QuizPage to show purchase dialog
       if (isPaid && !hasFullAccess) {
-        setCanProceed(false);
+        setIsSubmitted(false);
+        setShowExplanation(false);
       }
     };
     
@@ -399,12 +345,6 @@ const QuestionCard = ({
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
-      }
-      
-      // 清除答案提交定时器
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-        answerTimeoutRef.current = null;
       }
     };
   }, []);
@@ -498,218 +438,6 @@ const QuestionCard = ({
     checkLocalAccessRights(questionSetId) ||
     isPaid === false; // 免费题库
 
-  // 在QuestionCard组件中添加答题状态保存功能
-  useEffect(() => {
-    // 加载已保存的答题状态
-    const loadSavedState = () => {
-      try {
-        if (!questionSetId || !question.id) return;
-        
-        // 构建本地存储的键名
-        const storageKey = `quiz_state_${questionSetId}_${question.id}`;
-        const savedStateStr = localStorage.getItem(storageKey);
-        
-        if (savedStateStr) {
-          const savedState = JSON.parse(savedStateStr);
-          
-          // 恢复已选择的选项
-          if (question.questionType === 'single' && savedState.selectedOption) {
-            setSelectedOption(savedState.selectedOption);
-          } else if (question.questionType === 'multiple' && savedState.selectedOptions) {
-            setSelectedOptions(savedState.selectedOptions);
-          }
-          
-          // 恢复已提交状态
-          if (savedState.isSubmitted) {
-            setIsSubmitted(true);
-            
-            // 如果之前已经提交过答案，同时通知父组件
-            if (onAnswerSubmitted && !userAnsweredQuestion) {
-              const isCorrect = savedState.isCorrect;
-              const selectedOpt = question.questionType === 'single' 
-                ? savedState.selectedOption 
-                : savedState.selectedOptions;
-                
-              // 延迟触发以确保组件已完全加载
-              setTimeout(() => {
-                onAnswerSubmitted(isCorrect, selectedOpt);
-              }, 300);
-            }
-            
-            // 自动显示解析
-            if (savedState.showExplanation) {
-              setShowExplanation(true);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('加载已保存的答题状态失败:', error);
-      }
-    };
-    
-    // 初始加载
-    if (!userAnsweredQuestion) {
-      loadSavedState();
-    }
-    
-    // 监听页面可见性变化
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        saveCurrentState();
-      }
-    };
-    
-    // 监听beforeunload事件
-    const handleBeforeUnload = () => {
-      saveCurrentState();
-    };
-    
-    // 在组件卸载时保存状态
-    const saveOnUnmount = () => {
-      saveCurrentState();
-    };
-    
-    // 添加事件监听器
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    // 清理函数
-    return () => {
-      saveOnUnmount();
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [question.id, questionSetId, question.questionType, userAnsweredQuestion, onAnswerSubmitted]);
-
-  // 保存当前答题状态到localStorage
-  const saveCurrentState = () => {
-    try {
-      if (!questionSetId || !question.id) return;
-      
-      // 构建本地存储的键名
-      const storageKey = `quiz_state_${questionSetId}_${question.id}`;
-      
-      // 如果已经提交过，计算是否正确
-      let isCorrectAnswer = false;
-      if (isSubmitted) {
-        if (question.questionType === 'single') {
-          const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
-          isCorrectAnswer = selectedOption === correctOptionId;
-        } else {
-          const correctOptionIds = question.options
-            .filter(opt => opt.isCorrect)
-            .map(opt => opt.id);
-            
-          const lengthMatch = selectedOptions.length === correctOptionIds.length;
-          const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
-          const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
-          
-          isCorrectAnswer = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
-        }
-      }
-      
-      // 保存状态
-      const stateToSave = {
-        questionId: question.id,
-        selectedOption: question.questionType === 'single' ? selectedOption : null,
-        selectedOptions: question.questionType === 'multiple' ? selectedOptions : [],
-        isSubmitted,
-        isCorrect: isCorrectAnswer,
-        showExplanation,
-        timestamp: new Date().toISOString()
-      };
-      
-      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
-    } catch (error) {
-      console.error('保存答题状态失败:', error);
-    }
-  };
-
-  // 处理选项键盘操作
-  const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
-    // 空格键或回车键选择选项
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      handleOptionClick(question.options[index].text, optionId);
-    }
-  };
-
-  // 处理上一题按钮点击
-  const handlePrevious = () => {
-    if (onJumpToQuestion && questionNumber > 1) {
-      onJumpToQuestion(questionNumber - 2); // 因为索引从0开始，问题编号从1开始
-    }
-  };
-
-  // 修改键盘事件处理器，支持空格键提交/下一题
-  useEffect(() => {
-    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // 左右箭头控制上一题/下一题
-      if (e.key === 'ArrowLeft') {
-        handlePrevious();
-      } else if (e.key === 'ArrowRight' && isSubmitted) {
-        handleNext();
-      }
-      
-      // 空格键提交答案/下一题
-      if (e.key === ' ' && !e.target) {
-        e.preventDefault();
-        handleSubmit();
-      }
-      
-      // 数字键选择选项 (1-9)
-      const num = parseInt(e.key);
-      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length && !isSubmitted) {
-        const optionIndex = num - 1;
-        const option = question.options[optionIndex];
-        if (option) {
-          handleOptionClick(option.text, option.id);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitted, showExplanation, canProceed, question.options]);
-
-  // 保存错题的辅助函数
-  const saveWrongAnswer = (selectedAnswer: string | string[]) => {
-    // 检查此题是否最近已保存过，避免重复保存
-    const wrongAnswerKey = `wrong_answer_${question.id}`;
-    const lastSaved = localStorage.getItem(wrongAnswerKey);
-    const now = Date.now();
-    
-    // 5秒内不重复保存同一题目
-    if (!lastSaved || now - parseInt(lastSaved) > 5000) {
-      localStorage.setItem(wrongAnswerKey, now.toString());
-      
-      // 创建错题保存事件
-      const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-        detail: {
-          questionId: question.id,
-          questionSetId: questionSetId,
-          question: question.question || question.text,
-          questionText: question.question || question.text,
-          questionType: question.questionType,
-          options: question.options,
-          selectedOption: question.questionType === 'single' ? selectedAnswer : undefined,
-          selectedOptions: question.questionType === 'multiple' ? selectedAnswer : undefined,
-          correctOption: question.questionType === 'single' 
-            ? question.options.find(opt => opt.isCorrect)?.id 
-            : undefined,
-          correctOptions: question.questionType === 'multiple'
-            ? question.options.filter(opt => opt.isCorrect).map(opt => opt.id)
-            : undefined,
-          explanation: question.explanation
-        }
-      });
-      
-      // 发送事件
-      window.dispatchEvent(wrongAnswerEvent);
-      console.log('[QuestionCard] 已保存错题');
-    }
-  };
-
   return (
     <div className="bg-white rounded-xl shadow-md p-6 mb-6">
       {/* 题目头部 */}
@@ -718,18 +446,16 @@ const QuestionCard = ({
           <div className="bg-blue-100 text-blue-800 font-medium px-3 py-1 rounded-full text-sm mr-3">
             {questionNumber} / {totalQuestions}
           </div>
-          {question.questionType === 'single' ? (
-            <div className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
-              单选题
-            </div>
-          ) : (
-            <div className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs">
-              多选题
-            </div>
-          )}
+          <div className={`px-2 py-0.5 rounded-full text-xs ${
+            question.questionType === 'single' 
+              ? 'bg-green-100 text-green-800'
+              : 'bg-purple-100 text-purple-800'
+          }`}>
+            {question.questionType === 'single' ? '单选题' : '多选题'}
+          </div>
         </div>
         
-        {/* 如果是付费题库，显示状态标签 */}
+        {/* 试用状态标签 */}
         {isPaid && (
           <div className={`px-2 py-0.5 rounded-full text-xs ${
             hasFullAccess 
@@ -750,7 +476,7 @@ const QuestionCard = ({
 
       {/* 题目内容 */}
       <div className="mb-6">
-        <h3 className="text-lg font-medium text-gray-800 mb-2">{question.question}</h3>
+        <h3 className="text-lg font-medium text-gray-800 mb-2">{question.question || question.text}</h3>
       </div>
 
       {/* 选项列表 */}
@@ -759,11 +485,26 @@ const QuestionCard = ({
           <div
             key={option.id}
             className={`p-3 border rounded-lg cursor-pointer transition-colors ${getOptionClass(option)}`}
-            onClick={() => handleOptionClick(option.text, option.id)}
-            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
-            tabIndex={0}
+            onClick={() => {
+              // 如果已提交答案，不允许更改选择
+              if (isSubmitted || isSubmittingRef.current) {
+                return;
+              }
+              
+              if (question.questionType === 'single') {
+                // 单选题: 直接设置为当前选择
+                setSelectedOptions([option.id]);
+              } else {
+                // 多选题: 切换选中状态
+                if (selectedOptions.includes(option.id)) {
+                  setSelectedOptions(selectedOptions.filter(id => id !== option.id));
+                } else {
+                  setSelectedOptions([...selectedOptions, option.id]);
+                }
+              }
+            }}
             role="button"
-            aria-pressed={selectedOptions.includes(option.id)}
+            tabIndex={0}
           >
             <div className="flex items-start">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center border mr-3 flex-shrink-0 ${
@@ -771,20 +512,9 @@ const QuestionCard = ({
                   ? 'bg-blue-500 border-blue-500 text-white' 
                   : 'border-gray-300'
               }`}>
-                {question.questionType === 'single' ? (
-                  <span className="text-sm font-medium">
-                    {/* 选项序号 A-Z */}
-                    {String.fromCharCode(65 + index)}
-                  </span>
-                ) : (
-                  <span className="text-sm">
-                    {selectedOptions.includes(option.id) && (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </span>
-                )}
+                <span className="text-sm font-medium">
+                  {String.fromCharCode(65 + index)}
+                </span>
               </div>
               <div className="text-gray-700">
                 {option.text}
@@ -809,13 +539,13 @@ const QuestionCard = ({
         </div>
       )}
 
-      {/* 合并提交答案与下一题按钮 */}
+      {/* 修改合并提交答案与下一题按钮 */}
       <div className="mt-6">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached}
-          className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
+          className={`w-full px-4 py-3 rounded-lg text-white font-medium flex items-center justify-center ${
             (selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached
               ? 'bg-gray-400 cursor-not-allowed'
               : isSubmitted
@@ -845,7 +575,7 @@ const QuestionCard = ({
       {questionNumber > 1 && !trialLimitReached && (
         <div className="mt-4">
           <button 
-            onClick={handlePrevious}
+            onClick={() => handleJumpToQuestion(questionNumber - 2)}
             className="text-gray-500 hover:text-gray-700 text-sm flex items-center"
           >
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
