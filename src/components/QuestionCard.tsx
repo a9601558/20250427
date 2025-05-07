@@ -28,6 +28,7 @@ interface QuestionCardProps {
   isPaid?: boolean;
   hasFullAccess?: boolean;
   trialQuestions?: number;
+  isTrialMode?: boolean;
   questionSetId: string;
 }
 
@@ -58,6 +59,7 @@ const QuestionCard = ({
   isPaid = false,
   hasFullAccess = false,
   trialQuestions = 0,
+  isTrialMode = false,
   questionSetId,
   isLast = false,
   isSubmittingAnswer = false
@@ -363,6 +365,13 @@ const QuestionCard = ({
   const handleNext = useCallback(() => {
     if (!isSubmitted && !isCorrectAnswer) return;
     
+    // 检查是否在试用模式下已达到题目限制
+    if (isTrialMode && trialQuestions && questionNumber >= trialQuestions) {
+      toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题");
+      setShowRedeemCodeModal(true);
+      return;
+    }
+    
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
@@ -370,7 +379,7 @@ const QuestionCard = ({
     
     // 调用父组件的onNext回调
     onNext();
-  }, [isSubmitted, isCorrectAnswer, onNext]);
+  }, [isSubmitted, isCorrectAnswer, onNext, isTrialMode, trialQuestions, questionNumber]);
   
   // Add a useEffect to handle cross-device access synchronization
   useEffect(() => {
@@ -707,19 +716,43 @@ const QuestionCard = ({
 
   // 添加试用信息组件
   const TrialInfoBanner = () => {
-    // 如果不是付费题库或者用户有完整访问权限，不显示试用信息
-    if (!isPaid || hasFullAccess) return null;
+    // 如果不是试用模式，不显示试用信息
+    if (!isTrialMode) return null;
     
-    // 这里显示试用信息，包括当前是第几题、试用总题数等
+    // 计算试用剩余题目数
+    const trialQuestionsCount = trialQuestions || 3; // 默认至少3题
+    const answeredCount = questionNumber - 1; // 当前题目编号减1为已回答题目数
+    const remainingCount = Math.max(0, trialQuestionsCount - answeredCount);
+    
+    // 判断是否达到试用上限
+    const reachedLimit = answeredCount >= trialQuestionsCount;
+    
     return (
-      <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg p-3">
+      <div className={`mb-4 border rounded-lg p-3 ${
+        reachedLimit 
+          ? 'bg-gradient-to-r from-red-50 to-yellow-50 border-red-100' 
+          : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100'
+      }`}>
         <div className="flex items-center">
-          <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className={`w-5 h-5 mr-2 ${reachedLimit ? 'text-yellow-500' : 'text-blue-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span className="text-sm text-blue-800">
-            您正在试用模式下答题 <span className="font-medium">({questionNumber} / {totalQuestions}题)</span>
-          </span>
+          <div>
+            <span className={`text-sm ${reachedLimit ? 'text-red-800' : 'text-blue-800'}`}>
+              您正在试用模式下答题
+            </span>
+            <div className="text-xs mt-1">
+              <span className="font-medium">
+                当前进度: {questionNumber}/{trialQuestionsCount}题
+                {!reachedLimit && <span className="ml-1">（剩余{remainingCount}题）</span>}
+              </span>
+              {reachedLimit && (
+                <span className="block mt-1 text-red-600 font-medium">
+                  您已达到试用上限，请购买完整版或使用兑换码继续答题
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -884,6 +917,55 @@ const QuestionCard = ({
             </>
           )}
         </button>
+      )}
+      
+      {/* 试用模式下的兑换码模态窗口 */}
+      {showRedeemCodeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">使用兑换码继续答题</h2>
+              <button
+                onClick={() => setShowRedeemCodeModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <RedeemCodeForm onRedeemSuccess={(redeemedQuestionSetId) => {
+              setShowRedeemCodeModal(false);
+              
+              // 触发重新检查权限
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('redeem:success', { 
+                  detail: { 
+                    questionSetId: redeemedQuestionSetId, 
+                    forceRefresh: true,
+                    timestamp: Date.now()
+                  } 
+                }));
+              }
+              
+              // 显示成功提示
+              toast.success("兑换成功，您可以继续答题了");
+            }} />
+            
+            <div className="mt-4 border-t pt-4">
+              <p className="text-sm text-gray-600 mb-3">或者您也可以直接购买完整题库</p>
+              <button 
+                onClick={() => {
+                  setShowRedeemCodeModal(false);
+                  navigate(`/payment/${questionSetId}`);
+                }}
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-2 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all"
+              >
+                前往购买
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
