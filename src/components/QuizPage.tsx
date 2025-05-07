@@ -428,13 +428,38 @@ function QuizPage(): JSX.Element {
     return isAtTrialLimit;
   }, [questionSet?.trialQuestions, answeredQuestions.length]);
 
+  // Add a debounce mechanism and call count tracking to prevent infinite permission checks
+  const checkAccessCallCountRef = useRef<number>(0);
+  const lastCheckTimeRef = useRef<number>(0);
+  
   // 在权限检查函数中增强对兑换状态的识别
   const checkAccess = async (skipTrialCheck = false) => {
-    if (!questionSet) return;
+    // Prevent infinite loops by adding debounce and maximum call count
+    const now = Date.now();
+    checkAccessCallCountRef.current += 1;
+    
+    // If we've checked more than 10 times in a short period, stop checking to prevent infinite loops
+    if (checkAccessCallCountRef.current > 10 && now - lastCheckTimeRef.current < 5000) {
+      console.log(`[checkAccess] 检测到频繁权限检查 (${checkAccessCallCountRef.current}次), 暂停检查避免无限循环`);
+      return;
+    }
+    
+    // Reset the counter every 5 seconds
+    if (now - lastCheckTimeRef.current > 5000) {
+      checkAccessCallCountRef.current = 1;
+    }
+    
+    lastCheckTimeRef.current = now;
+    
+    // Skip check if no question set or invalid ID
+    if (!questionSet || !questionSet.id) {
+      console.log(`[checkAccess] 无效的题库数据，跳过权限检查`);
+      return;
+    }
     
     console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 已兑换状态: ${hasRedeemed}, skipTrialCheck: ${skipTrialCheck}`);
     
-    // 首先全面检查所有可能的访问权限来源
+    // First, check from all possible access rights sources
     const hasFullAccess = checkFullAccessFromAllSources();
     if (hasFullAccess) {
       console.log(`[checkAccess] 全面检查发现用户有访问权限`);
@@ -595,18 +620,65 @@ function QuizPage(): JSX.Element {
     }
   };
   
-  // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查
+  // 修改useEffect依赖项，避免在加载完成后频繁调用checkAccess
   useEffect(() => {
-    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${hasRedeemed}`);
-    if (user && user.purchases) {
-      console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
+    // 只在组件首次加载或用户/题库ID变化时执行权限检查
+    if (!questionSet?.id || !user?.id) return;
+    
+    console.log(`[useEffect] 权限初始检查, 用户ID: ${user.id}, 题库ID: ${questionSet.id}, 已兑换状态: ${hasRedeemed}`);
+    
+    // 只做一次全面检查
+    checkAccess(true);
+    
+    // 注册socket监听以接收实时权限更新
+    if (socket) {
+      // 如果socket存在，监听权限更新事件
+      const handleAccessUpdate = (data: any) => {
+        if (data.userId === user.id && data.questionSetId === questionSet.id) {
+          console.log(`[Socket] 收到权限更新通知: ${data.hasAccess}`);
+          setHasAccessToFullQuiz(data.hasAccess);
+          if (data.hasAccess) {
+            setTrialEnded(false);
+          }
+        }
+      };
+      
+      socket.on('questionSet:accessUpdate', handleAccessUpdate);
+      
+      // 清理函数
+      return () => {
+        socket.off('questionSet:accessUpdate', handleAccessUpdate);
+      };
     }
-    // 调用checkAccess并跳过试用状态检查，因为我们在单独的useEffect中处理试用状态
-    if (questionSet) { // 确保questionSet存在
-      checkAccess(true); // 传入true表示跳过试用状态检查，避免重复检查
+  }, [questionSet?.id, user?.id, socket, hasRedeemed]); // 只依赖于ID、socket连接和redeemed状态
+
+  // 移除循环调用checkAccess的useEffect
+
+  // 修改getQuestions以添加更好的数据验证
+  const getQuestionsData = useCallback((data: any) => {
+    // 确保有效的数据对象
+    if (!data) {
+      console.error('[getQuestionsData] 无效数据，返回空数组');
+      return [];
     }
-  }, [questionSet, user, user?.purchases?.length, hasRedeemed]); // 移除 answeredQuestions.length，避免答题过程中无限循环
-  
+    
+    // 首先检查新的字段名
+    if (data.questionSetQuestions && Array.isArray(data.questionSetQuestions) && data.questionSetQuestions.length > 0) {
+      console.log(`[getQuestionsData] 从questionSetQuestions获取到${data.questionSetQuestions.length}个问题`);
+      return data.questionSetQuestions;
+    }
+    
+    // 然后检查旧的字段名
+    if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+      console.log(`[getQuestionsData] 从questions获取到${data.questions.length}个问题`);
+      return data.questions;
+    }
+    
+    // 都没有则返回空数组
+    console.warn('[getQuestionsData] 未找到题目数据');
+    return [];
+  }, []);
+
   // 获取题库和题目数据
   useEffect(() => {
     const fetchQuestionSet = async () => {
@@ -618,6 +690,7 @@ function QuizPage(): JSX.Element {
       
       try {
         setLoading(true);
+        console.log(`[fetchQuestionSet] 开始获取题库: ${questionSetId}`);
         
         // 解析URL参数
         const urlParams = new URLSearchParams(window.location.search);
@@ -628,30 +701,46 @@ function QuizPage(): JSX.Element {
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
         if (response.success && response.data) {
+          // 验证题库数据的有效性
+          if (!response.data.id) {
+            console.error('题库返回了无效ID:', response.data);
+            setError('题库数据无效: 缺少ID');
+            setLoading(false);
+            return;
+          }
+          
+          // 使用增强版获取题目函数
+          const questionsData = getQuestionsData(response.data);
+          if (!questionsData || !Array.isArray(questionsData) || questionsData.length === 0) {
+            console.error('题库不包含题目:', response.data.id);
+            setError(`题库 ${response.data.title || response.data.id} 不包含任何题目`);
+            setLoading(false);
+            return;
+          }
+
           const questionSetData: IQuestionSet = {
             id: response.data.id,
             title: response.data.title,
             description: response.data.description,
             category: response.data.category,
             icon: response.data.icon,
-            questions: getQuestions(response.data),
+            questions: questionsData,
             isPaid: response.data.isPaid || false,
             price: response.data.price || 0,
             isFeatured: response.data.isFeatured || false,
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
             trialQuestions: response.data.trialQuestions,
-            questionCount: getQuestions(response.data).length,
+            questionCount: questionsData.length,
             createdAt: new Date(),
             updatedAt: new Date()
           };
+          
+          console.log(`[fetchQuestionSet] 题库获取成功，ID: ${questionSetData.id}，包含 ${questionsData.length} 个问题`);
           setQuestionSet(questionSetData);
           
           // 使用题库中包含的题目数据
-          const questionsData = getQuestions(questionSetData);
           if (questionsData.length > 0) {
-            console.log("获取到题目:", questionsData.length);
-            
             // 处理题目选项并设置数据
             const processedQuestions = questionsData.map((q: any) => {
               // 确保选项存在
@@ -722,7 +811,7 @@ function QuizPage(): JSX.Element {
     };
     
     fetchQuestionSet();
-  }, [questionSetId, getQuestions]);
+  }, [questionSetId, getQuestionsData]);
   
   // 监听题库更新
   useEffect(() => {
@@ -900,11 +989,14 @@ function QuizPage(): JSX.Element {
     if (!showPaymentModal && !showRedeemCodeModal) {
       // 模态窗口关闭时，再次检查访问权限，确保状态一致
       console.log('[QuizPage] 模态窗口关闭，重新检查访问权限');
-      if (questionSet) { // 确保questionSet存在
-        checkAccess(true); // 不需要检查试用状态，只需检查权限更新
+      if (questionSet?.id && user?.id) { // 确保questionSet和user存在
+        // 使用定时器延迟检查，避免立即触发
+        setTimeout(() => {
+          checkAccess(true); // 不需要检查试用状态，只需检查权限更新
+        }, 300);
       }
     }
-  }, [showPaymentModal, showRedeemCodeModal, questionSet]);
+  }, [showPaymentModal, showRedeemCodeModal, questionSet?.id, user?.id]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
