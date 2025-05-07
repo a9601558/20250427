@@ -208,11 +208,6 @@ const QuestionCard = ({
         if (!isCorrect) {
           // 保存错题
           saveWrongAnswer(selectedId);
-        } else {
-          // 答对自动更快地跳到下一题
-          timeoutId = setTimeout(() => {
-            handleNext();
-          }, 400);
         }
       } 
       // 多选题处理
@@ -247,11 +242,6 @@ const QuestionCard = ({
         if (!isCorrect) {
           // 保存错题
           saveWrongAnswer(selectedIds);
-        } else {
-          // 答对自动更快地跳到下一题
-          timeoutId = setTimeout(() => {
-            handleNext();
-          }, 400);
         }
       }
       
@@ -357,7 +347,7 @@ const QuestionCard = ({
     
     if (hasLocalAccess) return true;
     
-    // If no access, check if within trial questions
+    // If no access, check if within trial questions - 严格限制试用题目访问
     return questionIndex < (trialQuestions || 0);
   }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
 

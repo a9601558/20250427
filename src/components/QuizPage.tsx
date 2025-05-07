@@ -58,7 +58,7 @@ const AnswerCard: React.FC<{
           const isActive = currentIndex === index;
           // 检查在试用模式下，是否超出了试用题目数量限制
           const isDisabled = isTrialMode && trialLimit ? index >= trialLimit : false;
-
+          
           let bgColor = "bg-gray-100 text-gray-600";
           if (isActive) {
             bgColor = "bg-blue-500 text-white";
@@ -517,17 +517,12 @@ function QuizPage(): JSX.Element {
     }
     
     // 只有在无权限且达到试用题目数量限制时才设置试用结束
+    // 但不在这里直接显示购买模态窗口，而是在handleAnswerSubmit或handleNextQuestion中触发
     if (!hasFullAccess && questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
       console.log(`[QuizPage] 试用题目已达上限 (${answeredQuestions.length}/${questionSet.trialQuestions})，设置trialEnded=true`);
       setTrialEnded(true);
       
-      // 添加：显示购买模态窗口
-      setTimeout(() => {
-        if (isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
-          console.log(`[QuizPage] 显示购买模态窗口`);
-          setShowPaymentModal(true);
-        }
-      }, 1000);
+      // 删除自动显示购买模态窗口的代码，改为在用户操作时触发
     } else {
       setTrialEnded(false);
     }
@@ -603,57 +598,26 @@ function QuizPage(): JSX.Element {
           
           setQuestionSet(questionSetData);
           
-          // 如果是试用模式，确保相关状态正确设置
-          if (isTrialMode && questionSetData.isPaid) {
-            console.log(`[QuizPage] 确认进入试用模式: isPaid=${questionSetData.isPaid}, 限制题目数=${trialQuestionCount}`);
-            // 显式设置没有完全访问权限
-            setHasAccessToFullQuiz(false);
-            setHasRedeemed(false);
-            // 显式设置试用模式
-            setIsInTrialMode(true);
-            document.title = `${questionSetData.title} (试用模式) - 答题系统`;
+          // 如果是试用模式，显示提示
+          if (isTrialMode) {
+            const trialCount = trialQuestionCount || questionSetData.trialQuestions || 3; // 默认至少显示3题
+            toast.info(`您正在试用模式下答题，可以答${trialCount}道题`, {
+              autoClose: 5000,
+              icon: '🔍'
+            });
             
-            // 强制将当前模式存储在sessionStorage中，确保页面刷新后仍保持试用模式
-            sessionStorage.setItem(`quiz_${questionSetId}_trial_mode`, 'true');
-            if (trialQuestionCount) {
-              sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(trialQuestionCount));
-            }
-          } else {
-            // 检查是否有存储的试用模式状态
-            const storedTrialMode = sessionStorage.getItem(`quiz_${questionSetId}_trial_mode`) === 'true';
-            const storedTrialLimit = sessionStorage.getItem(`quiz_${questionSetId}_trial_limit`);
-            
-            if (storedTrialMode && questionSetData.isPaid) {
-              console.log(`[QuizPage] 从sessionStorage恢复试用模式, 限制题目数=${storedTrialLimit || questionSetData.trialQuestions}`);
-              
-              // 恢复试用模式设置
+            // 确保购买和兑换按钮在试用模式下可用
+            if (questionSetData.isPaid) {
+              console.log('[QuizPage] 试用付费题库，设置相关状态');
+              // 根据URL参数设置状态以确保试用功能正常
               setHasAccessToFullQuiz(false);
               setHasRedeemed(false);
-              setIsInTrialMode(true);
-              
-              // 更新题目限制
-              if (storedTrialLimit) {
-                questionSetData.trialQuestions = parseInt(storedTrialLimit, 10);
-                setQuestionSet({...questionSetData});
-              }
-              
-              document.title = `${questionSetData.title} (试用模式) - 答题系统`;
-              
-              // 显示试用模式提示
-              const trialCount = questionSetData.trialQuestions || 3;
-              toast.info(`您正在试用模式下答题，可以答${trialCount}道题`, {
-                autoClose: 5000,
-                icon: '🔍'
-              });
-            } else {
-              setIsInTrialMode(false);
-              document.title = `${questionSetData.title} - 答题系统`;
-              // 清除可能的试用模式标记
-              sessionStorage.removeItem(`quiz_${questionSetId}_trial_mode`);
-              sessionStorage.removeItem(`quiz_${questionSetId}_trial_limit`);
+              // 清除试用结束状态，允许用户开始试用
+              setTrialEnded(false);
+              // 不在这里显示购买窗口，而是等用户答题达到限制后再显示
             }
           }
-
+          
           // 使用题库中包含的题目数据
           const questionsData = getQuestions(response.data);
           if (questionsData.length > 0) {
@@ -1261,12 +1225,27 @@ function QuizPage(): JSX.Element {
       // 检查是否达到试用限制
       if (questionSet && isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
         const trialQuestions = questionSet.trialQuestions || 0;
-        if (trialQuestions > 0 && updatedAnsweredQuestions.length >= trialQuestions) {
-          console.log(`[QuizPage] 已达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialQuestions})，提示购买`);
-          setTrialEnded(true);
+        
+        // 现在要更精确地判断是否刚好达到限制
+        // 已回答题目数量 + 当前这一题 = trialQuestions 意味着刚好用完了试用题目
+        if (trialQuestions > 0 && updatedAnsweredQuestions.length === trialQuestions) {
+          console.log(`[QuizPage] 刚好达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialQuestions})，准备显示购买提示`);
+          
+          // 适当延迟，给用户时间看到题目的正确或错误状态
           setTimeout(() => {
+            // 设置试用结束状态
+            setTrialEnded(true);
+            
+            // 显示提示信息
+            toast.info(`您已完成${trialQuestions}道试用题目限制，需要购买完整版或使用兑换码继续`, {
+              position: "top-center",
+              autoClose: 8000,
+              toastId: "trial-limit-reached"
+            });
+            
+            // 显示购买模态窗口
             setShowPaymentModal(true);
-          }, 1000);
+          }, 1500);
         }
       }
       
@@ -1608,20 +1587,40 @@ function QuizPage(): JSX.Element {
       return null;
     }
     
+    // 计算还剩多少题可以试用
+    const answeredCount = answeredQuestions.length;
+    const totalTrialQuestions = questionSet.trialQuestions || 0;
+    const remainingTrialQuestions = Math.max(0, totalTrialQuestions - answeredCount);
+    
+    // 判断是否已达到试用限制
+    const isTrialLimitReached = totalTrialQuestions > 0 && answeredCount >= totalTrialQuestions;
+    
     return (
       <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 p-3 z-40">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex-1">
-            <p className="text-sm text-gray-700">
-              <span className="font-medium">试用模式:</span> 已答 
-              <span className="text-blue-600 font-bold mx-1">{answeredQuestions.length}</span> 题，
-              限制 <span className="text-blue-600 font-bold mx-1">{questionSet.trialQuestions}</span> 题
-            </p>
+            {isTrialLimitReached ? (
+              <p className="text-sm text-red-600 font-medium">
+                您已达到试用题目限制，请购买完整版继续使用
+              </p>
+            ) : (
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">试用模式:</span> 已答 
+                <span className="text-blue-600 font-bold mx-1">{answeredCount}</span> 题，
+                限制 <span className="text-blue-600 font-bold mx-1">{totalTrialQuestions}</span> 题
+                <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                  还可答 {remainingTrialQuestions} 题
+                </span>
+              </p>
+            )}
           </div>
           <div className="flex space-x-2">
             <button
               onClick={() => setShowPaymentModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none shadow-sm"
+              className={`px-4 py-2 text-sm rounded-md hover:bg-blue-700 focus:outline-none shadow-sm
+                ${isTrialLimitReached 
+                  ? "bg-blue-600 text-white animate-pulse" 
+                  : "bg-blue-600 text-white"}`}
             >
               购买完整版 ¥{questionSet.price || 0}
             </button>
