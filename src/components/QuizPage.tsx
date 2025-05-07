@@ -1913,8 +1913,9 @@ function QuizPage(): JSX.Element {
       const correctCount = answeredQuestions.filter(q => q.isCorrect).length;
       const totalCount = questions.length;
       const accuracy = Math.round((correctCount / totalCount) * 100);
+      const averageTimePerQuestion = Math.round(quizTotalTime / (answeredQuestions.length || 1));
       
-      // 添加获取访问状态
+      // 获取访问状态文本
       const getAccessStatusText = () => {
         if (!questionSet) return '';
         
@@ -1923,7 +1924,6 @@ function QuizPage(): JSX.Element {
         }
         
         if (hasAccessToFullQuiz) {
-          // 简化实现，返回一个固定文本
           return `付费题库 (已购买)`;
         }
         
@@ -1931,79 +1931,168 @@ function QuizPage(): JSX.Element {
       };
 
       return (
-        <div className="bg-white rounded-xl shadow-md p-6 max-w-3xl mx-auto">
-          <div className="text-center mb-6">
-            <div className="inline-block p-4 rounded-full bg-green-100 text-green-600 mb-4">
-              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">完成练习!</h2>
-            <p className="text-gray-600">{questionSet?.title || '未知题库'}</p>
-            
-            {/* 添加题库类型和有效期信息 */}
-            <div className="mt-2 text-sm text-gray-500">
-              {getAccessStatusText()}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-blue-50 rounded-lg p-4 text-center">
-              <div className="text-sm text-blue-600 mb-1">正确率</div>
-              <div className="text-2xl font-bold text-blue-800">{accuracy}%</div>
-              <div className="text-xs text-blue-600 mt-1">{correctCount}/{totalCount}题</div>
-            </div>
-            
-            <div className="bg-purple-50 rounded-lg p-4 text-center">
-              <div className="text-sm text-purple-600 mb-1">用时</div>
-              <div className="text-2xl font-bold text-purple-800">{formatTime(quizTotalTime)}</div>
-              <div className="text-xs text-purple-600 mt-1">平均{formatTime(quizTotalTime/totalCount)}/题</div>
-            </div>
-          </div>
-          
-          <div className="space-y-3 mb-8">
-            {answeredQuestions.map((answer, index) => {
-              if (!answer.questionIndex || answer.questionIndex < 0 || answer.questionIndex >= questions.length) return null;
-              const question = questions[answer.questionIndex];
-              if (!question) return null;
-              
-              return (
-                <div key={index} className={`p-3 rounded-lg border ${answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-2 ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                        {(answer.questionIndex ?? 0) + 1}
-                      </div>
-                      <div className="text-sm font-medium">{question.question ? (question.question.length > 50 ? `${question.question.substring(0, 50)}...` : question.question) : '未知问题'}</div>
-                    </div>
-                    <div className={`text-xs px-2 py-0.5 rounded-full ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                      {answer.isCorrect ? '正确' : '错误'}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          
-          <div className="flex space-x-3 justify-center">
-            <button 
-              onClick={handleResetQuiz} 
-              className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"
-            >
-              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              重新开始
-            </button>
+        <div className="max-w-4xl mx-auto">
+          {/* 顶部导航栏 */}
+          <div className="flex justify-between items-center mb-6">
             <button 
               onClick={handleNavigateHome} 
-              className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition flex items-center"
+              className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
             >
-              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               返回首页
             </button>
+            
+            <div className="flex items-center">
+              <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg text-sm">
+                {questionSet?.title || '完成练习'}
+              </div>
+            </div>
+          </div>
+          
+          {/* 完成练习页面主体 */}
+          <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center p-4 rounded-full bg-green-100 text-green-600 mb-4">
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">练习完成！</h2>
+              <p className="text-gray-600 text-lg">{questionSet?.title || '未知题库'}</p>
+              
+              {/* 题库类型和信息 */}
+              <div className="mt-2 text-sm text-gray-500">
+                {getAccessStatusText()}
+              </div>
+            </div>
+            
+            {/* 统计数据卡片 */}
+            <div className="grid grid-cols-2 gap-4 mb-8 md:grid-cols-4">
+              <div className="bg-blue-50 rounded-lg p-4 text-center">
+                <div className="text-sm text-blue-600 mb-1">答题数</div>
+                <div className="text-2xl font-bold text-blue-800">{answeredQuestions.length}</div>
+                <div className="text-xs text-blue-600 mt-1">共{totalCount}题</div>
+              </div>
+              
+              <div className="bg-green-50 rounded-lg p-4 text-center">
+                <div className="text-sm text-green-600 mb-1">正确率</div>
+                <div className="text-2xl font-bold text-green-800">{accuracy}%</div>
+                <div className="text-xs text-green-600 mt-1">{correctCount}题正确</div>
+              </div>
+              
+              <div className="bg-purple-50 rounded-lg p-4 text-center">
+                <div className="text-sm text-purple-600 mb-1">总用时</div>
+                <div className="text-2xl font-bold text-purple-800">{formatTime(quizTotalTime)}</div>
+                <div className="text-xs text-purple-600 mt-1">完成所有题目</div>
+              </div>
+              
+              <div className="bg-orange-50 rounded-lg p-4 text-center">
+                <div className="text-sm text-orange-600 mb-1">平均用时</div>
+                <div className="text-2xl font-bold text-orange-800">{formatTime(averageTimePerQuestion)}</div>
+                <div className="text-xs text-orange-600 mt-1">每题平均</div>
+              </div>
+            </div>
+            
+            {/* 答题详情面板 */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">答题详情</h3>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-medium text-gray-500">答对题目</div>
+                  <div className="text-sm font-medium text-green-600">{correctCount} 题</div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-500 h-2 rounded-full" 
+                    style={{width: `${correctCount / totalCount * 100}%`}}
+                  ></div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-medium text-gray-500">答错题目</div>
+                  <div className="text-sm font-medium text-red-600">{totalCount - correctCount} 题</div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-red-500 h-2 rounded-full" 
+                    style={{width: `${(totalCount - correctCount) / totalCount * 100}%`}}
+                  ></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* 题目列表（折叠状态） */}
+            <div className="mb-8">
+              <details className="bg-gray-50 rounded-lg p-4">
+                <summary className="font-medium text-gray-700 cursor-pointer">
+                  题目答题情况详情 ({answeredQuestions.length}题)
+                </summary>
+                <div className="mt-4 space-y-3">
+                  {answeredQuestions.map((answer, index) => {
+                    if (!answer.questionIndex) return null;
+                    const question = questions[answer.questionIndex];
+                    if (!question) return null;
+                    
+                    return (
+                      <div key={index} className={`p-3 rounded-lg border ${answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-2 ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                              {(answer.questionIndex ?? 0) + 1}
+                            </div>
+                            <div className="text-sm font-medium text-gray-700">{question.question ? (question.question.length > 100 ? `${question.question.substring(0, 100)}...` : question.question) : '未知问题'}</div>
+                          </div>
+                          <div className={`text-xs px-2 py-0.5 rounded-full ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                            {answer.isCorrect ? '正确' : '错误'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            </div>
+            
+            {/* 操作按钮 */}
+            <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3 justify-center">
+              <button 
+                onClick={handleResetQuiz} 
+                className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center"
+              >
+                <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                重新开始
+              </button>
+              
+              <button 
+                onClick={handleNavigateHome} 
+                className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition flex items-center justify-center"
+              >
+                <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                返回首页
+              </button>
+              
+              {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 */}
+              {questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && (
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  购买完整版
+                </button>
+              )}
+            </div>
           </div>
         </div>
       );

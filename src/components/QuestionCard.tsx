@@ -160,6 +160,12 @@ const QuestionCard = ({
   };
 
   const handleSubmit = () => {
+    // 如果已提交且显示解析中，则转为下一题逻辑
+    if (isSubmitted && showExplanation) {
+      handleNext();
+      return;
+    }
+
     // 防重复提交机制
     if (isSubmittingRef.current || isSubmitted) return;
     isSubmittingRef.current = true;
@@ -630,19 +636,25 @@ const QuestionCard = ({
     }
   };
 
-  // 添加快捷键支持
+  // 修改键盘事件处理器，支持空格键提交/下一题
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // 左右箭头控制上一题/下一题
       if (e.key === 'ArrowLeft') {
         handlePrevious();
-      } else if (e.key === 'ArrowRight' && (showExplanation || canProceed)) {
+      } else if (e.key === 'ArrowRight' && isSubmitted) {
         handleNext();
+      }
+      
+      // 空格键提交答案/下一题
+      if (e.key === ' ' && !e.target) {
+        e.preventDefault();
+        handleSubmit();
       }
       
       // 数字键选择选项 (1-9)
       const num = parseInt(e.key);
-      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length) {
+      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length && !isSubmitted) {
         const optionIndex = num - 1;
         const option = question.options[optionIndex];
         if (option) {
@@ -653,7 +665,7 @@ const QuestionCard = ({
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showExplanation, canProceed, question.options]);
+  }, [isSubmitted, showExplanation, canProceed, question.options]);
 
   // 保存错题的辅助函数
   const saveWrongAnswer = (selectedAnswer: string | string[]) => {
@@ -741,25 +753,36 @@ const QuestionCard = ({
         ))}
       </div>
 
-      {/* 提交按钮 - 为单选题和多选题都显示 */}
-      {!showExplanation && (
-        <div className="mt-4">
-          <button
-            onClick={handleSubmit}
-            disabled={selectedOptions.length === 0 || isSubmittingRef.current || trialLimitReached}
-            className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
-              selectedOptions.length === 0 || isSubmittingRef.current || trialLimitReached
-                ? 'bg-gray-400 cursor-not-allowed'
+      {/* 合并提交答案与下一题按钮 */}
+      <div className="mt-6">
+        <button
+          onClick={handleSubmit}
+          disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached}
+          className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
+            (selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached
+              ? 'bg-gray-400 cursor-not-allowed'
+              : isSubmitted
+                ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            提交答案
-          </button>
-        </div>
-      )}
+          }`}
+        >
+          {isSubmitted ? (
+            <>
+              <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              {isLast ? '完成练习' : '下一题'}
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              提交答案
+            </>
+          )}
+        </button>
+      </div>
       
       {/* 解析显示区域 */}
       {showExplanation && (
@@ -798,8 +821,8 @@ const QuestionCard = ({
         </div>
       )}
       
-      {/* 导航按钮区域 - 上一题和下一题 */}
-      <div className="mt-6 flex justify-between">
+      {/* 题目导航与辅助按钮 */}
+      <div className="mt-6 flex justify-between items-center">
         <button
           onClick={handlePrevious}
           className={`px-5 py-2 rounded-md flex items-center ${
@@ -814,27 +837,13 @@ const QuestionCard = ({
           </svg>
           上一题
         </button>
-        
-        <button
-          onClick={handleNext}
-          className={`next-question-button px-5 py-2 rounded-md flex items-center ${
-            (showExplanation || canProceed) && !trialLimitReached
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-          disabled={(!showExplanation && !canProceed) || trialLimitReached}
-        >
-          下一题
-          <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </div>
       
       {/* 键盘快捷键提示 */}
       <div className="mt-4 text-center text-xs text-gray-500">
         <span className="bg-gray-100 rounded px-1.5 py-0.5 mr-1">←</span>上一题
-        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">→</span>下一题
+        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">Space</span>
+        {isSubmitted ? '下一题' : '提交答案'}
         <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">1-9</span>选择选项
       </div>
       
