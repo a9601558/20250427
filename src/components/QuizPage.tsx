@@ -51,9 +51,6 @@ interface ProgressData {
   [key: string]: any;
 }
 
-// 添加 isSubmittingRef 的定义
-const isSubmittingRef = useRef<boolean>(false);
-
 // 添加 QuestionCard 的 props 类型定义
 interface QuestionCardProps {
   question: Question;
@@ -67,7 +64,7 @@ interface QuestionCardProps {
   questionSetId: string;
   isLast: boolean;
   trialQuestions?: number;
-  isSubmittingAnswer: boolean;
+  isSubmittingAnswer?: boolean;
 }
 
 function QuizPage(): JSX.Element {
@@ -77,6 +74,9 @@ function QuizPage(): JSX.Element {
   const { user, hasAccessToQuestionSet, syncAccessRights } = useUser();
   const { socket } = useSocket() as { socket: Socket | null };
   const { fetchUserProgress } = useUserProgress();
+  
+  // 将 isSubmittingRef 移动到组件内部
+  const isSubmittingRef = useRef<boolean>(false);
   
   // 状态管理
   const [loading, setLoading] = useState<boolean>(true);
@@ -178,7 +178,7 @@ function QuizPage(): JSX.Element {
           if (questionsData.length > 0) {
             setQuestions(questionsData);
             setOriginalQuestions(questionsData);
-          } else {
+              } else {
             setError('此题库不包含任何题目');
           }
         } else {
@@ -238,13 +238,13 @@ function QuizPage(): JSX.Element {
 
     // 使用类型断言
     (socket as Socket).on('progress:data', handleProgressData);
-
+    
     return () => {
       // 使用类型断言
       (socket as Socket).off('progress:data', handleProgressData);
     };
   }, [socket, user?.id]);
-
+  
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
@@ -267,23 +267,23 @@ function QuizPage(): JSX.Element {
       }
     }
   };
-
+  
   // 处理答案提交
   const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
     if (isSubmittingRef.current) {
       console.log('已在提交答案中，忽略重复请求');
       return;
     }
-
+    
     const currentQuestion = questions[currentQuestionIndex];
     if (!currentQuestion) {
       console.error('当前问题数据不存在');
       return;
     }
-
+    
     // 设置提交状态
     isSubmittingRef.current = true;
-
+    
     // 确保selectedOption总是字符串数组
     const optionIds = Array.isArray(selectedOption) ? selectedOption : [selectedOption];
 
@@ -303,7 +303,7 @@ function QuizPage(): JSX.Element {
         isCorrect,
         selectedOption: optionIds,
       };
-    } else {
+      } else {
       // 添加新的答案
       updatedAnsweredQuestions.push({
         index: updatedAnsweredQuestions.length,
@@ -313,20 +313,20 @@ function QuizPage(): JSX.Element {
       });
     }
 
-    setAnsweredQuestions(updatedAnsweredQuestions);
+      setAnsweredQuestions(updatedAnsweredQuestions);
     if (isCorrect) {
       setCorrectAnswers(prev => prev + 1);
     }
-
-    // 更新本地存储
+      
+      // 更新本地存储
     const localProgressKey = `quiz_progress_${questionSetId}`;
     localStorage.setItem(localProgressKey, JSON.stringify({
       lastQuestionIndex: currentQuestionIndex,
-      answeredQuestions: updatedAnsweredQuestions,
-      lastUpdated: new Date().toISOString()
+        answeredQuestions: updatedAnsweredQuestions,
+        lastUpdated: new Date().toISOString()
     }));
 
-    // 重置提交状态
+      // 重置提交状态
     setTimeout(() => {
       isSubmittingRef.current = false;
     }, 800);
@@ -341,10 +341,10 @@ function QuizPage(): JSX.Element {
   // 处理下一题
   const handleNextQuestion = useCallback(() => {
     if (currentQuestionIndex >= questions.length - 1) {
-      setQuizComplete(true);
+        setQuizComplete(true);
       return;
     }
-
+    
     setCurrentQuestionIndex(prevIndex => prevIndex + 1);
     setSelectedOptions([]);
     setShowExplanation(false);
@@ -361,8 +361,8 @@ function QuizPage(): JSX.Element {
 
     if (index >= 0 && index < questions.length) {
       setCurrentQuestionIndex(index);
-      setSelectedOptions([]);
-      setShowExplanation(false);
+                    setSelectedOptions([]);
+                    setShowExplanation(false);
     }
   }, [questions.length, trialEnded, hasAccessToFullQuiz, hasRedeemed]);
 
@@ -374,18 +374,18 @@ function QuizPage(): JSX.Element {
 
     const currentQuestion = questions[currentQuestionIndex];
     return (
-      <QuestionCard
-        question={currentQuestion}
-        questionNumber={currentQuestionIndex + 1}
-        totalQuestions={questions.length}
+          <QuestionCard
+            question={currentQuestion}
+            questionNumber={currentQuestionIndex + 1}
+            totalQuestions={questions.length}
         onAnswerSubmitted={handleAnswerSubmit}
-        onNext={handleNextQuestion}
-        onJumpToQuestion={handleJumpToQuestion}
-        isPaid={questionSet?.isPaid}
-        hasFullAccess={hasAccessToFullQuiz}
+            onNext={handleNextQuestion}
+            onJumpToQuestion={handleJumpToQuestion}
+            isPaid={questionSet?.isPaid}
+            hasFullAccess={hasAccessToFullQuiz}
         questionSetId={questionSetId}
-        isLast={currentQuestionIndex === questions.length - 1}
-        trialQuestions={questionSet?.trialQuestions}
+            isLast={currentQuestionIndex === questions.length - 1}
+            trialQuestions={questionSet?.trialQuestions}
         isSubmittingAnswer={isSubmittingRef.current}
       />
     );
@@ -398,8 +398,8 @@ function QuizPage(): JSX.Element {
         <div className="bg-white rounded-lg shadow-md p-4">
           <h3 className="text-lg font-medium mb-4">答题进度</h3>
           <div className="grid grid-cols-10 gap-2">
-            {questions.map((_, index) => {
-              const answer = answeredQuestions.find(a => a.questionIndex === index);
+          {questions.map((_, index) => {
+            const answer = answeredQuestions.find(a => a.questionIndex === index);
               const isCurrent = currentQuestionIndex === index;
               const isDisabled = isInTrialMode && questionSet?.trialQuestions 
                 ? index >= questionSet.trialQuestions 
@@ -410,83 +410,83 @@ function QuizPage(): JSX.Element {
               else if (answer?.isCorrect) bgColor = 'bg-green-100';
               else if (answer) bgColor = 'bg-red-100';
               else if (isDisabled) bgColor = 'bg-gray-300';
-
-              return (
-                <button
-                  key={index}
+            
+            return (
+              <button 
+                key={index}
                   onClick={() => !isDisabled && handleJumpToQuestion(index)}
                   className={`h-10 ${bgColor} rounded-lg flex items-center justify-center text-sm font-medium
                     ${isDisabled ? 'cursor-not-allowed opacity-50' : 'hover:opacity-80'}`}
                   disabled={isDisabled}
-                >
-                  {index + 1}
-                </button>
-              );
-            })}
-          </div>
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
           <div className="mt-4 flex justify-between text-sm text-gray-600">
             <span>总题数: {questions.length}</span>
             <span>已答: {answeredQuestions.length}</span>
             <span>正确: {correctAnswers}</span>
-          </div>
+      </div>
         </div>
       </div>
     );
   };
-
+  
   // 渲染完成页面
   const renderCompletePage = () => {
     if (!quizComplete) return null;
 
     const score = Math.round((correctAnswers / questions.length) * 100);
     return (
-      <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <div className="bg-white rounded-lg shadow-md p-8 text-center">
         <div className="mb-6">
           <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center">
             <svg className="w-12 h-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
           <h2 className="text-2xl font-bold mt-4">答题完成！</h2>
           <p className="text-gray-600 mt-2">
             得分: {score}% ({correctAnswers}/{questions.length})
           </p>
         </div>
-        <div className="flex justify-center space-x-4">
-          <button
+              <div className="flex justify-center space-x-4">
+                <button 
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            重新开始
-          </button>
-          <button
+                >
+                  重新开始
+                </button>
+                <button 
             onClick={() => navigate('/')}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            返回首页
-          </button>
+                >
+                  返回首页
+                </button>
         </div>
       </div>
     );
   };
-
+  
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4">
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin"></div>
-          </div>
+            </div>
         ) : error ? (
           <div className="text-center py-12">
             <div className="text-red-500 text-xl mb-4">加载失败</div>
             <p className="text-gray-600 mb-6">{error}</p>
-            <button 
+              <button 
               onClick={() => {window.location.reload()}}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               重试
-            </button>
+              </button>
           </div>
         ) : (
           <>
@@ -494,22 +494,22 @@ function QuizPage(): JSX.Element {
             <div className="mb-6">
               <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">{questionSet?.title}</h1>
-                <button
+                      <button
                   onClick={() => navigate('/')}
                   className="text-blue-500 hover:text-blue-600"
-                >
-                  返回首页
-                </button>
-              </div>
+                  >
+                    返回首页
+                  </button>
+                </div>
               {isInTrialMode && questionSet?.trialQuestions && (
                 <div className="mt-2 bg-yellow-50 border-l-4 border-yellow-400 p-3">
                   <p className="text-yellow-700">
                     试用模式：可答题数 {answeredQuestions.length}/{questionSet.trialQuestions}
                   </p>
-                </div>
-              )}
-            </div>
-
+                  </div>
+                    )}
+                  </div>
+                  
             {/* 答题卡 */}
             {renderAnswerCard()}
 
@@ -528,15 +528,15 @@ function QuizPage(): JSX.Element {
                   setShowPaymentModal(false);
                 }}
               />
-            )}
-
-            {/* 兑换码模态框 */}
-            {showRedeemCodeModal && (
+        )}
+        
+        {/* 兑换码模态框 */}
+        {showRedeemCodeModal && (
               <RedeemCodeForm
                 onRedeemSuccess={() => {
                   setHasRedeemed(true);
-                  setHasAccessToFullQuiz(true);
-                  setTrialEnded(false);
+                setHasAccessToFullQuiz(true);
+                setTrialEnded(false);
                   setShowRedeemCodeModal(false);
                 }}
               />
@@ -548,4 +548,4 @@ function QuizPage(): JSX.Element {
   );
 }
 
-export default QuizPage;
+export default QuizPage; 
