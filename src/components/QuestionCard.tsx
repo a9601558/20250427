@@ -25,6 +25,7 @@ interface QuestionCardProps {
   hasFullAccess?: boolean;
   trialQuestions?: number;
   questionSetId: string;
+  trialLimitReached?: boolean;
 }
 
 // 提示语精简：提取为常量，便于后期i18n多语言
@@ -56,7 +57,8 @@ const QuestionCard = ({
   trialQuestions = 0,
   questionSetId,
   isLast = false,
-  isSubmittingAnswer = false
+  isSubmittingAnswer = false,
+  trialLimitReached = false
 }: QuestionCardProps) => {
   // 单选题选择一个选项，多选题选择多个选项
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -254,8 +256,13 @@ const QuestionCard = ({
   // 添加状态来控制是否可以继续到下一题
   const [canProceed, setCanProceed] = useState(false);
 
-  // 确保渲染时正确地显示选项样式
+  // 修改getOptionClass函数，在试用限制时禁用交互
   const getOptionClass = (option: any) => {
+    // 如果已达到试用限制，禁用所有选项
+    if (isPaid && !hasFullAccess && trialLimitReached) {
+      return 'border-gray-300 bg-gray-50 opacity-60 pointer-events-none';
+    }
+    
     if (!showExplanation) {
       // 没有提交答案时的样式
       return selectedOptions.includes(option.id)
@@ -273,30 +280,6 @@ const QuestionCard = ({
     }
   };
 
-  const trialLimitReached = useCallback(() => {
-    // 直接计算已回答的问题数量
-    if (!isPaid || hasFullAccess || !trialQuestions) return false;
-    
-    // 检查本地存储中的答题状态以确定已答题数量
-    let answeredCount = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(`quiz_state_${questionSetId}_`)) {
-        try {
-          const storedState = JSON.parse(localStorage.getItem(key) || '{}');
-          if (storedState.isSubmitted) {
-            answeredCount++;
-          }
-        } catch (e) {
-          console.error('检查答题状态失败', e);
-        }
-      }
-    }
-    
-    console.log(`[QuestionCard] 严格检查试用限制: 已答题=${answeredCount}, 限制=${trialQuestions}`);
-    return answeredCount >= trialQuestions;
-  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
-
   const handleNext = () => {
     console.log('[QuestionCard] handleNext called - moving to next question');
     
@@ -310,20 +293,11 @@ const QuestionCard = ({
     setShowExplanation(false);
     setCanProceed(false); // Reset canProceed to prevent auto-submission
     
-    // Check if trial limit reached
-    if (trialLimitReached()) {
-      console.log('[QuestionCard] Trial limit reached in handleNext, triggering purchase dialog');
+    // 使用props传入的trialLimitReached判断
+    if (isPaid && !hasFullAccess && trialLimitReached) {
+      console.log('[QuestionCard] Trial limit reached in handleNext, blocking next question');
       toast?.('试用题目已达上限，请购买完整版或使用兑换码继续', { type: 'warning' });
-      
-      // Trigger the event with delay to ensure state is updated
-      setTimeout(() => {
-        const trialEndEvent = new CustomEvent('trial:ended', {
-          detail: { questionSetId, enforceLimit: true }
-        });
-        window.dispatchEvent(trialEndEvent);
-      }, 100);
-      
-      return; // Don't proceed to next question
+      return; // 不继续执行下一题
     }
     
     // Explicitly call the onNext prop function with better error handling
@@ -380,7 +354,7 @@ const QuestionCard = ({
     };
   }, [isPaid, hasFullAccess]);
 
-  // 更新 isQuestionAccessible 使用新函数 trialLimitReached
+  // 修改简化isQuestionAccessible函数，将复杂逻辑转移到QuizPage
   const isQuestionAccessible = useCallback((questionIndex: number) => {
     // If question set is free, all questions are accessible
     if (!isPaid) return true;
@@ -388,45 +362,25 @@ const QuestionCard = ({
     // First check if user has full access
     if (hasFullAccess) return true;
     
-    // Check local storage for redeemed status and access rights
-    const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
-                          checkLocalAccessRights(questionSetId);
-    
-    if (hasLocalAccess) return true;
-    
-    // If no access, check trial limit using the more accurate function
-    if (trialLimitReached()) {
-      console.log('[QuestionCard] Trial limit reached in accessibility check');
-      
-      // Trigger trial ended event with slight delay to prevent race conditions
-      setTimeout(() => {
-        const trialEndEvent = new CustomEvent('trial:ended', {
-          detail: { questionSetId, enforceLimit: true }
-        });
-        window.dispatchEvent(trialEndEvent);
-      }, 100);
-      
-      return false;
+    // 对于试用题库，使用onJumpToQuestion来判断，不在QuestionCard内部实现
+    // 这样可以确保QuestionCard和QuizPage的访问控制逻辑一致
+    if (onJumpToQuestion) {
+      // 仅检查是否为当前题目之前的题目，这些题目应该都可访问
+      return questionIndex < questionNumber;
     }
     
-    // Standard check for trial questions
+    // 默认行为：在试用模式下仅允许访问试用题目数量内的题目
     return questionIndex < (trialQuestions || 0);
-  }, [isPaid, hasFullAccess, trialQuestions, questionSetId, trialLimitReached]);
+  }, [isPaid, hasFullAccess, trialQuestions, questionNumber, onJumpToQuestion]);
 
-  // 处理题号跳转
+  // 修改处理题号跳转函数，简化逻辑
   const handleJumpToQuestion = (index: number) => {
-    if (!isQuestionAccessible(index)) {
-      // 如果是付费题目且未购买，显示提示
-      // 检查是否需要购买或兑换
-      if (isPaid && !hasFullAccess) {
-        toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
-      }
+    if (!onJumpToQuestion || isSubmittingRef.current) {
       return;
     }
     
-    if (onJumpToQuestion && !isSubmittingRef.current) {
-      onJumpToQuestion(index);
-    }
+    // 直接调用父组件的处理函数，由父组件决定是否可以跳转
+    onJumpToQuestion(index);
   };
 
   // 清理定时器
@@ -751,6 +705,13 @@ const QuestionCard = ({
             {question.questionType === 'single' ? '单选题' : '多选题'}
           </span>
         </div>
+        
+        {/* 添加试用限制标志 */}
+        {isPaid && !hasFullAccess && trialLimitReached && (
+          <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded">
+            试用已结束
+          </span>
+        )}
       </div>
 
       {/* 题目内容 */}
@@ -762,7 +723,7 @@ const QuestionCard = ({
           <div
             key={option.id}
             className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all duration-150 ${getOptionClass(option)}`}
-            onClick={() => !showExplanation && handleOptionClick(option.text, option.id)}
+            onClick={() => !showExplanation && !trialLimitReached && handleOptionClick(option.text, option.id)}
           >
             <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mr-3 ${
               showExplanation && option.isCorrect 
@@ -785,9 +746,9 @@ const QuestionCard = ({
         <div className="mt-4">
           <button
             onClick={handleSubmit}
-            disabled={selectedOptions.length === 0 || isSubmittingRef.current}
+            disabled={selectedOptions.length === 0 || isSubmittingRef.current || trialLimitReached}
             className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
-              selectedOptions.length === 0 || isSubmittingRef.current
+              selectedOptions.length === 0 || isSubmittingRef.current || trialLimitReached
                 ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700'
             }`}
@@ -842,11 +803,11 @@ const QuestionCard = ({
         <button
           onClick={handlePrevious}
           className={`px-5 py-2 rounded-md flex items-center ${
-            questionNumber > 1 
+            questionNumber > 1 && !trialLimitReached 
               ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
               : 'text-gray-400 bg-gray-50 cursor-not-allowed'
           }`}
-          disabled={questionNumber <= 1}
+          disabled={questionNumber <= 1 || trialLimitReached}
         >
           <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -857,11 +818,11 @@ const QuestionCard = ({
         <button
           onClick={handleNext}
           className={`next-question-button px-5 py-2 rounded-md flex items-center ${
-            (showExplanation || canProceed) 
+            (showExplanation || canProceed) && !trialLimitReached
               ? 'bg-blue-600 text-white hover:bg-blue-700'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
-          disabled={!showExplanation && !canProceed}
+          disabled={(!showExplanation && !canProceed) || trialLimitReached}
         >
           下一题
           <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -908,6 +869,18 @@ const QuestionCard = ({
           清空当前题目答题记录
         </button>
       </div>
+
+      {/* 在需要时显示试用限制警告 */}
+      {isPaid && !hasFullAccess && trialLimitReached && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center text-yellow-700">
+            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>您已达到试用题目限制，需要购买完整版或使用兑换码继续使用。无法回看已答题目。</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
