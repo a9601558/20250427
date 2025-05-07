@@ -325,31 +325,28 @@ const HomePage: React.FC = () => {
     console.log(`[HomePage] 题库类型: ${set.isPaid ? '付费' : '免费'}, 访问权限: ${set.hasAccess ? '有' : '无'}, 试用模式: ${isTrial ? '是' : '否'}`);
     
     // 构建URL参数对象
-    let params: Record<string, string> = {
-      t: Date.now().toString() // 添加时间戳，避免缓存
-    };
+    const params = new URLSearchParams();
+    
+    // 添加时间戳，避免缓存
+    params.append('t', Date.now().toString());
     
     // 如果是付费题库且用户没有访问权限，添加试用模式参数
     if (isTrial) {
-      params.mode = 'trial';
+      params.append('mode', 'trial');
       
       // 添加试用题目数量限制
       if (set.trialQuestions) {
-        params.trialLimit = String(set.trialQuestions);
+        params.append('trialLimit', String(set.trialQuestions));
       }
       
       console.log(`[HomePage] 设置试用模式参数: mode=trial, trialLimit=${set.trialQuestions || 'unset'}`);
     }
     
-    // 手动构建URL查询字符串
-    const queryParams = Object.entries(params)
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-      .join('&');
-    
     // 构建完整URL
-    const quizUrl = `/quiz/${set.id}${queryParams ? `?${queryParams}` : ''}`;
+    const quizUrl = `/quiz/${set.id}?${params.toString()}`;
     
     console.log(`[HomePage] 跳转到URL: ${quizUrl}, 试用模式: ${isTrial ? '是' : '否'}`);
+    console.log(`[HomePage] URLSearchParams详情:`, Object.fromEntries(params.entries()));
     
     // 使用navigate进行路由跳转
     navigate(quizUrl);
