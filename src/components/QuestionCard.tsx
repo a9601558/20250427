@@ -2,23 +2,17 @@ import { useState, useEffect, useRef, KeyboardEvent, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
-import RedeemCodeForm from './RedeemCodeForm';
 import { toast } from 'react-toastify';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
-import PaymentModal from './PaymentModal';
 
 // 定义常量
 const STORAGE_KEYS = {
   QUIZ_STATE_PREFIX: 'quiz_state_',
-  REDEEMED_SETS: 'redeemedQuestionSetIds',
-  ACCESS_RIGHTS: 'quizAccessRights',
   WRONG_ANSWER_PREFIX: 'wrong_answer_'
 };
 
 const EVENTS = {
-  REDEEM_SUCCESS: 'redeem:success',
-  ACCESS_RIGHTS_UPDATED: 'accessRights:updated',
   WRONG_ANSWER_SAVE: 'wrongAnswer:save'
 };
 
@@ -41,8 +35,7 @@ const MESSAGES = {
   SHOW_EXPLANATION: '查看解析',
   HIDE_EXPLANATION: '隐藏解析',
   ANALYSIS: '解析:',
-  NEXT_QUESTION: '下一题',
-  TRIAL_LIMIT: (count: number) => `您已完成${count}道试用题目。请购买完整题库或使用兑换码继续答题。`
+  NEXT_QUESTION: '下一题'
 };
 
 interface QuestionWithCode extends Question {
@@ -122,15 +115,13 @@ const QuestionCard = ({
   const [isCorrectAnswer, setIsCorrectAnswer] = useState(false);
   const isSubmittingRef = useRef<boolean>(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const navigate = useNavigate();
   
   // 添加ref以防止重复点击和提交
   const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSubmitTimeRef = useRef<number>(0);
   
-  const { user, syncAccessRights } = useUser();
+  const { user } = useUser();
   const { socket } = useSocket();
   
   // 当userAnsweredQuestion存在时预填选项
@@ -165,7 +156,7 @@ const QuestionCard = ({
     }
   };
 
-  // 修改handleOptionClick函数，删除自动显示购买模态框的逻辑
+  // 处理选项点击
   const handleOptionClick = (optionText: string, optionId: string) => {
     if (isSubmittingRef.current || isSubmitted) {
       console.log('[QuestionCard] 正在提交答案中或已提交，忽略点击');
@@ -204,9 +195,9 @@ const QuestionCard = ({
     }
   };
 
-  // 修改handleSubmit函数，添加试用限制检查
+  // 提交答案
   const handleSubmit = async () => {
-    // 增加试用模式安全检查
+    // 检查是否可以提交答案
     if (!canSubmitAnswer()) return;
     
     isSubmittingRef.current = true;
@@ -227,15 +218,15 @@ const QuestionCard = ({
 
       setIsCorrectAnswer(isCorrect);
       setIsSubmitted(true);
-      setShowExplanation(true);
+            setShowExplanation(true);
       
       // 调用父组件的回调
-      if (onAnswerSubmitted) {
-        onAnswerSubmitted(isCorrect, selectedOptions);
-      }
+        if (onAnswerSubmitted) {
+          onAnswerSubmitted(isCorrect, selectedOptions);
+        }
 
       // 如果答错了，保存错题记录
-      if (!isCorrect) {
+        if (!isCorrect) {
         const wrongAnswerEvent = new CustomEvent(EVENTS.WRONG_ANSWER_SAVE, {
               detail: {
                 questionId: question.id,
@@ -248,10 +239,6 @@ const QuestionCard = ({
             });
             window.dispatchEvent(wrongAnswerEvent);
       }
-      
-      // 答题完成后，如果是试用模式且当前题目号等于试用限制数量，则在用户点击"下一题"时才显示购买模态框
-      // 这里不立即显示，等用户点击"下一题"按钮时再显示
-
     } finally {
       setIsSubmitting(false);
       setTimeout(() => {
@@ -260,92 +247,24 @@ const QuestionCard = ({
     }
   };
 
-  // 修改canSubmitAnswer函数，让试用限制检查更明确
+  // 检查是否可以提交答案
   const canSubmitAnswer = useCallback(() => {
     // 如果已经提交过，不能再次提交
     if (isSubmittingRef.current || isSubmitted) return false;
     
-    // 试用模式特殊处理 - 在提交答案时不拦截，只在点击下一题时检查
-    // 允许用户完成当前题目的答题
-    
     return true;
   }, [isSubmitted]);
 
-  // 修改handleNext函数，确保在试用模式下正确处理限制
+  // 处理下一题
   const handleNext = () => {
     // 记录当前状态
     saveCurrentState();
     
-    // 增强试用模式限制检查
-    // 注意：这里检查的是当前的题目序号，而不是下一题的序号
-    // 如果当前是最后一道试用题，点击下一题时就应该显示购买模态框
-    if (isTrialMode && !hasFullAccess && trialQuestions) {
-      if (questionNumber >= trialQuestions) {
-        console.log(`[QuestionCard] 已达到试用题目限制，当前题号: ${questionNumber}, 试用限制: ${trialQuestions}`);
-        
-        // 显示购买或兑换提示
-        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-          position: "top-center",
-          autoClose: 8000,
-          toastId: "trial-limit-toast",
-        });
-        
-        // 显示购买模态窗口
-        setShowPaymentModal(true);
-        return; // 阻止继续前进到下一题
-      }
-    }
-    
     // 调用onNext回调
     if (onNext) {
-      onNext();
+    onNext();
     }
   };
-
-  // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
-  const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
-    try {
-      const redeemedStr = localStorage.getItem(STORAGE_KEYS.REDEEMED_SETS);
-      if (!redeemedStr) return false;
-      
-      const redeemedIds = JSON.parse(redeemedStr);
-      if (!Array.isArray(redeemedIds)) return false;
-      
-      // 标准化ID
-      const targetId = String(questionSetId).trim();
-      
-      // 优先使用精确匹配，减少模糊匹配的风险
-      return redeemedIds.some(id => {
-        const redeemedId = String(id || '').trim();
-        // 精确匹配
-        return redeemedId === targetId;
-      });
-    } catch (e) {
-      console.error('检查兑换状态失败', e);
-      return false;
-    }
-  };
-  
-  // 检查access权限
-  const checkLocalAccessRights = (questionSetId: string): boolean => {
-    try {
-      const accessRightsStr = localStorage.getItem(STORAGE_KEYS.ACCESS_RIGHTS);
-      if (!accessRightsStr) return false;
-      
-      const accessRights = JSON.parse(accessRightsStr);
-      return !!accessRights[questionSetId];
-    } catch (e) {
-      console.error('检查访问权限失败', e);
-      return false;
-    }
-  };
-  
-  // 合并所有访问权限检查
-  const hasCompleteAccess = 
-    hasFullAccess || 
-    checkLocalRedeemedStatus(questionSetId) || 
-    checkLocalAccessRights(questionSetId) ||
-    isPaid === false; // 免费题库
 
   // 保存当前答题状态到localStorage
   const saveCurrentState = () => {
@@ -363,7 +282,7 @@ const QuestionCard = ({
       
       // 保存状态
       const stateToSave = {
-                questionId: question.id,
+        questionId: question.id,
         selectedOption: question.questionType === 'single' ? selectedOption : null,
         selectedOptions: question.questionType === 'multiple' ? selectedOptions : [],
         isSubmitted,
@@ -378,160 +297,11 @@ const QuestionCard = ({
     }
   };
 
-  // 完全替换之前的useEffect，不再自动弹出购买模态框
-  useEffect(() => {
-    // 不再主动检查并显示购买模态框
-    // 只在用户操作时（点击下一题或提交答案）才检查并显示
-    
-    // 清理可能存在的定时器
-    return () => {
-      if (answerTimeoutRef.current) {
-        clearTimeout(answerTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // 检查下一题是否可以访问
-  const isQuestionAccessible = (index: number) => {
-    // 自由模式 - 可以访问所有题目
-    if (!isTrialMode) return true;
-    
-    // 试用模式 - 只能访问指定数量范围内的题目
-    const effectiveTrialLimit = trialQuestions || 0;
-    
-    // 如果有完整访问权限或者题目在试用范围内，则可以访问
-    return hasCompleteAccess || index < effectiveTrialLimit;
-  };
-
   // 跳转到指定题目
   const handleJumpToQuestion = (index: number) => {
-    // 检查是否可以访问这道题
-    if (!isQuestionAccessible(index)) {
-      // 如果是付费题目且未购买，显示提示
-      // 检查是否需要购买或兑换
-      if (isPaid && !hasFullAccess) {
-        toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
-      }
-      return;
-    }
-    
     if (onJumpToQuestion && !isSubmittingRef.current) {
       onJumpToQuestion(index);
     }
-  };
-
-  // 监听全局事件
-  useEffect(() => {
-    // 当兑换码成功使用时更新状态
-    const handleRedeemSuccess = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail?.questionSetId === questionSetId) {
-        console.log('[QuestionCard] 兑换码成功使用，更新状态');
-        
-        // 关闭兑换码模态窗口
-        setShowRedeemCodeModal(false);
-        
-        // 如果正在显示付费模态窗口，也一并关闭
-        setShowPaymentModal(false);
-        
-        // 通知父组件刷新权限
-        if (syncAccessRights) {
-          syncAccessRights();
-        }
-      }
-    };
-    
-    // 当访问权限更新时的处理
-    const handleAccessRightsUpdate = (event: Event) => {
-      console.log('[QuestionCard] 收到访问权限更新事件');
-      
-      // 关闭兑换码和付费模态窗口
-      setShowRedeemCodeModal(false);
-      setShowPaymentModal(false);
-    };
-    
-    // 添加事件监听器
-    window.addEventListener(EVENTS.REDEEM_SUCCESS, handleRedeemSuccess);
-    window.addEventListener(EVENTS.ACCESS_RIGHTS_UPDATED, handleAccessRightsUpdate);
-    
-    // 清理函数
-    return () => {
-      window.removeEventListener(EVENTS.REDEEM_SUCCESS, handleRedeemSuccess);
-      window.removeEventListener(EVENTS.ACCESS_RIGHTS_UPDATED, handleAccessRightsUpdate);
-    };
-  }, [questionSetId, syncAccessRights]);
-
-  // 渲染用于显示在试用模式下的信息横幅
-  const TrialInfoBanner = () => {
-    if (!isTrialMode) return null;
-    
-    // 显示试用模式信息
-    return (
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-yellow-700">
-              <span className="font-medium">试用模式：</span> 您可以免费体验前 {trialQuestions} 道题，购买完整题库或使用兑换码可访问全部 {totalQuestions} 道题。
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // 渲染独立的解释部分，避免在每个正确选项下都显示
-  const renderExplanation = () => {
-    if (!isSubmitted || !showExplanation || !question.explanation) return null;
-    
-    return (
-      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <h4 className="font-medium text-gray-900 mb-2">解析:</h4>
-        <p className="text-gray-700 whitespace-pre-wrap">{question.explanation}</p>
-      </div>
-    );
-  };
-
-  // 渲染分页按钮
-  const renderNumberButtons = () => {
-    // 确保 totalQuestions 是数字
-    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
-    
-    return Array.from({ length: count }).map((_, index) => {
-      const isAccessible = isQuestionAccessible(index);
-      return (
-        <button
-          key={index}
-          onClick={() => handleJumpToQuestion(index)}
-          disabled={!isAccessible}
-          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-            ${questionNumber === index + 1 
-              ? 'bg-blue-600 text-white' 
-              : isAccessible
-                ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
-            }
-            ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
-          `}
-          aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
-          title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
-        >
-          {index + 1}
-          {!isAccessible && (
-            <span className="absolute -top-1 -right-1 w-3 h-3">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-          )}
-        </button>
-      );
-    });
   };
 
   // 在QuestionCard组件中添加答题状态保存功能
@@ -560,10 +330,6 @@ const QuestionCard = ({
           if (savedState.isSubmitted) {
             setIsSubmitted(true);
             setIsCorrectAnswer(savedState.isCorrect || false);
-            
-            // 移除对父组件的回调，防止自动答题
-            // 注意：不再调用onAnswerSubmitted，仅恢复UI状态
-            // 父组件应通过userAnsweredQuestion提供已处理答案的历史记录
             
             // 自动显示解析
             if (savedState.showExplanation) {
@@ -610,7 +376,7 @@ const QuestionCard = ({
     };
   }, [question.id, questionSetId, question.questionType, userAnsweredQuestion]);
 
-  // 修改handleOptionKeyDown函数，确保键盘操作也不会自动提交
+  // 键盘操作处理
   const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
     // 如果已经提交或正在提交，忽略键盘事件
     if (isSubmittingRef.current || isSubmitted) return;
@@ -622,7 +388,7 @@ const QuestionCard = ({
     }
   };
 
-  // 修改全局键盘事件处理器，确保数字键不会触发自动提交
+  // 全局键盘事件处理
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // 如果已经提交或正在提交，忽略键盘事件
@@ -656,26 +422,6 @@ const QuestionCard = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSubmitted, selectedOptions, question.options, question.questionType]);
 
-  // 确保试用模式结束时显示购买窗口
-  useEffect(() => {
-    // 如果处于试用模式，且已达到试用限制，且用户没有完整访问权限
-    const hasTrialEnded = 
-      isTrialMode && 
-      trialQuestions && 
-      questionNumber >= trialQuestions && 
-      !(hasFullAccess || checkLocalRedeemedStatus(questionSetId) || checkLocalAccessRights(questionSetId));
-    
-    if (hasTrialEnded) {
-      console.log(`[QuestionCard] 检测到试用已结束: ${questionNumber}/${trialQuestions}`);
-      // 在组件挂载后，如果试用已结束，立即显示购买窗口
-      const timer = setTimeout(() => {
-        setShowPaymentModal(true);
-      }, 500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isTrialMode, trialQuestions, questionNumber, hasFullAccess, questionSetId]);
-
   // 处理上一题按钮点击
   const handlePrevious = () => {
     if (onJumpToQuestion && questionNumber > 1) {
@@ -683,7 +429,47 @@ const QuestionCard = ({
     }
   };
 
-  // 修复按钮点击函数调用
+  // 渲染解释部分
+  const renderExplanation = () => {
+    if (!isSubmitted || !showExplanation || !question.explanation) return null;
+    
+    return (
+      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <h4 className="font-medium text-gray-900 mb-2">解析:</h4>
+        <p className="text-gray-700 whitespace-pre-wrap">{question.explanation}</p>
+      </div>
+    );
+  };
+
+  // 渲染分页按钮部分（可以进一步简化）
+  const renderNumberButtons = () => {
+    // 确保 totalQuestions 是数字
+    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
+    
+    return Array.from({ length: count }).map((_, index) => {
+      const isCurrentQuestion = questionNumber === index + 1;
+      return (
+        <button
+          key={index}
+          onClick={() => handleJumpToQuestion(index)}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${isCurrentQuestion 
+              ? 'bg-blue-600 text-white' 
+              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+            }
+            focus:ring-blue-500
+          `}
+          aria-label={`跳转到第${index + 1}题`}
+          title={`跳转到第${index + 1}题`}
+        >
+          {index + 1}
+        </button>
+      );
+    });
+  };
+
+  // 渲染操作按钮
   const renderButtonArea = () => (
     <div className="flex justify-between">
       <button
@@ -736,9 +522,6 @@ const QuestionCard = ({
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 mb-6 transition-all">
-      {/* 试用信息横幅 */}
-      <TrialInfoBanner />
-      
       {/* 题目信息 */}
       <div className="flex justify-between items-start mb-6">
         <div className="flex items-center">
@@ -789,31 +572,31 @@ const QuestionCard = ({
                 {(selectedOptions.includes(option.id) || (isSubmitted && option.isCorrect)) && (
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
+                </svg>
                 )}
-            </div>
+              </div>
               <div>
                 <span className="text-md text-gray-800">{option.label}. {option.text}</span>
+            </div>
           </div>
-      </div>
-
+          
             {/* 正确/错误指示器 */}
             {isSubmitted && (
               <div className="absolute right-4 top-4">
                 {option.isCorrect ? (
                   <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+                  </svg>
                 ) : selectedOptions.includes(option.id) ? (
                   <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 ) : null}
-        </div>
-      )}
-              </div>
-        ))}
+            </div>
+            )}
           </div>
+        ))}
+      </div>
           
       {/* 集中显示解析，只在一个地方显示 */}
       {renderExplanation()}
@@ -831,7 +614,7 @@ const QuestionCard = ({
             <>
               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+              </svg>
               隐藏解析
             </>
           ) : (
@@ -843,74 +626,6 @@ const QuestionCard = ({
             </>
           )}
         </button>
-      )}
-      
-      {/* 兑换码模态窗口 */}
-      {showRedeemCodeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">兑换题库访问码</h3>
-        <button
-                onClick={() => setShowRedeemCodeModal(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-            <RedeemCodeForm 
-              questionSetId={questionSetId}
-              onRedeemSuccess={() => {
-                // 触发兑换成功事件
-                window.dispatchEvent(new CustomEvent(EVENTS.REDEEM_SUCCESS, {
-                  detail: { questionSetId }
-                }));
-                
-                // 显示成功消息
-                toast.success('兑换码使用成功！您已获得完整访问权限。');
-                
-                // 关闭模态窗口
-                setShowRedeemCodeModal(false);
-              }}
-            />
-            <div className="mt-4 pt-4 border-t">
-        <button
-          onClick={() => {
-                  setShowRedeemCodeModal(false);
-                  setShowPaymentModal(true);
-                }}
-                className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-              >
-                购买完整题库
-        </button>
-      </div>
-    </div>
-        </div>
-      )}
-      
-      {/* 支付模态窗口 */}
-      {showPaymentModal && (
-        <PaymentModal
-          questionSetId={questionSetId}
-          onClose={() => setShowPaymentModal(false)}
-          onSuccess={() => {
-            // 关闭模态窗口
-            setShowPaymentModal(false);
-            
-            // 刷新访问权限
-            if (syncAccessRights) {
-              syncAccessRights();
-            }
-            
-            // 显示成功消息
-            toast.success('购买成功！您已获得完整访问权限。');
-            
-            // 触发权限更新事件
-            window.dispatchEvent(new CustomEvent(EVENTS.ACCESS_RIGHTS_UPDATED));
-          }}
-        />
       )}
     </div>
   );
