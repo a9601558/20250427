@@ -175,63 +175,116 @@ const PurchasePage: React.FC<{
   isProcessing?: boolean;
 }> = ({ questionSet, onPurchase, onRedeem, onBack, trialCount, isProcessing = false }) => {
   
-  // 添加点击处理函数并增加状态跟踪
-  const [btnClickedState, setBtnClickedState] = useState({
-    purchaseClicked: false,
-    redeemClicked: false,
-    backClicked: false
+  // 添加点击状态和动画状态
+  const [btnStates, setBtnStates] = useState({
+    purchase: { clicked: false, hovered: false },
+    redeem: { clicked: false, hovered: false },
+    back: { clicked: false, hovered: false }
   });
   
-  // 创建更安全的处理函数
+  // 处理购买按钮点击
   const handlePurchaseClick = () => {
     console.log('[PurchasePage] 立即购买按钮被点击');
-    setBtnClickedState({ ...btnClickedState, purchaseClicked: true });
-    // 延迟执行以确保状态更新且页面有反应
+    
+    // 立即更新UI状态提供反馈
+    setBtnStates(prev => ({
+      ...prev,
+      purchase: { ...prev.purchase, clicked: true }
+    }));
+    
+    // 显示loading提示
+    toast.info('正在准备支付界面...', { 
+      autoClose: 1000,
+      position: 'top-center',
+      hideProgressBar: false
+    });
+    
+    // 短暂延迟后执行回调
     setTimeout(() => {
       if (typeof onPurchase === 'function') {
         onPurchase();
       } else {
         console.error('[PurchasePage] onPurchase不是一个函数');
+        toast.error('支付功能暂时不可用，请稍后再试');
       }
-      // 重置状态
-      setBtnClickedState(prev => ({ ...prev, purchaseClicked: false }));
-    }, 100);
+      
+      // 300ms后重置按钮状态
+      setTimeout(() => {
+        setBtnStates(prev => ({
+          ...prev,
+          purchase: { ...prev.purchase, clicked: false }
+        }));
+      }, 300);
+    }, 150);
   };
   
+  // 处理兑换按钮点击
   const handleRedeemClick = () => {
     console.log('[PurchasePage] 使用兑换码按钮被点击');
-    setBtnClickedState({ ...btnClickedState, redeemClicked: true });
-    // 延迟执行以确保状态更新且页面有反应
+    
+    // 立即更新UI状态提供反馈
+    setBtnStates(prev => ({
+      ...prev,
+      redeem: { ...prev.redeem, clicked: true }
+    }));
+    
+    // 显示loading提示
+    toast.info('正在准备兑换界面...', { 
+      autoClose: 1000,
+      position: 'top-center',
+      hideProgressBar: false
+    });
+    
+    // 短暂延迟后执行回调
     setTimeout(() => {
       if (typeof onRedeem === 'function') {
         onRedeem();
       } else {
         console.error('[PurchasePage] onRedeem不是一个函数');
+        toast.error('兑换功能暂时不可用，请稍后再试');
       }
-      // 重置状态
-      setBtnClickedState(prev => ({ ...prev, redeemClicked: false }));
-    }, 100);
+      
+      // 300ms后重置按钮状态
+      setTimeout(() => {
+        setBtnStates(prev => ({
+          ...prev,
+          redeem: { ...prev.redeem, clicked: false }
+        }));
+      }, 300);
+    }, 150);
   };
   
+  // 处理返回按钮点击
   const handleBackClick = () => {
     console.log('[PurchasePage] 返回首页按钮被点击');
-    setBtnClickedState({ ...btnClickedState, backClicked: true });
-    // 延迟执行以确保状态更新且页面有反应
+    
+    // 立即更新UI状态提供反馈
+    setBtnStates(prev => ({
+      ...prev,
+      back: { ...prev.back, clicked: true }
+    }));
+    
+    // 显示toast提示
+    toast.info('正在返回首页...', { 
+      autoClose: 1000,
+      position: 'top-center'
+    });
+    
+    // 短暂延迟后执行回调
     setTimeout(() => {
       if (typeof onBack === 'function') {
         onBack();
       } else {
         console.error('[PurchasePage] onBack不是一个函数');
+        toast.error('暂时无法返回，请刷新页面');
       }
-      // 重置状态
-      setBtnClickedState(prev => ({ ...prev, backClicked: false }));
-    }, 100);
+    }, 150);
   };
   
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-95 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-95 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 relative overflow-hidden">
-        {/* 如果正在处理请求，显示Loading覆盖层 */}
+        {/* 处理中状态遮罩 */}
         {isProcessing && (
           <div className="absolute inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center z-10">
             <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
@@ -239,6 +292,7 @@ const PurchasePage: React.FC<{
           </div>
         )}
         
+        {/* 顶部图标和标题 */}
         <div className="text-center mb-6">
           <div className="inline-block p-3 bg-blue-100 rounded-full text-blue-600 mb-3">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -246,51 +300,114 @@ const PurchasePage: React.FC<{
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">试用已结束</h2>
-          <p className="text-gray-600 mb-1">您已完成 {trialCount} 道试用题目</p>
+          <p className="text-gray-600 mb-1">您已完成 <span className="font-semibold text-blue-600">{trialCount}</span> 道试用题目</p>
           <p className="text-gray-600 mb-4">请购买完整版或使用兑换码继续使用</p>
         </div>
         
-        <div className="bg-blue-50 p-4 rounded-lg mb-6">
+        {/* 题库信息卡片 */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-lg mb-8 shadow-sm border border-blue-200">
           <h3 className="text-lg font-medium text-blue-800 mb-2">{questionSet?.title || '题库'}</h3>
-          <p className="text-blue-700 mb-3">{questionSet?.description || '详细学习各种问题，提升知识水平。'}</p>
+          <p className="text-blue-700 mb-4">{questionSet?.description || '详细学习各种问题，提升知识水平。'}</p>
           <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold text-blue-800">¥{questionSet?.price || '0'}</span>
-            <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-sm">包含 {questionSet?.questionCount || '0'} 道题</span>
+            <div className="flex items-baseline">
+              <span className="text-3xl font-bold text-blue-800">¥{questionSet?.price || '0'}</span>
+              <span className="text-sm text-blue-600 ml-1">一次付费，永久使用</span>
+            </div>
+            <span className="bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+              包含 {questionSet?.questionCount || '0'} 道题
+            </span>
           </div>
         </div>
         
+        {/* 操作按钮区 */}
         <div className="space-y-4 mb-6">
+          {/* 购买按钮 */}
           <button 
             onClick={handlePurchaseClick}
-            className={`w-full py-3.5 ${btnClickedState.purchaseClicked ? 'bg-blue-800' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'} text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-blue-800`}
+            className={`
+              w-full py-4 relative overflow-hidden
+              ${btnStates.purchase.clicked 
+                ? 'bg-blue-800 transform scale-[0.98]' 
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transform hover:-translate-y-0.5'
+              } 
+              text-white rounded-lg font-medium transition-all duration-200 
+              flex items-center justify-center shadow-md hover:shadow-lg 
+              disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            `}
             disabled={isProcessing}
           >
+            {/* 波纹效果层 */}
+            {btnStates.purchase.clicked && (
+              <span className="absolute inset-0 bg-white opacity-30 rounded-lg animate-ripple"></span>
+            )}
+            
+            {/* 按钮内容 */}
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
-            立即购买完整版
+            <span className="mr-2">立即购买完整版</span>
+            
+            {/* 右箭头图标 */}
+            <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
           </button>
           
+          {/* 分隔线 */}
           <div className="flex items-center">
             <div className="flex-grow border-t border-gray-200"></div>
             <span className="mx-4 text-sm text-gray-500">或者</span>
             <div className="flex-grow border-t border-gray-200"></div>
           </div>
           
+          {/* 兑换按钮 */}
           <button 
             onClick={handleRedeemClick}
-            className={`w-full py-3.5 ${btnClickedState.redeemClicked ? 'bg-green-100' : 'bg-white hover:bg-green-50'} text-green-700 border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center shadow-sm hover:shadow-md transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-green-100`}
+            className={`
+              w-full py-4 relative overflow-hidden
+              ${btnStates.redeem.clicked 
+                ? 'bg-green-100 text-green-800 transform scale-[0.98]' 
+                : 'bg-white hover:bg-green-50 text-green-700 transform hover:-translate-y-0.5'
+              } 
+              border-2 border-green-400 rounded-lg font-medium transition-all duration-200 
+              flex items-center justify-center shadow-sm hover:shadow-md
+              disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
+              focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2
+            `}
             disabled={isProcessing}
           >
+            {/* 波纹效果层 */}
+            {btnStates.redeem.clicked && (
+              <span className="absolute inset-0 bg-green-500 opacity-10 rounded-lg animate-ripple"></span>
+            )}
+            
+            {/* 按钮内容 */}
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
-            使用兑换码解锁
+            <span className="mr-2">使用兑换码解锁</span>
+            
+            {/* 右箭头图标 */}
+            <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
           </button>
           
+          {/* 返回按钮 */}
           <button 
             onClick={handleBackClick}
-            className={`w-full py-3 mt-2 ${btnClickedState.backClicked ? 'bg-gray-300' : 'bg-gray-100 hover:bg-gray-200'} text-gray-700 rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed active:bg-gray-300`}
+            className={`
+              w-full py-3 mt-2 
+              ${btnStates.back.clicked 
+                ? 'bg-gray-300 transform scale-[0.98]' 
+                : 'bg-gray-100 hover:bg-gray-200 transform hover:-translate-y-0.5'
+              } 
+              text-gray-700 rounded-lg font-medium transition-all duration-200 
+              flex items-center justify-center
+              disabled:opacity-70 disabled:cursor-not-allowed
+              focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
+            `}
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -300,9 +417,15 @@ const PurchasePage: React.FC<{
           </button>
         </div>
         
-        <p className="text-xs text-center text-gray-500">
-          付费后立即获得完整题库的访问权限，内容持续更新
-        </p>
+        {/* 底部信息提示 */}
+        <div className="text-center">
+          <p className="text-xs text-gray-500 mb-2">
+            付费后立即获得完整题库的访问权限，内容持续更新
+          </p>
+          <p className="text-xs text-gray-400">
+            支持Stripe安全支付，确保您的付款安全
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -558,6 +681,40 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
       </div>
     </div>
   );
+};
+
+// 添加波纹效果动画的StyleInjector组件
+const StyleInjector = () => {
+  useEffect(() => {
+    // 创建style元素
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes ripple {
+        0% {
+          transform: scale(0);
+          opacity: 0.5;
+        }
+        100% {
+          transform: scale(4);
+          opacity: 0;
+        }
+      }
+      
+      .animate-ripple {
+        animation: ripple 0.6s ease-out;
+      }
+    `;
+    
+    // 插入到文档头部
+    document.head.appendChild(style);
+    
+    // 组件卸载时移除style
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+  
+  return null;
 };
 
 function QuizPage(): JSX.Element {
@@ -2740,6 +2897,9 @@ function QuizPage(): JSX.Element {
   // 修改渲染函数，确保PurchasePage优先显示
   return (
     <div className="min-h-screen bg-gray-50 py-8 pb-20">
+      {/* 添加StyleInjector组件 */}
+      <StyleInjector />
+      
       {/* 优先显示购买页面，强制中断正常答题流程 */}
       {quizStatus.showPurchasePage && questionSet && (
         <PurchasePage 
