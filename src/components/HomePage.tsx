@@ -154,6 +154,20 @@ const HomePage: React.FC = () => {
       return `剩余${months}个月${days % 30 > 0 ? ` ${days % 30}天` : ''}`;
     };
 
+    // 获取题目数量
+    const getQuestionCount = () => {
+      if (typeof set.questionCount === 'number' && set.questionCount > 0) {
+        return set.questionCount;
+      }
+      if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
+        return set.questionSetQuestions.length;
+      }
+      if (Array.isArray(set.questions) && set.questions.length > 0) {
+        return set.questions.length;
+      }
+      return 0;
+    };
+
     // 根据剩余时间计算进度条颜色和百分比
     const getRemainingTimeDisplay = () => {
       if (set.remainingDays === null) return { color: 'bg-green-500', percent: 100 };
@@ -206,7 +220,7 @@ const HomePage: React.FC = () => {
               <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>{calculateQuestionCount(set)}题</span>
+              <span>{getQuestionCount()}题</span>
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1753,7 +1767,164 @@ const HomePage: React.FC = () => {
 
         {/* 题库分类展示区域 */}
         <div id="question-sets-section" className="pt-8">
-          {/* 渲染分类题库部分保持不变 */}
+          {/* 分类展示题库 */}
+          {(() => {
+            const categorized = getCategorizedQuestionSets();
+            const sections = [];
+            
+            // 我的题库（已购买/兑换的题库）
+            if (categorized.purchased.length > 0) {
+              sections.push(
+                <div key="purchased" className="mb-16">
+                  <div className="flex items-center mb-8">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 flex items-center justify-center shadow-lg mr-3">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">我的题库</h2>
+                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
+                      {categorized.purchased.length}个已购买/兑换
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {categorized.purchased.map((set: PreparedQuestionSet) => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 免费题库
+            if (categorized.free.length > 0) {
+              sections.push(
+                <div key="free" className="mb-16">
+                  <div className="flex items-center mb-8">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg mr-3">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">免费题库</h2>
+                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
+                      {categorized.free.length}个免费题库
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {categorized.free.map((set: PreparedQuestionSet) => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 付费题库
+            if (categorized.paid.length > 0) {
+              sections.push(
+                <div key="paid" className="mb-16">
+                  <div className="flex items-center mb-8">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center shadow-lg mr-3">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">付费题库</h2>
+                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
+                      {categorized.paid.length}个待购买
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {categorized.paid.map((set: PreparedQuestionSet) => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 已过期题库
+            if (categorized.expired.length > 0) {
+              sections.push(
+                <div key="expired" className="mb-16">
+                  <div className="flex items-center mb-8">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-red-600 to-rose-600 flex items-center justify-center shadow-lg mr-3">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">已过期题库</h2>
+                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
+                      {categorized.expired.length}个已过期
+                    </span>
+                    <button 
+                      onClick={() => {
+                        const refreshEvent = new CustomEvent('questionSets:refresh');
+                        window.dispatchEvent(refreshEvent);
+                      }}
+                      className="ml-auto px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-colors"
+                    >
+                      <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      更新状态
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {categorized.expired.map((set: PreparedQuestionSet) => (
+                      <BaseCard
+                        key={set.id}
+                        set={set}
+                        onStartQuiz={handleStartQuiz}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            
+            // 如果没有题库，显示提示
+            if (sections.length === 0) {
+              sections.push(
+                <div key="empty" className="flex flex-col items-center justify-center py-12 text-center">
+                  <svg className="h-24 w-24 text-gray-300 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
+                  </svg>
+                  <h3 className={`text-xl font-medium ${homeContent.theme === 'dark' ? 'text-gray-200' : 'text-gray-700'} mb-2`}>未找到题库</h3>
+                  <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} max-w-md`}>
+                    没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActiveCategory('all');
+                      setSearchTerm('');
+                    }}
+                    className="mt-6 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center shadow-md"
+                  >
+                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    重置筛选条件
+                  </button>
+                </div>
+              );
+            }
+            
+            return sections;
+          })()}
         </div>
       </div>
     </div>
