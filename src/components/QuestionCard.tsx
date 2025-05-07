@@ -165,7 +165,7 @@ const QuestionCard = ({
     }
   };
 
-  // 修改handleOptionClick函数，移除自动提交代码
+  // 修改handleOptionClick函数以确保试用限制检查更严格
   const handleOptionClick = (optionText: string, optionId: string) => {
     if (isSubmittingRef.current || isSubmitted) {
       console.log('[QuestionCard] 正在提交答案中或已提交，忽略点击');
@@ -178,15 +178,20 @@ const QuestionCard = ({
     }
     
     // 增加试用模式检查，确保不能超过试用题目数量
-    if (isTrialMode && !hasFullAccess && trialQuestions && questionNumber > trialQuestions) {
-      console.log(`[QuestionCard] 已超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
-      
-      // 显示购买或兑换提示
-      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions));
-      
-      // 立即显示购买模态窗口
-      setShowPaymentModal(true);
-      return;
+    if (isTrialMode && !hasFullAccess && trialQuestions) {
+      if (questionNumber >= trialQuestions) {
+        console.log(`[QuestionCard] 已超过试用题目限制: ${questionNumber} >= ${trialQuestions}`);
+        
+        // 显示购买或兑换提示
+        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
+          position: "top-center",
+          autoClose: 8000,
+        });
+        
+        // 强制显示购买模态窗口
+        setShowPaymentModal(true);
+        return;
+      }
     }
     
     // 单选题模式 - 确保不会自动提交
@@ -410,17 +415,33 @@ const QuestionCard = ({
     // 记录当前状态
     saveCurrentState();
     
-    // 增强试用模式限制检查
+    // 增强试用模式限制检查，判断下一题是否会超过限制
     const nextQuestionNumber = questionNumber + 1;
-    if (isTrialMode && !hasFullAccess && trialQuestions && nextQuestionNumber > trialQuestions) {
-      console.log(`[QuestionCard] 已达到试用题目限制，下一题号将超过限制: ${nextQuestionNumber} > ${trialQuestions}`);
-      
-      // 显示购买或兑换提示
-      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions));
-      
-      // 立即显示购买模态窗口
-      setShowPaymentModal(true);
-      return; // 阻止继续前进到下一题
+    
+    if (isTrialMode && !hasFullAccess && trialQuestions) {
+      // 检查当前题目或下一题是否超过限制
+      if (nextQuestionNumber > trialQuestions) {
+        console.log(`[QuestionCard] 已达到试用题目限制，下一题号将超过限制: ${nextQuestionNumber} > ${trialQuestions}`);
+        
+        // 显示购买或兑换提示，使用更高的优先级
+        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
+          position: "top-center",
+          autoClose: 8000,
+          toastId: "trial-limit-toast",
+        });
+        
+        // 立即显示购买模态窗口
+        setShowPaymentModal(true);
+        
+        // 添加一个延迟的第二次检查，确保模态窗口显示
+        setTimeout(() => {
+          if (isTrialMode && !hasFullAccess) {
+            setShowPaymentModal(true);
+          }
+        }, 500);
+        
+        return; // 阻止继续前进到下一题
+      }
     }
     
     // 调用onNext回调
@@ -429,26 +450,38 @@ const QuestionCard = ({
     }
   };
 
-  // 增强试用模式状态监控的useEffect
+  // 完全替换之前的useEffect，增强试用模式监控
   useEffect(() => {
-    // 检查是否超出试用题目限制
-    if (isTrialMode && !hasFullAccess && trialQuestions) {
-      // 检查当前题目或下一题是否会超过限制
-      if (questionNumber > trialQuestions) {
-        console.log(`[QuestionCard] 检测到超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
-        
-        // 显示购买或兑换提示
-        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-          position: "top-center",
-          autoClose: 5000,
-        });
-        
-        // 强制显示购买模态窗口，确保不会忽略
-        setTimeout(() => {
-          setShowPaymentModal(true);
-        }, 300);
+    // 每次渲染时检查是否超出试用题目限制
+    const checkTrialLimit = () => {
+      if (isTrialMode && !hasFullAccess && trialQuestions) {
+        // 比较当前题目编号是否已经达到或超过试用限制
+        if (questionNumber >= trialQuestions) {
+          console.log(`[QuestionCard] 检测到已达到或超过试用题目限制: ${questionNumber} >= ${trialQuestions}`);
+          
+          // 显示购买或兑换提示，使用固定的ID避免重复显示
+          toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
+            position: "top-center",
+            autoClose: 8000,
+            toastId: "trial-limit-modal",
+          });
+          
+          // 强制显示购买模态窗口，确保不会忽略
+          setTimeout(() => {
+            setShowPaymentModal(true);
+          }, 300);
+        }
       }
-    }
+    };
+    
+    // 组件挂载和依赖项变化时检查
+    checkTrialLimit();
+    
+    // 创建一个定时器，在组件渲染后再次检查
+    const timerId = setTimeout(checkTrialLimit, 1000);
+    
+    // 清理函数
+    return () => clearTimeout(timerId);
   }, [isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
 
   // 监听全局事件
@@ -851,16 +884,6 @@ const QuestionCard = ({
       
       {/* 操作按钮 */}
       {renderButtonArea()}
-      
-      {/* 题目导航 - 只在非试用模式或有完整访问权限时显示 */}
-      {(!isTrialMode || hasFullAccess) && (
-        <div className="mt-8">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">题目导航</h4>
-          <div className="flex flex-wrap gap-2">
-            {renderNumberButtons()}
-          </div>
-        </div>
-      )}
       
       {/* 解释开关 */}
       {isSubmitted && question.explanation && (
