@@ -134,27 +134,17 @@ const QuestionCard = ({
       setSelectedOption(optionId);
       setSelectedOptions([optionId]);
       
-      // 单选题可自动提交，但添加较短延迟避免意外点击
+      // 禁用自动提交功能，要求用户手动提交答案
       console.log('[QuestionCard] 单选题选中选项:', optionId);
       
-      // 延迟提交，给用户时间看清自己的选择
+      // 清除任何可能存在的自动提交定时器
       if (answerTimeoutRef.current) {
         clearTimeout(answerTimeoutRef.current);
         answerTimeoutRef.current = null;
       }
       
-      // 使用setTimeout自动提交单选题答案
-      answerTimeoutRef.current = setTimeout(() => {
-        console.log('[QuestionCard] 自动提交单选题答案', optionId);
-        
-        // 确保选项已被设置
-        if (selectedOptions.length === 0) {
-          setSelectedOptions([optionId]);
-        }
-        
-        // 调用提交函数
-        handleSubmit();
-      }, 500);
+      // 移除自动提交行为，改为要求手动提交
+      // 这样可以防止用户意外提交和在切换题目后自动选择问题
     } 
     // 多选题模式
     else {
@@ -283,18 +273,58 @@ const QuestionCard = ({
     }
   };
 
+  const trialLimitReached = useCallback(() => {
+    // 直接计算已回答的问题数量
+    if (!isPaid || hasFullAccess || !trialQuestions) return false;
+    
+    // 检查本地存储中的答题状态以确定已答题数量
+    let answeredCount = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`quiz_state_${questionSetId}_`)) {
+        try {
+          const storedState = JSON.parse(localStorage.getItem(key) || '{}');
+          if (storedState.isSubmitted) {
+            answeredCount++;
+          }
+        } catch (e) {
+          console.error('检查答题状态失败', e);
+        }
+      }
+    }
+    
+    console.log(`[QuestionCard] 严格检查试用限制: 已答题=${answeredCount}, 限制=${trialQuestions}`);
+    return answeredCount >= trialQuestions;
+  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
+
   const handleNext = () => {
     console.log('[QuestionCard] handleNext called - moving to next question');
     
     // Debug information to identify potential issues
     console.log(`[QuestionCard] Current state: isSubmitted=${isSubmitted}, showExplanation=${showExplanation}`);
-    console.log('[QuestionCard] onNext type:', typeof onNext);
     
-    // Clean up state for next question
+    // Clear any selected options immediately
     setSelectedOption(null);
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
+    setCanProceed(false); // Reset canProceed to prevent auto-submission
+    
+    // Check if trial limit reached
+    if (trialLimitReached()) {
+      console.log('[QuestionCard] Trial limit reached in handleNext, triggering purchase dialog');
+      toast?.('试用题目已达上限，请购买完整版或使用兑换码继续', { type: 'warning' });
+      
+      // Trigger the event with delay to ensure state is updated
+      setTimeout(() => {
+        const trialEndEvent = new CustomEvent('trial:ended', {
+          detail: { questionSetId, enforceLimit: true }
+        });
+        window.dispatchEvent(trialEndEvent);
+      }, 100);
+      
+      return; // Don't proceed to next question
+    }
     
     // Explicitly call the onNext prop function with better error handling
     if (typeof onNext === 'function') {
@@ -333,7 +363,24 @@ const QuestionCard = ({
     };
   }, [user?.id, questionSetId]);
 
-  // Enhanced local access check function
+  // Add event listener for trial ended event
+  useEffect(() => {
+    const handleTrialEnded = () => {
+      console.log('[QuestionCard] Detected trial ended event');
+      // This helps coordinate with QuizPage to show purchase dialog
+      if (isPaid && !hasFullAccess) {
+        setCanProceed(false);
+      }
+    };
+    
+    window.addEventListener('trial:ended', handleTrialEnded);
+    
+    return () => {
+      window.removeEventListener('trial:ended', handleTrialEnded);
+    };
+  }, [isPaid, hasFullAccess]);
+
+  // 更新 isQuestionAccessible 使用新函数 trialLimitReached
   const isQuestionAccessible = useCallback((questionIndex: number) => {
     // If question set is free, all questions are accessible
     if (!isPaid) return true;
@@ -347,9 +394,24 @@ const QuestionCard = ({
     
     if (hasLocalAccess) return true;
     
-    // If no access, check if within trial questions - 严格限制试用题目访问
+    // If no access, check trial limit using the more accurate function
+    if (trialLimitReached()) {
+      console.log('[QuestionCard] Trial limit reached in accessibility check');
+      
+      // Trigger trial ended event with slight delay to prevent race conditions
+      setTimeout(() => {
+        const trialEndEvent = new CustomEvent('trial:ended', {
+          detail: { questionSetId, enforceLimit: true }
+        });
+        window.dispatchEvent(trialEndEvent);
+      }, 100);
+      
+      return false;
+    }
+    
+    // Standard check for trial questions
     return questionIndex < (trialQuestions || 0);
-  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
+  }, [isPaid, hasFullAccess, trialQuestions, questionSetId, trialLimitReached]);
 
   // 处理题号跳转
   const handleJumpToQuestion = (index: number) => {
