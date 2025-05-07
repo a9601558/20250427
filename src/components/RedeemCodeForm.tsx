@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { questionSetApi } from '../utils/api';
+import { toast } from 'react-toastify';
 import { QuestionSet } from '../types';
 
 // 扩展返回类型以匹配实际使用
@@ -9,6 +10,7 @@ interface RedeemCodeResult {
   message: string;
   questionSetId?: string;
   quizTitle?: string;
+  expiryDate?: string;
 }
 
 interface RedeemCodeFormProps {
@@ -22,8 +24,18 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
   const [message, setMessage] = useState('');
   const [redeemedSet, setRedeemedSet] = useState<any>(null);
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const eventTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { redeemCode: redeemCodeFunction } = useUser();
+  
+  // 清理计时器
+  useEffect(() => {
+    return () => {
+      if (eventTimeoutRef.current) {
+        clearTimeout(eventTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // 加载题库数据
   useEffect(() => {
@@ -50,14 +62,21 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
       return;
     }
     
+    // 防止重复点击
+    if (status === 'loading') {
+      return;
+    }
+    
     // 重置状态
     setStatus('loading');
     setMessage('正在验证兑换码...');
     
     try {
-      console.log('[RedeemCodeForm] 开始兑换码:', redeemCode.trim());
+      const formattedCode = redeemCode.trim().toUpperCase();
+      console.log('[RedeemCodeForm] 开始兑换码:', formattedCode);
+      
       // 调用 UserContext 中的 redeemCode 函数，并将结果类型扩展为 RedeemCodeResult
-      const result = await redeemCodeFunction(redeemCode.trim()) as RedeemCodeResult;
+      const result = await redeemCodeFunction(formattedCode) as RedeemCodeResult;
       
       console.log('[RedeemCodeForm] 兑换结果:', result);
       
@@ -68,12 +87,30 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
         // 查找已兑换的题库信息
         if (result.questionSetId) {
           console.log('[RedeemCodeForm] 找到题库ID:', result.questionSetId);
+          
+          // 立即将访问权限写入本地存储，确保权限立即生效
+          localStorage.setItem(`quiz_access_${result.questionSetId}`, JSON.stringify({
+            hasAccess: true,
+            timestamp: Date.now(),
+            expiryDate: result.expiryDate,
+            source: 'redeem'
+          }));
+          
+          // 保存已兑换题库ID
+          const redeemedSets = JSON.parse(localStorage.getItem('redeemedQuestionSets') || '[]');
+          if (!redeemedSets.includes(result.questionSetId)) {
+            redeemedSets.push(result.questionSetId);
+            localStorage.setItem('redeemedQuestionSets', JSON.stringify(redeemedSets));
+          }
+          
+          // 找到题库详情
           const set = questionSets.find(s => s.id === result.questionSetId);
           
           if (set) {
             setRedeemedSet({
               ...set,
-              title: result.quizTitle || set.title
+              title: result.quizTitle || set.title,
+              expiryDate: result.expiryDate
             });
             
             // 全局发送兑换成功事件，强制刷新
@@ -84,68 +121,95 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
               const eventDetail = { 
                 questionSetId: result.questionSetId,
                 forceRefresh: true,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                expiryDate: result.expiryDate
               };
               
-              // 分发事件
+              // 立即分发事件
               window.dispatchEvent(new CustomEvent('redeem:success', { 
                 detail: eventDetail
               }));
               
               // 确保事件被处理 - 延迟再次分发以防止事件丢失
-              setTimeout(() => {
+              eventTimeoutRef.current = setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('redeem:success', { 
                   detail: eventDetail
                 }));
+                
+                // 显示统一成功提示
+                toast.success('兑换成功！您现在可以访问完整题库');
+                
+                // 调用成功回调函数
+                if (onRedeemSuccess) {
+                  onRedeemSuccess(result.questionSetId!);
+                }
               }, 500);
-            }
-            
-            // 添加短暂延迟，确保状态已更新
-            setTimeout(() => {
-              console.log('[RedeemCodeForm] 调用成功回调');
-              // 调用成功回调函数
+            } else {
               if (onRedeemSuccess) {
                 onRedeemSuccess(result.questionSetId!);
               }
-            }, 800);
+            }
           } else {
             // 如果本地找不到题库信息，使用 API 返回的信息
             console.log('[RedeemCodeForm] 本地未找到题库，使用API返回的信息');
             setRedeemedSet({
               id: result.questionSetId,
               title: result.quizTitle || '已兑换的题库',
-              icon: '📚'
+              icon: '📚',
+              expiryDate: result.expiryDate
             });
             
             // 全局发送兑换成功事件，强制刷新
             if (typeof window !== 'undefined') {
               console.log('[RedeemCodeForm] 发送全局兑换成功事件');
+              const eventDetail = { 
+                questionSetId: result.questionSetId,
+                forceRefresh: true, 
+                timestamp: Date.now(),
+                expiryDate: result.expiryDate
+              };
+              
               window.dispatchEvent(new CustomEvent('redeem:success', { 
-                detail: { 
-                  questionSetId: result.questionSetId,
-                  forceRefresh: true, 
-                  timestamp: Date.now()
-                } 
+                detail: eventDetail
               }));
-            }
-            
-            // 添加短暂延迟，确保状态已更新
-            setTimeout(() => {
-              console.log('[RedeemCodeForm] 调用成功回调');
+              
+              // 确保事件被处理 - 延迟再次分发
+              eventTimeoutRef.current = setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('redeem:success', { 
+                  detail: eventDetail
+                }));
+                
+                // 显示统一成功提示
+                toast.success('兑换成功！您现在可以访问完整题库');
+                
+                if (onRedeemSuccess) {
+                  onRedeemSuccess(result.questionSetId!);
+                }
+              }, 500);
+            } else {
               if (onRedeemSuccess) {
                 onRedeemSuccess(result.questionSetId!);
               }
-            }, 500);
+            }
+          }
+        } else {
+          // 没有题库ID，但兑换成功，显示通用消息
+          toast.success('兑换成功！');
+          
+          if (onRedeemSuccess && questionSetId) {
+            onRedeemSuccess(questionSetId);
           }
         }
       } else {
         setStatus('error');
         setMessage(result.message || '兑换失败，请检查兑换码是否正确');
+        toast.error(result.message || '兑换失败，请检查兑换码是否正确');
       }
     } catch (error: any) {
       console.error('Redeem code error:', error);
       setStatus('error');
       setMessage(error.message || '兑换过程中发生错误，请稍后再试');
+      toast.error('兑换失败: ' + (error.message || '请稍后再试'));
     }
   };
   
@@ -171,9 +235,14 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
             <div className="bg-gray-50 p-3 rounded-lg mb-4">
               <p className="text-sm font-medium text-gray-700">已获取访问权限：</p>
               <div className="flex items-center mt-2">
-                <span className="text-2xl mr-2">{redeemedSet.icon}</span>
+                <span className="text-2xl mr-2">{redeemedSet.icon || '📚'}</span>
                 <span className="text-md font-medium">{redeemedSet.title}</span>
               </div>
+              {redeemedSet.expiryDate && (
+                <div className="mt-2 text-sm text-gray-500">
+                  有效期至: {new Date(redeemedSet.expiryDate).toLocaleDateString()}
+                </div>
+              )}
             </div>
           )}
           

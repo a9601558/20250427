@@ -100,6 +100,12 @@ interface WrongAnswer {
     id: string;
     title: string;
   };
+  wrongAnswerQuestionSet?: {
+    id: string;
+    title: string;
+    description?: string;
+    category?: string;
+  };
 }
 
 // 错题集分组
@@ -2005,7 +2011,8 @@ const ProfilePage: React.FC = () => {
     
     wrongAnswers.forEach(answer => {
       const setId = answer.questionSetId;
-      const setTitle = answer.questionSet?.title || '未知题库';
+      // 修复这里：首先尝试获取嵌套在wrongAnswerQuestionSet中的title
+      const setTitle = answer.wrongAnswerQuestionSet?.title || answer.questionSet?.title || '未知题库';
       
       if (!groups[setId]) {
         groups[setId] = {

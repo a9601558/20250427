@@ -211,14 +211,14 @@ const QuestionCard = ({
     
     // 设置提交中状态
     setIsSubmitting(true);
-    
+
     try {
       // 判断答案是否正确
       const isCorrect = checkIsCorrect();
       
       // 更新UI状态
       setIsSubmitted(true);
-      setShowExplanation(true);
+            setShowExplanation(true);
       
       // 设置提交结果，用于显示动画和反馈
       setSubmissionResult({
@@ -242,16 +242,16 @@ const QuestionCard = ({
       }));
       
       // 调用父组件回调，传递结果
-      if (onAnswerSubmitted) {
+        if (onAnswerSubmitted) {
         if (question.questionType === 'single') {
           onAnswerSubmitted(isCorrect, selectedOptions[0]);
         } else {
           onAnswerSubmitted(isCorrect, selectedOptions);
         }
-      }
-      
+        }
+
       // 如果答错，记录错题
-      if (!isCorrect) {
+        if (!isCorrect) {
         saveWrongAnswer();
       }
       
