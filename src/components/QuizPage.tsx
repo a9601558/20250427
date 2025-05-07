@@ -305,20 +305,38 @@ function QuizPage(): JSX.Element {
     
     console.log(`[QuizPage] 全面检查题库 ${questionSet.id} 的访问权限来源`);
     
-    // 1. 检查localStorage中的访问权限记录
+    // 0. 首先检查免费题库 - 免费题库总是有访问权限
+    if (!questionSet.isPaid) {
+      console.log(`[QuizPage] 免费题库检查: true (免费题库都可访问)`);
+      return true;
+    }
+    
+    // 1. 检查组件内部状态 - 这是最优先的
+    if (hasAccessToFullQuiz || hasRedeemed) {
+      console.log(`[QuizPage] 组件状态检查: hasAccessToFullQuiz=${hasAccessToFullQuiz}, hasRedeemed=${hasRedeemed}`);
+      return true;
+    }
+    
+    // 2. 检查localStorage中的访问权限记录
     let hasAccess = false;
     try {
       // 检查一般访问权限
       const accessRightsStr = localStorage.getItem('quizAccessRights');
       if (accessRightsStr) {
-        const accessRights = JSON.parse(accessRightsStr);
-        const normalizedId = String(questionSet.id).trim();
-        const localAccess = !!accessRights[normalizedId];
-        hasAccess = hasAccess || localAccess;
-        console.log(`[QuizPage] localStorage访问权限检查: ${localAccess}`);
+        try {
+          const accessRights = JSON.parse(accessRightsStr);
+          const normalizedId = String(questionSet.id).trim();
+          const localAccess = !!accessRights[normalizedId];
+          if (localAccess) {
+            console.log(`[QuizPage] localStorage访问权限检查: true`);
+            return true;
+          }
+        } catch (e) {
+          console.error('[QuizPage] 解析localStorage访问权限失败', e);
+        }
       }
       
-      // 检查兑换记录 - 使用精确的ID匹配
+      // 检查兑换记录
       const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
       if (redeemedStr) {
         try {
@@ -329,12 +347,15 @@ function QuizPage(): JSX.Element {
           if (Array.isArray(redeemedIds)) {
             // 使用精确匹配
             const isRedeemed = redeemedIds.some(id => {
-              const redeemedId = String(id || '').trim();
+              if (!id) return false;
+              const redeemedId = String(id).trim();
               return redeemedId === targetId;
             });
             
-            hasAccess = hasAccess || isRedeemed;
-            console.log(`[QuizPage] localStorage兑换记录检查: ${isRedeemed}, 匹配ID: ${targetId}`);
+            if (isRedeemed) {
+              console.log(`[QuizPage] localStorage兑换记录检查: true, 匹配ID: ${targetId}`);
+              return true;
+            }
           }
         } catch (e) {
           console.error('[QuizPage] 解析localStorage兑换记录失败', e);
@@ -344,13 +365,22 @@ function QuizPage(): JSX.Element {
       console.error('[QuizPage] 检查localStorage权限失败', e);
     }
     
-    // 2. 检查用户购买记录
+    // 3. 检查用户购买记录
     if (user && user.purchases && Array.isArray(user.purchases)) {
+      const targetId = String(questionSet.id || '').trim();
+      
+      // 详细记录所有购买记录，便于调试
+      if (user.purchases.length > 0) {
+        console.log(`[QuizPage] 用户有 ${user.purchases.length} 条购买记录，题库ID: ${targetId}`);
+        user.purchases.forEach((p, idx) => {
+          const purchaseId = String(p.questionSetId || '').trim();
+          console.log(`[QuizPage] 购买记录 #${idx}: ID=${purchaseId}, 状态=${p.status}`);
+        });
+      }
+      
       const purchase = user.purchases.find(p => {
-        const purchaseId = String(p.questionSetId || '').trim();
-        const targetId = String(questionSet.id || '').trim();
-        
-        // 使用精确匹配
+        if (!p.questionSetId) return false;
+        const purchaseId = String(p.questionSetId).trim();
         return purchaseId === targetId;
       });
       
@@ -358,32 +388,28 @@ function QuizPage(): JSX.Element {
         const now = new Date();
         const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
         const isExpired = expiryDate && expiryDate <= now;
-        const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status; // 允许缺失状态
+        // 更宽松的状态检查 - 允许多种有效状态
+        const isActive = purchase.status === 'active' || 
+                         purchase.status === 'completed' || 
+                         purchase.status === 'success' || 
+                         !purchase.status; // 无状态视为有效
         
         const purchaseHasAccess = !isExpired && isActive;
-        hasAccess = hasAccess || purchaseHasAccess;
-        console.log(`[QuizPage] 用户购买记录检查: ${purchaseHasAccess}`);
+        if (purchaseHasAccess) {
+          console.log(`[QuizPage] 用户购买记录检查: true (有效购买记录)`);
+          return true;
+        }
       }
     }
     
-    // 3. 检查questionSet自身的hasAccess属性
+    // 4. 检查questionSet自身的hasAccess属性
     if (questionSet.hasAccess) {
-      hasAccess = true;
       console.log(`[QuizPage] 题库hasAccess属性: true`);
+      return true;
     }
     
-    // 4. 检查当前组件状态
-    const componentStateAccess = hasAccessToFullQuiz || hasRedeemed;
-    hasAccess = hasAccess || componentStateAccess;
-    console.log(`[QuizPage] 组件状态检查: hasAccessToFullQuiz=${hasAccessToFullQuiz}, hasRedeemed=${hasRedeemed}`);
-    
-    // 5. 检查免费题库
-    const isFreeAccess = !questionSet.isPaid;
-    hasAccess = hasAccess || isFreeAccess;
-    console.log(`[QuizPage] 免费题库检查: ${isFreeAccess}`);
-    
-    console.log(`[QuizPage] 全面权限检查最终结果: ${hasAccess}`);
-    return hasAccess;
+    console.log(`[QuizPage] 全面权限检查最终结果: false (无有效访问权限)`);
+    return false;
   }, [questionSet, user, hasAccessToFullQuiz, hasRedeemed]);
 
   // 在权限检查函数中增强对兑换状态的识别
@@ -578,53 +604,55 @@ function QuizPage(): JSX.Element {
     
     console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}, 试用题目数: ${questionSet.trialQuestions}`);
     
-    // 首先全面检查是否有权限访问
+    // 如果是免费题库，永远不会试用结束
+    if (!questionSet.isPaid) {
+      console.log(`[QuizPage] 免费题库不存在试用结束概念`);
+      if (trialEnded) setTrialEnded(false);
+      if (showPurchasePage) setShowPurchasePage(false);
+      return;
+    }
+    
+    // 重新检查完整访问权限
     const hasFullAccess = checkFullAccessFromAllSources();
     
-    // 如果有访问权限，确保不会显示试用结束
+    // 如果用户有访问权限，确保状态一致性
     if (hasFullAccess) {
-      console.log(`[QuizPage] 用户有完整访问权限，设置trialEnded=false`);
-      // 更新状态以确保一致性
+      console.log(`[QuizPage] 用户有完整访问权限，确保不显示试用结束/购买页面`);
       if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
       if (trialEnded) setTrialEnded(false);
       if (showPurchasePage) setShowPurchasePage(false);
       return;
     }
     
-    // 到这里说明用户没有完整访问权限
-    // 如果外部权限变化导致这里变成无权限，同步状态
+    // 到这里说明：付费题库 + 用户无完整访问权限
+    console.log(`[QuizPage] 用户对付费题库无完整访问权限，检查试用状态`);
     if (hasAccessToFullQuiz) setHasAccessToFullQuiz(false);
     
-    // 处理付费题库的试用情况
-    if (questionSet.isPaid) {
-      const trialQuestionsCount = questionSet.trialQuestions || 0;
-      
-      if (trialQuestionsCount > 0) { 
-        // 只有当题库确实设置了正数的试用题目数，才检查答题数量
-        const isTrialLimitReached = answeredQuestions.length >= trialQuestionsCount;
-        console.log(`[QuizPage] 付费题库试用状态: 已答题数=${answeredQuestions.length}, 试用题数=${trialQuestionsCount}, 达到限制=${isTrialLimitReached}`);
-        
-        // 更新试用结束状态
-        if (isTrialLimitReached) {
-          if (!trialEnded) setTrialEnded(true);
-        } else {
-          if (trialEnded) setTrialEnded(false);
-        }
-      } else {
-        // 付费题库，但试用题数 <= 0 (可能是API返回0或配置为0)
-        console.log(`[QuizPage] 付费题库无试用题(trialQuestions=${trialQuestionsCount})，试用直接结束`);
-        if (!trialEnded) setTrialEnded(true);
-      }
+    // 确定试用题目数量
+    const trialQuestionsCount = questionSet.trialQuestions || 0;
+    
+    // 如果试用题目数为0，直接标记为试用结束
+    if (trialQuestionsCount <= 0) {
+      console.log(`[QuizPage] 付费题库无试用题或试用题为0，直接标记试用结束`);
+      if (!trialEnded) setTrialEnded(true);
+      return;
+    }
+    
+    // 检查已答题数是否达到试用限制
+    const isTrialLimitReached = answeredQuestions.length >= trialQuestionsCount;
+    console.log(`[QuizPage] 试用状态检查: 已答题数=${answeredQuestions.length}, 试用题数=${trialQuestionsCount}, 达到限制=${isTrialLimitReached}`);
+    
+    // 更新试用结束状态
+    if (isTrialLimitReached) {
+      if (!trialEnded) setTrialEnded(true);
     } else {
-      // 免费题库，确保试用状态为false
-      console.log(`[QuizPage] 免费题库，不限制试用`);
       if (trialEnded) setTrialEnded(false);
     }
   }, [
-    answeredQuestions.length, 
     questionSet, 
-    checkFullAccessFromAllSources, 
-    hasAccessToFullQuiz, 
+    answeredQuestions.length,
+    checkFullAccessFromAllSources,
+    hasAccessToFullQuiz,
     trialEnded,
     showPurchasePage
   ]);
@@ -1259,7 +1287,7 @@ function QuizPage(): JSX.Element {
     }
   }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, lastSyncTime]);
   
-  // 修复handleAnswerSubmit函数，确保正确记录答题状态
+  // 修改handleAnswerSubmit函数，确保正确记录答题状态
   const handleAnswerSubmit = useCallback(async (
     selectedOption: string | string[], 
     isCorrect: boolean, 
@@ -1315,168 +1343,217 @@ function QuizPage(): JSX.Element {
       
       // 更新正确答题计数
       const newCorrectCount = updatedAnsweredQuestions.filter(q => q.isCorrect).length;
+      setCorrectAnswers(newCorrectCount);
       
       // 更新状态显示已答问题
       setAnsweredQuestions(updatedAnsweredQuestions);
       
       // 更新本地存储
-      const localProgressUpdate = {
-        lastQuestionIndex: questionIndex,
-        answeredQuestions: updatedAnsweredQuestions,
-        correctAnswers: newCorrectCount,
-        totalAnswered: updatedAnsweredQuestions.length,
-        totalQuestions: questions.length,
-        lastUpdated: new Date().toISOString()
-      };
-      
-      // 保存到本地存储以支持离线场景
-      try {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
-        localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
-        console.log(`[QuizPage] 已更新本地进度存储，包含${updatedAnsweredQuestions.length}道已答题目`);
-      } catch (e) {
-        console.error('[QuizPage] 保存本地进度失败:', e);
-      }
-      
-      // 标记有未同步的更改
-      unsyncedChangesRef.current = true;
-      
-      // 通过socket.io进行同步
-      if (socket && user) {
-        const progressData: ExtendedSaveProgressParams = {
-          questionId: String(question.id),
-          questionSetId,
-          selectedOption,
-          isCorrect,
-          timeSpent,
-          lastQuestionIndex: questionIndex
+      if (questionSet) {
+        const localProgressUpdate = {
+          lastQuestionIndex: questionIndex,
+          answeredQuestions: updatedAnsweredQuestions,
+          correctAnswers: newCorrectCount,
+          totalAnswered: updatedAnsweredQuestions.length,
+          totalQuestions: questions.length,
+          lastUpdated: new Date().toISOString()
         };
         
-        socket.emit('progress:save', progressData);
-        console.log('[QuizPage] 已通过socket发送进度保存请求');
-      } else {
-        console.log('[QuizPage] Socket未连接或用户未登录，跳过服务器同步');
-      }
-      
-      // 检查是否达到试用限制
-      if (questionSet && questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed) {
-        const trialQuestions = questionSet.trialQuestions || 0;
+        // 保存到本地存储以支持离线场景
+        try {
+          const localProgressKey = `quiz_progress_${questionSetId}`;
+          localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
+          console.log(`[QuizPage] 已更新本地进度存储，包含${updatedAnsweredQuestions.length}道已答题目`);
+        } catch (e) {
+          console.error('[QuizPage] 保存本地进度失败:', e);
+        }
         
-        // 现在要更精确地判断是否刚好达到限制
-        // 已回答题目数量 = trialQuestions 意味着刚好用完了试用题目
-        if (trialQuestions > 0 && updatedAnsweredQuestions.length >= trialQuestions) {
-          console.log(`[QuizPage] 已达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialQuestions})，准备显示购买提示`);
+        // 标记有未同步的更改
+        unsyncedChangesRef.current = true;
+        
+        // 通过socket.io进行同步
+        if (socket && user) {
+          const progressData: ExtendedSaveProgressParams = {
+            questionId: String(question.id),
+            questionSetId,
+            selectedOption,
+            isCorrect,
+            timeSpent,
+            lastQuestionIndex: questionIndex
+          };
           
-          // 适当延迟，给用户时间看到题目的正确或错误状态
-          setTimeout(() => {
-            // 检查权限状态是否已改变
-            if (!hasAccessToFullQuiz && !hasRedeemed) {
-              // 设置试用结束状态
-              setTrialEnded(true);
-              
-              // 显示提示信息
-              toast.info(`您已完成${trialQuestions}道试用题目限制，需要购买完整版或使用兑换码继续`, {
-                position: "top-center",
-                autoClose: 8000,
-                toastId: "trial-limit-reached"
-              });
-              
-              // 显示购买页面
-              setShowPurchasePage(true);
-            }
-          }, 1500);
+          socket.emit('progress:save', progressData);
+          console.log('[QuizPage] 已通过socket发送进度保存请求');
+        } else {
+          console.log('[QuizPage] Socket未连接或用户未登录，跳过服务器同步');
+        }
+        
+        // 检查是否达到试用限制
+        const trialLimit = questionSet.trialQuestions || 0;
+        if (questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed && trialLimit > 0) {
+          // 检查是否刚好达到限制
+          const isTrialLimitReached = updatedAnsweredQuestions.length >= trialLimit;
+          
+          if (isTrialLimitReached) {
+            console.log(`[QuizPage] 已达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialLimit})，准备显示购买提示`);
+            
+            // 适当延迟，给用户时间看到题目的正确或错误状态
+            setTimeout(() => {
+              // 再次检查权限是否已变更
+              const currentHasAccess = checkFullAccessFromAllSources();
+              if (!currentHasAccess) {
+                // 设置试用结束状态
+                setTrialEnded(true);
+                
+                // 显示提示信息
+                toast.info(`您已完成${trialLimit}道试用题目限制，需要购买完整版或使用兑换码继续`, {
+                  position: "top-center",
+                  autoClose: 8000,
+                  toastId: "trial-limit-reached"
+                });
+                
+                // 显示购买页面
+                setShowPurchasePage(true);
+              }
+            }, 1500);
+          }
         }
       }
-      
     } catch (error) {
       console.error('[QuizPage] 提交答案出错:', error);
     } finally {
       // 重置提交状态
       isSubmittingRef.current = false;
     }
-  }, [answeredQuestions, questionSetId, questionStartTime, questions.length, socket, user, hasAccessToFullQuiz, hasRedeemed, questionSet, setTrialEnded, setShowPurchasePage]);
+  }, [
+    answeredQuestions, 
+    questionSetId, 
+    questionStartTime, 
+    questions.length, 
+    socket, 
+    user, 
+    hasAccessToFullQuiz, 
+    hasRedeemed, 
+    questionSet, 
+    setTrialEnded, 
+    setShowPurchasePage,
+    checkFullAccessFromAllSources
+  ]);
   
   // 修改处理答案提交的函数，确保模态窗口显示
   const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
+    // 检查是否有完整访问权限
+    const hasFullAccess = checkFullAccessFromAllSources();
+    if (hasFullAccess) {
+      console.log('[QuizPage] 用户有完整访问权限，允许提交答案');
+      // 确保状态一致性
+      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
+      if (trialEnded) setTrialEnded(false);
+    }
+    
     // 获取当前问题
     const currentQ = questions[currentQuestionIndex];
     if (currentQ) {
       // 使用正确的参数顺序调用handleAnswerSubmit
       handleAnswerSubmit(selectedOption, isCorrect, currentQ, currentQuestionIndex);
       
-      // 更新本地变量预测即将更新的答题数
-      const newAnsweredCount = answeredQuestions.length + 1;
-      
-      console.log('[QuizPage] 答题后检查试用限制:', {
-        currentAnswered: answeredQuestions.length,
-        willBeAnswered: newAnsweredCount,
-        trialLimit: questionSet?.trialQuestions,
-        isPaid: questionSet?.isPaid,
-        hasAccess: hasAccessToFullQuiz,
-        hasRedeemed: hasRedeemed
-      });
-      
-      // 提前检查是否将达到试用限制
-      if (questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && 
-          questionSet.trialQuestions && newAnsweredCount >= questionSet.trialQuestions) {
+      // 如果用户没有完整访问权限，检查提交后是否达到试用限制
+      if (!hasFullAccess) {
+        // 预测提交后的已答题数
+        const willBeAnsweredCount = answeredQuestions.findIndex(q => q.questionIndex === currentQuestionIndex) >= 0 
+          ? answeredQuestions.length  // 已答过的题目，数量不变
+          : answeredQuestions.length + 1; // 新答的题目，数量+1
         
-        console.log('[QuizPage] 答题后即将达到试用限制，准备显示购买窗口');
+        console.log('[QuizPage] 答题后检查试用限制:', {
+          currentAnswered: answeredQuestions.length,
+          willBeAnswered: willBeAnsweredCount,
+          trialLimit: questionSet?.trialQuestions,
+          isPaid: questionSet?.isPaid,
+          hasAccess: hasAccessToFullQuiz,
+          hasRedeemed: hasRedeemed
+        });
         
-        // 延迟显示购买窗口，给用户时间查看答案
-        setTimeout(() => {
-          // 再次检查确认状态没有变化
-          if (!hasAccessToFullQuiz && !hasRedeemed) {
-            console.log('[QuizPage] 显示购买窗口');
-            setTrialEnded(true);
-            setShowPaymentModal(true);
-            
-            // 显示提示
-            toast.info('您已达到试用题目限制，请购买完整版继续使用', {
-              position: 'top-center',
-              autoClose: 5000,
-              toastId: 'answer-submit-limit'
-            });
-          }
-        }, 1500);
+        // 检查是否将达到或已达到试用限制
+        if (questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && 
+            questionSet.trialQuestions && willBeAnsweredCount >= questionSet.trialQuestions) {
+          
+          console.log('[QuizPage] 答题将达到或已达到试用限制，准备显示购买窗口');
+          
+          // 延迟显示购买窗口，给用户时间查看答案
+          setTimeout(() => {
+            // 再次检查确认状态没有变化
+            const currentHasAccess = checkFullAccessFromAllSources();
+            if (!currentHasAccess) {
+              console.log('[QuizPage] 确认用户仍无访问权限，显示购买窗口');
+              setTrialEnded(true);
+              setShowPurchasePage(true);
+              
+              // 显示提示
+              toast.info('您已达到试用题目限制，请购买完整版继续使用', {
+                position: 'top-center',
+                autoClose: 5000,
+                toastId: 'answer-submit-limit'
+              });
+            }
+          }, 1500);
+        }
       }
     }
-  }, [questions, currentQuestionIndex, handleAnswerSubmit, questionSet, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length]);
+  }, [
+    questions, 
+    currentQuestionIndex, 
+    handleAnswerSubmit, 
+    questionSet, 
+    hasAccessToFullQuiz, 
+    hasRedeemed, 
+    answeredQuestions, 
+    checkFullAccessFromAllSources
+  ]);
   
   // 修改下一题逻辑，确保试用限制
   const handleNextQuestion = useCallback(() => {
+    // 检查是否有完整访问权限
+    const hasFullAccess = checkFullAccessFromAllSources();
+    if (hasFullAccess) {
+      console.log('[QuizPage] 用户有完整访问权限，允许进入下一题');
+      // 更新状态
+      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
+      if (trialEnded) setTrialEnded(false);
+    } else {
+      // 检查是否达到试用限制
+      const trialLimit = questionSet?.trialQuestions || 0;
+      const isAtTrialLimit = questionSet?.isPaid && 
+                            !hasAccessToFullQuiz && 
+                            !hasRedeemed && 
+                            trialLimit > 0 && 
+                            answeredQuestions.length >= trialLimit;
+      
+      if (isAtTrialLimit) {
+        console.log('[QuizPage] 已达到试用题目限制，阻止继续答题:', {
+          answeredCount: answeredQuestions.length,
+          trialLimit: trialLimit
+        });
+        
+        // 显示提示信息
+        toast.info(`您已完成 ${trialLimit} 道试用题目，请购买完整版或使用兑换码继续`, {
+          position: "top-center",
+          autoClose: 8000,
+          toastId: "trial-limit-toast",
+        });
+        
+        // 设置试用结束状态
+        setTrialEnded(true);
+        
+        // 显示购买页面
+        setShowPurchasePage(true);
+        return; // 阻止继续前进到下一题
+      }
+    }
+    
     // 如果有未同步的数据且已经累积了多个回答，定期同步
     if (unsyncedChangesRef.current && answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
       // 每答完5题同步一次
       syncProgressToServer();
-    }
-    
-    // 检查是否达到试用限制
-    const isAtTrialLimit = questionSet?.isPaid && 
-                          !hasAccessToFullQuiz && 
-                          !hasRedeemed && 
-                          questionSet?.trialQuestions && 
-                          questionSet.trialQuestions > 0 && 
-                          answeredQuestions.length >= questionSet.trialQuestions;
-    
-    if (isAtTrialLimit) {
-      console.log('[QuizPage] 已达到试用题目限制，阻止继续答题:', {
-        answeredCount: answeredQuestions.length,
-        trialLimit: questionSet?.trialQuestions
-      });
-      
-      // 显示提示信息
-      toast.info(`您已完成 ${questionSet?.trialQuestions} 道试用题目，请购买完整版或使用兑换码继续`, {
-        position: "top-center",
-        autoClose: 8000,
-        toastId: "trial-limit-toast",
-      });
-      
-      // 设置试用结束状态
-      setTrialEnded(true);
-      
-      // 显示购买页面而非仅显示模态窗口
-      setShowPurchasePage(true);
-      return; // 阻止继续前进到下一题
     }
     
     // 如果已经是最后一题，标记为完成并同步所有数据
@@ -1502,7 +1579,8 @@ function QuizPage(): JSX.Element {
     hasAccessToFullQuiz,
     hasRedeemed,
     setTrialEnded,
-    setShowPurchasePage
+    setShowPurchasePage,
+    checkFullAccessFromAllSources
   ]);
 
   // 跳转到指定题目的处理函数
@@ -1519,20 +1597,33 @@ function QuizPage(): JSX.Element {
       return;
     }
     
+    // 首先检查是否有完整访问权限
+    const hasFullAccess = checkFullAccessFromAllSources();
+    if (hasFullAccess) {
+      console.log(`[QuizPage] 用户有完整访问权限，允许跳转到题目 ${questionIndex + 1}`);
+      // 确保状态一致性
+      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
+      if (trialEnded) setTrialEnded(false);
+      // 允许跳转
+      setCurrentQuestionIndex(questionIndex);
+      setQuestionStartTime(Date.now()); // 重置计时器
+      return;
+    }
+    
     // 检查是否试用限制阻止跳转
-    const trialQuestions = questionSet?.trialQuestions || 0;
+    const trialLimit = questionSet?.trialQuestions || 0;
     const isTrialLimitExceeded = 
       questionSet?.isPaid && 
       !hasAccessToFullQuiz && 
       !hasRedeemed && 
-      trialQuestions > 0 && 
-      questionIndex >= trialQuestions;
+      trialLimit > 0 && 
+      questionIndex >= trialLimit;
     
     if (isTrialLimitExceeded) {
-      console.log(`[QuizPage] 跳转被阻止: 尝试访问第 ${questionIndex + 1} 题，超出试用限制 ${trialQuestions} 题`);
+      console.log(`[QuizPage] 跳转被阻止: 尝试访问第 ${questionIndex + 1} 题，超出试用限制 ${trialLimit} 题`);
       
       // 显示提示信息
-      toast.info(`您正在试用模式下，最多只能回答 ${trialQuestions} 道题目，请购买完整版继续使用`, {
+      toast.info(`您正在试用模式下，最多只能回答 ${trialLimit} 道题目，请购买完整版继续使用`, {
         position: "top-center",
         autoClose: 5000,
         toastId: "trial-limit-jump-toast",
@@ -1541,11 +1632,12 @@ function QuizPage(): JSX.Element {
       // 设置试用结束状态
       setTrialEnded(true);
       
-      // 显示购买页面而非仅显示模态窗口
+      // 显示购买页面
       setShowPurchasePage(true);
       return;
     }
     
+    // 允许在试用限制内跳转
     console.log(`[QuizPage] 跳转到题目: ${questionIndex + 1} / ${questions.length}`);
     setCurrentQuestionIndex(questionIndex);
     setQuestionStartTime(Date.now()); // 重置计时器
@@ -1556,7 +1648,8 @@ function QuizPage(): JSX.Element {
     hasAccessToFullQuiz, 
     hasRedeemed,
     setTrialEnded,
-    setShowPurchasePage
+    setShowPurchasePage,
+    checkFullAccessFromAllSources
   ]);
 
   // 格式化时间显示函数
@@ -2061,23 +2154,47 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     if (!questionSet) return;
     
-    // 如果用户有完整权限访问，确保不会显示购买页面
-    if (hasAccessToFullQuiz || hasRedeemed || !questionSet.isPaid) {
-      console.log(`[QuizPage] 用户有访问权限或题库免费，确保不显示购买页面`);
-      if (showPurchasePage) setShowPurchasePage(false);
+    // 优先：如果权限检查函数显示用户有完整访问权限，确保不显示购买页面
+    const hasFullAccess = checkFullAccessFromAllSources();
+    if (hasFullAccess) {
+      console.log(`[QuizPage] 完整权限检查显示用户有访问权限，不显示购买页面`);
+      // 同步状态
+      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
       if (trialEnded) setTrialEnded(false);
+      if (showPurchasePage) setShowPurchasePage(false);
       return;
     }
     
-    // 只有当试用结束且是付费题库时，才显示购买页面
-    if (trialEnded && questionSet.isPaid) {
-      console.log('[QuizPage] 试用已结束，显示购买页面');
+    // 免费题库永远不显示购买页面
+    if (!questionSet.isPaid) {
+      console.log(`[QuizPage] 免费题库，不显示购买页面`);
+      if (showPurchasePage) setShowPurchasePage(false);
+      return;
+    }
+    
+    // 如果用户有访问权限状态，确保不显示购买页面
+    if (hasAccessToFullQuiz || hasRedeemed) {
+      console.log(`[QuizPage] 用户已有访问权限或已兑换，不显示购买页面`);
+      if (showPurchasePage) setShowPurchasePage(false);
+      return;
+    }
+    
+    // 只有当试用结束且是付费题库且用户无权限时，才显示购买页面
+    if (trialEnded && questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed) {
+      console.log('[QuizPage] 付费题库试用已结束且用户无访问权限，显示购买页面');
       if (!showPurchasePage) setShowPurchasePage(true);
     } else {
-      // 确保初始加载时不显示购买页面
+      // 其他情况不显示购买页面
       if (showPurchasePage) setShowPurchasePage(false);
     }
-  }, [questionSet, hasAccessToFullQuiz, hasRedeemed, trialEnded, showPurchasePage]);
+  }, [
+    questionSet, 
+    trialEnded, 
+    hasAccessToFullQuiz, 
+    hasRedeemed, 
+    showPurchasePage, 
+    checkFullAccessFromAllSources
+  ]);
   
   // 修改渲染函数，确保PurchasePage优先显示
   return (
