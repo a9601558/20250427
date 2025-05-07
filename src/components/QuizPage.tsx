@@ -174,6 +174,60 @@ const PurchasePage: React.FC<{
   trialCount: number;
   isProcessing?: boolean;
 }> = ({ questionSet, onPurchase, onRedeem, onBack, trialCount, isProcessing = false }) => {
+  
+  // 添加点击处理函数并增加状态跟踪
+  const [btnClickedState, setBtnClickedState] = useState({
+    purchaseClicked: false,
+    redeemClicked: false,
+    backClicked: false
+  });
+  
+  // 创建更安全的处理函数
+  const handlePurchaseClick = () => {
+    console.log('[PurchasePage] 立即购买按钮被点击');
+    setBtnClickedState({ ...btnClickedState, purchaseClicked: true });
+    // 延迟执行以确保状态更新且页面有反应
+    setTimeout(() => {
+      if (typeof onPurchase === 'function') {
+        onPurchase();
+      } else {
+        console.error('[PurchasePage] onPurchase不是一个函数');
+      }
+      // 重置状态
+      setBtnClickedState(prev => ({ ...prev, purchaseClicked: false }));
+    }, 100);
+  };
+  
+  const handleRedeemClick = () => {
+    console.log('[PurchasePage] 使用兑换码按钮被点击');
+    setBtnClickedState({ ...btnClickedState, redeemClicked: true });
+    // 延迟执行以确保状态更新且页面有反应
+    setTimeout(() => {
+      if (typeof onRedeem === 'function') {
+        onRedeem();
+      } else {
+        console.error('[PurchasePage] onRedeem不是一个函数');
+      }
+      // 重置状态
+      setBtnClickedState(prev => ({ ...prev, redeemClicked: false }));
+    }, 100);
+  };
+  
+  const handleBackClick = () => {
+    console.log('[PurchasePage] 返回首页按钮被点击');
+    setBtnClickedState({ ...btnClickedState, backClicked: true });
+    // 延迟执行以确保状态更新且页面有反应
+    setTimeout(() => {
+      if (typeof onBack === 'function') {
+        onBack();
+      } else {
+        console.error('[PurchasePage] onBack不是一个函数');
+      }
+      // 重置状态
+      setBtnClickedState(prev => ({ ...prev, backClicked: false }));
+    }, 100);
+  };
+  
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-95 z-50 flex items-center justify-center">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 relative overflow-hidden">
@@ -207,8 +261,8 @@ const PurchasePage: React.FC<{
         
         <div className="space-y-4 mb-6">
           <button 
-            onClick={onPurchase}
-            className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
+            onClick={handlePurchaseClick}
+            className={`w-full py-3.5 ${btnClickedState.purchaseClicked ? 'bg-blue-800' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'} text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-blue-800`}
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -224,8 +278,8 @@ const PurchasePage: React.FC<{
           </div>
           
           <button 
-            onClick={onRedeem}
-            className="w-full py-3.5 bg-white hover:bg-green-50 text-green-700 border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center shadow-sm hover:shadow-md transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
+            onClick={handleRedeemClick}
+            className={`w-full py-3.5 ${btnClickedState.redeemClicked ? 'bg-green-100' : 'bg-white hover:bg-green-50'} text-green-700 border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center shadow-sm hover:shadow-md transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-green-100`}
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -235,8 +289,8 @@ const PurchasePage: React.FC<{
           </button>
           
           <button 
-            onClick={onBack}
-            className="w-full py-3 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+            onClick={handleBackClick}
+            className={`w-full py-3 mt-2 ${btnClickedState.backClicked ? 'bg-gray-300' : 'bg-gray-100 hover:bg-gray-200'} text-gray-700 rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed active:bg-gray-300`}
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -277,20 +331,22 @@ interface RedeemCodeModalProps {
 const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuccess, isOpen }) => {
   const { user } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<string>('wechat');
   const [error, setError] = useState<string | null>(null);
+  const [btnClicked, setBtnClicked] = useState(false);
   
   const handlePurchase = async () => {
     if (!user || !questionSet) return;
     
     setIsProcessing(true);
     setError(null);
+    setBtnClicked(true);
     
     try {
-      // 调用购买API
+      console.log('[PaymentModal] 开始处理Stripe支付');
+      // 调用购买API，使用Stripe支付方式
       const response = await purchaseService.createPurchase(
         questionSet.id,
-        paymentMethod,
+        'stripe', // 直接使用stripe作为支付方式
         questionSet.price
       );
       
@@ -302,12 +358,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         console.error('[PaymentModal] 购买失败:', response);
         setError(response.message || '购买失败，请稍后再试');
         setIsProcessing(false);
+        setBtnClicked(false);
       }
     } catch (err) {
       console.error('[PaymentModal] 购买出错:', err);
       setError('购买过程中出现错误，请稍后再试');
       setIsProcessing(false);
+      setBtnClicked(false);
     }
+  };
+  
+  const handleCloseClick = () => {
+    if (isProcessing) return; // 如果正在处理，不允许关闭
+    onClose();
   };
   
   return (
@@ -321,9 +384,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         )}
         
         <button
-          onClick={onClose}
+          onClick={handleCloseClick}
           disabled={isProcessing}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -350,43 +413,31 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         )}
         
         <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2">选择支付方式</label>
-          <div className="space-y-2">
-            <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="wechat"
-                checked={paymentMethod === 'wechat'}
-                onChange={() => setPaymentMethod('wechat')}
-                className="h-4 w-4 text-blue-600"
-              />
-              <span className="ml-2 text-gray-700">微信支付</span>
-            </label>
-            
-            <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="alipay"
-                checked={paymentMethod === 'alipay'}
-                onChange={() => setPaymentMethod('alipay')}
-                className="h-4 w-4 text-blue-600"
-              />
-              <span className="ml-2 text-gray-700">支付宝</span>
-            </label>
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 mr-3">
+                <svg className="w-7 h-7 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0z" fill="#6772E5"/>
+                  <path d="M13.5 9.17c0-.59.177-1.067.532-1.434.354-.367.864-.55 1.531-.55.396 0 .74.066 1.036.2.295.133.516.317.661.55.146.233.218.492.218.775 0 .375-.1.695-.304.958-.204.263-.5.492-.889.683-.39.192-.927.392-1.615.6-.872.267-1.583.592-2.132.975-.55.383-.958.825-1.226 1.325-.268.5-.402 1.084-.402 1.75 0 .692.147 1.3.44 1.825.293.525.714.933 1.264 1.225.55.292 1.2.438 1.95.438.725 0 1.359-.15 1.9-.45.542-.3.959-.717 1.25-1.25.292-.533.438-1.142.438-1.825H16.8c0 .658-.186 1.167-.557 1.525-.372.358-.923.537-1.655.537-.683 0-1.214-.158-1.593-.475-.38-.317-.57-.75-.57-1.3 0-.35.114-.65.342-.9.228-.25.538-.467.93-.65.393-.183.876-.365 1.449-.545 1.036-.33 1.84-.654 2.413-.975.571-.32 1.003-.695 1.294-1.125.292-.43.438-.95.438-1.563 0-.675-.162-1.283-.487-1.825-.325-.542-.787-.967-1.386-1.275-.6-.308-1.303-.462-2.107-.462-.867 0-1.625.163-2.275.487-.65.325-1.153.775-1.506 1.35-.354.575-.531 1.234-.531 1.976h1.5c0-.592.178-1.08.532-1.467z" fill="#fff"/>
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Stripe 安全支付</p>
+                <p className="text-xs text-gray-600">使用安全的Stripe支付处理</p>
+              </div>
+            </div>
           </div>
         </div>
         
         <button
           onClick={handlePurchase}
           disabled={isProcessing}
-          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
+          className={`w-full py-3.5 ${btnClicked ? 'bg-blue-800' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'} text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-blue-800`}
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
-          确认购买
+          {isProcessing ? '处理中...' : '确认购买'}
         </button>
         
         <p className="text-xs text-center text-gray-500 mt-4">
@@ -402,6 +453,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
   const [code, setCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [btnClicked, setBtnClicked] = useState(false);
   
   const handleRedeem = async () => {
     if (!code.trim()) {
@@ -411,8 +463,10 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
     
     setIsProcessing(true);
     setError(null);
+    setBtnClicked(true);
     
     try {
+      console.log('[RedeemCodeModal] 开始处理兑换码:', code.trim());
       // 调用兑换API
       const response = await redeemCodeService.redeemCode(code.trim());
       
@@ -424,12 +478,19 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         console.error('[RedeemCodeModal] 兑换失败:', response);
         setError(response.message || '兑换失败，请检查兑换码是否正确');
         setIsProcessing(false);
+        setBtnClicked(false);
       }
     } catch (err) {
       console.error('[RedeemCodeModal] 兑换出错:', err);
       setError('兑换过程中出现错误，请稍后再试');
       setIsProcessing(false);
+      setBtnClicked(false);
     }
+  };
+  
+  const handleCloseClick = () => {
+    if (isProcessing) return; // 如果正在处理，不允许关闭
+    onClose();
   };
   
   return (
@@ -443,9 +504,9 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         )}
         
         <button
-          onClick={onClose}
+          onClick={handleCloseClick}
           disabled={isProcessing}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -483,12 +544,12 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         <button
           onClick={handleRedeem}
           disabled={isProcessing || !code.trim()}
-          className="w-full py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
+          className={`w-full py-3.5 ${btnClicked ? 'bg-green-800' : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'} text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-green-800`}
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          确认兑换
+          {isProcessing ? '处理中...' : '确认兑换'}
         </button>
         
         <p className="text-xs text-center text-gray-500 mt-4">
