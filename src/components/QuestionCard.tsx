@@ -69,8 +69,19 @@ const QuestionCard = ({
   const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
   
-  // 防止重复提交的ref
-  const isSubmittingRef = useRef<boolean>(false);
+  // 防止重复提交的ref - 减少使用引用，改为状态，便于用户操作
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 添加提交结果状态
+  const [submissionResult, setSubmissionResult] = useState<{
+    isCorrect: boolean;
+    isShowing: boolean;
+    timestamp: number;
+  }>({
+    isCorrect: false,
+    isShowing: false,
+    timestamp: 0
+  });
   
   // 为键盘导航跟踪当前选项
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
@@ -135,13 +146,16 @@ const QuestionCard = ({
   // 处理选项点击
   const handleOptionClick = (optionId: string) => {
     // 如果已提交答案，不允许更改选择
-    if (isSubmitted || isSubmittingRef.current) {
+    if (isSubmitted || isSubmitting) {
       return;
     }
     
     if (question.questionType === 'single') {
       // 单选题: 直接设置为当前选择
       setSelectedOptions([optionId]);
+      
+      // 单选题自动提交答案，增强用户体验 (可选功能)
+      // handleSubmit();
     } else {
       // 多选题: 切换选中状态
       if (selectedOptions.includes(optionId)) {
@@ -154,48 +168,38 @@ const QuestionCard = ({
 
   // 处理下一题
   const handleNext = () => {
-    console.log('[QuestionCard] 调用handleNext，准备进入下一题');
-    
     // 重置状态
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
+    setSubmissionResult({
+      isCorrect: false,
+      isShowing: false,
+      timestamp: 0
+    });
     
-    // 如果已达到试用限制，显示提示但不继续
-    if (isPaid && !hasFullAccess && trialLimitReached) {
-      toast.warning('试用题目已达上限，请购买完整版或使用兑换码继续');
-      return;
-    }
-    
-    // 调用父组件传入的onNext函数
+    // 直接调用父组件传入的onNext函数
     if (typeof onNext === 'function') {
-      try {
-        console.log('[QuestionCard] 调用父组件onNext函数');
-        onNext();
-      } catch (error) {
-        console.error('[QuestionCard] 调用onNext函数出错:', error);
-      }
-    } else {
-      console.error('[QuestionCard] onNext不是函数');
+      onNext();
     }
   };
 
-  // 提交答案处理函数
-  const handleSubmit = (e: React.MouseEvent<HTMLButtonElement>) => {
+  // 提交答案处理函数 - 简化版本，更加流畅
+  const handleSubmit = (e?: React.MouseEvent<HTMLButtonElement>) => {
     // 阻止表单提交默认行为
-    e.preventDefault();
-    e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
     // 如果已提交并显示解析，点击"下一题"
     if (isSubmitted && showExplanation) {
-      console.log('[QuestionCard] 已提交答案，准备进入下一题');
       handleNext();
       return;
     }
     
     // 防止重复提交
-    if (isSubmittingRef.current) {
-      console.log('[QuestionCard] 正在提交中，忽略操作');
+    if (isSubmitting) {
       return;
     }
     
@@ -206,27 +210,22 @@ const QuestionCard = ({
     }
     
     // 设置提交中状态
-    isSubmittingRef.current = true;
-    console.log('[QuestionCard] 开始提交答案');
+    setIsSubmitting(true);
     
     try {
       // 判断答案是否正确
       const isCorrect = checkIsCorrect();
-      console.log(`[QuestionCard] 答案正确性: ${isCorrect}`);
       
-      // 更新UI状态 - 确保这里设置isSubmitted为true
+      // 更新UI状态
       setIsSubmitted(true);
-            setShowExplanation(true);
+      setShowExplanation(true);
       
-      // 调用父组件回调，传递结果
-        if (onAnswerSubmitted) {
-        console.log(`[QuestionCard] 调用父组件onAnswerSubmitted回调, 答案正确: ${isCorrect}`);
-        if (question.questionType === 'single') {
-          onAnswerSubmitted(isCorrect, selectedOptions[0]);
-        } else {
-          onAnswerSubmitted(isCorrect, selectedOptions);
-        }
-      }
+      // 设置提交结果，用于显示动画和反馈
+      setSubmissionResult({
+        isCorrect,
+        isShowing: true,
+        timestamp: Date.now()
+      });
       
       // 显示答题结果提示
       toast(isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER, {
@@ -242,19 +241,35 @@ const QuestionCard = ({
         timestamp: new Date().toISOString()
       }));
       
+      // 调用父组件回调，传递结果
+      if (onAnswerSubmitted) {
+        if (question.questionType === 'single') {
+          onAnswerSubmitted(isCorrect, selectedOptions[0]);
+        } else {
+          onAnswerSubmitted(isCorrect, selectedOptions);
+        }
+      }
+      
       // 如果答错，记录错题
-        if (!isCorrect) {
+      if (!isCorrect) {
         saveWrongAnswer();
       }
+      
+      // 延迟隐藏提交结果
+      setTimeout(() => {
+        setSubmissionResult(prev => ({
+          ...prev,
+          isShowing: false
+        }));
+      }, 2500);
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
       toast.error('提交答案时出错，请重试');
     } finally {
       // 延迟释放提交锁，防止重复点击
       setTimeout(() => {
-        console.log('[QuestionCard] 释放提交锁');
-        isSubmittingRef.current = false;
-      }, 800);
+        setIsSubmitting(false);
+      }, 500);
     }
   };
 
@@ -369,7 +384,7 @@ const QuestionCard = ({
 
   // 修改处理题号跳转函数，简化逻辑
   const handleJumpToQuestion = (index: number) => {
-    if (!onJumpToQuestion || isSubmittingRef.current) {
+    if (!onJumpToQuestion || isSubmitting) {
       return;
     }
     
@@ -386,39 +401,30 @@ const QuestionCard = ({
     };
   }, []);
 
-  // 修复 Array.from 函数中对 totalQuestions 的使用，确保它是数字
+  // 修改 Array.from 函数中对 totalQuestions 的使用，确保它是数字
   const renderNumberButtons = () => {
     // 确保 totalQuestions 是数字
     const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
     
     return Array.from({ length: count }).map((_, index) => {
-      const isAccessible = isQuestionAccessible(index);
+      // 简化访问控制，所有题目都可以访问
+      const isAccessible = true;
       return (
         <button
           key={index}
-          onClick={() => handleJumpToQuestion(index)}
-          disabled={!isAccessible}
+          onClick={() => onJumpToQuestion && onJumpToQuestion(index)}
           className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
             transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
             ${questionNumber === index + 1 
               ? 'bg-blue-600 text-white' 
-              : isAccessible
-                ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
             }
-            ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
+            focus:ring-blue-500
           `}
-          aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
-          title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
+          aria-label={`跳转到第${index + 1}题`}
+          title={`跳转到第${index + 1}题`}
         >
           {index + 1}
-          {!isAccessible && (
-            <span className="absolute -top-1 -right-1 w-3 h-3">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-          )}
         </button>
       );
     });
@@ -544,9 +550,26 @@ const QuestionCard = ({
         ))}
       </div>
           
+      {/* 添加提交结果动画效果 */}
+      {submissionResult.isShowing && (
+        <div className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-scaleIn ${
+          submissionResult.isCorrect ? 'text-green-500' : 'text-red-500'
+        }`}>
+          {submissionResult.isCorrect ? (
+            <svg className="w-20 h-20" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg className="w-20 h-20" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
+      )}
+      
       {/* 解析显示 */}
       {showExplanation && question.explanation && (
-        <div className="mb-6">
+        <div className="mb-6 animate-fadeIn">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <h4 className="font-semibold text-yellow-800 mb-2 flex items-center">
               <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -564,15 +587,21 @@ const QuestionCard = ({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached}
+          disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmitting}
           className={`w-full px-4 py-3 rounded-lg text-white font-medium flex items-center justify-center ${
-            (selectedOptions.length === 0 && !isSubmitted) || isSubmittingRef.current || trialLimitReached
+            (selectedOptions.length === 0 && !isSubmitted) || isSubmitting
               ? 'bg-gray-400 cursor-not-allowed'
               : isSubmitted
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-blue-600 hover:bg-blue-700'
           }`}
         >
+          {isSubmitting && (
+            <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          )}
           {isSubmitted ? (
             <>
               <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -592,10 +621,10 @@ const QuestionCard = ({
       </div>
       
       {/* 题目导航：添加上一题和下一题按钮 */}
-      {questionNumber > 1 && !trialLimitReached && (
+      {questionNumber > 1 && (
         <div className="mt-4">
           <button 
-            onClick={() => handleJumpToQuestion(questionNumber - 2)}
+            onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber - 2)}
             className="text-gray-500 hover:text-gray-700 text-sm flex items-center"
           >
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -606,8 +635,10 @@ const QuestionCard = ({
         </div>
       )}
       
-      {/* 答题进度指示器 */}
-      {renderNumberButtons()}
+      {/* 添加水平导航栏 */}
+      <div className="mt-6 flex flex-wrap gap-2 justify-center">
+        {renderNumberButtons()}
+      </div>
     </div>
   );
 };

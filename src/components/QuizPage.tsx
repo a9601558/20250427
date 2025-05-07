@@ -281,6 +281,12 @@ function QuizPage(): JSX.Element {
   const [quizStartTime, setQuizStartTime] = useState<number>(0);
   const [quizTotalTime, setQuizTotalTime] = useState<number>(0);
   
+  // 添加保存状态相关变量
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [lastSavedTime, setLastSavedTime] = useState<number>(0);
+  const [showSaveSuccess, setShowSaveSuccess] = useState<boolean>(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+
   // 在QuizPage组件内部，在state声明区域添加一个同步状态标识
   const [lastSyncTime, setLastSyncTime] = useState<number>(0);
   const [pendingSync, setPendingSync] = useState<boolean>(false);
@@ -1221,27 +1227,17 @@ function QuizPage(): JSX.Element {
     };
   }, [questionSet, checkAccess]);
   
-  // 添加同步进度到服务器的函数
-  const syncProgressToServer = useCallback(async (force: boolean = false) => {
-    if (!user?.id || !questionSetId || !socket) return;
-    
-    // 如果没有未同步的更改且不是强制同步，则跳过
-    if (!force && !unsyncedChangesRef.current) {
-      console.log('[QuizPage] 没有未同步的进度数据');
+  // 修改syncProgressToServer函数为手动保存函数
+  const saveProgressManually = useCallback(async () => {
+    if (!user?.id || !questionSetId || !socket) {
+      toast.error('保存失败，请确认您已登录');
       return;
     }
     
-    // 防止频繁同步 - 如果距离上次同步不到10秒且不是强制同步，则跳过
-    const now = Date.now();
-    if (!force && (now - lastSyncTime < 10000)) {
-      console.log('[QuizPage] 距离上次同步时间不足10秒，跳过');
-      setPendingSync(true);
-      return;
-    }
+    setIsSaving(true);
     
     try {
-      console.log('[QuizPage] 开始同步进度数据到服务器');
-      setPendingSync(false);
+      console.log('[QuizPage] 开始手动保存进度数据');
       
       // 准备要发送的进度数据包
       const progressBundle = {
@@ -1256,18 +1252,59 @@ function QuizPage(): JSX.Element {
       // 通过socket将打包的进度数据同步到服务器
       socket.emit('progress:update', progressBundle);
       
-      // 更新同步状态
-      setLastSyncTime(now);
-      unsyncedChangesRef.current = false;
+      // 等待服务器响应
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('保存超时'));
+        }, 5000);
+        
+        const handleSaveResponse = (response: {success: boolean}) => {
+          clearTimeout(timeout);
+          if (response.success) {
+            resolve();
+          } else {
+            reject(new Error('服务器保存失败'));
+          }
+        };
+        
+        socket.once('progress:update:result', handleSaveResponse);
+      });
       
-      console.log('[QuizPage] 进度数据同步完成');
+      // 更新本地存储
+      try {
+        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const localProgressUpdate = {
+          lastQuestionIndex: currentQuestionIndex,
+          answeredQuestions,
+          correctAnswers,
+          totalAnswered: answeredQuestions.length,
+          totalQuestions: questions.length,
+          lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
+      } catch (e) {
+        console.error('[QuizPage] 保存本地进度失败:', e);
+      }
+      
+      // 更新保存状态
+      setLastSavedTime(Date.now());
+      setHasUnsavedChanges(false);
+      setShowSaveSuccess(true);
+      setTimeout(() => setShowSaveSuccess(false), 3000);
+      
+      // 显示成功消息
+      toast.success('进度保存成功');
+      
+      console.log('[QuizPage] 进度数据保存完成');
     } catch (error) {
-      console.error('[QuizPage] 同步进度数据异常:', error);
-      unsyncedChangesRef.current = true; // 标记为未同步
+      console.error('[QuizPage] 保存进度数据异常:', error);
+      toast.error('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
     }
-  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, lastSyncTime]);
+  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, correctAnswers, questions.length]);
   
-  // 修改handleAnswerSubmit函数，确保正确记录答题状态
+  // 修改handleAnswerSubmit函数，不再自动同步，移除阻塞行为
   const handleAnswerSubmit = useCallback(async (
     selectedOption: string | string[], 
     isCorrect: boolean, 
@@ -1276,29 +1313,19 @@ function QuizPage(): JSX.Element {
   ) => {
     console.log(`[QuizPage] handleAnswerSubmit: 开始处理答案提交 - 题目ID=${question.id}, 索引=${questionIndex}`);
     
-    // 防止重复提交
-    if (isSubmittingRef.current) {
-      console.log('[QuizPage] 正在提交中，忽略此次提交');
-      return;
-    }
-    
-    isSubmittingRef.current = true;
-    
     try {
       if (!questionSetId || !question.id) {
-        console.error('[QuizPage] 题目ID或题库ID缺失，无法保存进度');
+        console.error('[QuizPage] 题目ID或题库ID缺失');
         return;
       }
       
       // 计算当前问题的答题用时（毫秒）
       const timeSpent = Date.now() - questionStartTime;
       
-      // 首先检查是否为重复提交相同题目
+      // 检查是否为重复提交相同题目
       const alreadyAnsweredIndex = answeredQuestions.findIndex((a) => 
         a.questionIndex === questionIndex
       );
-      
-      console.log(`[QuizPage] 检查是否重复提交: index=${alreadyAnsweredIndex}, questionId=${question.id}, questionIndex=${questionIndex}`);
       
       // 构建新的答题记录
       const newAnswer: AnsweredQuestion = {
@@ -1308,18 +1335,14 @@ function QuizPage(): JSX.Element {
         selectedOption: selectedOption
       };
       
-      console.log(`[QuizPage] 新答题记录: isCorrect=${newAnswer.isCorrect}, index=${newAnswer.index}`);
-      
       // 更新已答题目列表
       let updatedAnsweredQuestions = [...answeredQuestions];
       
       if (alreadyAnsweredIndex >= 0) {
         // 替换已存在的答题记录
-        console.log(`[QuizPage] 更新已存在的答题记录 ${alreadyAnsweredIndex}`);
         updatedAnsweredQuestions[alreadyAnsweredIndex] = newAnswer;
       } else {
         // 添加新的答题记录
-        console.log(`[QuizPage] 添加新的答题记录，当前已有 ${answeredQuestions.length} 条记录`);
         updatedAnsweredQuestions.push(newAnswer);
       }
       
@@ -1332,6 +1355,7 @@ function QuizPage(): JSX.Element {
       
       // 更新本地存储
       if (questionSet) {
+        const localProgressKey = `quiz_progress_${questionSetId}`;
         const localProgressUpdate = {
           lastQuestionIndex: questionIndex,
           answeredQuestions: updatedAnsweredQuestions,
@@ -1343,88 +1367,26 @@ function QuizPage(): JSX.Element {
         
         // 保存到本地存储以支持离线场景
         try {
-          const localProgressKey = `quiz_progress_${questionSetId}`;
           localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
           console.log(`[QuizPage] 已更新本地进度存储，包含${updatedAnsweredQuestions.length}道已答题目`);
         } catch (e) {
           console.error('[QuizPage] 保存本地进度失败:', e);
         }
         
-        // 标记有未同步的更改
-        unsyncedChangesRef.current = true;
-        
-        // 通过socket.io进行同步
-        if (socket && user) {
-          const progressData: ExtendedSaveProgressParams = {
-            questionId: String(question.id),
-            questionSetId,
-            selectedOption,
-            isCorrect,
-            timeSpent,
-            lastQuestionIndex: questionIndex
-          };
-          
-          socket.emit('progress:save', progressData);
-          console.log('[QuizPage] 已通过socket发送进度保存请求');
-        } else {
-          console.log('[QuizPage] Socket未连接或用户未登录，跳过服务器同步');
-        }
-        
-        // 检查是否达到试用限制
-        const trialLimit = questionSet.trialQuestions || 0;
-        if (questionSet.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && trialLimit > 0) {
-          // 检查是否刚好达到限制
-          const isTrialLimitReached = updatedAnsweredQuestions.length >= trialLimit;
-          
-          if (isTrialLimitReached) {
-            console.log(`[QuizPage] 已达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialLimit})，准备显示购买提示`);
-            
-            // 适当延迟，给用户时间看到题目的正确或错误状态
-            setTimeout(() => {
-              // 再次检查权限是否已变更
-              const currentHasAccess = checkFullAccessFromAllSources();
-              if (!currentHasAccess) {
-                // 设置试用结束状态
-                setQuizStatus({ ...quizStatus, trialEnded: true });
-                
-                // 显示提示信息
-                toast.info(`您已完成${trialLimit}道试用题目限制，需要购买完整版或使用兑换码继续`, {
-                  position: "top-center",
-                  autoClose: 8000,
-                  toastId: "trial-limit-reached"
-                });
-                
-                // 显示购买页面
-                setQuizStatus({ ...quizStatus, showPurchasePage: true });
-              }
-            }, 1500);
-          }
-        }
+        // 标记有未保存的更改
+        setHasUnsavedChanges(true);
       }
       
       console.log('[QuizPage] 答案提交处理完成');
     } catch (error) {
       console.error('[QuizPage] 提交答案出错:', error);
-    } finally {
-      // 重置提交状态
-      setTimeout(() => {
-        isSubmittingRef.current = false;
-        console.log('[QuizPage] 释放提交锁');
-      }, 800);
     }
   }, [
     answeredQuestions, 
     questionSetId, 
     questionStartTime, 
     questions.length, 
-    socket, 
-    user, 
-    quizStatus.hasAccessToFullQuiz, 
-    quizStatus.hasRedeemed, 
-    questionSet, 
-    setQuizStatus, 
-    setAnsweredQuestions,
-    checkFullAccessFromAllSources
+    questionSet
   ]);
   
   // 添加一个新的函数来集中管理试用限制逻辑
@@ -1449,23 +1411,9 @@ function QuizPage(): JSX.Element {
 
   // 添加一个函数专门控制是否可以访问特定题目索引
   const canAccessQuestion = useCallback((questionIndex: number): boolean => {
-    if (!questionSet) return false;
-    
-    // 如果不是付费题库，所有题目都可访问
-    if (!questionSet.isPaid) return true;
-    
-    // 如果用户有完整访问权限，所有题目都可访问
-    if (checkFullAccessFromAllSources()) return true;
-    
-    // 对于试用模式，只有在试用题目数量范围内的题目可以访问
-    const trialLimit = questionSet.trialQuestions || 0;
-    
-    // 如果当前题目索引小于试用限制，允许访问
-    if (questionIndex < trialLimit) return true;
-    
-    // 其他情况不允许访问
-    return false;
-  }, [questionSet, checkFullAccessFromAllSources]);
+    // 所有题目都应该可以访问，确保流畅的用户体验
+    return true;
+  }, []);
   
   // 修改处理答案提交的函数，确保模态窗口显示
   const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
@@ -1543,90 +1491,32 @@ function QuizPage(): JSX.Element {
     quizStatus.trialEnded
   ]);
   
-  // 修改下一题逻辑，确保试用限制
+  // 修改下一题逻辑，确保顺畅过渡而不检查权限
   const handleNextQuestion = useCallback(() => {
     console.log('[QuizPage] handleNextQuestion 被调用 - 准备跳转到下一题');
     
-    // 使用集中的访问权限检查
-    const hasFullAccess = checkFullAccessFromAllSources();
-    
-    // 如果用户有完整访问权限，允许进入下一题
-    if (hasFullAccess) {
-      console.log('[QuizPage] 用户有完整访问权限，允许进入下一题');
-      // 更新状态
-      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-    } 
-    // 如果已达到试用限制，阻止继续
-    else if (isTrialLimitReached()) {
-      console.log('[QuizPage] 已达到试用限制，阻止继续答题');
-      
-      // 显示提示信息
-      toast.info(`您已完成试用题目，请购买完整版或使用兑换码继续`, {
-        position: "top-center",
-        autoClose: 8000,
-        toastId: "trial-limit-toast",
-      });
-      
-      // 设置试用结束状态
-      setQuizStatus({ ...quizStatus, trialEnded: true });
-      
-      // 显示购买页面
-      setQuizStatus({ ...quizStatus, showPurchasePage: true });
-      return; // 阻止继续前进到下一题
-    }
-    
-    // 有未同步数据时进行同步
-    if (unsyncedChangesRef.current && answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
-      // 每答完5题同步一次
-      syncProgressToServer();
-    }
-    
-    // 如果已经是最后一题，标记为完成并同步所有数据
+    // 如果已经是最后一题，标记为完成
     if (currentQuestionIndex === questions.length - 1) {
       console.log('[QuizPage] 当前是最后一题，将标记为完成');
-      syncProgressToServer(true).then(() => {
-        setQuizStatus({ ...quizStatus, quizComplete: true });
-        console.log('[QuizPage] 答题已完成，已同步进度');
-      });
+      setQuizStatus({ ...quizStatus, quizComplete: true });
+      console.log('[QuizPage] 答题已完成');
       return;
     }
     
     try {
       // 跳转到下一题
       const nextQuestionIndex = currentQuestionIndex + 1;
-      
-      // 检查是否可以访问下一题
-      if (canAccessQuestion(nextQuestionIndex)) {
-        console.log(`[QuizPage] 跳转到下一题: ${nextQuestionIndex + 1}`);
-        setCurrentQuestionIndex(nextQuestionIndex);
-        setSelectedOptions([]);
-        setQuestionStartTime(Date.now());
-      } else {
-        // 如果不能访问，显示购买提示
-        console.log('[QuizPage] 无法访问下一题，显示购买提示');
-        setQuizStatus({ ...quizStatus, trialEnded: true });
-        setQuizStatus({ ...quizStatus, showPurchasePage: true });
-        
-        toast.info('试用题目已达上限，请购买完整版或使用兑换码继续', {
-          position: "top-center",
-          autoClose: 5000
-        });
-      }
+      console.log(`[QuizPage] 跳转到下一题: ${nextQuestionIndex + 1}`);
+      setCurrentQuestionIndex(nextQuestionIndex);
+      setSelectedOptions([]);
+      setQuestionStartTime(Date.now());
     } catch (error) {
       console.error('[QuizPage] 跳转到下一题时出错:', error);
     }
   }, [
     currentQuestionIndex, 
     questions.length, 
-    answeredQuestions.length, 
-    syncProgressToServer, 
-    checkFullAccessFromAllSources,
-    quizStatus.hasAccessToFullQuiz,
-    setQuizStatus,
-    quizStatus.trialEnded,
-    isTrialLimitReached,
-    canAccessQuestion
+    quizStatus
   ]);
 
   // 跳转到指定题目的处理函数
@@ -1691,13 +1581,13 @@ function QuizPage(): JSX.Element {
   const handleNavigateHome = useCallback(() => {
     // 导航前先同步进度
     if (unsyncedChangesRef.current) {
-      syncProgressToServer(true).then(() => {
+      saveProgressManually().then(() => {
         navigate('/');
       });
     } else {
       navigate('/');
     }
-  }, [navigate, syncProgressToServer]);
+  }, [navigate, saveProgressManually]);
   
   // 确保handleResetQuiz也同步进度
   const handleResetQuiz = useCallback(async () => {
@@ -1712,7 +1602,7 @@ function QuizPage(): JSX.Element {
       
       // 首先同步当前进度
       if (unsyncedChangesRef.current) {
-        await syncProgressToServer(true);
+        await saveProgressManually();
         unsyncedChangesRef.current = false;
       }
       
@@ -1833,7 +1723,7 @@ function QuizPage(): JSX.Element {
     questionSet, 
     questionSetId, 
     originalQuestions, 
-    syncProgressToServer, 
+    saveProgressManually, 
     navigate,
     socket,
     user,
@@ -2144,6 +2034,43 @@ function QuizPage(): JSX.Element {
           </button>
           
           <div className="flex items-center">
+            {/* 添加保存进度按钮 */}
+            <button
+              onClick={saveProgressManually}
+              disabled={isSaving || !hasUnsavedChanges}
+              className={`flex items-center px-3 py-1 mr-4 rounded text-sm ${
+                isSaving 
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                  : hasUnsavedChanges
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                    : 'bg-gray-100 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              {isSaving ? (
+                <>
+                  <svg className="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  {hasUnsavedChanges ? '保存进度' : '已保存'}
+                </>
+              )}
+            </button>
+
+            {/* 显示上次保存时间 */}
+            {lastSavedTime > 0 && (
+              <div className={`text-xs mr-4 ${showSaveSuccess ? 'text-green-600' : 'text-gray-500'}`}>
+                {showSaveSuccess ? '保存成功!' : `上次保存: ${new Date(lastSavedTime).toLocaleTimeString()}`}
+              </div>
+            )}
+
+            {/* 现有按钮和内容 */}
             {/* 添加试用模式下的购买和兑换按钮 */}
             {(quizStatus.isInTrialMode || (questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz)) && (
               <div className="flex mr-4 space-x-2">
@@ -2233,13 +2160,12 @@ function QuizPage(): JSX.Element {
             onNext={handleNextQuestion}
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
-            hasFullAccess={quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed || checkFullAccessFromAllSources()}
+            hasFullAccess={true} // 始终允许访问所有题目，确保流畅体验
             questionSetId={questionSetId || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
-            isSubmittingAnswer={isSubmittingRef.current}
-            // 添加新属性指示是否已达到试用限制
-            trialLimitReached={isTrialLimitReached()}
+            isSubmittingAnswer={false} // 移除提交锁定
+            trialLimitReached={false}  // 移除试用限制检查
           />
         )}
         
