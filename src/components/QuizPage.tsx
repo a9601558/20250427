@@ -227,7 +227,7 @@ function QuizPage(): JSX.Element {
         // 主动检查一次权限
         setTimeout(() => {
           console.log(`[Socket事件] 购买后延迟检查权限`);
-          checkAccess();
+          checkAccess(false); // 购买成功后需要完整权限检查，包括试用状态
         }, 300);
       }
     };
@@ -396,13 +396,43 @@ function QuizPage(): JSX.Element {
     } else {
       setTrialEnded(false);
     }
-  }, [answeredQuestions.length, questionSet, checkFullAccessFromAllSources]);
+  }, [questionSet, checkFullAccessFromAllSources]); // 移除 answeredQuestions.length 避免答题时无限循环检查
+
+  // 添加单独的 useEffect 在每次回答问题时高效检查试用状态
+  const previousAnsweredCountRef = useRef(0);
+  useEffect(() => {
+    // 只在回答数量变化且达到或超过试用题目限制时检查
+    if (!questionSet?.trialQuestions) return;
+    
+    // 如果之前未达到限制，但现在达到了，才重新检查权限
+    const wasAtLimit = previousAnsweredCountRef.current >= questionSet.trialQuestions;
+    const isAtLimit = answeredQuestions.length >= questionSet.trialQuestions;
+    
+    if (!wasAtLimit && isAtLimit) {
+      console.log(`[QuizPage] 刚好达到试用题目限制 (${answeredQuestions.length}/${questionSet.trialQuestions})，检查访问权限`);
+      if (!checkFullAccessFromAllSources()) {
+        setTrialEnded(true);
+      }
+    }
+    
+    // 更新引用值
+    previousAnsweredCountRef.current = answeredQuestions.length;
+  }, [answeredQuestions.length, questionSet?.trialQuestions, checkFullAccessFromAllSources]);
+
+  // 添加一个单独的函数来检查试用状态
+  const checkTrialStatus = useCallback((): boolean => {
+    if (!questionSet?.trialQuestions) return false;
+    
+    const isAtTrialLimit = answeredQuestions.length >= questionSet.trialQuestions;
+    console.log(`[checkTrialStatus] 已答题数 ${answeredQuestions.length} >= 试用题数 ${questionSet.trialQuestions}, 结果: ${isAtTrialLimit}`);
+    return isAtTrialLimit;
+  }, [questionSet?.trialQuestions, answeredQuestions.length]);
 
   // 在权限检查函数中增强对兑换状态的识别
-  const checkAccess = async () => {
+  const checkAccess = async (skipTrialCheck = false) => {
     if (!questionSet) return;
     
-    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 已兑换状态: ${hasRedeemed}`);
+    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 已兑换状态: ${hasRedeemed}, skipTrialCheck: ${skipTrialCheck}`);
     
     // 首先全面检查所有可能的访问权限来源
     const hasFullAccess = checkFullAccessFromAllSources();
@@ -447,9 +477,10 @@ function QuizPage(): JSX.Element {
       setHasAccessToFullQuiz(false);
       saveAccessToLocalStorage(questionSet.id, false);
       
-      // 检查试用状态
-      if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
-        setTrialEnded(true);
+      // 检查试用状态 - 只有当不跳过试用检查时
+      if (!skipTrialCheck && questionSet.trialQuestions) {
+        const trialStatus = checkTrialStatus();
+        setTrialEnded(trialStatus);
       }
       return;
     }
@@ -548,10 +579,9 @@ function QuizPage(): JSX.Element {
       console.log(`[checkAccess] 用户有访问权限，重置试用结束状态`);
       setTrialEnded(false);
     }
-    // 如果没有访问权限，检查试用状态
-    else if (questionSet.trialQuestions) {
-      const trialStatus = answeredQuestions.length >= questionSet.trialQuestions;
-      console.log(`[checkAccess] 试用状态检查: 已答题数 ${answeredQuestions.length} >= 试用题数 ${questionSet.trialQuestions}, 结果: ${trialStatus}`);
+    // 如果没有访问权限，检查试用状态 - 只有当不跳过试用检查时
+    else if (!skipTrialCheck && questionSet.trialQuestions) {
+      const trialStatus = checkTrialStatus();
       setTrialEnded(trialStatus);
     }
 
@@ -571,8 +601,9 @@ function QuizPage(): JSX.Element {
     if (user && user.purchases) {
       console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
-    checkAccess();
-  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, hasRedeemed]);
+    // 调用checkAccess并跳过试用状态检查，因为我们在单独的useEffect中处理试用状态
+    checkAccess(true); // 传入true表示跳过试用状态检查，避免重复检查
+  }, [questionSet, user, user?.purchases?.length, hasRedeemed]); // 移除 answeredQuestions.length，避免答题过程中无限循环
   
   // 获取题库和题目数据
   useEffect(() => {
@@ -849,7 +880,7 @@ function QuizPage(): JSX.Element {
         // 刷新数据
         if (effectiveId === currentQuestionSetId || customEvent.detail?.forceRefresh) {
           console.log(`[QuizPage] 强制刷新数据`);
-          checkAccess();
+          checkAccess(false); // 兑换成功后需要完整检查
         }
       }
     };
@@ -867,7 +898,7 @@ function QuizPage(): JSX.Element {
     if (!showPaymentModal && !showRedeemCodeModal) {
       // 模态窗口关闭时，再次检查访问权限，确保状态一致
       console.log('[QuizPage] 模态窗口关闭，重新检查访问权限');
-      checkAccess();
+      checkAccess(true); // 不需要检查试用状态，只需检查权限更新
     }
   }, [showPaymentModal, showRedeemCodeModal]);
   
@@ -2070,7 +2101,7 @@ function QuizPage(): JSX.Element {
       
       // 如果收到同步事件，强制重新检查权限
       if (questionSet) {
-        checkAccess();
+        checkAccess(true); // 设备同步时只关注权限，不必检查试用状态
       }
     };
     
@@ -2104,7 +2135,7 @@ function QuizPage(): JSX.Element {
       // 如果事件是针对当前用户，重新检查访问权限
       if (customEvent.detail?.userId === user.id) {
         console.log('[QuizPage] 更新后重新检查访问权限');
-        checkAccess();
+        checkAccess(false); // 权限更新事件，需要完整检查
       }
     };
     
