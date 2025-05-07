@@ -392,13 +392,25 @@ function QuizPage(): JSX.Element {
     
     console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 已兑换状态: ${hasRedeemed}`);
     
-    // 首先全面检查所有可能的访问权限来源
+    // 免费题库直接授予权限并返回 - 最优先检查
+    if (!questionSet.isPaid) {
+      console.log(`[checkAccess] 免费题库，直接授予访问权限`);
+      setHasAccessToFullQuiz(true);
+      saveAccessToLocalStorage(questionSet.id, true);
+      // 确保不会显示购买相关UI
+      setTrialEnded(false);
+      setShowPurchasePage(false);
+      return;
+    }
+    
+    // 然后全面检查所有可能的访问权限来源
     const hasFullAccess = checkFullAccessFromAllSources();
     if (hasFullAccess) {
       console.log(`[checkAccess] 全面检查发现用户有访问权限`);
       setHasAccessToFullQuiz(true);
       saveAccessToLocalStorage(questionSet.id, true);
       setTrialEnded(false);
+      setShowPurchasePage(false);
       return;
     }
     
@@ -408,6 +420,7 @@ function QuizPage(): JSX.Element {
       setHasAccessToFullQuiz(true);
       saveAccessToLocalStorage(questionSet.id, true);
       setTrialEnded(false);
+      setShowPurchasePage(false);
       return;
     }
     
@@ -417,27 +430,24 @@ function QuizPage(): JSX.Element {
       console.log(`[checkAccess] 本地存储显示用户有访问权限，直接授权访问`);
       setHasAccessToFullQuiz(true);
       setTrialEnded(false);
+      setShowPurchasePage(false);
       return;
     }
     
-    // 如果是免费题库，直接授权访问
-    if (!questionSet.isPaid) {
-      console.log(`[checkAccess] 免费题库，允许访问`);
-      setHasAccessToFullQuiz(true);
-      saveAccessToLocalStorage(questionSet.id, true);
-      setTrialEnded(false); // 确保重置试用状态
-      return;
-    }
+    // 到这里说明是付费题库，并且用户没有完整访问权限 - 要设置试用模式
+    console.log(`[checkAccess] 付费题库且用户无完整权限，进入试用模式判断`);
     
-    // 未登录用户不检查权限，在需要时会提示登录
+    // 未登录用户
     if (!user) {
       console.log(`[checkAccess] 用户未登录，无权限`);
       setHasAccessToFullQuiz(false);
       saveAccessToLocalStorage(questionSet.id, false);
       
-      // 检查试用状态
+      // 检查试用状态，但不立即显示购买页面（这会由其他useEffect处理）
       if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
         setTrialEnded(true);
+      } else {
+        setTrialEnded(false);
       }
       return;
     }
@@ -466,24 +476,14 @@ function QuizPage(): JSX.Element {
         console.log(`[checkAccess] 购买记录 #${index}: ID="${purchaseId}", 匹配=${match}, 状态=${p.status}, 有效期=${p.expiryDate}, 已过期=${isExpired}`);
       });
       
-      // 改进购买记录匹配机制，使用更宽松的比较，避免ID格式差异问题
+      // 改进购买记录匹配机制
       const purchase = user.purchases.find(p => {
         // 标准化两个ID进行比较
         const purchaseSetId = String(p.questionSetId).trim();
         const targetId = String(questionSet.id).trim();
         
-        // 检查是否匹配
-        const isExactMatch = purchaseSetId === targetId;
-        
-        // 添加二次检查 - 有时ID可能包含了前缀或后缀
-        const containsId = purchaseSetId.includes(targetId) || targetId.includes(purchaseSetId);
-        const similarLength = Math.abs(purchaseSetId.length - targetId.length) <= 2;
-        const isPartialMatch = containsId && similarLength;
-        
-        const result = isExactMatch || isPartialMatch;
-        console.log(`[checkAccess] 比较 "${purchaseSetId}" 与 "${targetId}": 精确匹配=${isExactMatch}, 部分匹配=${isPartialMatch}, 最终结果=${result}`);
-        
-        return result;
+        // 仅使用精确匹配
+        return purchaseSetId === targetId;
       });
       
       if (purchase) {
@@ -559,6 +559,16 @@ function QuizPage(): JSX.Element {
     if (user && user.purchases) {
       console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
+    
+    // 确保页面加载时不会显示购买弹窗
+    if (questionSet && !questionSet.isPaid) {
+      console.log(`[useEffect] 检测到免费题库，确保不会显示购买弹窗`);
+      setHasAccessToFullQuiz(true);
+      setTrialEnded(false);
+      setShowPurchasePage(false);
+      saveAccessToLocalStorage(questionSet.id, true);
+    }
+    
     checkAccess();
   }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, hasRedeemed]);
   
@@ -706,6 +716,15 @@ function QuizPage(): JSX.Element {
           console.log(`[QuizPage] 题库数据处理: isPaid=${questionSetData.isPaid}, trialQuestions=${questionSetData.trialQuestions}`);
           
           setQuestionSet(questionSetData);
+          
+          // 免费题库直接授予访问权限，不显示购买页面
+          if (!questionSetData.isPaid) {
+            console.log(`[QuizPage] 免费题库，授予访问权限`);
+            setHasAccessToFullQuiz(true);
+            setTrialEnded(false);
+            setShowPurchasePage(false);
+            saveAccessToLocalStorage(questionSetData.id, true);
+          }
           
           // 修改试用模式初始化逻辑
           if (isExplicitTrialMode) {
@@ -2044,7 +2063,9 @@ function QuizPage(): JSX.Element {
     
     // 如果用户有完整权限访问，确保不会显示购买页面
     if (hasAccessToFullQuiz || hasRedeemed || !questionSet.isPaid) {
+      console.log(`[QuizPage] 用户有访问权限或题库免费，确保不显示购买页面`);
       if (showPurchasePage) setShowPurchasePage(false);
+      if (trialEnded) setTrialEnded(false);
       return;
     }
     
@@ -2052,8 +2073,11 @@ function QuizPage(): JSX.Element {
     if (trialEnded && questionSet.isPaid) {
       console.log('[QuizPage] 试用已结束，显示购买页面');
       if (!showPurchasePage) setShowPurchasePage(true);
+    } else {
+      // 确保初始加载时不显示购买页面
+      if (showPurchasePage) setShowPurchasePage(false);
     }
-  }, [trialEnded, questionSet, hasAccessToFullQuiz, hasRedeemed, showPurchasePage]);
+  }, [questionSet, hasAccessToFullQuiz, hasRedeemed, trialEnded, showPurchasePage]);
   
   // 修改渲染函数，确保PurchasePage优先显示
   return (
