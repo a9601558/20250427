@@ -103,6 +103,14 @@ interface ProgressData {
   [key: string]: any;
 }
 
+// 添加接口定义用于保存的进度数据
+interface SavedQuestionProgress {
+  index: number;
+  questionIndex: number;
+  isCorrect: boolean;
+  selectedOption: string | string[];
+}
+
 function QuizPage(): JSX.Element {
   const { questionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -1098,7 +1106,110 @@ function QuizPage(): JSX.Element {
     }
   }, [user?.id, questionSetId, socket, quizTotalTime]);
 
-  // 修改handleAnswerSubmit函数，只在本地保存进度
+  // 初始化问答状态
+  const initQuizState = useCallback(() => {
+    if (!questions || questions.length === 0) {
+      console.log('[QuizPage] 没有问题数据，无法初始化');
+      return;
+    }
+    
+    console.log(`[QuizPage] 初始化问答状态 - 共${questions.length}题`);
+    
+    // 检查本地存储中是否有保存的进度
+    try {
+      const localProgressKey = `quiz_progress_${questionSetId}`;
+      const savedProgressStr = localStorage.getItem(localProgressKey);
+      
+      if (savedProgressStr) {
+        const savedProgress = JSON.parse(savedProgressStr);
+        console.log('[QuizPage] 找到本地保存的进度:', savedProgress);
+        
+        // 确认进度数据有效且不超过24小时
+        const lastUpdated = new Date(savedProgress.lastUpdated || 0);
+        const now = new Date();
+        const hoursSinceLastUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceLastUpdate < 24 && 
+            savedProgress.answeredQuestions && 
+            Array.isArray(savedProgress.answeredQuestions)) {
+          
+          // 检查是否有 lastQuestionIndex，确保在有效范围内
+          let startIndex = 0;
+          if (savedProgress.lastQuestionIndex !== undefined && 
+              savedProgress.lastQuestionIndex >= 0 && 
+              savedProgress.lastQuestionIndex < questions.length) {
+            startIndex = savedProgress.lastQuestionIndex;
+          } 
+          // 否则基于已答题记录计算下一题位置
+          else if (savedProgress.answeredQuestions.length > 0) {
+            // 找出最大的已答题索引
+            const indices = savedProgress.answeredQuestions
+              .filter((q: SavedQuestionProgress) => q.questionIndex !== undefined)
+              .map((q: SavedQuestionProgress) => q.questionIndex);
+            
+            if (indices.length > 0) {
+              const maxAnsweredIndex = Math.max(...indices);
+              // 从下一题开始，但不超过题目总数
+              startIndex = Math.min(maxAnsweredIndex + 1, questions.length - 1);
+            }
+          }
+          
+          console.log(`[QuizPage] 从本地进度恢复: 从第${startIndex + 1}题开始`);
+          setCurrentQuestionIndex(startIndex);
+          
+          // 恢复已回答问题列表
+          const validAnsweredQuestions = savedProgress.answeredQuestions
+            .filter((q: SavedQuestionProgress) => q.questionIndex !== undefined && q.questionIndex < questions.length)
+            .map((q: SavedQuestionProgress) => ({
+              index: q.index || 0,
+              questionIndex: q.questionIndex,
+              isCorrect: q.isCorrect || false,
+              selectedOption: q.selectedOption || ''
+            }));
+          
+          console.log('[QuizPage] 恢复已回答问题列表:', validAnsweredQuestions.length, '道题');
+          setAnsweredQuestions(validAnsweredQuestions);
+          
+          // 计算正确答题数
+          const correctCount = validAnsweredQuestions.filter((q: SavedQuestionProgress) => q.isCorrect).length;
+          setCorrectAnswers(correctCount);
+          
+          // 从本地存储恢复后，仍需请求服务器进度
+          if (socket && user?.id) {
+            console.log('[QuizPage] 恢复本地进度后，请求服务器进度以确保最新');
+            socket.emit('progress:get', {
+              userId: user.id,
+              questionSetId
+            });
+          }
+          
+          // 设置加载状态完成
+          return;
+        } else {
+          console.log('[QuizPage] 本地进度已过期或无效，使用新进度');
+        }
+      } else {
+        console.log('[QuizPage] 未找到本地保存的进度');
+      }
+    } catch (e) {
+      console.error('[QuizPage] 读取本地进度时出错:', e);
+    }
+    
+    // 没有有效的本地进度时，从第一题开始并请求服务器进度
+    setCurrentQuestionIndex(0);
+    setAnsweredQuestions([]);
+    setCorrectAnswers(0);
+    
+    if (socket && user?.id) {
+      console.log('[QuizPage] 请求服务器进度数据');
+      socket.emit('progress:get', {
+        userId: user.id,
+        questionSetId
+      });
+    }
+  }, [questions, questionSetId, socket, user?.id]);
+
+  // 修改handleAnswerSubmit函数，增强保存进度的逻辑
   const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
     if (isSubmittingRef.current) {
       console.log('已在提交答案中，忽略重复请求');
@@ -1145,19 +1256,29 @@ function QuizPage(): JSX.Element {
 
     setAnsweredQuestions(updatedAnsweredQuestions);
 
-    // 更新本地存储 - 增强保存策略，确保更准确地保存进度
+    // 增强本地存储策略 - 确保更准确地保存进度
     console.log("[QuizPage] 更新本地进度:", updatedAnsweredQuestions.length);
     
-    // 更新本地存储
+    // 更新正确答题计数
+    const correctCount = updatedAnsweredQuestions.filter(q => q.isCorrect).length;
+    setCorrectAnswers(correctCount);
+    
+    // 立即保存当前题目索引和答题记录到本地存储
     const localProgressKey = `quiz_progress_${questionSetId}`;
-    localStorage.setItem(localProgressKey, JSON.stringify({
-      lastQuestionIndex: currentQuestionIndex,
-      answeredQuestions: updatedAnsweredQuestions,
-      lastUpdated: new Date().toISOString(),
-      correctAnswers: updatedAnsweredQuestions.filter(q => q.isCorrect).length,
-      totalAnswered: updatedAnsweredQuestions.length,
-      totalQuestions: questions.length
-    }));
+    try {
+      localStorage.setItem(localProgressKey, JSON.stringify({
+        lastQuestionIndex: currentQuestionIndex,
+        answeredQuestions: updatedAnsweredQuestions,
+        lastUpdated: new Date().toISOString(),
+        correctAnswers: correctCount,
+        totalAnswered: updatedAnsweredQuestions.length,
+        totalQuestions: questions.length,
+        pendingSync: true // 标记为待同步，确保下次打开时会同步
+      }));
+      console.log(`[QuizPage] 已保存当前进度到本地存储, 当前题目: ${currentQuestionIndex + 1}`);
+    } catch (error) {
+      console.error('[QuizPage] 保存进度到本地存储失败:', error);
+    }
 
     // 标记有未同步的更改
     unsyncedChangesRef.current = true;
@@ -1208,14 +1329,28 @@ function QuizPage(): JSX.Element {
       syncProgressToServer();
     }
     
-    // 检查是否为试用模式且已达到题目限制
-    if (questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && 
-        questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
-      // 显示提示信息
-      toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题");
-      // 显示购买或兑换选项
-      setShowPaymentModal(true);
+    // 增强对试用模式的检查：优先使用全局检查而不是组件内状态
+    const isAtTrialLimit = questionSet?.isPaid && 
+                           !hasAccessToFullQuiz && 
+                           !hasRedeemed && 
+                           questionSet.trialQuestions && 
+                           answeredQuestions.length >= questionSet.trialQuestions;
+    
+    // 以前达到上限条件检查可能不够严格，现在强制检查
+    if (isAtTrialLimit) {
+      console.log(`[QuizPage] 已达到试用题目上限(${answeredQuestions.length}/${questionSet.trialQuestions})，强制试用结束`);
+      
+      // 立即设置试用结束状态
       setTrialEnded(true);
+      
+      // 显示提示信息
+      toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题", {
+        position: "top-center",
+        autoClose: 5000
+      });
+      
+      // 立即显示购买或兑换选项，不进入下一题
+      setShowPaymentModal(true);
       return;
     }
     
@@ -2098,35 +2233,34 @@ function QuizPage(): JSX.Element {
 
   // 修改判断显示购买提示的条件，确保有完整权限验证
   // 使用现有的函数做权限判断
-  const shouldShowPurchasePrompt = () => {
+  const shouldShowPurchasePrompt = useCallback((): boolean => {
     // 如果没有加载完成或者出错，不显示提示
     if (!questionSet || error || loading) return false;
     
     // 首先检查所有可能的访问权限来源
     const hasFullAccess = checkFullAccessFromAllSources();
     
-    // 试用题目数量的非空检查
-    const trialQuestionsAvailable = questionSet?.trialQuestions !== undefined && 
-                                    questionSet?.trialQuestions !== null;
-    
-    // 获取试用题目数量（安全处理）
-    const trialQuestionsCount = questionSet?.trialQuestions ?? 0;
+    // 如果已经有完整访问权限，不显示提示
+    if (hasFullAccess) return false;
     
     // 显示购买提示的条件：
     // 1. 确实是付费题库
     // 2. 用户没有任何访问权限
-    // 3. 满足以下条件之一：
-    //    a. 已经超过试用题目数量
-    //    b. 试用已结束（trialEnded 标志）
+    // 3. 试用已结束或达到了试用题目数量
     return (
       questionSet.isPaid && 
       !hasFullAccess && 
-      !hasRedeemed &&
-      ((trialQuestionsAvailable &&
-        answeredQuestions.length >= trialQuestionsCount) || 
-       trialEnded)
+      (isInTrialMode && answeredQuestions.length >= (questionSet.trialQuestions || 0) || trialEnded)
     );
-  };
+  }, [
+    questionSet, 
+    error, 
+    loading, 
+    checkFullAccessFromAllSources, 
+    isInTrialMode,
+    answeredQuestions.length, 
+    trialEnded
+  ]);
   
   // 修复跨设备同步问题 - 确保页面加载完成后立即执行全面权限检查
   useEffect(() => {

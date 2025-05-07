@@ -139,6 +139,18 @@ const QuestionCard = ({
       return;
     }
     
+    // 增加试用模式检查，确保不能超过试用题目数量
+    if (isTrialMode && !hasFullAccess && trialQuestions && questionNumber > trialQuestions) {
+      console.log(`[QuestionCard] 已超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
+      
+      // 显示购买或兑换提示
+      toast.info(`您已完成${trialQuestions}道试用题目。请购买完整题库或使用兑换码继续答题。`);
+      
+      // 立即显示购买或兑换模态窗口
+      setShowRedeemCodeModal(true);
+      return;
+    }
+    
     // 单选题模式
     if (question.questionType === 'single') {
       if (selectedOptions.includes(optionId)) {
@@ -146,9 +158,12 @@ const QuestionCard = ({
       }
       setSelectedOptions([optionId]);
       
-      // 单选题可自动提交
-      console.log('[QuestionCard] 单选题自动提交答案');
+      // 修改单选题自动提交逻辑，增加安全检查和延时确认
+      console.log('[QuestionCard] 单选题选择选项:', optionId);
       
+      // 改为只选择但不自动提交，等用户手动提交
+      // 这样可以避免意外选择和自动提交问题
+      /*
       // 延迟提交，给用户时间看清自己的选择
       isSubmittingRef.current = true;
       
@@ -167,6 +182,7 @@ const QuestionCard = ({
         console.error('[QuestionCard] 提交选项出错:', error);
         isSubmittingRef.current = false;
       }
+      */
     } 
     // 多选题模式
     else {
@@ -307,8 +323,33 @@ const QuestionCard = ({
     }
   };
 
+  // 增强试用模式检查，确保处理边界情况
+  const canSubmitAnswer = useCallback(() => {
+    // 如果已经提交过，不能再次提交
+    if (isSubmittingRef.current || isSubmitted) return false;
+    
+    // 试用模式特殊处理 - 确保不能超过试用题目数量
+    if (isTrialMode && !hasFullAccess && trialQuestions && questionNumber > trialQuestions) {
+      console.log(`[QuestionCard] 已超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
+      // 显示购买或兑换提示
+      toast.info(`您已完成${trialQuestions}道试用题目。请购买完整题库或使用兑换码继续答题。`, {
+        position: "top-center",
+        autoClose: 5000,
+      });
+      
+      // 立即显示购买或兑换模态窗口
+      setShowRedeemCodeModal(true);
+      return false;
+    }
+    
+    return true;
+  }, [isSubmitted, isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
+
+  // 修改handleSubmit函数，确保试用模式检查
   const handleSubmit = async () => {
-    if (isSubmittingRef.current || isSubmitted) return;
+    // 增加试用模式安全检查
+    if (!canSubmitAnswer()) return;
+    
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
