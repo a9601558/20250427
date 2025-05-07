@@ -44,7 +44,9 @@ const AnswerCard: React.FC<{
   answeredQuestions: AnsweredQuestion[];
   currentIndex: number;
   onJump: (index: number) => void;
-}> = ({ totalQuestions, answeredQuestions, currentIndex, onJump }) => {
+  trialLimit?: number;  // 添加试用题目限制参数
+  isTrialMode?: boolean; // 添加试用模式标志
+}> = ({ totalQuestions, answeredQuestions, currentIndex, onJump, trialLimit, isTrialMode }) => {
   return (
     <div className="bg-white shadow-md rounded-lg p-4 mb-6">
       <h3 className="text-md font-medium mb-3">答题卡</h3>
@@ -53,17 +55,21 @@ const AnswerCard: React.FC<{
           const isAnswered = answeredQuestions.some(q => q.index === index);
           const isCorrect = answeredQuestions.some(q => q.index === index && q.isCorrect);
           const isCurrent = currentIndex === index;
+          const isDisabled = isTrialMode && trialLimit ? index >= trialLimit : false;
           
           let bgColor = 'bg-gray-100'; // 默认未答题
           if (isCurrent) bgColor = 'bg-blue-500 text-white'; // 当前题目
           else if (isCorrect) bgColor = 'bg-green-100'; // 已答对
           else if (isAnswered) bgColor = 'bg-red-100'; // 已答错
+          else if (isDisabled) bgColor = 'bg-gray-300'; // 超出试用限制
           
           return (
             <button
               key={index}
-              onClick={() => onJump(index)}
-              className={`w-8 h-8 ${bgColor} rounded-md flex items-center justify-center text-sm font-medium hover:opacity-80 transition-all`}
+              onClick={() => !isDisabled && onJump(index)}
+              className={`w-8 h-8 ${bgColor} rounded-md flex items-center justify-center text-sm font-medium ${isDisabled ? 'cursor-not-allowed opacity-60' : 'hover:opacity-80 transition-all'}`}
+              disabled={isDisabled}
+              title={isDisabled ? "超出试用题目范围" : `跳转到第${index + 1}题`}
             >
               {index + 1}
             </button>
@@ -1101,6 +1107,16 @@ function QuizPage(): JSX.Element {
       syncProgressToServer();
     }
     
+    // 检查是否为试用模式且已达到题目限制
+    if (questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && 
+        questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
+      // 显示提示信息
+      toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题");
+      // 显示购买或兑换选项
+      setShowPaymentModal(true);
+      return;
+    }
+    
     // 如果已经是最后一题，标记为完成并同步所有数据
     if (currentQuestionIndex === questions.length - 1) {
       syncProgressToServer(true).then(() => {
@@ -1113,7 +1129,16 @@ function QuizPage(): JSX.Element {
     setCurrentQuestionIndex(prevIndex => prevIndex + 1);
     setSelectedOptions([]);
     setShowExplanation(false);
-  }, [currentQuestionIndex, questions.length, answeredQuestions.length, syncProgressToServer]);
+  }, [
+    currentQuestionIndex, 
+    questions.length, 
+    answeredQuestions.length, 
+    syncProgressToServer, 
+    questionSet,
+    hasAccessToFullQuiz,
+    hasRedeemed,
+    setShowPaymentModal
+  ]);
 
   // 添加定期同步逻辑
   useEffect(() => {
@@ -2731,10 +2756,19 @@ function QuizPage(): JSX.Element {
                     totalQuestions={questions.length}
                     answeredQuestions={answeredQuestions}
                     currentIndex={currentQuestionIndex}
+                    trialLimit={questionSet.trialQuestions}
+                    isTrialMode={questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed}
                     onJump={(index) => {
                       // 如果试用已结束且没有购买，不允许跳转
                       if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
                         console.log(`[QuizPage] 试用已结束，无法跳转到第 ${index + 1} 题`);
+                        return;
+                      }
+                      
+                      // 检查是否超出试用题目范围
+                      if (questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed && 
+                          questionSet.trialQuestions && index >= questionSet.trialQuestions) {
+                        toast.info("试用模式仅可以查看前" + questionSet.trialQuestions + "道题，请购买完整版或使用兑换码");
                         return;
                       }
                       
