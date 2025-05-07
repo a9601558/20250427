@@ -602,7 +602,9 @@ function QuizPage(): JSX.Element {
       console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
     // 调用checkAccess并跳过试用状态检查，因为我们在单独的useEffect中处理试用状态
-    checkAccess(true); // 传入true表示跳过试用状态检查，避免重复检查
+    if (questionSet) { // 确保questionSet存在
+      checkAccess(true); // 传入true表示跳过试用状态检查，避免重复检查
+    }
   }, [questionSet, user, user?.purchases?.length, hasRedeemed]); // 移除 answeredQuestions.length，避免答题过程中无限循环
   
   // 获取题库和题目数据
@@ -893,14 +895,16 @@ function QuizPage(): JSX.Element {
     };
   }, [questionSet, checkAccess]);
   
-  // 监听模态窗口状态变化，重新检查访问权限
+  // 修改事件监听时对checkAccess的调用，阻止无限循环
   useEffect(() => {
     if (!showPaymentModal && !showRedeemCodeModal) {
       // 模态窗口关闭时，再次检查访问权限，确保状态一致
       console.log('[QuizPage] 模态窗口关闭，重新检查访问权限');
-      checkAccess(true); // 不需要检查试用状态，只需检查权限更新
+      if (questionSet) { // 确保questionSet存在
+        checkAccess(true); // 不需要检查试用状态，只需检查权限更新
+      }
     }
-  }, [showPaymentModal, showRedeemCodeModal]);
+  }, [showPaymentModal, showRedeemCodeModal, questionSet]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
@@ -1115,51 +1119,56 @@ function QuizPage(): JSX.Element {
     syncProgressToServer
   ]);
 
-  // 在handleNextQuestion函数后添加定期同步逻辑
+  // 完全重写handleNextQuestion函数，移除不必要的依赖，确保功能正常
   const handleNextQuestion = useCallback(() => {
-    console.log('[QuizPage] 调用handleNextQuestion，当前题目:', currentQuestionIndex, '总题数:', questions.length);
+    console.log('[QuizPage] handleNextQuestion调用 - 准备移动到下一题');
+    console.log(`[QuizPage] 当前题目索引: ${currentQuestionIndex}, 总题目数: ${questions.length}`);
     
-    // 如果有未同步的数据且已经累积了多个回答，定期同步
-    if (unsyncedChangesRef.current && answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
-      // 每答完5题同步一次
-      syncProgressToServer();
-    }
-    
-    // 如果已经是最后一题，标记为完成并同步所有数据
-    if (currentQuestionIndex === questions.length - 1) {
-      console.log('[QuizPage] 已经是最后一题，标记为完成');
-      syncProgressToServer(true).then(() => {
-        setQuizComplete(true);
-        console.log('[QuizPage] 测验完成，已标记为完成');
-      });
-      return;
-    }
-    
-    // 否则跳转到下一题
-    console.log('[QuizPage] 跳转到下一题:', currentQuestionIndex + 1);
-    setCurrentQuestionIndex(prevIndex => {
-      const nextIndex = prevIndex + 1;
-      console.log('[QuizPage] 设置新的题目索引:', nextIndex);
-      
-      // 更新本地存储中的位置
-      try {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
-        const existingData = localStorage.getItem(localProgressKey);
-        if (existingData) {
-          const progressData = JSON.parse(existingData);
-          progressData.lastQuestionIndex = nextIndex;
-          progressData.lastUpdated = new Date().toISOString();
-          localStorage.setItem(localProgressKey, JSON.stringify(progressData));
-        }
-      } catch (e) {
-        console.error('[QuizPage] 更新本地进度失败:', e);
+    try {
+      // 检查是否是最后一题
+      if (currentQuestionIndex >= questions.length - 1) {
+        console.log('[QuizPage] 已经是最后一题，同步进度并标记为完成');
+        
+        // 同步进度并标记为完成
+        syncProgressToServer(true).then(() => {
+          setQuizComplete(true);
+          console.log('[QuizPage] 测验标记为完成');
+        });
+        return;
       }
       
-      return nextIndex;
-    });
-    setSelectedOptions([]);
-    setShowExplanation(false);
-  }, [currentQuestionIndex, questions.length, answeredQuestions.length, syncProgressToServer, questionSetId]);
+      // 移动到下一题
+      console.log('[QuizPage] 设置新题目索引:', currentQuestionIndex + 1);
+      setCurrentQuestionIndex(prevIndex => {
+        const nextIndex = prevIndex + 1;
+        console.log('[QuizPage] 新题目索引设置为:', nextIndex);
+        
+        // 更新本地存储
+        try {
+          const localProgressKey = `quiz_progress_${questionSetId}`;
+          const existingData = localStorage.getItem(localProgressKey);
+          if (existingData) {
+            const progressData = JSON.parse(existingData);
+            progressData.lastQuestionIndex = nextIndex;
+            progressData.lastUpdated = new Date().toISOString();
+            localStorage.setItem(localProgressKey, JSON.stringify(progressData));
+            console.log('[QuizPage] 已更新本地进度，新索引:', nextIndex);
+          }
+        } catch (e) {
+          console.error('[QuizPage] 更新本地进度失败:', e);
+        }
+        
+        return nextIndex;
+      });
+      
+      // 重置状态
+      setSelectedOptions([]);
+      setShowExplanation(false);
+      console.log('[QuizPage] 已重置选项和解析状态');
+    } catch (error) {
+      console.error('[QuizPage] 处理下一题时出错:', error);
+    }
+  }, [currentQuestionIndex, questions.length, questionSetId, syncProgressToServer]);
 
   // 添加定期同步逻辑
   useEffect(() => {

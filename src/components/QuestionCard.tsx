@@ -410,18 +410,26 @@ const QuestionCard = ({
   const handleNext = () => {
     console.log('[QuestionCard] handleNext called - moving to next question');
     
+    // Debug information to identify potential issues
+    console.log(`[QuestionCard] Current state: isSubmitted=${isSubmitted}, showExplanation=${showExplanation}`);
+    console.log('[QuestionCard] onNext type:', typeof onNext);
+    
     // Clean up state for next question
     setSelectedOption(null);
     setSelectedOptions([]);
     setIsSubmitted(false);
     setShowExplanation(false);
     
-    // Explicitly call the onNext prop function
+    // Explicitly call the onNext prop function with better error handling
     if (typeof onNext === 'function') {
-      console.log('[QuestionCard] Calling onNext function from props');
-      onNext();
+      try {
+        console.log('[QuestionCard] Calling onNext function from props');
+        onNext();
+      } catch (error) {
+        console.error('[QuestionCard] Error calling onNext function:', error);
+      }
     } else {
-      console.error('[QuestionCard] onNext function is not properly defined');
+      console.error('[QuestionCard] onNext function is not properly defined, type:', typeof onNext);
     }
   };
   
