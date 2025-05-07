@@ -2,26 +2,30 @@ import { useState, useEffect, useRef, KeyboardEvent, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Question } from '../types';
 import QuestionOption from './QuestionOption';
+import RedeemCodeForm from './RedeemCodeForm';
 import { toast } from 'react-toastify';
 import { useUser } from '../contexts/UserContext';
-import { useSocket } from '../contexts/SocketContext';
 
-// 定义常量
-const STORAGE_KEYS = {
-  QUIZ_STATE_PREFIX: 'quiz_state_',
-  WRONG_ANSWER_PREFIX: 'wrong_answer_'
-};
-
-const EVENTS = {
-  WRONG_ANSWER_SAVE: 'wrongAnswer:save'
-};
-
-const TIMEOUTS = {
-  DEBOUNCE: 800,
-  SHORT: 300,
-  STANDARD: 500,
-  LONG: 1000
-};
+interface QuestionCardProps {
+  question: Question;
+  onAnswerSubmitted?: (isCorrect: boolean, selectedOption: string | string[]) => void;
+  onNext?: () => void;
+  isLast?: boolean;
+  isSubmittingAnswer?: boolean;
+  questionNumber?: number;
+  totalQuestions?: number;
+  quizTitle?: string;
+  userAnsweredQuestion?: { 
+    index: number; 
+    isCorrect: boolean; 
+    selectedOption: string | string[];
+  };
+  onJumpToQuestion?: (questionIndex: number) => void;
+  isPaid?: boolean;
+  hasFullAccess?: boolean;
+  trialQuestions?: number;
+  questionSetId: string;
+}
 
 // 提示语精简：提取为常量，便于后期i18n多语言
 const MESSAGES = {
@@ -38,60 +42,6 @@ const MESSAGES = {
   NEXT_QUESTION: '下一题'
 };
 
-interface QuestionWithCode extends Question {
-  code?: string;
-}
-
-interface QuestionCardProps {
-  question: QuestionWithCode;
-  onAnswerSubmitted?: (isCorrect: boolean, selectedOption: string | string[]) => void;
-  onNext?: () => void;
-  isLast?: boolean;
-  questionNumber?: number;
-  totalQuestions?: number;
-  quizTitle?: string;
-  userAnsweredQuestion?: { 
-    index: number; 
-    isCorrect: boolean; 
-    selectedOption: string | string[];
-  };
-  onJumpToQuestion?: (questionIndex: number) => void;
-  isPaid?: boolean;
-  hasFullAccess?: boolean;
-  trialQuestions?: number;
-  isTrialMode?: boolean;
-  questionSetId: string;
-}
-
-/**
- * 计算答案是否正确的通用函数
- * @param question 题目对象
- * @param selectedOptionOrOptions 用户选择的选项ID或ID数组
- * @returns 是否回答正确
- */
-const calculateIsCorrect = (question: QuestionWithCode, selectedOptionOrOptions: string | string[] | null): boolean => {
-  if (!question || !question.options || !selectedOptionOrOptions) return false;
-  
-  const selectedIds = Array.isArray(selectedOptionOrOptions) 
-    ? selectedOptionOrOptions 
-    : [selectedOptionOrOptions];
-
-  if (question.questionType === 'single') {
-    const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
-    return selectedIds[0] === correctOptionId;
-  } else { // multiple
-    const correctOptionIds = question.options
-      .filter(opt => opt.isCorrect)
-      .map(opt => opt.id);
-    
-    const lengthMatch = selectedIds.length === correctOptionIds.length;
-    const allSelectedAreCorrect = selectedIds.every(id => correctOptionIds.includes(id));
-    const allCorrectAreSelected = correctOptionIds.every(id => selectedIds.includes(id));
-    
-    return lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
-  }
-};
-
 const QuestionCard = ({ 
   question, 
   onNext = () => {}, 
@@ -104,25 +54,28 @@ const QuestionCard = ({
   isPaid = false,
   hasFullAccess = false,
   trialQuestions = 0,
-  isTrialMode = false,
   questionSetId,
-  isLast = false
+  isLast = false,
+  isSubmittingAnswer = false
 }: QuestionCardProps) => {
+  // 单选题选择一个选项，多选题选择多个选项
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(!!userAnsweredQuestion);
   const [showExplanation, setShowExplanation] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCorrectAnswer, setIsCorrectAnswer] = useState(false);
-  const isSubmittingRef = useRef<boolean>(false);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
   const navigate = useNavigate();
+  let timeoutId: NodeJS.Timeout | undefined;
   
   // 添加ref以防止重复点击和提交
+  const isSubmittingRef = useRef<boolean>(false);
   const answerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSubmitTimeRef = useRef<number>(0);
   
-  const { user } = useUser();
-  const { socket } = useSocket();
+  // 为键盘导航跟踪当前选项
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
+  
+  const { user, syncAccessRights } = useUser();
   
   // 当userAnsweredQuestion存在时预填选项
   useEffect(() => {
@@ -130,14 +83,198 @@ const QuestionCard = ({
       setIsSubmitted(true);
       if (question.questionType === 'single') {
         setSelectedOption(userAnsweredQuestion.selectedOption as string);
-        setSelectedOptions([userAnsweredQuestion.selectedOption as string]);
       } else {
         setSelectedOptions(userAnsweredQuestion.selectedOption as string[]);
       }
     }
   }, [userAnsweredQuestion, question.questionType]);
 
-  // 修改getOptionClass函数确保正确答案显示为绿色
+  // 修复的正确性检查逻辑
+  const isCorrect = userAnsweredQuestion
+    ? userAnsweredQuestion.isCorrect
+    : isSubmitted && (
+        question.questionType === 'single'
+          ? (() => {
+              // 找到正确选项的ID
+              const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+              return selectedOption === correctOptionId;
+            })()
+          : (() => {
+              // 对于多选题，找出所有正确选项的ID
+              const correctOptionIds = question.options
+                .filter(opt => opt.isCorrect)
+                .map(opt => opt.id);
+              
+              const lengthMatch = selectedOptions.length === correctOptionIds.length;
+              const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
+              const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+                
+              return (
+                lengthMatch &&
+                allSelectedAreCorrect &&
+                allCorrectAreSelected
+              );
+            })()
+      );
+
+  const handleOptionClick = (optionText: string, optionId: string) => {
+    if (isSubmittingRef.current) {
+      console.log('[QuestionCard] 正在提交答案中，忽略点击');
+      return;
+    }
+    
+    if (showExplanation) {
+      console.log('[QuestionCard] 已显示解析，忽略点击');
+      return;
+    }
+    
+    // 单选题模式
+    if (question.questionType === 'single') {
+      // 更新选择状态
+      setSelectedOption(optionId);
+      setSelectedOptions([optionId]);
+      
+      // 单选题可自动提交，但添加较短延迟避免意外点击
+      console.log('[QuestionCard] 单选题选中选项:', optionId);
+      
+      // 延迟提交，给用户时间看清自己的选择
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
+      }
+      
+      // 使用setTimeout自动提交单选题答案
+      answerTimeoutRef.current = setTimeout(() => {
+        console.log('[QuestionCard] 自动提交单选题答案', optionId);
+        
+        // 确保选项已被设置
+        if (selectedOptions.length === 0) {
+          setSelectedOptions([optionId]);
+        }
+        
+        // 调用提交函数
+        handleSubmit();
+      }, 500);
+    } 
+    // 多选题模式
+    else {
+      const updatedSelection = selectedOptions.includes(optionId)
+        ? selectedOptions.filter(id => id !== optionId)
+        : [...selectedOptions, optionId];
+      
+      setSelectedOptions(updatedSelection);
+      console.log('[QuestionCard] 多选题更新选项:', updatedSelection);
+    }
+  };
+
+  const handleSubmit = () => {
+    // 防重复提交机制
+    if (isSubmittingRef.current || isSubmitted) return;
+    isSubmittingRef.current = true;
+    
+    try {
+      // 先检查是否已选择答案
+      if (selectedOptions.length === 0) {
+        // 未选择任何选项，显示提示
+        toast?.('请至少选择一个选项', { type: 'warning' });
+        isSubmittingRef.current = false;
+        return;
+      }
+      
+      // 标记为已提交
+      setIsSubmitted(true);
+      
+      // 单选题处理
+      if (question.questionType === 'single') {
+        // 获取单选题的选择
+        const selectedId = selectedOptions[0];
+        const selectedText = question.options.find(opt => opt.id === selectedId)?.text || '';
+        
+        // 判断答案是否正确
+        const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+        const isCorrect = selectedId === correctOptionId;
+        
+        console.log(`[QuestionCard] 提交单选题: 选择=${selectedId}, 正确答案=${correctOptionId}, 正确=${isCorrect}`);
+        
+        // 显示解析
+        setShowExplanation(true);
+        
+        // 调用父组件回调
+        if (onAnswerSubmitted) {
+          onAnswerSubmitted(isCorrect, selectedId);
+        }
+        
+        // 处理错题保存和答对自动跳转
+        if (!isCorrect) {
+          // 保存错题
+          saveWrongAnswer(selectedId);
+        } else {
+          // 答对自动更快地跳到下一题
+          timeoutId = setTimeout(() => {
+            handleNext();
+          }, 400);
+        }
+      } 
+      // 多选题处理
+      else {
+        // 收集选择的选项ID和文本
+        const selectedIds = [...selectedOptions];
+        const selectedTexts = selectedIds.map(id => 
+          question.options.find(opt => opt.id === id)?.text || ''
+        );
+        
+        // 判断答案是否正确
+        const correctOptionIds = question.options
+          .filter(opt => opt.isCorrect)
+          .map(opt => opt.id);
+        
+        // 需要所有正确答案都被选中，且不能选错
+        const allCorrectSelected = correctOptionIds.every(id => selectedIds.includes(id));
+        const noIncorrectSelected = selectedIds.every(id => correctOptionIds.includes(id));
+        const isCorrect = allCorrectSelected && noIncorrectSelected;
+        
+        console.log(`[QuestionCard] 提交多选题: 选择=[${selectedIds.join(',')}], 正确答案=[${correctOptionIds.join(',')}], 正确=${isCorrect}`);
+        
+        // 显示解析
+        setShowExplanation(true);
+        
+        // 调用父组件回调
+        if (onAnswerSubmitted) {
+          onAnswerSubmitted(isCorrect, selectedIds);
+        }
+        
+        // 处理错题保存和答对自动跳转
+        if (!isCorrect) {
+          // 保存错题
+          saveWrongAnswer(selectedIds);
+        } else {
+          // 答对自动更快地跳到下一题
+          timeoutId = setTimeout(() => {
+            handleNext();
+          }, 400);
+        }
+      }
+      
+      // 允许跳转到下一题
+      setCanProceed(true);
+      
+      // 保存答题状态
+      saveCurrentState();
+      
+    } catch (error) {
+      console.error('[QuestionCard] 提交答案出错:', error);
+    } finally {
+      // 延迟释放提交锁
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 1000);
+    }
+  };
+
+  // 添加状态来控制是否可以继续到下一题
+  const [canProceed, setCanProceed] = useState(false);
+
+  // 确保渲染时正确地显示选项样式
   const getOptionClass = (option: any) => {
     if (!showExplanation) {
       // 没有提交答案时的样式
@@ -156,153 +293,193 @@ const QuestionCard = ({
     }
   };
 
-  // 处理选项点击
-  const handleOptionClick = (optionText: string, optionId: string) => {
-    if (isSubmittingRef.current || isSubmitted) {
-      console.log('[QuestionCard] 正在提交答案中或已提交，忽略点击');
-      return;
-    }
-    
-    if (showExplanation) {
-      console.log('[QuestionCard] 已显示解析，忽略点击');
-      return;
-    }
-    
-    // 单选题模式 - 确保不会自动提交
-    if (question.questionType === 'single') {
-      if (selectedOptions.includes(optionId)) {
-        return; // 已选中，不做处理
-      }
-      
-      // 只更新选择状态，不自动提交 - 用户需要点击"提交答案"按钮
-      setSelectedOptions([optionId]);
-      setSelectedOption(optionId);
-      console.log('[QuestionCard] 已选择单选项，等待用户手动提交');
-      
-      // 添加提示帮助用户理解需要点击提交按钮
-      toast.info('请点击"提交答案"按钮确认您的选择', {
-        autoClose: 1500,
-        position: 'bottom-center'
-      });
-    } 
-    // 多选题模式
-    else {
-      const updatedSelection = selectedOptions.includes(optionId)
-        ? selectedOptions.filter(id => id !== optionId)
-        : [...selectedOptions, optionId];
-      
-      setSelectedOptions(updatedSelection);
-    }
-  };
-
-  // 提交答案
-  const handleSubmit = async () => {
-    // 检查是否可以提交答案
-    if (!canSubmitAnswer()) return;
-    
-    isSubmittingRef.current = true;
-    setIsSubmitting(true);
-
-    try {
-      // 检查是否选择了选项
-      if (selectedOptions.length === 0) {
-        toast.error(MESSAGES.SELECT_ONE_OPTION);
-        return;
-      }
-
-      // 判断答案是否正确，使用通用函数
-      const isCorrect = calculateIsCorrect(
-        question, 
-        question.questionType === 'single' ? selectedOption : selectedOptions
-      );
-
-      setIsCorrectAnswer(isCorrect);
-      setIsSubmitted(true);
-            setShowExplanation(true);
-      
-      // 调用父组件的回调
-        if (onAnswerSubmitted) {
-          onAnswerSubmitted(isCorrect, selectedOptions);
-        }
-
-      // 如果答错了，保存错题记录
-        if (!isCorrect) {
-        const wrongAnswerEvent = new CustomEvent(EVENTS.WRONG_ANSWER_SAVE, {
-              detail: {
-                questionId: question.id,
-            questionSetId,
-            question: question.question,
-            selectedOption: selectedOptions,
-            correctAnswer: question.options.filter(opt => opt.isCorrect).map(opt => opt.id),
-            isCorrect: false
-              }
-            });
-            window.dispatchEvent(wrongAnswerEvent);
-      }
-    } finally {
-      setIsSubmitting(false);
-      setTimeout(() => {
-        isSubmittingRef.current = false;
-      }, TIMEOUTS.STANDARD);
-    }
-  };
-
-  // 检查是否可以提交答案
-  const canSubmitAnswer = useCallback(() => {
-    // 如果已经提交过，不能再次提交
-    if (isSubmittingRef.current || isSubmitted) return false;
-    
-    return true;
-  }, [isSubmitted]);
-
-  // 处理下一题
   const handleNext = () => {
-    // 记录当前状态
-    saveCurrentState();
+    console.log('[QuestionCard] handleNext called - moving to next question');
     
-    // 调用onNext回调
-    if (onNext) {
-    onNext();
+    // Debug information to identify potential issues
+    console.log(`[QuestionCard] Current state: isSubmitted=${isSubmitted}, showExplanation=${showExplanation}`);
+    console.log('[QuestionCard] onNext type:', typeof onNext);
+    
+    // Clean up state for next question
+    setSelectedOption(null);
+    setSelectedOptions([]);
+    setIsSubmitted(false);
+    setShowExplanation(false);
+    
+    // Explicitly call the onNext prop function with better error handling
+    if (typeof onNext === 'function') {
+      try {
+        console.log('[QuestionCard] Calling onNext function from props');
+        onNext();
+      } catch (error) {
+        console.error('[QuestionCard] Error calling onNext function:', error);
+      }
+    } else {
+      console.error('[QuestionCard] onNext function is not properly defined, type:', typeof onNext);
     }
   };
+  
+  // Add a useEffect to handle cross-device access synchronization
+  useEffect(() => {
+    if (!user?.id || !questionSetId) return;
+    
+    const handleAccessRightsUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      
+      // If the event is for the current user, recheck local access status
+      if (customEvent.detail?.userId === user.id) {
+        // Refresh local access status
+        const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
+                              checkLocalAccessRights(questionSetId);
+                              
+        console.log(`[QuestionCard] Access rights updated for ${questionSetId}, local access: ${hasLocalAccess}`);
+      }
+    };
+    
+    window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
+    
+    return () => {
+      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
+    };
+  }, [user?.id, questionSetId]);
 
-  // 保存当前答题状态到localStorage
-  const saveCurrentState = () => {
-    try {
-      if (!questionSetId || !question.id) return;
-      
-      // 构建本地存储的键名
-      const storageKey = `${STORAGE_KEYS.QUIZ_STATE_PREFIX}${questionSetId}_${question.id}`;
-      
-      // 计算答案是否正确，使用通用函数
-      const isCorrectValue = isSubmitted && calculateIsCorrect(
-        question,
-        question.questionType === 'single' ? selectedOption : selectedOptions
-      );
-      
-      // 保存状态
-      const stateToSave = {
-        questionId: question.id,
-        selectedOption: question.questionType === 'single' ? selectedOption : null,
-        selectedOptions: question.questionType === 'multiple' ? selectedOptions : [],
-        isSubmitted,
-        isCorrect: isCorrectValue,
-        showExplanation,
-        timestamp: new Date().toISOString()
-      };
-      
-      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
-    } catch (error) {
-      console.error('保存答题状态失败:', error);
-    }
-  };
+  // Enhanced local access check function
+  const isQuestionAccessible = useCallback((questionIndex: number) => {
+    // If question set is free, all questions are accessible
+    if (!isPaid) return true;
+    
+    // First check if user has full access
+    if (hasFullAccess) return true;
+    
+    // Check local storage for redeemed status and access rights
+    const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
+                          checkLocalAccessRights(questionSetId);
+    
+    if (hasLocalAccess) return true;
+    
+    // If no access, check if within trial questions
+    return questionIndex < (trialQuestions || 0);
+  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
 
-  // 跳转到指定题目
+  // 处理题号跳转
   const handleJumpToQuestion = (index: number) => {
+    if (!isQuestionAccessible(index)) {
+      // 如果是付费题目且未购买，显示提示
+      // 检查是否需要购买或兑换
+      if (isPaid && !hasFullAccess) {
+        toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
+      }
+      return;
+    }
+    
     if (onJumpToQuestion && !isSubmittingRef.current) {
       onJumpToQuestion(index);
     }
   };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // 清除答案提交定时器
+      if (answerTimeoutRef.current) {
+        clearTimeout(answerTimeoutRef.current);
+        answerTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // 修复 Array.from 函数中对 totalQuestions 的使用，确保它是数字
+  const renderNumberButtons = () => {
+    // 确保 totalQuestions 是数字
+    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
+    
+    return Array.from({ length: count }).map((_, index) => {
+      const isAccessible = isQuestionAccessible(index);
+      return (
+        <button
+          key={index}
+          onClick={() => handleJumpToQuestion(index)}
+          disabled={!isAccessible}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${questionNumber === index + 1 
+              ? 'bg-blue-600 text-white' 
+              : isAccessible
+                ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+            }
+            ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
+          `}
+          aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
+          title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
+        >
+          {index + 1}
+          {!isAccessible && (
+            <span className="absolute -top-1 -right-1 w-3 h-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
+        </button>
+      );
+    });
+  };
+
+  // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
+  const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
+    try {
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (!redeemedStr) return false;
+      
+      const redeemedIds = JSON.parse(redeemedStr);
+      if (!Array.isArray(redeemedIds)) return false;
+      
+      // 标准化ID
+      const targetId = String(questionSetId).trim();
+      
+      // 使用更宽松的匹配逻辑检查兑换记录
+      return redeemedIds.some(id => {
+        const redeemedId = String(id || '').trim();
+        // 精确匹配
+        const exactMatch = redeemedId === targetId;
+        // 部分匹配 - 处理ID可能带前缀或后缀的情况
+        const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
+          && Math.abs(redeemedId.length - targetId.length) <= 3
+          && redeemedId.length > 5 && targetId.length > 5;
+          
+        return exactMatch || partialMatch;
+      });
+    } catch (e) {
+      console.error('检查兑换状态失败', e);
+      return false;
+    }
+  };
+  
+  // 检查access权限
+  const checkLocalAccessRights = (questionSetId: string): boolean => {
+    try {
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (!accessRightsStr) return false;
+      
+      const accessRights = JSON.parse(accessRightsStr);
+      return !!accessRights[questionSetId];
+    } catch (e) {
+      console.error('检查访问权限失败', e);
+      return false;
+    }
+  };
+  
+  // 合并所有访问权限检查
+  const hasCompleteAccess = 
+    hasFullAccess || 
+    checkLocalRedeemedStatus(questionSetId) || 
+    checkLocalAccessRights(questionSetId) ||
+    isPaid === false; // 免费题库
 
   // 在QuestionCard组件中添加答题状态保存功能
   useEffect(() => {
@@ -312,7 +489,7 @@ const QuestionCard = ({
         if (!questionSetId || !question.id) return;
         
         // 构建本地存储的键名
-        const storageKey = `${STORAGE_KEYS.QUIZ_STATE_PREFIX}${questionSetId}_${question.id}`;
+        const storageKey = `quiz_state_${questionSetId}_${question.id}`;
         const savedStateStr = localStorage.getItem(storageKey);
         
         if (savedStateStr) {
@@ -321,7 +498,6 @@ const QuestionCard = ({
           // 恢复已选择的选项
           if (question.questionType === 'single' && savedState.selectedOption) {
             setSelectedOption(savedState.selectedOption);
-            setSelectedOptions([savedState.selectedOption]);
           } else if (question.questionType === 'multiple' && savedState.selectedOptions) {
             setSelectedOptions(savedState.selectedOptions);
           }
@@ -329,7 +505,19 @@ const QuestionCard = ({
           // 恢复已提交状态
           if (savedState.isSubmitted) {
             setIsSubmitted(true);
-            setIsCorrectAnswer(savedState.isCorrect || false);
+            
+            // 如果之前已经提交过答案，同时通知父组件
+            if (onAnswerSubmitted && !userAnsweredQuestion) {
+              const isCorrect = savedState.isCorrect;
+              const selectedOpt = question.questionType === 'single' 
+                ? savedState.selectedOption 
+                : savedState.selectedOptions;
+                
+              // 延迟触发以确保组件已完全加载
+              setTimeout(() => {
+                onAnswerSubmitted(isCorrect, selectedOpt);
+              }, 300);
+            }
             
             // 自动显示解析
             if (savedState.showExplanation) {
@@ -374,53 +562,60 @@ const QuestionCard = ({
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [question.id, questionSetId, question.questionType, userAnsweredQuestion]);
+  }, [question.id, questionSetId, question.questionType, userAnsweredQuestion, onAnswerSubmitted]);
 
-  // 键盘操作处理
+  // 保存当前答题状态到localStorage
+  const saveCurrentState = () => {
+    try {
+      if (!questionSetId || !question.id) return;
+      
+      // 构建本地存储的键名
+      const storageKey = `quiz_state_${questionSetId}_${question.id}`;
+      
+      // 如果已经提交过，计算是否正确
+      let isCorrectAnswer = false;
+      if (isSubmitted) {
+        if (question.questionType === 'single') {
+          const correctOptionId = question.options.find(opt => opt.isCorrect)?.id;
+          isCorrectAnswer = selectedOption === correctOptionId;
+        } else {
+          const correctOptionIds = question.options
+            .filter(opt => opt.isCorrect)
+            .map(opt => opt.id);
+            
+          const lengthMatch = selectedOptions.length === correctOptionIds.length;
+          const allSelectedAreCorrect = selectedOptions.every(id => correctOptionIds.includes(id));
+          const allCorrectAreSelected = correctOptionIds.every(id => selectedOptions.includes(id));
+          
+          isCorrectAnswer = lengthMatch && allSelectedAreCorrect && allCorrectAreSelected;
+        }
+      }
+      
+      // 保存状态
+      const stateToSave = {
+        questionId: question.id,
+        selectedOption: question.questionType === 'single' ? selectedOption : null,
+        selectedOptions: question.questionType === 'multiple' ? selectedOptions : [],
+        isSubmitted,
+        isCorrect: isCorrectAnswer,
+        showExplanation,
+        timestamp: new Date().toISOString()
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
+    } catch (error) {
+      console.error('保存答题状态失败:', error);
+    }
+  };
+
+  // 处理选项键盘操作
   const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
-    // 如果已经提交或正在提交，忽略键盘事件
-    if (isSubmittingRef.current || isSubmitted) return;
-    
-    // 空格键或回车键仅选择选项，不自动提交
+    // 空格键或回车键选择选项
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       handleOptionClick(question.options[index].text, optionId);
     }
   };
-
-  // 全局键盘事件处理
-  useEffect(() => {
-    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // 如果已经提交或正在提交，忽略键盘事件
-      if (isSubmittingRef.current || isSubmitted && e.key !== 'ArrowRight') return;
-      
-      // 左右箭头控制上一题/下一题
-      if (e.key === 'ArrowLeft') {
-        handlePrevious();
-      } else if (e.key === 'ArrowRight' && isSubmitted) {
-        handleNext();
-      } else if (e.key === 'Enter' && selectedOptions.length > 0 && !isSubmitted) {
-        // 只有在已经选择了选项的情况下，按Enter键才提交答案
-        e.preventDefault(); // 防止页面滚动
-        handleSubmit();
-      }
-      
-      // 数字键选择选项 (1-9)
-      const num = parseInt(e.key);
-      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length && !isSubmitted) {
-        const optionIndex = num - 1;
-        const option = question.options[optionIndex];
-        
-        if (option) {
-          // 模拟点击选项，但不自动提交
-          handleOptionClick(option.text, option.id);
-        }
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitted, selectedOptions, question.options, question.questionType]);
 
   // 处理上一题按钮点击
   const handlePrevious = () => {
@@ -429,206 +624,263 @@ const QuestionCard = ({
     }
   };
 
-  // 渲染解释部分
-  const renderExplanation = () => {
-    if (!isSubmitted || !showExplanation || !question.explanation) return null;
-    
-    return (
-      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <h4 className="font-medium text-gray-900 mb-2">解析:</h4>
-        <p className="text-gray-700 whitespace-pre-wrap">{question.explanation}</p>
-      </div>
-    );
-  };
-
-  // 渲染分页按钮部分（可以进一步简化）
-  const renderNumberButtons = () => {
-    // 确保 totalQuestions 是数字
-    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
-    
-    return Array.from({ length: count }).map((_, index) => {
-      const isCurrentQuestion = questionNumber === index + 1;
-      return (
-        <button
-          key={index}
-          onClick={() => handleJumpToQuestion(index)}
-          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-            ${isCurrentQuestion 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            }
-            focus:ring-blue-500
-          `}
-          aria-label={`跳转到第${index + 1}题`}
-          title={`跳转到第${index + 1}题`}
-        >
-          {index + 1}
-        </button>
-      );
-    });
-  };
-
-  // 渲染操作按钮
-  const renderButtonArea = () => (
-    <div className="flex justify-between">
-      <button
-        onClick={handlePrevious}
-        className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
-      >
-        <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        上一题
-      </button>
+  // 添加快捷键支持
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // 左右箭头控制上一题/下一题
+      if (e.key === 'ArrowLeft') {
+        handlePrevious();
+      } else if (e.key === 'ArrowRight' && (showExplanation || canProceed)) {
+        handleNext();
+      }
       
-      <div>
-        {!isSubmitted ? (
-          <button
-            onClick={handleSubmit}
-            disabled={selectedOptions.length === 0 || isSubmitting}
-            className={`px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center ${
-              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                提交中...
-              </>
-            ) : (
-              <>提交答案</>
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={handleNext}
-            className={`px-6 py-2 rounded-lg ${
-              isLast ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
-            } text-white transition-colors flex items-center`}
-          >
-            {isLast ? '完成答题' : '下一题'}
-            <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
-      </div>
-    </div>
-  );
+      // 数字键选择选项 (1-9)
+      const num = parseInt(e.key);
+      if (!isNaN(num) && num >= 1 && num <= 9 && num <= question.options.length) {
+        const optionIndex = num - 1;
+        const option = question.options[optionIndex];
+        if (option) {
+          handleOptionClick(option.text, option.id);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showExplanation, canProceed, question.options]);
+
+  // 保存错题的辅助函数
+  const saveWrongAnswer = (selectedAnswer: string | string[]) => {
+    // 检查此题是否最近已保存过，避免重复保存
+    const wrongAnswerKey = `wrong_answer_${question.id}`;
+    const lastSaved = localStorage.getItem(wrongAnswerKey);
+    const now = Date.now();
+    
+    // 5秒内不重复保存同一题目
+    if (!lastSaved || now - parseInt(lastSaved) > 5000) {
+      localStorage.setItem(wrongAnswerKey, now.toString());
+      
+      // 创建错题保存事件
+      const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+        detail: {
+          questionId: question.id,
+          questionSetId: questionSetId,
+          question: question.question || question.text,
+          questionText: question.question || question.text,
+          questionType: question.questionType,
+          options: question.options,
+          selectedOption: question.questionType === 'single' ? selectedAnswer : undefined,
+          selectedOptions: question.questionType === 'multiple' ? selectedAnswer : undefined,
+          correctOption: question.questionType === 'single' 
+            ? question.options.find(opt => opt.isCorrect)?.id 
+            : undefined,
+          correctOptions: question.questionType === 'multiple'
+            ? question.options.filter(opt => opt.isCorrect).map(opt => opt.id)
+            : undefined,
+          explanation: question.explanation
+        }
+      });
+      
+      // 发送事件
+      window.dispatchEvent(wrongAnswerEvent);
+      console.log('[QuestionCard] 已保存错题');
+    }
+  };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 mb-6 transition-all">
+    <div className="bg-white rounded-xl shadow-md p-6 mb-6">
       {/* 题目信息 */}
-      <div className="flex justify-between items-start mb-6">
+      <div className="mb-4 flex justify-between items-center">
         <div className="flex items-center">
-          <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-medium text-lg mr-3">
-            {questionNumber}
-          </span>
-          <h3 className="text-lg font-semibold text-gray-800">
-            {question.questionType === 'single' ? '[单选题]' : '[多选题]'}
-          </h3>
-        </div>
-        <span className="text-sm text-gray-500">
+          <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full font-medium mr-2">
             {questionNumber} / {totalQuestions}
           </span>
+          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+            {question.questionType === 'single' ? '单选题' : '多选题'}
+          </span>
+        </div>
       </div>
 
       {/* 题目内容 */}
-      <div className="mb-6">
-        <p className="text-gray-800 text-base whitespace-pre-wrap mb-2">{question.question}</p>
-        {question.code && (
-          <div className="bg-gray-900 rounded-md p-4 my-3 overflow-x-auto">
-            <pre className="text-sm text-gray-100 font-mono">{question.code}</pre>
-          </div>
-        )}
-      </div>
+      <h2 className="text-lg font-semibold text-gray-800 mb-5">{question.question || question.text}</h2>
 
       {/* 选项列表 */}
-      <div className="space-y-3 mb-6">
+      <div className="space-y-3 mt-4">
         {question.options.map((option, index) => (
           <div
             key={option.id}
-            tabIndex={0}
-            className={`relative p-4 border rounded-lg cursor-pointer transition-all 
-              ${getOptionClass(option)}
-              ${!isSubmitted ? 'hover:border-blue-300' : ''}
-            `}
-            onClick={() => !isSubmitted && handleOptionClick(option.text, option.id)}
-            onKeyDown={(e) => handleOptionKeyDown(e, option.id, index)}
+            className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all duration-150 ${getOptionClass(option)}`}
+            onClick={() => !showExplanation && handleOptionClick(option.text, option.id)}
           >
-            <div className="flex items-start">
-              <div className={`flex-shrink-0 w-6 h-6 ${isSubmitted ? '' : 'border'} rounded-full flex items-center justify-center mr-3 mt-0.5 transition-colors ${
-                selectedOptions.includes(option.id) 
-                  ? (isSubmitted 
-                      ? (option.isCorrect ? 'bg-green-500 text-white border-green-500' : 'bg-red-500 text-white border-red-500') 
-                      : 'bg-blue-500 text-white border-blue-500'
-                    )
-                  : (isSubmitted && option.isCorrect ? 'bg-green-500 text-white border-green-500' : 'border-gray-300 text-transparent')
-              }`}>
-                {(selectedOptions.includes(option.id) || (isSubmitted && option.isCorrect)) && (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                )}
-              </div>
-              <div>
-                <span className="text-md text-gray-800">{option.label}. {option.text}</span>
+            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mr-3 ${
+              showExplanation && option.isCorrect 
+                ? 'bg-green-100 text-green-700' 
+                : (showExplanation && selectedOptions.includes(option.id)) 
+                  ? 'bg-red-100 text-red-700' 
+                  : selectedOptions.includes(option.id)
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-700'
+            }`}>
+              {String.fromCharCode(65 + index)}
             </div>
-          </div>
-          
-            {/* 正确/错误指示器 */}
-            {isSubmitted && (
-              <div className="absolute right-4 top-4">
-                {option.isCorrect ? (
-                  <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : selectedOptions.includes(option.id) ? (
-                  <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : null}
-            </div>
-            )}
+            <div className="mt-0.5 text-sm">{option.text}</div>
           </div>
         ))}
       </div>
-          
-      {/* 集中显示解析，只在一个地方显示 */}
-      {renderExplanation()}
-      
-      {/* 操作按钮 */}
-      {renderButtonArea()}
-      
-      {/* 解释开关 */}
-      {isSubmitted && question.explanation && (
-        <button
-          onClick={() => setShowExplanation(!showExplanation)}
-          className="mt-4 text-sm text-blue-600 hover:text-blue-800 flex items-center"
-        >
-          {showExplanation ? (
-            <>
-              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-              隐藏解析
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              查看解析
-            </>
-          )}
-        </button>
+
+      {/* 提交按钮 - 为单选题和多选题都显示 */}
+      {!showExplanation && (
+        <div className="mt-4">
+          <button
+            onClick={handleSubmit}
+            disabled={selectedOptions.length === 0 || isSubmittingRef.current}
+            className={`w-full px-4 py-2 rounded-md text-white font-medium flex items-center justify-center ${
+              selectedOptions.length === 0 || isSubmittingRef.current
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            提交答案
+          </button>
+        </div>
       )}
+      
+      {/* 解析显示区域 */}
+      {showExplanation && (
+        <div className="mt-5">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <div className="flex items-start">
+              <div className="bg-blue-100 p-1 rounded-md text-blue-700 mr-3 flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-medium text-blue-800 mb-1">解析</h3>
+                <p className="text-sm text-blue-700">{question.explanation || "本题暂无解析"}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 答案正确/错误提示 */}
+          <div className="mt-4 text-center">
+            <div className={`inline-block px-4 py-2 rounded-full font-medium text-sm ${
+              selectedOptions.some(id => 
+                question.options.find(opt => opt.id === id)?.isCorrect
+              ) 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {selectedOptions.some(id => 
+                question.options.find(opt => opt.id === id)?.isCorrect
+              ) 
+                ? '答对了' 
+                : '答错了'
+              }
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 导航按钮区域 - 上一题和下一题 */}
+      <div className="mt-6 flex justify-between">
+        <button
+          onClick={handlePrevious}
+          className={`px-5 py-2 rounded-md flex items-center ${
+            questionNumber > 1 
+              ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+              : 'text-gray-400 bg-gray-50 cursor-not-allowed'
+          }`}
+          disabled={questionNumber <= 1}
+        >
+          <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          上一题
+        </button>
+        
+        <button
+          onClick={handleNext}
+          className={`next-question-button px-5 py-2 rounded-md flex items-center ${
+            (showExplanation || canProceed) 
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+          disabled={!showExplanation && !canProceed}
+        >
+          下一题
+          <svg className="w-5 h-5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+      
+      {/* 键盘快捷键提示 */}
+      <div className="mt-4 text-center text-xs text-gray-500">
+        <span className="bg-gray-100 rounded px-1.5 py-0.5 mr-1">←</span>上一题
+        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">→</span>下一题
+        <span className="ml-3 bg-gray-100 rounded px-1.5 py-0.5 mr-1">1-9</span>选择选项
+      </div>
+      
+      {/* 添加清空答题按钮 */}
+      <div className="mt-3 text-center">
+        <button
+          onClick={() => {
+            if (window.confirm('确定要清空当前题目的答题记录吗？')) {
+              try {
+                // 清除当前题目的状态记录
+                if (questionSetId && question.id) {
+                  const storageKey = `quiz_state_${questionSetId}_${question.id}`;
+                  localStorage.removeItem(storageKey);
+                  
+                  // 重置组件状态
+                  setSelectedOption(null);
+                  setSelectedOptions([]);
+                  setIsSubmitted(false);
+                  setShowExplanation(false);
+                  
+                  // 展示成功消息
+                  toast.success('已清空当前题目的答题记录');
+                }
+              } catch (e) {
+                console.error('清空答题记录失败:', e);
+                toast.error('清空答题记录失败');
+              }
+            }
+          }}
+          className="text-gray-500 hover:text-red-600 text-xs underline transition-colors"
+        >
+          清空当前题目答题记录
+        </button>
+      </div>
     </div>
   );
 };
+
+// 为动画添加全局样式
+const styleElement = document.createElement('style');
+styleElement.textContent = `
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .animate-scaleIn {
+    animation: scaleIn 0.3s ease-out;
+  }
+`;
+document.head.appendChild(styleElement);
 
 export default QuestionCard; 

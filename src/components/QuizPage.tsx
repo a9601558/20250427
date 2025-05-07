@@ -46,33 +46,48 @@ const AnswerCard: React.FC<{
   currentIndex: number;
   onJump: (index: number) => void;
   trialLimit?: number;  // 添加试用题目限制参数
-  isTrialMode?: boolean; // 添加试用模式标志
+  isTrialMode?: boolean;
 }> = ({ totalQuestions, answeredQuestions, currentIndex, onJump, trialLimit, isTrialMode }) => {
+  // 生成按钮
   return (
-    <div className="bg-white shadow-md rounded-lg p-4 mb-6">
-      <h3 className="text-md font-medium mb-3">答题卡</h3>
-      <div className="flex flex-wrap gap-2">
-        {Array.from({ length: totalQuestions }).map((_, index) => {
-          const isAnswered = answeredQuestions.some(q => q.index === index);
-          const isCorrect = answeredQuestions.some(q => q.index === index && q.isCorrect);
-          const isCurrent = currentIndex === index;
+    <div className="flex flex-col bg-white rounded-xl shadow-md p-5 mb-5">
+      <h3 className="text-lg font-medium text-gray-700 mb-4">答题卡</h3>
+      <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">
+        {Array.from({length: totalQuestions}).map((_, index) => {
+          const answered = answeredQuestions.find(q => q.questionIndex === index);
+          const isActive = currentIndex === index;
+          // 检查在试用模式下，是否超出了试用题目数量限制
           const isDisabled = isTrialMode && trialLimit ? index >= trialLimit : false;
-          
-          let bgColor = 'bg-gray-100'; // 默认未答题
-          if (isCurrent) bgColor = 'bg-blue-500 text-white'; // 当前题目
-          else if (isCorrect) bgColor = 'bg-green-100'; // 已答对
-          else if (isAnswered) bgColor = 'bg-red-100'; // 已答错
-          else if (isDisabled) bgColor = 'bg-gray-300'; // 超出试用限制
+
+          let bgColor = "bg-gray-100 text-gray-600";
+          if (isActive) {
+            bgColor = "bg-blue-500 text-white";
+          } else if (answered) {
+            bgColor = answered.isCorrect 
+              ? "bg-green-500 text-white" 
+              : "bg-red-500 text-white";
+          } else if (isDisabled) {
+            bgColor = "bg-gray-200 text-gray-400 cursor-not-allowed";
+          }
           
           return (
             <button
               key={index}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${bgColor} ${
+                isDisabled ? "opacity-50 pointer-events-none" : "hover:bg-opacity-80"
+              }`}
               onClick={() => !isDisabled && onJump(index)}
-              className={`w-8 h-8 ${bgColor} rounded-md flex items-center justify-center text-sm font-medium ${isDisabled ? 'cursor-not-allowed opacity-60' : 'hover:opacity-80 transition-all'}`}
               disabled={isDisabled}
-              title={isDisabled ? "超出试用题目范围" : `跳转到第${index + 1}题`}
+              title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${index + 1}题`}
             >
               {index + 1}
+              {isDisabled && (
+                <span className="absolute -top-1 -right-1">
+                  <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )}
             </button>
           );
         })}
@@ -1170,35 +1185,36 @@ function QuizPage(): JSX.Element {
       // 计算当前问题的答题用时（毫秒）
       const timeSpent = Date.now() - questionStartTime;
       
-      // 首先检查是否为重复提交 - 修复：只使用questionIndex作为唯一标识，不再使用index
-      const alreadyAnswered = answeredQuestions.findIndex(q => 
-        q.questionIndex === questionIndex
+      // 首先检查是否为重复提交
+      const alreadyAnsweredIndex = answeredQuestions.findIndex((a) => 
+        a.questionIndex === questionIndex
       );
       
-      // 构建新的已答问题对象
-      const newAnsweredQuestion: AnsweredQuestion = {
-        index: answeredQuestions.length, // 递增索引，确保唯一性
-        questionIndex: questionIndex, // 添加问题索引以确保跨会话一致性
-        isCorrect,
-        selectedOption
+      console.log(`[QuizPage] 检查是否重复提交: index=${alreadyAnsweredIndex}, questionId=${question.id}, questionIndex=${questionIndex}`);
+      
+      // 构建新的答题记录
+      const newAnswer: AnsweredQuestion = {
+        index: alreadyAnsweredIndex >= 0 ? answeredQuestions[alreadyAnsweredIndex].index : answeredQuestions.length,
+        questionIndex: questionIndex,
+        isCorrect: isCorrect,
+        selectedOption: selectedOption
       };
       
-      // 更新已答问题列表 - 如果已存在则替换，否则添加
-      let updatedAnsweredQuestions: AnsweredQuestion[];
-      if (alreadyAnswered >= 0) {
-        // 替换现有记录
-        updatedAnsweredQuestions = [...answeredQuestions];
-        updatedAnsweredQuestions[alreadyAnswered] = newAnsweredQuestion;
-        console.log(`[QuizPage] 更新第${questionIndex + 1}题的现有答题记录`);
+      // 更新已答题目列表
+      let updatedAnsweredQuestions = [...answeredQuestions];
+      
+      if (alreadyAnsweredIndex >= 0) {
+        // 替换已存在的答题记录
+        console.log(`[QuizPage] 更新已存在的答题记录 ${alreadyAnsweredIndex}`);
+        updatedAnsweredQuestions[alreadyAnsweredIndex] = newAnswer;
       } else {
-        // 添加新记录
-        updatedAnsweredQuestions = [...answeredQuestions, newAnsweredQuestion];
-        console.log(`[QuizPage] 添加第${questionIndex + 1}题的新答题记录`);
+        // 添加新的答题记录
+        console.log(`[QuizPage] 添加新的答题记录，当前已有 ${answeredQuestions.length} 条记录`);
+        updatedAnsweredQuestions.push(newAnswer);
       }
       
-      // 更新正确答题计数器
+      // 更新正确答题计数
       const newCorrectCount = updatedAnsweredQuestions.filter(q => q.isCorrect).length;
-      setCorrectAnswers(newCorrectCount);
       
       // 更新状态显示已答问题
       setAnsweredQuestions(updatedAnsweredQuestions);
@@ -1246,19 +1262,16 @@ function QuizPage(): JSX.Element {
       if (questionSet && isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
         const trialQuestions = questionSet.trialQuestions || 0;
         if (trialQuestions > 0 && updatedAnsweredQuestions.length >= trialQuestions) {
-          console.log(`[QuizPage] 已达到试用题目限制(${updatedAnsweredQuestions.length}/${trialQuestions})，设置trialEnded=true`);
+          console.log(`[QuizPage] 已达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialQuestions})，提示购买`);
           setTrialEnded(true);
-          
-          // 延迟显示购买提示
           setTimeout(() => {
-            if (!hasAccessToFullQuiz && !hasRedeemed) {
-              setShowPaymentModal(true);
-            }
-          }, 1500);
+            setShowPaymentModal(true);
+          }, 1000);
         }
       }
+      
     } catch (error) {
-      console.error('[QuizPage] 保存进度或答案时出错:', error);
+      console.error('[QuizPage] 提交答案出错:', error);
     } finally {
       // 重置提交状态
       isSubmittingRef.current = false;
@@ -1327,18 +1340,21 @@ function QuizPage(): JSX.Element {
                           questionSet.trialQuestions > 0 && 
                           answeredQuestions.length >= questionSet.trialQuestions;
     
-    if (isAtTrialLimit && questionSet?.trialQuestions) {
-      console.log('[QuizPage] 已达到试用题目限制，显示购买提示:', {
+    if (isAtTrialLimit) {
+      console.log('[QuizPage] 已达到试用题目限制，阻止继续答题:', {
         answeredCount: answeredQuestions.length,
-        trialLimit: questionSet.trialQuestions
+        trialLimit: questionSet?.trialQuestions
       });
       
       // 显示提示信息
-      toast.info(`您已完成 ${questionSet.trialQuestions} 道试用题目，请购买完整版或使用兑换码继续`, {
+      toast.info(`您已完成 ${questionSet?.trialQuestions} 道试用题目，请购买完整版或使用兑换码继续`, {
         position: "top-center",
         autoClose: 8000,
         toastId: "trial-limit-toast",
       });
+      
+      // 设置试用结束状态，确保在UI上显示限制
+      setTrialEnded(true);
       
       // 直接显示购买模态窗口
       setShowPaymentModal(true);
@@ -1357,6 +1373,8 @@ function QuizPage(): JSX.Element {
     setCurrentQuestionIndex(prevIndex => prevIndex + 1);
     setSelectedOptions([]);
     setShowExplanation(false);
+    // 重置问题开始时间，确保计时准确
+    setQuestionStartTime(Date.now());
   }, [
     currentQuestionIndex, 
     questions.length, 
@@ -1364,26 +1382,59 @@ function QuizPage(): JSX.Element {
     syncProgressToServer, 
     questionSet,
     hasAccessToFullQuiz,
-    hasRedeemed
+    hasRedeemed,
+    setTrialEnded,
+    setShowPaymentModal
   ]);
 
-  // 处理跳转到特定题目
-  const handleJumpToQuestion = useCallback((index: number) => {
-    // 检查是否是有效的问题索引
-    if (index >= 0 && index < questions.length) {
-      setCurrentQuestionIndex(index);
-      // 更新本地存储中的最后访问问题
-      const progressData = {
-        questionSetId,
-        lastQuestionIndex: index,
-        answeredQuestions,
-        lastUpdated: new Date().toISOString()
-      };
-      
-      const localProgressKey = `quiz_progress_${questionSetId}`;
-      localStorage.setItem(localProgressKey, JSON.stringify(progressData));
+  // 跳转到指定题目的处理函数
+  const handleJumpToQuestion = useCallback((questionIndex: number) => {
+    // 阻止在提交过程中或完成状态下跳转
+    if (isSubmittingRef.current || quizComplete) {
+      console.log('[QuizPage] 无法跳转：正在提交答案或已完成问答');
+      return;
     }
-  }, [questions.length, questionSetId, answeredQuestions]);
+    
+    // 在试用模式下检查是否超出限制
+    const isTrialLimitExceeded = isInTrialMode && 
+                               !hasAccessToFullQuiz && 
+                               !hasRedeemed && 
+                               questionSet?.trialQuestions && 
+                               questionIndex >= questionSet.trialQuestions;
+    
+    if (isTrialLimitExceeded) {
+      console.log(`[QuizPage] 跳转被阻止: 试用模式下尝试访问第 ${questionIndex + 1} 题，超出限制 ${questionSet?.trialQuestions} 题`);
+      
+      // 显示提示信息
+      toast.info(`您正在试用模式下，最多只能回答 ${questionSet?.trialQuestions} 道题目`, {
+        position: "top-center",
+        autoClose: 5000,
+        toastId: "trial-limit-jump-toast",
+      });
+      
+      // 可以直接显示购买提示
+      setShowPaymentModal(true);
+      return;
+    }
+    
+    // 安全检查：确保题目索引有效
+    if (questionIndex < 0 || questionIndex >= questions.length) {
+      console.error(`[QuizPage] 无效题目索引: ${questionIndex}, 最大索引: ${questions.length - 1}`);
+      return;
+    }
+    
+    console.log(`[QuizPage] 跳转到题目: ${questionIndex + 1} / ${questions.length}`);
+    setCurrentQuestionIndex(questionIndex);
+    setQuestionStartTime(Date.now()); // 重置计时器
+  }, [
+    questions.length, 
+    quizComplete, 
+    isInTrialMode, 
+    hasAccessToFullQuiz, 
+    hasRedeemed, 
+    questionSet,
+    setShowPaymentModal
+  ]);
 
   // 格式化时间显示函数
   const formatTime = (seconds: number): string => {
