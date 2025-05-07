@@ -165,7 +165,7 @@ const QuestionCard = ({
     }
   };
 
-  // 修改handleOptionClick函数以确保试用限制检查更严格
+  // 修改handleOptionClick函数，删除自动显示购买模态框的逻辑
   const handleOptionClick = (optionText: string, optionId: string) => {
     if (isSubmittingRef.current || isSubmitted) {
       console.log('[QuestionCard] 正在提交答案中或已提交，忽略点击');
@@ -175,23 +175,6 @@ const QuestionCard = ({
     if (showExplanation) {
       console.log('[QuestionCard] 已显示解析，忽略点击');
       return;
-    }
-    
-    // 增加试用模式检查，确保不能超过试用题目数量
-    if (isTrialMode && !hasFullAccess && trialQuestions) {
-      if (questionNumber >= trialQuestions) {
-        console.log(`[QuestionCard] 已超过试用题目限制: ${questionNumber} >= ${trialQuestions}`);
-        
-        // 显示购买或兑换提示
-        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-          position: "top-center",
-          autoClose: 8000,
-        });
-        
-        // 强制显示购买模态窗口
-        setShowPaymentModal(true);
-        return;
-      }
     }
     
     // 单选题模式 - 确保不会自动提交
@@ -221,29 +204,7 @@ const QuestionCard = ({
     }
   };
 
-  // 增强试用模式检查，确保处理边界情况
-  const canSubmitAnswer = useCallback(() => {
-    // 如果已经提交过，不能再次提交
-    if (isSubmittingRef.current || isSubmitted) return false;
-    
-    // 试用模式特殊处理 - 确保不能超过试用题目数量
-    if (isTrialMode && !hasFullAccess && trialQuestions && questionNumber > trialQuestions) {
-      console.log(`[QuestionCard] 已超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
-      // 显示购买或兑换提示
-      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-        position: "top-center",
-        autoClose: 5000,
-      });
-      
-      // 立即显示购买或兑换模态窗口
-      setShowRedeemCodeModal(true);
-      return false;
-    }
-    
-    return true;
-  }, [isSubmitted, isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
-
-  // 修改handleSubmit函数，确保试用模式检查并使用通用的回答检查函数
+  // 修改handleSubmit函数，添加试用限制检查
   const handleSubmit = async () => {
     // 增加试用模式安全检查
     if (!canSubmitAnswer()) return;
@@ -287,12 +248,57 @@ const QuestionCard = ({
             });
             window.dispatchEvent(wrongAnswerEvent);
       }
+      
+      // 答题完成后，如果是试用模式且当前题目号等于试用限制数量，则在用户点击"下一题"时才显示购买模态框
+      // 这里不立即显示，等用户点击"下一题"按钮时再显示
 
     } finally {
       setIsSubmitting(false);
       setTimeout(() => {
         isSubmittingRef.current = false;
       }, TIMEOUTS.STANDARD);
+    }
+  };
+
+  // 修改canSubmitAnswer函数，让试用限制检查更明确
+  const canSubmitAnswer = useCallback(() => {
+    // 如果已经提交过，不能再次提交
+    if (isSubmittingRef.current || isSubmitted) return false;
+    
+    // 试用模式特殊处理 - 在提交答案时不拦截，只在点击下一题时检查
+    // 允许用户完成当前题目的答题
+    
+    return true;
+  }, [isSubmitted]);
+
+  // 修改handleNext函数，确保在试用模式下正确处理限制
+  const handleNext = () => {
+    // 记录当前状态
+    saveCurrentState();
+    
+    // 增强试用模式限制检查
+    // 注意：这里检查的是当前的题目序号，而不是下一题的序号
+    // 如果当前是最后一道试用题，点击下一题时就应该显示购买模态框
+    if (isTrialMode && !hasFullAccess && trialQuestions) {
+      if (questionNumber >= trialQuestions) {
+        console.log(`[QuestionCard] 已达到试用题目限制，当前题号: ${questionNumber}, 试用限制: ${trialQuestions}`);
+        
+        // 显示购买或兑换提示
+        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
+          position: "top-center",
+          autoClose: 8000,
+          toastId: "trial-limit-toast",
+        });
+        
+        // 显示购买模态窗口
+        setShowPaymentModal(true);
+        return; // 阻止继续前进到下一题
+      }
+    }
+    
+    // 调用onNext回调
+    if (onNext) {
+      onNext();
     }
   };
 
@@ -372,8 +378,12 @@ const QuestionCard = ({
     }
   };
 
-  // 清除组件卸载时可能存在的定时器
+  // 完全替换之前的useEffect，不再自动弹出购买模态框
   useEffect(() => {
+    // 不再主动检查并显示购买模态框
+    // 只在用户操作时（点击下一题或提交答案）才检查并显示
+    
+    // 清理可能存在的定时器
     return () => {
       if (answerTimeoutRef.current) {
         clearTimeout(answerTimeoutRef.current);
@@ -409,80 +419,6 @@ const QuestionCard = ({
       onJumpToQuestion(index);
     }
   };
-
-  // 修改handleNext函数，增强试用限制检查
-  const handleNext = () => {
-    // 记录当前状态
-    saveCurrentState();
-    
-    // 增强试用模式限制检查，判断下一题是否会超过限制
-    const nextQuestionNumber = questionNumber + 1;
-    
-    if (isTrialMode && !hasFullAccess && trialQuestions) {
-      // 检查当前题目或下一题是否超过限制
-      if (nextQuestionNumber > trialQuestions) {
-        console.log(`[QuestionCard] 已达到试用题目限制，下一题号将超过限制: ${nextQuestionNumber} > ${trialQuestions}`);
-        
-        // 显示购买或兑换提示，使用更高的优先级
-        toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-          position: "top-center",
-          autoClose: 8000,
-          toastId: "trial-limit-toast",
-        });
-        
-        // 立即显示购买模态窗口
-        setShowPaymentModal(true);
-        
-        // 添加一个延迟的第二次检查，确保模态窗口显示
-        setTimeout(() => {
-          if (isTrialMode && !hasFullAccess) {
-            setShowPaymentModal(true);
-          }
-        }, 500);
-        
-        return; // 阻止继续前进到下一题
-      }
-    }
-    
-    // 调用onNext回调
-    if (onNext) {
-      onNext();
-    }
-  };
-
-  // 完全替换之前的useEffect，增强试用模式监控
-  useEffect(() => {
-    // 每次渲染时检查是否超出试用题目限制
-    const checkTrialLimit = () => {
-      if (isTrialMode && !hasFullAccess && trialQuestions) {
-        // 比较当前题目编号是否已经达到或超过试用限制
-        if (questionNumber >= trialQuestions) {
-          console.log(`[QuestionCard] 检测到已达到或超过试用题目限制: ${questionNumber} >= ${trialQuestions}`);
-          
-          // 显示购买或兑换提示，使用固定的ID避免重复显示
-          toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-            position: "top-center",
-            autoClose: 8000,
-            toastId: "trial-limit-modal",
-          });
-          
-          // 强制显示购买模态窗口，确保不会忽略
-          setTimeout(() => {
-            setShowPaymentModal(true);
-          }, 300);
-        }
-      }
-    };
-    
-    // 组件挂载和依赖项变化时检查
-    checkTrialLimit();
-    
-    // 创建一个定时器，在组件渲染后再次检查
-    const timerId = setTimeout(checkTrialLimit, 1000);
-    
-    // 清理函数
-    return () => clearTimeout(timerId);
-  }, [isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
 
   // 监听全局事件
   useEffect(() => {
