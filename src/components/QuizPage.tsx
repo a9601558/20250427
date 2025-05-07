@@ -312,12 +312,13 @@ function QuizPage(): JSX.Element {
       const accessRightsStr = localStorage.getItem('quizAccessRights');
       if (accessRightsStr) {
         const accessRights = JSON.parse(accessRightsStr);
-        const localAccess = !!accessRights[questionSet.id];
+        const normalizedId = String(questionSet.id).trim();
+        const localAccess = !!accessRights[normalizedId];
         hasAccess = hasAccess || localAccess;
         console.log(`[QuizPage] localStorage访问权限检查: ${localAccess}`);
       }
       
-      // 检查兑换记录 - 使用更宽松的ID匹配
+      // 检查兑换记录 - 使用精确的ID匹配
       const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
       if (redeemedStr) {
         try {
@@ -326,17 +327,10 @@ function QuizPage(): JSX.Element {
           
           // 确保是数组
           if (Array.isArray(redeemedIds)) {
-            // 使用更宽松的匹配逻辑，避免因ID格式不同而无法匹配
+            // 使用精确匹配
             const isRedeemed = redeemedIds.some(id => {
-              const redeemedId = String(id).trim();
-              // 精确匹配
-              const exactMatch = redeemedId === targetId;
-              // 包含匹配 - 处理有可能带前缀后缀的ID
-              const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
-                && Math.abs(redeemedId.length - targetId.length) <= 3
-                && redeemedId.length > 5 && targetId.length > 5;
-                
-              return exactMatch || partialMatch;
+              const redeemedId = String(id || '').trim();
+              return redeemedId === targetId;
             });
             
             hasAccess = hasAccess || isRedeemed;
@@ -356,13 +350,8 @@ function QuizPage(): JSX.Element {
         const purchaseId = String(p.questionSetId || '').trim();
         const targetId = String(questionSet.id || '').trim();
         
-        // 使用更宽松的匹配逻辑
-        const exactMatch = purchaseId === targetId;
-        const partialMatch = (purchaseId.includes(targetId) || targetId.includes(purchaseId)) 
-          && Math.abs(purchaseId.length - targetId.length) <= 3
-          && purchaseId.length > 5 && targetId.length > 5;
-        
-        return exactMatch || partialMatch;
+        // 使用精确匹配
+        return purchaseId === targetId;
       });
       
       if (purchase) {
@@ -585,20 +574,50 @@ function QuizPage(): JSX.Element {
     // 如果有访问权限，确保不会显示试用结束
     if (hasFullAccess) {
       console.log(`[QuizPage] 用户有完整访问权限，设置trialEnded=false`);
-      setHasAccessToFullQuiz(true);
-      setTrialEnded(false);
+      // 更新状态以确保一致性
+      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
+      if (trialEnded) setTrialEnded(false);
+      if (showPurchasePage) setShowPurchasePage(false);
       return;
     }
     
-    // 只在无权限且"已答题数量"达到或超过试用限制时才设置试用结束
-    // 注意：只设置状态，不自动触发购买提示，购买提示应该在用户操作时触发
-    if (!hasFullAccess && questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
-      console.log(`[QuizPage] 试用题目已达上限 (${answeredQuestions.length}/${questionSet.trialQuestions})，设置trialEnded=true`);
-      setTrialEnded(true);
+    // 到这里说明用户没有完整访问权限
+    // 如果外部权限变化导致这里变成无权限，同步状态
+    if (hasAccessToFullQuiz) setHasAccessToFullQuiz(false);
+    
+    // 处理付费题库的试用情况
+    if (questionSet.isPaid) {
+      const trialQuestionsCount = questionSet.trialQuestions || 0;
+      
+      if (trialQuestionsCount > 0) { 
+        // 只有当题库确实设置了正数的试用题目数，才检查答题数量
+        const isTrialLimitReached = answeredQuestions.length >= trialQuestionsCount;
+        console.log(`[QuizPage] 付费题库试用状态: 已答题数=${answeredQuestions.length}, 试用题数=${trialQuestionsCount}, 达到限制=${isTrialLimitReached}`);
+        
+        // 更新试用结束状态
+        if (isTrialLimitReached) {
+          if (!trialEnded) setTrialEnded(true);
+        } else {
+          if (trialEnded) setTrialEnded(false);
+        }
+      } else {
+        // 付费题库，但试用题数 <= 0 (可能是API返回0或配置为0)
+        console.log(`[QuizPage] 付费题库无试用题(trialQuestions=${trialQuestionsCount})，试用直接结束`);
+        if (!trialEnded) setTrialEnded(true);
+      }
     } else {
-      setTrialEnded(false);
+      // 免费题库，确保试用状态为false
+      console.log(`[QuizPage] 免费题库，不限制试用`);
+      if (trialEnded) setTrialEnded(false);
     }
-  }, [answeredQuestions.length, questionSet, checkFullAccessFromAllSources, hasAccessToFullQuiz, hasRedeemed]);
+  }, [
+    answeredQuestions.length, 
+    questionSet, 
+    checkFullAccessFromAllSources, 
+    hasAccessToFullQuiz, 
+    trialEnded,
+    showPurchasePage
+  ]);
   
   // 获取题库和题目数据
   useEffect(() => {
@@ -612,21 +631,21 @@ function QuizPage(): JSX.Element {
         // 解析URL参数
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
-        const trialLimit = urlParams.get('trialLimit');
+        const trialLimitParam = urlParams.get('trialLimit');
         const specificQuestions = urlParams.get('questions');
         
         // 检查URL中的trial参数，支持两种形式："?mode=trial" 或 "?trial=true"
         // 这样可以确保向后兼容性
-        const isTrialParam = mode === 'trial' || urlParams.get('trial') === 'true';
+        const isExplicitTrialMode = mode === 'trial' || urlParams.get('trial') === 'true';
         
         // 增强调试日志
         console.log('[QuizPage] URL 参数解析:', {
           fullUrl: window.location.href,
           search: window.location.search,
           mode,
-          trialLimit,
+          trialLimitParam,
           specificQuestions,
-          isTrialParam,
+          isExplicitTrialMode,
           rawParams: Array.from(urlParams.entries())
         });
         
@@ -634,19 +653,37 @@ function QuizPage(): JSX.Element {
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
         if (response.success && response.data) {
-          // 判断是否是试用模式 - 改进检测方式
-          const isTrialMode = isTrialParam;
-          console.log(`[QuizPage] 试用模式检测结果: mode参数=${mode}, isTrialMode=${isTrialMode}`);
-          
           // 更新明确的试用模式状态
-          setIsInTrialMode(isTrialMode);
+          setIsInTrialMode(isExplicitTrialMode);
           
-          // 设置试用题目数量，优先使用URL参数中的值
-          const trialQuestionCount = isTrialMode && trialLimit 
-            ? parseInt(trialLimit, 10) 
-            : response.data.trialQuestions;
+          // 改进对试用题目数量的确定逻辑
+          const trialQuestionsFromApi = response.data.trialQuestions;
+          let determinedTrialCount: number;
           
-          console.log(`[QuizPage] 试用题目设置: 数量=${trialQuestionCount}, 来源=${isTrialMode && trialLimit ? 'URL参数' : '题库默认值'}`);
+          if (isExplicitTrialMode) {
+            // 显式试用模式下，确保试用题数为正数
+            const limitFromUrl = trialLimitParam ? parseInt(trialLimitParam, 10) : undefined;
+            if (limitFromUrl !== undefined && limitFromUrl > 0) {
+              determinedTrialCount = limitFromUrl;
+            } else if (trialQuestionsFromApi !== undefined && trialQuestionsFromApi > 0) {
+              determinedTrialCount = trialQuestionsFromApi;
+            } else {
+              determinedTrialCount = 3; // 显式试用模式下，若无有效正数限制，则默认为3题
+            }
+            console.log(`[QuizPage] 显式试用模式，试用题数: ${determinedTrialCount}`);
+          } else {
+            // 非显式试用模式 (直接访问 /quiz/:id)
+            if (trialQuestionsFromApi !== undefined && trialQuestionsFromApi !== null && trialQuestionsFromApi >= 0) {
+              determinedTrialCount = trialQuestionsFromApi;
+            } else {
+              // API未定义试用题数: 付费题库默认给1题隐式试用，免费题库0题
+              determinedTrialCount = response.data.isPaid ? 1 : 0;
+            }
+            console.log(`[QuizPage] 非显式试用模式 (isPaid: ${response.data.isPaid})，试用题数: ${determinedTrialCount}`);
+          }
+          
+          // 确保 determinedTrialCount 不为负
+          if (determinedTrialCount < 0) determinedTrialCount = 0;
           
           const questionSetData: IQuestionSet = {
             id: response.data.id,
@@ -660,7 +697,7 @@ function QuizPage(): JSX.Element {
             isFeatured: response.data.isFeatured || false,
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
-            trialQuestions: trialQuestionCount !== undefined && trialQuestionCount !== null ? trialQuestionCount : (response.data.trialQuestions || 3), // 设置试用题目数量，确保有默认值
+            trialQuestions: determinedTrialCount,
             questionCount: getQuestions(response.data).length,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -670,11 +707,9 @@ function QuizPage(): JSX.Element {
           
           setQuestionSet(questionSetData);
           
-          // 修改fetchQuestionSet函数内部的试用模式检测部分
-          // 确保在此处不会触发任何购买提示
-          if (isTrialMode) {
-            const trialCount = trialQuestionCount || questionSetData.trialQuestions || 3; // 默认至少显示3题
-            console.log(`[QuizPage] 初始化试用模式，限制题目数: ${trialCount}`);
+          // 修改试用模式初始化逻辑
+          if (isExplicitTrialMode) {
+            console.log(`[QuizPage] 初始化试用模式，限制题目数: ${determinedTrialCount}`);
             
             // 设置试用模式状态，但不触发购买提示
             if (questionSetData.isPaid) {
@@ -682,25 +717,26 @@ function QuizPage(): JSX.Element {
               setHasRedeemed(false);
               // 重要：确保刚进入时不会显示试用结束状态
               setTrialEnded(false);
-              setShowPaymentModal(false); // 确保不显示购买窗口
+              setShowPaymentModal(false); 
+              setShowPurchasePage(false); // 确保不立即显示购买页面
               
               // 更新文档标题
               document.title = `${questionSetData.title} (试用模式) - 答题系统`;
               
               // 保存试用模式状态
               sessionStorage.setItem(`quiz_${questionSetId}_trial_mode`, 'true');
-              if (trialQuestionCount) {
-                sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(trialQuestionCount));
+              if (determinedTrialCount > 0) {
+                sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(determinedTrialCount));
               }
               
               // 只显示提示，不显示购买窗口
-              toast.info(`您正在试用模式下答题，可以答${trialCount}道题`, {
+              toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}道题`, {
                 autoClose: 5000,
                 icon: '🔍'
               });
             }
           }
-          
+
           // 使用题库中包含的题目数据
           const questionsData = getQuestions(response.data);
           if (questionsData.length > 0) {
@@ -762,9 +798,8 @@ function QuizPage(): JSX.Element {
             }
             
             // 如果是试用模式，显示提示
-            if (isTrialMode) {
-              const trialCount = trialQuestionCount || questionSetData.trialQuestions || 3; // 默认至少显示3题
-              toast.info(`您正在试用模式下答题，可以答${trialCount}道题`, {
+            if (isExplicitTrialMode) {
+              toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}道题`, {
                 autoClose: 5000,
                 icon: '🔍'
               });
@@ -783,7 +818,6 @@ function QuizPage(): JSX.Element {
             // 初始化问题开始时间
             setQuestionStartTime(Date.now());
             
-            // 移除对initQuizState的调用，我们将直接在加载题目时处理初始化逻辑
             // 从本地存储加载上次的答题进度
             try {
               const localProgressKey = `quiz_progress_${questionSetId}`;
@@ -1306,28 +1340,31 @@ function QuizPage(): JSX.Element {
       }
       
       // 检查是否达到试用限制
-      if (questionSet && isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
+      if (questionSet && questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed) {
         const trialQuestions = questionSet.trialQuestions || 0;
         
         // 现在要更精确地判断是否刚好达到限制
-        // 已回答题目数量 + 当前这一题 = trialQuestions 意味着刚好用完了试用题目
+        // 已回答题目数量 = trialQuestions 意味着刚好用完了试用题目
         if (trialQuestions > 0 && updatedAnsweredQuestions.length >= trialQuestions) {
           console.log(`[QuizPage] 已达到试用题目限制 (${updatedAnsweredQuestions.length}/${trialQuestions})，准备显示购买提示`);
           
           // 适当延迟，给用户时间看到题目的正确或错误状态
           setTimeout(() => {
-            // 设置试用结束状态
-            setTrialEnded(true);
-            
-            // 显示提示信息
-            toast.info(`您已完成${trialQuestions}道试用题目限制，需要购买完整版或使用兑换码继续`, {
-              position: "top-center",
-              autoClose: 8000,
-              toastId: "trial-limit-reached"
-            });
-            
-            // 显示购买页面而非模态窗口
-            setShowPurchasePage(true);
+            // 检查权限状态是否已改变
+            if (!hasAccessToFullQuiz && !hasRedeemed) {
+              // 设置试用结束状态
+              setTrialEnded(true);
+              
+              // 显示提示信息
+              toast.info(`您已完成${trialQuestions}道试用题目限制，需要购买完整版或使用兑换码继续`, {
+                position: "top-center",
+                autoClose: 8000,
+                toastId: "trial-limit-reached"
+              });
+              
+              // 显示购买页面
+              setShowPurchasePage(true);
+            }
           }, 1500);
         }
       }
@@ -1338,7 +1375,7 @@ function QuizPage(): JSX.Element {
       // 重置提交状态
       isSubmittingRef.current = false;
     }
-  }, [answeredQuestions, questionSetId, questionStartTime, questions.length, socket, user, isInTrialMode, hasAccessToFullQuiz, hasRedeemed, questionSet, setTrialEnded, setShowPurchasePage]);
+  }, [answeredQuestions, questionSetId, questionStartTime, questions.length, socket, user, hasAccessToFullQuiz, hasRedeemed, questionSet, setTrialEnded, setShowPurchasePage]);
   
   // 修改处理答案提交的函数，确保模态窗口显示
   const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
@@ -1415,10 +1452,10 @@ function QuizPage(): JSX.Element {
         toastId: "trial-limit-toast",
       });
       
-      // 设置试用结束状态，确保在UI上显示限制
+      // 设置试用结束状态
       setTrialEnded(true);
       
-      // 直接显示购买页面而非模态窗口
+      // 显示购买页面而非仅显示模态窗口
       setShowPurchasePage(true);
       return; // 阻止继续前进到下一题
     }
@@ -1457,31 +1494,36 @@ function QuizPage(): JSX.Element {
       return;
     }
     
-    // 在试用模式下检查是否超出限制
-    const isTrialLimitExceeded = isInTrialMode && 
-                               !hasAccessToFullQuiz && 
-                               !hasRedeemed && 
-                               questionSet?.trialQuestions && 
-                               questionIndex >= questionSet.trialQuestions;
+    // 安全检查：确保题目索引有效
+    if (questionIndex < 0 || questionIndex >= questions.length) {
+      console.error(`[QuizPage] 无效题目索引: ${questionIndex}, 最大索引: ${questions.length - 1}`);
+      return;
+    }
+    
+    // 检查是否试用限制阻止跳转
+    const trialQuestions = questionSet?.trialQuestions || 0;
+    const isTrialLimitExceeded = 
+      questionSet?.isPaid && 
+      !hasAccessToFullQuiz && 
+      !hasRedeemed && 
+      trialQuestions > 0 && 
+      questionIndex >= trialQuestions;
     
     if (isTrialLimitExceeded) {
-      console.log(`[QuizPage] 跳转被阻止: 试用模式下尝试访问第 ${questionIndex + 1} 题，超出限制 ${questionSet?.trialQuestions} 题`);
+      console.log(`[QuizPage] 跳转被阻止: 尝试访问第 ${questionIndex + 1} 题，超出试用限制 ${trialQuestions} 题`);
       
       // 显示提示信息
-      toast.info(`您正在试用模式下，最多只能回答 ${questionSet?.trialQuestions} 道题目`, {
+      toast.info(`您正在试用模式下，最多只能回答 ${trialQuestions} 道题目，请购买完整版继续使用`, {
         position: "top-center",
         autoClose: 5000,
         toastId: "trial-limit-jump-toast",
       });
       
-      // 直接显示购买页面而非模态窗口
+      // 设置试用结束状态
+      setTrialEnded(true);
+      
+      // 显示购买页面而非仅显示模态窗口
       setShowPurchasePage(true);
-      return;
-    }
-    
-    // 安全检查：确保题目索引有效
-    if (questionIndex < 0 || questionIndex >= questions.length) {
-      console.error(`[QuizPage] 无效题目索引: ${questionIndex}, 最大索引: ${questions.length - 1}`);
       return;
     }
     
@@ -1491,10 +1533,10 @@ function QuizPage(): JSX.Element {
   }, [
     questions.length, 
     quizComplete, 
-    isInTrialMode, 
-    hasAccessToFullQuiz, 
-    hasRedeemed, 
     questionSet,
+    hasAccessToFullQuiz, 
+    hasRedeemed,
+    setTrialEnded,
     setShowPurchasePage
   ]);
 
@@ -1998,11 +2040,20 @@ function QuizPage(): JSX.Element {
 
   // 更新useEffect，确保在答题达到限制时显示购买页面
   useEffect(() => {
-    if (questionSet && trialEnded && isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
-      console.log('[QuizPage] 试用已结束，显示购买页面');
-      setShowPurchasePage(true);
+    if (!questionSet) return;
+    
+    // 如果用户有完整权限访问，确保不会显示购买页面
+    if (hasAccessToFullQuiz || hasRedeemed || !questionSet.isPaid) {
+      if (showPurchasePage) setShowPurchasePage(false);
+      return;
     }
-  }, [trialEnded, isInTrialMode, hasAccessToFullQuiz, hasRedeemed, questionSet]);
+    
+    // 只有当试用结束且是付费题库时，才显示购买页面
+    if (trialEnded && questionSet.isPaid) {
+      console.log('[QuizPage] 试用已结束，显示购买页面');
+      if (!showPurchasePage) setShowPurchasePage(true);
+    }
+  }, [trialEnded, questionSet, hasAccessToFullQuiz, hasRedeemed, showPurchasePage]);
   
   // 修改渲染函数，确保PurchasePage优先显示
   return (

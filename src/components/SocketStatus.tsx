@@ -1,8 +1,7 @@
 import React from 'react';
 import { useSocket } from '../contexts/SocketContext';
-
 const SocketStatus: React.FC = () => {
-  const { isConnected, connectionError, reconnect } = useSocket();
+  const { isConnected, reconnect, lastError } = useSocket();
 
   if (isConnected) {
     return (
@@ -20,9 +19,9 @@ const SocketStatus: React.FC = () => {
         <span className="text-red-700 text-sm font-medium">Socket 连接失败</span>
       </div>
       
-      {connectionError && (
+      {lastError && (
         <div className="mt-1 text-xs text-red-600">
-          错误: {connectionError}
+          错误: {lastError}
         </div>
       )}
       
