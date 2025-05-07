@@ -1209,117 +1209,121 @@ function QuizPage(): JSX.Element {
     }
   }, [questions, questionSetId, socket, user?.id]);
 
-  // 修改handleAnswerSubmit函数，增强保存进度的逻辑
-  const handleAnswerSubmit = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
+  // 修复handleAnswerSubmit函数，确保正确记录答题状态
+  const handleAnswerSubmit = useCallback(async (
+    selectedOption: string | string[], 
+    isCorrect: boolean, 
+    question: Question,
+    questionIndex: number
+  ) => {
+    console.log(`[QuizPage] 提交答案: isCorrect=${isCorrect}, selectedOption=`, selectedOption);
+    
+    // 防止重复提交
     if (isSubmittingRef.current) {
-      console.log('已在提交答案中，忽略重复请求');
+      console.log('[QuizPage] 正在提交中，忽略此次提交');
       return;
     }
-
-    const currentQuestion = questions[currentQuestionIndex];
-    if (!currentQuestion) {
-      console.error('当前问题数据不存在');
-      return;
-    }
-
-    // 设置提交状态
+    
     isSubmittingRef.current = true;
-
-    // 确保selectedOption总是字符串数组
-    const optionIds = Array.isArray(selectedOption) ? selectedOption : [selectedOption];
-
-    // 更新当前问题的状态
-    const updatedAnsweredQuestions = [...answeredQuestions];
-    const timeSpent = quizStartTime ? (Date.now() - quizStartTime) / 1000 : 0;
-
-    // 检查是否已经回答过这个问题
-    const existingAnswerIndex = updatedAnsweredQuestions.findIndex(
-      q => q.questionIndex === currentQuestionIndex
-    );
-
-    if (existingAnswerIndex !== -1) {
-      // 更新已存在的答案
-      updatedAnsweredQuestions[existingAnswerIndex] = {
-        ...updatedAnsweredQuestions[existingAnswerIndex],
-        isCorrect,
-        selectedOption: optionIds,
-      };
-    } else {
-      // 添加新的答案
-      updatedAnsweredQuestions.push({
-        index: updatedAnsweredQuestions.length,
-        questionIndex: currentQuestionIndex,
-        isCorrect,
-        selectedOption: optionIds,
-      });
-    }
-
-    setAnsweredQuestions(updatedAnsweredQuestions);
-
-    // 增强本地存储策略 - 确保更准确地保存进度
-    console.log("[QuizPage] 更新本地进度:", updatedAnsweredQuestions.length);
     
-    // 更新正确答题计数
-    const correctCount = updatedAnsweredQuestions.filter(q => q.isCorrect).length;
-    setCorrectAnswers(correctCount);
-    
-    // 立即保存当前题目索引和答题记录到本地存储
-    const localProgressKey = `quiz_progress_${questionSetId}`;
     try {
-      localStorage.setItem(localProgressKey, JSON.stringify({
-        lastQuestionIndex: currentQuestionIndex,
+      if (!questionSetId || !question.id) {
+        console.error('[QuizPage] 题目ID或题库ID缺失，无法保存进度');
+        return;
+      }
+      
+      // 计算当前问题的答题用时（毫秒）
+      const timeSpent = Date.now() - questionStartTime;
+      
+      // 首先检查是否为重复提交
+      const alreadyAnswered = answeredQuestions.findIndex(q => 
+        q.index === questionIndex || 
+        (q.questionIndex !== undefined && q.questionIndex === questionIndex)
+      );
+      
+      // 构建新的已答问题对象
+      const newAnsweredQuestion: AnsweredQuestion = {
+        index: questionIndex,
+        questionIndex: questionIndex, // 添加问题索引以确保跨会话一致性
+        isCorrect,
+        selectedOption
+      };
+      
+      // 更新已答问题列表 - 如果已存在则替换，否则添加
+      let updatedAnsweredQuestions: AnsweredQuestion[];
+      if (alreadyAnswered >= 0) {
+        // 替换现有记录
+        updatedAnsweredQuestions = [...answeredQuestions];
+        updatedAnsweredQuestions[alreadyAnswered] = newAnsweredQuestion;
+        console.log(`[QuizPage] 更新第${questionIndex + 1}题的现有答题记录`);
+      } else {
+        // 添加新记录
+        updatedAnsweredQuestions = [...answeredQuestions, newAnsweredQuestion];
+        console.log(`[QuizPage] 添加第${questionIndex + 1}题的新答题记录`);
+      }
+      
+      // 更新正确答题计数器
+      const newCorrectCount = updatedAnsweredQuestions.filter(q => q.isCorrect).length;
+      setCorrectAnswers(newCorrectCount);
+      
+      // 更新状态显示已答问题
+      setAnsweredQuestions(updatedAnsweredQuestions);
+      
+      // 更新本地存储
+      const localProgressUpdate = {
+        lastQuestionIndex: questionIndex,
         answeredQuestions: updatedAnsweredQuestions,
-        lastUpdated: new Date().toISOString(),
-        correctAnswers: correctCount,
+        correctAnswers: newCorrectCount,
         totalAnswered: updatedAnsweredQuestions.length,
         totalQuestions: questions.length,
-        pendingSync: true // 标记为待同步，确保下次打开时会同步
-      }));
-      console.log(`[QuizPage] 已保存当前进度到本地存储, 当前题目: ${currentQuestionIndex + 1}`);
-    } catch (error) {
-      console.error('[QuizPage] 保存进度到本地存储失败:', error);
-    }
-
-    // 标记有未同步的更改
-    unsyncedChangesRef.current = true;
-    
-    // 答题完成后更新总时间
-    if (isTimerActive && updatedAnsweredQuestions.length === questions.length) {
-      setIsTimerActive(false);
-      setQuizTotalTime(timeSpent);
+        lastUpdated: new Date().toISOString()
+      };
       
-      // 全部完成时同步进度
-      if (socket && user?.id) {
-        // 延迟一点执行，确保状态已更新
-        setTimeout(() => {
-          syncProgressToServer(true);
-          
-          // 发送完成事件
-          socket.emit('quiz:complete', {
-            questionSetId,
-            totalTime: timeSpent,
-            correctCount: updatedAnsweredQuestions.filter(q => q.isCorrect).length,
-            totalCount: questions.length
-          });
-        }, 300);
+      // 保存到本地存储以支持离线场景
+      try {
+        const localProgressKey = `quiz_progress_${questionSetId}`;
+        localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
+        console.log(`[QuizPage] 已更新本地进度存储，包含${updatedAnsweredQuestions.length}道已答题目`);
+      } catch (e) {
+        console.error('[QuizPage] 保存本地进度失败:', e);
       }
-    }
-
-    // 重置提交状态
-    setTimeout(() => {
+      
+      // 标记有未同步的更改
+      unsyncedChangesRef.current = true;
+      
+      // 通过socket.io进行同步
+      if (socket && user) {
+        const progressData: ExtendedSaveProgressParams = {
+          questionId: String(question.id),
+          questionSetId,
+          selectedOption,
+          isCorrect,
+          timeSpent,
+          lastQuestionIndex: questionIndex
+        };
+        
+        socket.emit('progress:save', progressData);
+        console.log('[QuizPage] 已通过socket发送进度保存请求');
+      } else {
+        console.log('[QuizPage] Socket未连接或用户未登录，跳过服务器同步');
+      }
+    } catch (error) {
+      console.error('[QuizPage] 保存进度或答案时出错:', error);
+    } finally {
+      // 重置提交状态
       isSubmittingRef.current = false;
-    }, 800);
-  }, [
-    currentQuestionIndex, 
-    answeredQuestions, 
-    questionSetId, 
-    socket, 
-    user?.id,
-    quizStartTime,
-    questions.length,
-    isTimerActive,
-    syncProgressToServer
-  ]);
+    }
+  }, [answeredQuestions, questionSetId, questionStartTime, questions.length, socket, user]);
+
+  // After the handleAnswerSubmit function, add this wrapper:
+
+  // Create an adapter function to match QuestionCard's expected signature
+  const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
+    const currentQ = questions[currentQuestionIndex];
+    if (currentQ) {
+      handleAnswerSubmit(selectedOption, isCorrect, currentQ, currentQuestionIndex);
+    }
+  }, [questions, currentQuestionIndex, handleAnswerSubmit]);
 
   // 在handleNextQuestion函数后添加定期同步逻辑
   const handleNextQuestion = useCallback(() => {
@@ -1648,7 +1652,7 @@ function QuizPage(): JSX.Element {
             question={currentQuestion}
             questionNumber={currentQuestionIndex + 1}
             totalQuestions={questions.length}
-            onAnswerSubmitted={handleAnswerSubmit}
+            onAnswerSubmitted={handleAnswerSubmitAdapter}
             onNext={handleNextQuestion}
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
@@ -3091,7 +3095,7 @@ function QuizPage(): JSX.Element {
                 question={questions[currentQuestionIndex]}
                 questionNumber={currentQuestionIndex + 1}
                 totalQuestions={questions.length}
-                onAnswerSubmitted={handleAnswerSubmit}
+                onAnswerSubmitted={handleAnswerSubmitAdapter}
                 onNext={handleNextQuestion}
                 onJumpToQuestion={handleJumpToQuestion}
                 isPaid={questionSet?.isPaid}

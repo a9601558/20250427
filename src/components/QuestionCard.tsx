@@ -146,8 +146,26 @@ const QuestionCard = ({
     }
   }, [userAnsweredQuestion, question.questionType]);
 
-  // 添加一个明确的注释和更多检查，确保不会自动提交
-  // 修改 handleOptionClick 函数，确保不会自动提交答案
+  // 修改getOptionClass函数确保正确答案显示为绿色
+  const getOptionClass = (option: any) => {
+    if (!showExplanation) {
+      // 没有提交答案时的样式
+      return selectedOptions.includes(option.id)
+        ? 'border-blue-300 bg-blue-50'
+        : 'border-gray-300 bg-white hover:bg-gray-50';
+    }
+    
+    // 已经提交答案，显示正确与错误状态
+    if (option.isCorrect) {
+      return 'border-green-500 bg-green-50 text-green-700'; // 正确答案
+    } else if (selectedOptions.includes(option.id)) {
+      return 'border-red-500 bg-red-50 text-red-700'; // 选择了错误答案
+    } else {
+      return 'border-gray-300 bg-gray-50 opacity-60'; // 其他未选答案
+    }
+  };
+
+  // 修改handleOptionClick函数，移除自动提交代码
   const handleOptionClick = (optionText: string, optionId: string) => {
     if (isSubmittingRef.current || isSubmitted) {
       console.log('[QuestionCard] 正在提交答案中或已提交，忽略点击');
@@ -181,6 +199,12 @@ const QuestionCard = ({
       setSelectedOptions([optionId]);
       setSelectedOption(optionId);
       console.log('[QuestionCard] 已选择单选项，等待用户手动提交');
+      
+      // 添加提示帮助用户理解需要点击提交按钮
+      toast.info('请点击"提交答案"按钮确认您的选择', {
+        autoClose: 1500,
+        position: 'bottom-center'
+      });
     } 
     // 多选题模式
     else {
@@ -238,7 +262,7 @@ const QuestionCard = ({
       setIsCorrectAnswer(isCorrect);
       setIsSubmitted(true);
       setShowExplanation(true);
-
+      
       // 调用父组件的回调
       if (onAnswerSubmitted) {
         onAnswerSubmitted(isCorrect, selectedOptions);
@@ -247,16 +271,16 @@ const QuestionCard = ({
       // 如果答错了，保存错题记录
       if (!isCorrect) {
         const wrongAnswerEvent = new CustomEvent(EVENTS.WRONG_ANSWER_SAVE, {
-          detail: {
-            questionId: question.id,
+              detail: {
+                questionId: question.id,
             questionSetId,
             question: question.question,
             selectedOption: selectedOptions,
             correctAnswer: question.options.filter(opt => opt.isCorrect).map(opt => opt.id),
             isCorrect: false
-          }
-        });
-        window.dispatchEvent(wrongAnswerEvent);
+              }
+            });
+            window.dispatchEvent(wrongAnswerEvent);
       }
 
     } finally {
@@ -264,25 +288,6 @@ const QuestionCard = ({
       setTimeout(() => {
         isSubmittingRef.current = false;
       }, TIMEOUTS.STANDARD);
-    }
-  };
-
-  // 确保渲染时正确地显示选项样式
-  const getOptionClass = (option: any) => {
-    if (!showExplanation) {
-      // 没有提交答案时的样式
-      return selectedOptions.includes(option.id)
-        ? 'border-blue-300 bg-blue-50'
-        : 'border-gray-300 bg-white hover:bg-gray-50';
-    }
-    
-    // 已经提交答案，显示正确与错误状态
-    if (option.isCorrect) {
-      return 'border-green-500 bg-green-50 text-green-700'; // 正确答案
-    } else if (selectedOptions.includes(option.id)) {
-      return 'border-red-500 bg-red-50 text-red-700'; // 选择了错误答案
-    } else {
-      return 'border-gray-300 bg-gray-50 opacity-60'; // 其他未选答案
     }
   };
 
@@ -347,7 +352,7 @@ const QuestionCard = ({
       
       // 保存状态
       const stateToSave = {
-        questionId: question.id,
+                questionId: question.id,
         selectedOption: question.questionType === 'single' ? selectedOption : null,
         selectedOptions: question.questionType === 'multiple' ? selectedOptions : [],
         isSubmitted,
@@ -400,43 +405,42 @@ const QuestionCard = ({
     }
   };
 
-  // 处理下一题按钮点击
-  const handleNext = useCallback(() => {
-    // 检查本地权限状态，确保用户有最新的访问权限
-    const hasLocalAccess = checkLocalAccessRights(questionSetId);
-    const hasRedeemedLocal = checkLocalRedeemedStatus(questionSetId);
-    const userHasAccess = hasFullAccess || hasLocalAccess || hasRedeemedLocal;
-    
-    console.log(`[QuestionCard] handleNext检查: hasFullAccess=${hasFullAccess}, hasLocalAccess=${hasLocalAccess}, hasRedeemedLocal=${hasRedeemedLocal}, isTrialMode=${isTrialMode}, trialQuestions=${trialQuestions}, questionNumber=${questionNumber}`);
-    
-    // 增强试用模式检查 - 如果已达到试用题目数量且没有访问权限，显示提示
-    if (isTrialMode && trialQuestions && questionNumber >= trialQuestions && !userHasAccess) {
-      console.log(`[QuestionCard] 试用题目已达上限 (${questionNumber}/${trialQuestions})，显示提示`);
-      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions), {
-        position: "top-center",
-        autoClose: 5000,
-      });
+  // 增加一个专门监控试用模式状态的useEffect
+  useEffect(() => {
+    if (isTrialMode && !hasFullAccess && trialQuestions && questionNumber > trialQuestions) {
+      console.log(`[QuestionCard] 检测到超过试用题目限制: ${questionNumber} > ${trialQuestions}`);
       
-      // 显示兑换码或购买窗口
-      setShowPaymentModal(true); // 优先显示购买窗口而不是兑换窗口
-      return;
-    }
-    
-    // 检查下一题是否超出试用限制
-    if (isTrialMode && trialQuestions && questionNumber + 1 > trialQuestions && !userHasAccess) {
-      console.log(`[QuestionCard] 下一题将超出试用限制，显示购买提示`);
-      toast.info(`您已完成试用题目，请购买完整版或使用兑换码继续答题。`, {
-        position: "top-center",
-        autoClose: 5000,
-      });
+      // 显示购买或兑换提示
+      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions));
       
-      // 显示购买窗口
+      // 自动显示购买模态窗口
       setShowPaymentModal(true);
-      return;
+    }
+  }, [isTrialMode, hasFullAccess, trialQuestions, questionNumber]);
+
+  // 修改handleNext函数，确保在试用模式下正确处理限制
+  const handleNext = () => {
+    // 记录当前状态
+    saveCurrentState();
+    
+    // 增强试用模式限制检查
+    const nextQuestionNumber = questionNumber + 1;
+    if (isTrialMode && !hasFullAccess && trialQuestions && nextQuestionNumber > trialQuestions) {
+      console.log(`[QuestionCard] 已达到试用题目限制，下一题号将超过限制: ${nextQuestionNumber} > ${trialQuestions}`);
+      
+      // 显示购买或兑换提示
+      toast.info(MESSAGES.TRIAL_LIMIT(trialQuestions));
+      
+      // 立即显示购买模态窗口
+      setShowPaymentModal(true);
+      return; // 阻止继续前进到下一题
     }
     
-    onNext();
-  }, [isTrialMode, trialQuestions, questionNumber, checkLocalRedeemedStatus, checkLocalAccessRights, questionSetId, hasFullAccess, onNext]);
+    // 调用onNext回调
+    if (onNext) {
+      onNext();
+    }
+  };
 
   // 监听全局事件
   useEffect(() => {
@@ -637,7 +641,7 @@ const QuestionCard = ({
     };
   }, [question.id, questionSetId, question.questionType, userAnsweredQuestion, onAnswerSubmitted]);
 
-  // 恢复handleOptionKeyDown函数，但确保它不会自动提交答案
+  // 修改handleOptionKeyDown函数，确保键盘操作也不会自动提交
   const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, optionId: string, index: number) => {
     // 如果已经提交或正在提交，忽略键盘事件
     if (isSubmittingRef.current || isSubmitted) return;
@@ -646,18 +650,10 @@ const QuestionCard = ({
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       handleOptionClick(question.options[index].text, optionId);
-      
-      // 显示需要手动提交的提示
-      if (question.questionType === 'single') {
-        toast.info('已选择选项，请点击"提交答案"按钮确认', {
-          autoClose: 1500,
-          position: 'bottom-center'
-        });
-      }
     }
   };
 
-  // 修复全局键盘事件处理器的依赖项列表，同时确保试用模式结束时始终显示购买窗口
+  // 修改全局键盘事件处理器，确保数字键不会触发自动提交
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // 如果已经提交或正在提交，忽略键盘事件
@@ -683,14 +679,6 @@ const QuestionCard = ({
         if (option) {
           // 模拟点击选项，但不自动提交
           handleOptionClick(option.text, option.id);
-          
-          // 显示提示，告诉用户需要手动提交
-          if (question.questionType === 'single') {
-            toast.info('已选择选项，请点击"提交答案"按钮确认', {
-              autoClose: 1500,
-              position: 'bottom-center'
-            });
-          }
         }
       }
     };
@@ -793,8 +781,8 @@ const QuestionCard = ({
           </h3>
         </div>
         <span className="text-sm text-gray-500">
-          {questionNumber} / {totalQuestions}
-        </span>
+            {questionNumber} / {totalQuestions}
+          </span>
       </div>
 
       {/* 题目内容 */}
@@ -834,30 +822,30 @@ const QuestionCard = ({
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 )}
-              </div>
+            </div>
               <div>
                 <span className="text-md text-gray-800">{option.label}. {option.text}</span>
-              </div>
-            </div>
-            
+          </div>
+      </div>
+
             {/* 正确/错误指示器 */}
             {isSubmitted && (
               <div className="absolute right-4 top-4">
                 {option.isCorrect ? (
                   <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+            </svg>
                 ) : selectedOptions.includes(option.id) ? (
                   <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 ) : null}
+        </div>
+      )}
               </div>
-            )}
-          </div>
         ))}
-      </div>
-      
+          </div>
+          
       {/* 集中显示解析，只在一个地方显示 */}
       {renderExplanation()}
       
@@ -869,8 +857,8 @@ const QuestionCard = ({
         <h4 className="text-sm font-medium text-gray-700 mb-3">题目导航</h4>
         <div className="flex flex-wrap gap-2">
           {renderNumberButtons()}
-        </div>
-      </div>
+            </div>
+          </div>
       
       {/* 解释开关 */}
       {isSubmitted && question.explanation && (
@@ -882,7 +870,7 @@ const QuestionCard = ({
             <>
               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+          </svg>
               隐藏解析
             </>
           ) : (
@@ -902,15 +890,15 @@ const QuestionCard = ({
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">兑换题库访问码</h3>
-              <button 
+        <button
                 onClick={() => setShowRedeemCodeModal(false)}
                 className="text-gray-400 hover:text-gray-500"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          </svg>
+        </button>
+      </div>
             <RedeemCodeForm 
               questionSetId={questionSetId}
               onRedeemSuccess={() => {
@@ -927,17 +915,17 @@ const QuestionCard = ({
               }}
             />
             <div className="mt-4 pt-4 border-t">
-              <button
-                onClick={() => {
+        <button
+          onClick={() => {
                   setShowRedeemCodeModal(false);
                   setShowPaymentModal(true);
                 }}
                 className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
               >
                 购买完整题库
-              </button>
-            </div>
-          </div>
+        </button>
+      </div>
+    </div>
         </div>
       )}
       
