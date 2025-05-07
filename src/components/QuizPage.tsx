@@ -414,10 +414,18 @@ function QuizPage(): JSX.Element {
     if (!hasFullAccess && questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
       console.log(`[QuizPage] 试用题目已达上限 (${answeredQuestions.length}/${questionSet.trialQuestions})，设置trialEnded=true`);
       setTrialEnded(true);
+      
+      // 添加：显示购买模态窗口
+      setTimeout(() => {
+        if (isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
+          console.log(`[QuizPage] 显示购买模态窗口`);
+          setShowPaymentModal(true);
+        }
+      }, 1000);
     } else {
       setTrialEnded(false);
     }
-  }, [answeredQuestions.length, questionSet, checkFullAccessFromAllSources]);
+  }, [answeredQuestions.length, questionSet, checkFullAccessFromAllSources, isInTrialMode, hasAccessToFullQuiz, hasRedeemed]);
 
   // 在权限检查函数中增强对兑换状态的识别
   const checkAccess = async () => {
@@ -1322,10 +1330,37 @@ function QuizPage(): JSX.Element {
     const currentQ = questions[currentQuestionIndex];
     if (currentQ) {
       handleAnswerSubmit(selectedOption, isCorrect, currentQ, currentQuestionIndex);
+      
+      // 添加答案提交后的试用模式检查
+      setTimeout(() => {
+        // 检查是否已达到试用限制
+        const isAtTrialLimit = questionSet?.isPaid && 
+                            !hasAccessToFullQuiz && 
+                            !hasRedeemed && 
+                            questionSet.trialQuestions && 
+                            answeredQuestions.length >= questionSet.trialQuestions;
+    
+        if (isAtTrialLimit) {
+          console.log(`[QuizPage] 答案提交后检查: 已达到试用题目上限(${answeredQuestions.length}/${questionSet.trialQuestions})，强制试用结束`);
+          
+          // 立即设置试用结束状态
+          setTrialEnded(true);
+          
+          // 显示提示信息
+          toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题", {
+            position: "top-center",
+            autoClose: 8000,
+            toastId: "trial-limit-reached"
+          });
+          
+          // 立即显示购买或兑换选项
+          setShowPaymentModal(true);
+        }
+      }, 500); // 给一点延迟确保答案已被记录
     }
-  }, [questions, currentQuestionIndex, handleAnswerSubmit]);
+  }, [questions, currentQuestionIndex, handleAnswerSubmit, questionSet, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length]);
 
-  // 在handleNextQuestion函数后添加定期同步逻辑
+  // 增强handleNextQuestion函数，确保试用模式限制严格执行
   const handleNextQuestion = useCallback(() => {
     // 如果有未同步的数据且已经累积了多个回答，定期同步
     if (unsyncedChangesRef.current && answeredQuestions.length > 0 && answeredQuestions.length % 5 === 0) {
@@ -1333,12 +1368,15 @@ function QuizPage(): JSX.Element {
       syncProgressToServer();
     }
     
-    // 增强对试用模式的检查：优先使用全局检查而不是组件内状态
+    // 增强对试用模式的检查：更严格的检查，只要达到或超过试用限制即不允许继续
+    // 注意这里使用 ">=" 而不是 ">" 确保严格限制在试用数量
     const isAtTrialLimit = questionSet?.isPaid && 
                            !hasAccessToFullQuiz && 
                            !hasRedeemed && 
                            questionSet.trialQuestions && 
                            answeredQuestions.length >= questionSet.trialQuestions;
+    
+    console.log(`[QuizPage] 检查试用限制: 已答题数=${answeredQuestions.length}, 试用限制=${questionSet?.trialQuestions}, 是否达到限制=${isAtTrialLimit}`);
     
     // 以前达到上限条件检查可能不够严格，现在强制检查
     if (isAtTrialLimit) {
@@ -1350,7 +1388,8 @@ function QuizPage(): JSX.Element {
       // 显示提示信息
       toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题", {
         position: "top-center",
-        autoClose: 5000
+        autoClose: 8000,
+        toastId: "trial-limit-toast"
       });
       
       // 立即显示购买或兑换选项，不进入下一题
@@ -2581,6 +2620,42 @@ function QuizPage(): JSX.Element {
     syncProgressToServer, 
     navigate
   ]);
+  
+  // 添加到QuizPage组件中，在其他useEffect之后
+  // 添加一个新的useEffect来检查试用模式限制
+  useEffect(() => {
+    // 只在组件挂载后、题目加载完成后检查
+    if (!loading && questionSet && questions.length > 0 && isInTrialMode) {
+      // 检查是否已达到试用限制
+      const hasReachedTrialLimit = 
+        questionSet.isPaid && 
+        !hasAccessToFullQuiz && 
+        !hasRedeemed && 
+        questionSet.trialQuestions && 
+        answeredQuestions.length >= questionSet.trialQuestions;
+      
+      if (hasReachedTrialLimit) {
+        console.log(`[QuizPage] 初始检查：已达到试用题目上限(${answeredQuestions.length}/${questionSet.trialQuestions})，强制试用结束`);
+        
+        // 设置试用结束状态
+        setTrialEnded(true);
+        
+        // 显示提示信息（使用toastId避免重复显示）
+        toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题", {
+          position: "top-center",
+          autoClose: 8000,
+          toastId: "trial-init-check"
+        });
+        
+        // 延迟显示购买窗口，以便用户能先看到提示
+        setTimeout(() => {
+          if (isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
+            setShowPaymentModal(true);
+          }
+        }, 1000);
+      }
+    }
+  }, [loading, questionSet, questions.length, isInTrialMode, hasAccessToFullQuiz, hasRedeemed, answeredQuestions.length]);
   
   if (loading) {
     return (
