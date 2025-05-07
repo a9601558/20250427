@@ -1145,7 +1145,7 @@ function QuizPage(): JSX.Element {
 
     setAnsweredQuestions(updatedAnsweredQuestions);
 
-    // 仅更新本地进度
+    // 更新本地存储 - 增强保存策略，确保更准确地保存进度
     console.log("[QuizPage] 更新本地进度:", updatedAnsweredQuestions.length);
     
     // 更新本地存储
@@ -1153,7 +1153,10 @@ function QuizPage(): JSX.Element {
     localStorage.setItem(localProgressKey, JSON.stringify({
       lastQuestionIndex: currentQuestionIndex,
       answeredQuestions: updatedAnsweredQuestions,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      correctAnswers: updatedAnsweredQuestions.filter(q => q.isCorrect).length,
+      totalAnswered: updatedAnsweredQuestions.length,
+      totalQuestions: questions.length
     }));
 
     // 标记有未同步的更改
@@ -2848,6 +2851,27 @@ function QuizPage(): JSX.Element {
                     您正在试用此题库，可免费回答 {questionSet.trialQuestions} 道题目
                     （当前已回答 {answeredQuestions.length} / {questionSet.trialQuestions}）
                   </p>
+                  {/* 添加试用模式下的购买和兑换按钮 */}
+                  <div className="flex flex-wrap mt-2 gap-2">
+                    <button 
+                      onClick={() => {
+                        console.log('[QuizPage] 点击购买按钮，打开支付模态框');
+                        setShowPaymentModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    >
+                      购买完整版
+                    </button>
+                    <button
+                      onClick={() => {
+                        console.log('[QuizPage] 点击兑换码按钮，打开兑换模态框');
+                        setShowRedeemCodeModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-green-50 text-green-700 text-sm border border-green-300 rounded hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                    >
+                      使用兑换码
+                    </button>
+                  </div>
                 </div>
               ) : null}
               

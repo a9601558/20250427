@@ -366,130 +366,6 @@ const QuestionCard = ({
     }
   };
 
-  const handleNext = useCallback(() => {
-    if (!isSubmitted && !isCorrectAnswer) return;
-    
-    // 检查是否在试用模式下已达到题目限制
-    if (isTrialMode && trialQuestions && questionNumber >= trialQuestions) {
-      toast.info("您已达到试用题目上限，请购买完整版或使用兑换码继续答题");
-      setShowRedeemCodeModal(true);
-      return;
-    }
-    
-    setSelectedOptions([]);
-    setIsSubmitted(false);
-    setShowExplanation(false);
-    setIsCorrectAnswer(false);
-    
-    // 调用父组件的onNext回调
-    onNext();
-  }, [isSubmitted, isCorrectAnswer, onNext, isTrialMode, trialQuestions, questionNumber]);
-  
-  // Add a useEffect to handle cross-device access synchronization
-  useEffect(() => {
-    if (!user?.id || !questionSetId) return;
-    
-    const handleAccessRightsUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      
-      // If the event is for the current user, recheck local access status
-      if (customEvent.detail?.userId === user.id) {
-        // Refresh local access status
-        const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
-                              checkLocalAccessRights(questionSetId);
-                              
-        console.log(`[QuestionCard] Access rights updated for ${questionSetId}, local access: ${hasLocalAccess}`);
-      }
-    };
-    
-    window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
-    
-    return () => {
-      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
-    };
-  }, [user?.id, questionSetId]);
-
-  // Enhanced local access check function
-  const isQuestionAccessible = useCallback((questionIndex: number) => {
-    // If question set is free, all questions are accessible
-    if (!isPaid) return true;
-    
-    // First check if user has full access
-    if (hasFullAccess) return true;
-    
-    // Check local storage for redeemed status and access rights
-    const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
-                          checkLocalAccessRights(questionSetId);
-    
-    if (hasLocalAccess) return true;
-    
-    // If no access, check if within trial questions
-    return questionIndex < (trialQuestions || 0);
-  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
-
-  // 处理题号跳转
-  const handleJumpToQuestion = (index: number) => {
-    if (!isQuestionAccessible(index)) {
-      // 如果是付费题目且未购买，显示提示
-      // 检查是否需要购买或兑换
-      if (isPaid && !hasFullAccess) {
-        toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
-      }
-      return;
-    }
-    
-    if (onJumpToQuestion && !isSubmittingRef.current) {
-      onJumpToQuestion(index);
-    }
-  };
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
-
-  // 修复 Array.from 函数中对 totalQuestions 的使用，确保它是数字
-  const renderNumberButtons = () => {
-    // 确保 totalQuestions 是数字
-    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
-    
-    return Array.from({ length: count }).map((_, index) => {
-      const isAccessible = isQuestionAccessible(index);
-      return (
-        <button
-          key={index}
-          onClick={() => handleJumpToQuestion(index)}
-          disabled={!isAccessible}
-          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-            ${questionNumber === index + 1 
-              ? 'bg-blue-600 text-white' 
-              : isAccessible
-                ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
-            }
-            ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
-          `}
-          aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
-          title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
-        >
-          {index + 1}
-          {!isAccessible && (
-            <span className="absolute -top-1 -right-1 w-3 h-3">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-          )}
-        </button>
-      );
-    });
-  };
-
   // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
   const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
     try {
@@ -762,6 +638,184 @@ const QuestionCard = ({
     );
   };
 
+  // 增强兑换码成功的处理，确保支付模态不会出现
+  useEffect(() => {
+    const handleRedeemSuccess = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      // 获取兑换成功的题库ID
+      const redeemedSetId = customEvent.detail?.questionSetId;
+      
+      console.log(`[QuestionCard] 收到兑换成功事件, ID=${redeemedSetId}, 当前ID=${questionSetId}`);
+      
+      // 更新本地状态，确保不会显示支付模态
+      if (redeemedSetId === questionSetId || !redeemedSetId) {
+        // 立即隐藏所有模态窗口
+        setShowRedeemCodeModal(false);
+        setShowPaymentModal(false);
+      }
+    };
+    
+    window.addEventListener('redeem:success', handleRedeemSuccess);
+    
+    return () => {
+      window.removeEventListener('redeem:success', handleRedeemSuccess);
+    };
+  }, [questionSetId]);
+
+  // 修改 handleNext 函数，确保在兑换码后不再显示支付模态框，同时保持原有的组件状态重置逻辑
+  const handleNext = useCallback(() => {
+    // 防止在未提交或答题不正确时前进
+    if (!isSubmitted && !isCorrectAnswer) return;
+    
+    // 每次都重新检查本地存储中的兑换状态和访问权限
+    const hasLocalAccess = checkLocalAccessRights(questionSetId);
+    const hasRedeemedLocal = checkLocalRedeemedStatus(questionSetId);
+    
+    console.log(`[QuestionCard] handleNext - 检查权限: hasFullAccess=${hasFullAccess}, hasLocalAccess=${hasLocalAccess}, hasRedeemedLocal=${hasRedeemedLocal}, isTrialMode=${isTrialMode}, trialQuestions=${trialQuestions}, questionNumber=${questionNumber}`);
+    
+    // 多重检查以确定用户是否有权限继续
+    // 1. 如果有完整访问权限（从父组件传入）
+    // 2. 或者在本地存储中有访问权限
+    // 3. 或者在本地存储中已兑换
+    const userHasAccess = hasFullAccess || hasLocalAccess || hasRedeemedLocal;
+    
+    // 如果用户处于试用模式，检查是否超过试用题目数量
+    if (isTrialMode && trialQuestions && questionNumber >= trialQuestions && !userHasAccess) {
+      console.log(`[QuestionCard] 试用题目已达上限 (${questionNumber}/${trialQuestions})，显示提示`);
+      
+      // 显示兑换码输入或购买提示
+      toast.info(`您已完成${trialQuestions}道试用题目。请购买完整题库或使用兑换码继续答题。`, {
+        position: "top-center",
+        autoClose: 5000,
+      });
+      
+      // 显示兑换码或购买模态窗口，但避免两者都显示
+      if (hasRedeemedLocal) {
+        console.log(`[QuestionCard] 用户已兑换过码，不显示任何模态窗口`);
+        // 如果已兑换，直接调用下一题，不显示任何模态窗口
+        onNext();
+      } else {
+        // 默认显示兑换码输入界面，用户可以从那里选择购买
+        setShowRedeemCodeModal(true);
+      }
+      return;
+    }
+    
+    // 重置组件状态 - 恢复原有的状态重置逻辑
+    setSelectedOptions([]);
+    setIsSubmitted(false);
+    setShowExplanation(false);
+    setIsCorrectAnswer(false);
+    
+    // 调用父组件的下一题函数
+    onNext();
+  }, [isTrialMode, trialQuestions, questionNumber, isSubmitted, isCorrectAnswer, checkLocalRedeemedStatus, checkLocalAccessRights, questionSetId, hasFullAccess, onNext]);
+  
+  // Add a useEffect to handle cross-device access synchronization
+  useEffect(() => {
+    if (!user?.id || !questionSetId) return;
+    
+    const handleAccessRightsUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      
+      // If the event is for the current user, recheck local access status
+      if (customEvent.detail?.userId === user.id) {
+        // Refresh local access status
+        const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
+                              checkLocalAccessRights(questionSetId);
+                              
+        console.log(`[QuestionCard] Access rights updated for ${questionSetId}, local access: ${hasLocalAccess}`);
+      }
+    };
+    
+    window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
+    
+    return () => {
+      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
+    };
+  }, [user?.id, questionSetId]);
+
+  // Enhanced local access check function
+  const isQuestionAccessible = useCallback((questionIndex: number) => {
+    // If question set is free, all questions are accessible
+    if (!isPaid) return true;
+    
+    // First check if user has full access
+    if (hasFullAccess) return true;
+    
+    // Check local storage for redeemed status and access rights
+    const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
+                          checkLocalAccessRights(questionSetId);
+    
+    if (hasLocalAccess) return true;
+    
+    // If no access, check if within trial questions
+    return questionIndex < (trialQuestions || 0);
+  }, [isPaid, hasFullAccess, trialQuestions, questionSetId]);
+
+  // 处理题号跳转
+  const handleJumpToQuestion = (index: number) => {
+    if (!isQuestionAccessible(index)) {
+      // 如果是付费题目且未购买，显示提示
+      // 检查是否需要购买或兑换
+      if (isPaid && !hasFullAccess) {
+        toast?.('需要购买完整题库或使用兑换码才能访问', { type: 'warning' });
+      }
+      return;
+    }
+    
+    if (onJumpToQuestion && !isSubmittingRef.current) {
+      onJumpToQuestion(index);
+    }
+  };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
+  // 修复 Array.from 函数中对 totalQuestions 的使用，确保它是数字
+  const renderNumberButtons = () => {
+    // 确保 totalQuestions 是数字
+    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
+    
+    return Array.from({ length: count }).map((_, index) => {
+      const isAccessible = isQuestionAccessible(index);
+      return (
+        <button
+          key={index}
+          onClick={() => handleJumpToQuestion(index)}
+          disabled={!isAccessible}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${questionNumber === index + 1 
+              ? 'bg-blue-600 text-white' 
+              : isAccessible
+                ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+            }
+            ${isAccessible ? 'focus:ring-blue-500' : 'focus:ring-gray-400'}
+          `}
+          aria-label={`跳转到第${index + 1}题${!isAccessible ? ' (需要购买)' : ''}`}
+          title={!isAccessible ? '需要购买完整题库才能访问' : `跳转到第${index + 1}题`}
+        >
+          {index + 1}
+          {!isAccessible && (
+            <span className="absolute -top-1 -right-1 w-3 h-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="text-gray-400">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
+        </button>
+      );
+    });
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 mb-6 transition-all">
       {/* 试用信息横幅 */}
@@ -954,6 +1008,20 @@ const QuestionCard = ({
               
               // 显示成功提示
               toast.success("兑换成功，您可以继续答题了");
+              
+              // 确保兑换后不会显示购买选项，设置为已经拥有完整访问权限
+              if (onAnswerSubmitted) {
+                // 模拟一个访问权限更新事件
+                setTimeout(() => {
+                  const customEvent = new CustomEvent('accessRights:updated', {
+                    detail: {
+                      questionSetId: questionSetId,
+                      hasAccess: true
+                    }
+                  });
+                  window.dispatchEvent(customEvent);
+                }, 100);
+              }
             }} />
             
             <div className="mt-4 border-t pt-4">
