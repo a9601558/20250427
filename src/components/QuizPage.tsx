@@ -488,7 +488,7 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     if (!questionSet) return;
     
-    console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}`);
+    console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}, 试用题目数: ${questionSet.trialQuestions}`);
     
     // 首先全面检查是否有权限访问
     const hasFullAccess = checkFullAccessFromAllSources();
@@ -578,7 +578,7 @@ function QuizPage(): JSX.Element {
             isFeatured: response.data.isFeatured || false,
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
-            trialQuestions: trialQuestionCount, // 设置试用题目数量
+            trialQuestions: trialQuestionCount !== undefined && trialQuestionCount !== null ? trialQuestionCount : (response.data.trialQuestions || 3), // 设置试用题目数量，确保有默认值
             questionCount: getQuestions(response.data).length,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -1170,15 +1170,14 @@ function QuizPage(): JSX.Element {
       // 计算当前问题的答题用时（毫秒）
       const timeSpent = Date.now() - questionStartTime;
       
-      // 首先检查是否为重复提交
+      // 首先检查是否为重复提交 - 修复：只使用questionIndex作为唯一标识，不再使用index
       const alreadyAnswered = answeredQuestions.findIndex(q => 
-        q.index === questionIndex || 
-        (q.questionIndex !== undefined && q.questionIndex === questionIndex)
+        q.questionIndex === questionIndex
       );
       
       // 构建新的已答问题对象
       const newAnsweredQuestion: AnsweredQuestion = {
-        index: questionIndex,
+        index: answeredQuestions.length, // 递增索引，确保唯一性
         questionIndex: questionIndex, // 添加问题索引以确保跨会话一致性
         isCorrect,
         selectedOption
@@ -1242,13 +1241,29 @@ function QuizPage(): JSX.Element {
       } else {
         console.log('[QuizPage] Socket未连接或用户未登录，跳过服务器同步');
       }
+      
+      // 检查是否达到试用限制
+      if (questionSet && isInTrialMode && !hasAccessToFullQuiz && !hasRedeemed) {
+        const trialQuestions = questionSet.trialQuestions || 0;
+        if (trialQuestions > 0 && updatedAnsweredQuestions.length >= trialQuestions) {
+          console.log(`[QuizPage] 已达到试用题目限制(${updatedAnsweredQuestions.length}/${trialQuestions})，设置trialEnded=true`);
+          setTrialEnded(true);
+          
+          // 延迟显示购买提示
+          setTimeout(() => {
+            if (!hasAccessToFullQuiz && !hasRedeemed) {
+              setShowPaymentModal(true);
+            }
+          }, 1500);
+        }
+      }
     } catch (error) {
       console.error('[QuizPage] 保存进度或答案时出错:', error);
     } finally {
       // 重置提交状态
       isSubmittingRef.current = false;
     }
-  }, [answeredQuestions, questionSetId, questionStartTime, questions.length, socket, user]);
+  }, [answeredQuestions, questionSetId, questionStartTime, questions.length, socket, user, isInTrialMode, hasAccessToFullQuiz, hasRedeemed, questionSet, setTrialEnded, setShowPaymentModal]);
   
   // 修改处理答案提交的函数，确保模态窗口显示
   const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
