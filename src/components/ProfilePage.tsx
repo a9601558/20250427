@@ -151,10 +151,13 @@ const formatDate = (dateString: string): string => {
 
 interface ProgressCardProps {
   stats: ProgressStats;
+  onDelete: (questionSetId: string) => Promise<void>;
 }
 
-const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
+const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
   const navigate = useNavigate();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   // 检查是否有保存在localStorage的更新数据
   const checkLocalProgressData = () => {
@@ -193,15 +196,103 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats }) => {
     }
   };
 
+  // 处理删除确认
+  const handleConfirmDelete = async () => {
+    if (isDeleting) return;
+    
+    setIsDeleting(true);
+    try {
+      // 删除本地存储的进度数据
+      const localProgressKey = `quiz_progress_${stats.questionSetId}`;
+      localStorage.removeItem(localProgressKey);
+      
+      // 调用父组件的删除方法，通过API删除服务器上的进度
+      if (onDelete) {
+        await onDelete(stats.questionSetId);
+      }
+    } catch (e) {
+      console.error('[ProfilePage] 删除进度数据失败:', e);
+      toast.error('删除进度失败，请重试');
+    } finally {
+      setIsDeleting(false);
+      setShowConfirmDelete(false);
+    }
+  };
+
   return (
     <div 
-      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1 border border-gray-100"
-      onClick={handleContinueLearning}
+      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1 border border-gray-100 relative"
     >
+      {/* 删除按钮 */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowConfirmDelete(true);
+        }}
+        className="absolute top-2 right-2 w-8 h-8 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-100 transition-all z-10"
+        title="删除学习进度"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+
+      {/* 删除确认对话框 */}
+      {showConfirmDelete && (
+        <div className="absolute inset-0 bg-white bg-opacity-90 z-20 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-lg p-4 max-w-xs w-full border border-gray-200">
+            <div className="text-center mb-4">
+              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800">确认删除</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                确定要删除 "{stats.title}" 的学习进度吗？此操作无法撤销。
+              </p>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowConfirmDelete(false);
+                }}
+                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleConfirmDelete();
+                }}
+                disabled={isDeleting}
+                className={`px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors flex items-center ${isDeleting ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    处理中...
+                  </>
+                ) : (
+                  <>删除</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 卡片顶部带颜色条 */}
       <div className="h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
       
-      <div className="p-5">
+      <div 
+        className="p-5 group"
+        onClick={handleContinueLearning}
+      >
         <h2 className="text-lg font-semibold mb-4 text-gray-800 truncate flex items-center">
           <svg className="w-5 h-5 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1623,7 +1714,42 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 修改renderProgressContent函数确保正确显示进度卡片
+  // 添加删除进度函数
+  const handleDeleteProgress = async (questionSetId: string): Promise<void> => {
+    if (!user?.id) {
+      toast.error('请先登录');
+      return;
+    }
+    
+    try {
+      console.log(`[ProfilePage] 开始删除题库进度 ${questionSetId}`);
+      
+      // 1. 删除本地存储中的进度
+      const localProgressKey = `quiz_progress_${questionSetId}`;
+      localStorage.removeItem(localProgressKey);
+      
+      // 2. 调用API删除服务器上的进度数据
+      if (socket) {
+        // 使用socket向服务器发送删除请求
+        socket.emit('progress:delete', {
+          userId: user.id,
+          questionSetId: questionSetId
+        });
+        
+        // 3. 从UI中移除进度卡片
+        setProgressStats(prevStats => prevStats.filter(stat => stat.questionSetId !== questionSetId));
+        toast.success('学习进度已删除');
+        console.log(`[ProfilePage] 题库进度删除成功 ${questionSetId}`);
+      } else {
+        throw new Error('网络连接失败，请刷新页面重试');
+      }
+    } catch (error) {
+      console.error(`[ProfilePage] 删除题库进度失败:`, error);
+      toast.error('删除进度失败，请重试');
+    }
+  };
+
+  // 修改renderProgressContent函数，确保传递onDelete回调
   const renderProgressContent = () => {
     if (isLoading && !progressStats.length) {
       return (
@@ -1698,7 +1824,11 @@ const ProfilePage: React.FC = () => {
     return (
       <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {progressStats.map((stats) => (
-          <ProgressCard key={stats.questionSetId} stats={stats} />
+          <ProgressCard 
+            key={stats.questionSetId} 
+            stats={stats} 
+            onDelete={handleDeleteProgress}
+          />
         ))}
       </div>
     );
@@ -2006,10 +2136,10 @@ const ProfilePage: React.FC = () => {
         {renderTabs()}
         
         <div className="bg-white rounded-xl shadow-sm p-6">
-          {activeTab === 'progress' ? renderProgressContent() : 
-           activeTab === 'purchases' ? renderPurchasesContent() : 
-           activeTab === 'wrong-answers' ? renderWrongAnswersContent() :
-           renderRedeemedContent()}
+          {activeTab === 'progress' && renderProgressContent()}
+          {activeTab === 'purchases' && renderPurchasesContent()}
+          {activeTab === 'wrong-answers' && renderWrongAnswersContent()}
+          {activeTab === 'redeemed' && renderRedeemedContent()}
         </div>
       </div>
     </div>

@@ -1035,14 +1035,43 @@ function QuizPage(): JSX.Element {
       }
     };
 
-    // 使用类型断言
+    // 添加进度删除事件处理
+    const handleProgressDelete = (data: {questionSetId: string}) => {
+      console.log('[QuizPage] 收到progress:delete事件:', data);
+      if (data.questionSetId === questionSetId) {
+        // 如果删除的是当前题库的进度，重置本地状态
+        console.log('[QuizPage] 当前题库进度被删除，重置状态');
+        setAnsweredQuestions([]);
+        setCurrentQuestionIndex(0);
+        setCorrectAnswers(0);
+        setSelectedOptions([]);
+        
+        // 重置计时器
+        setQuizTotalTime(0);
+        setQuizStartTime(Date.now());
+        
+        // 如果有本地存储，也清除
+        const localProgressKey = `quiz_progress_${questionSetId}`;
+        localStorage.removeItem(localProgressKey);
+        
+        // 通知用户
+        toast.info('题库进度已被重置', {
+          position: 'top-center',
+          autoClose: 3000
+        });
+      }
+    };
+
+    // 使用类型断言注册事件监听
     (socket as Socket).on('progress:data', handleProgressData);
+    (socket as Socket).on('progress:delete', handleProgressDelete);
     
     return () => {
-      // 使用类型断言
+      // 使用类型断言清理事件监听
       (socket as Socket).off('progress:data', handleProgressData);
+      (socket as Socket).off('progress:delete', handleProgressDelete);
     };
-  }, [socket, user?.id]);
+  }, [socket, user?.id, questionSetId]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
@@ -1732,8 +1761,108 @@ function QuizPage(): JSX.Element {
 
   // 创建一个固定在页面底部的购买栏组件
   const TrialPurchaseBar = () => {
-    // 仅当满足以下条件时显示：付费题库 + 试用模式 + 无完整访问权限
+    // 仅当满足以下条件时显示购买栏：付费题库 + 试用模式 + 无完整访问权限
     if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+      // 对于已购买或已兑换的题库，显示有效期信息而不是购买栏
+      if (questionSet?.isPaid && (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed)) {
+        // 查找当前题库的有效期信息
+        let expiryInfo = null;
+        
+        // 检查用户购买记录
+        if (user?.purchases && Array.isArray(user.purchases)) {
+          const purchase = user.purchases.find(p => 
+            String(p.questionSetId).trim() === String(questionSet.id).trim());
+          
+          if (purchase && purchase.expiryDate) {
+            const expiryDate = new Date(purchase.expiryDate);
+            const now = new Date();
+            const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+            
+            if (expiryDate > now) {
+              expiryInfo = {
+                type: 'purchase',
+                remainingDays,
+                expiryDate: expiryDate.toLocaleDateString()
+              };
+            }
+          }
+        }
+        
+        // 如果没有找到购买记录，检查是否是兑换记录
+        if (!expiryInfo && user?.id) {
+          // 这里可以添加从localStorage中读取兑换有效期的逻辑
+          const redeemedStr = localStorage.getItem('redeemedQuestionSetInfo');
+          if (redeemedStr) {
+            try {
+              const redeemedInfo = JSON.parse(redeemedStr);
+              const currentInfo = redeemedInfo.find((item: any) => 
+                String(item.questionSetId).trim() === String(questionSet.id).trim());
+              
+              if (currentInfo && currentInfo.expiryDate) {
+                const expiryDate = new Date(currentInfo.expiryDate);
+                const now = new Date();
+                const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                
+                if (expiryDate > now) {
+                  expiryInfo = {
+                    type: 'redeem',
+                    remainingDays,
+                    expiryDate: expiryDate.toLocaleDateString()
+                  };
+                }
+              }
+            } catch (e) {
+              console.error('[QuizPage] 解析兑换信息失败:', e);
+            }
+          }
+        }
+        
+        // 显示有效期信息
+        if (expiryInfo) {
+          return (
+            <div className="fixed bottom-0 left-0 right-0 bg-white shadow-sm border-t border-gray-200 p-2 z-40">
+              <div className="container mx-auto flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">题库有效期:</span> 
+                    <span className="text-blue-600 font-bold mx-1">{expiryInfo.expiryDate}</span>
+                    <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                      剩余 {expiryInfo.remainingDays} 天
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <button
+                    onClick={saveProgressManually}
+                    disabled={isSaving}
+                    className={`px-3 py-1.5 rounded-md text-sm flex items-center ${
+                      isSaving 
+                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg className="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        保存中...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        保存进度
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+      }
       return null;
     }
     

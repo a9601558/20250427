@@ -560,6 +560,17 @@ export const userProgressService = {
     }
   },
   
+  // 删除特定题库的进度数据
+  deleteProgressByQuestionSet: async (questionSetId: string) => {
+    try {
+      const response = await api.delete(`/user-progress/${questionSetId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`删除题库${questionSetId}的进度失败:`, error);
+      return { success: false, message: '删除题库进度失败' };
+    }
+  },
+  
   // 更新进度
   updateProgress: async (progress: Partial<UserProgress>) => {
     try {

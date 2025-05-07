@@ -261,6 +261,51 @@ export const initializeSocket = (server: HttpServer): void => {
       }
     });
 
+    // 处理进度删除请求
+    socket.on('progress:delete', async (data: {
+      userId: string;
+      questionSetId: string;
+    }) => {
+      try {
+        // 安全检查：确保只能删除自己的进度
+        if (data.userId !== socket.userId) {
+          console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
+          socket.emit('progress_error', { message: '权限验证失败' });
+          return;
+        }
+
+        const { userId, questionSetId } = data;
+
+        // 验证参数
+        if (!userId || !questionSetId) {
+          socket.emit('progress_error', { message: '缺少必要参数' });
+          return;
+        }
+
+        // 从数据库中删除进度
+        await UserProgress.destroy({
+          where: {
+            userId,
+            questionSetId
+          }
+        });
+        
+        console.log(`用户进度已删除: ${userId}, ${questionSetId}`);
+        
+        // 向用户发送进度已删除通知
+        io.to(userId).emit('progress:delete', {
+          questionSetId,
+          success: true
+        });
+        
+        // 确认删除成功
+        socket.emit('progress:delete:result', { success: true });
+      } catch (error) {
+        console.error('删除进度失败:', error);
+        socket.emit('progress:delete:result', { success: false, error: (error as Error).message });
+      }
+    });
+
     // 处理断开连接
     socket.on('disconnect', (reason: string) => {
       console.log(`用户 ${socket.userId} 断开连接, 原因: ${reason}`);
