@@ -231,36 +231,55 @@ function QuizPage(): JSX.Element {
   // 将 isSubmittingRef 移动到组件内部
   const isSubmittingRef = useRef<boolean>(false);
   
-  // 状态管理
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  // 修改状态定义部分，将相关状态合并成对象
+  // 在QuizPage组件内部，将散布的状态合并为状态对象
+  const [quizStatus, setQuizStatus] = useState<{
+    loading: boolean;
+    error: string | null;
+    hasAccessToFullQuiz: boolean;
+    hasRedeemed: boolean;
+    trialEnded: boolean;
+    showPaymentModal: boolean;
+    showRedeemCodeModal: boolean;
+    showPurchasePage: boolean;
+    isInTrialMode: boolean;
+    showHints: boolean;
+    showExplanation: boolean;
+    showAllExplanations: boolean;
+    showReviewMode: boolean;
+    showWrongAnswers: boolean;
+    quizComplete: boolean;
+    isTimerActive: boolean;
+  }>({
+    loading: true,
+    error: null,
+    hasAccessToFullQuiz: false,
+    hasRedeemed: false,
+    trialEnded: false,
+    showPaymentModal: false,
+    showRedeemCodeModal: false,
+    showPurchasePage: false,
+    isInTrialMode: false,
+    showHints: false,
+    showExplanation: false,
+    showAllExplanations: false,
+    showReviewMode: false,
+    showWrongAnswers: false,
+    quizComplete: false,
+    isTimerActive: false,
+  });
+  
+  // 保留独立的数据状态，因为这些需要频繁单独更新且不适合合并到对象中
   const [questions, setQuestions] = useState<Question[]>([]);
   const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
   const [questionSet, setQuestionSet] = useState<IQuestionSet | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
-  const [showHints, setShowHints] = useState<boolean>(false);
   const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([]);
-  const [showExplanation, setShowExplanation] = useState<boolean>(false);
-  const [showAllExplanations, setShowAllExplanations] = useState<boolean>(false);
-  const [showReviewMode, setShowReviewMode] = useState<boolean>(false);
-  const [showWrongAnswers, setShowWrongAnswers] = useState<boolean>(false);
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
-  const [accessChecked, setAccessChecked] = useState<boolean>(false);
-  const [hasAccessToFullQuiz, setHasAccessToFullQuiz] = useState<boolean>(false);
-  const [hasRedeemed, setHasRedeemed] = useState<boolean>(false);
-  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState<boolean>(false);
-  const [trialEnded, setTrialEnded] = useState<boolean>(false);
-  const [isInTrialMode, setIsInTrialMode] = useState<boolean>(false);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [correctAnswers, setCorrectAnswers] = useState<number>(0);
-  const [quizComplete, setQuizComplete] = useState<boolean>(false);
   const [quizStartTime, setQuizStartTime] = useState<number>(0);
   const [quizTotalTime, setQuizTotalTime] = useState<number>(0);
-  const [isTimerActive, setIsTimerActive] = useState<boolean>(false);
-  
-  // 添加新的状态，用于控制购买页面的显示
-  const [showPurchasePage, setShowPurchasePage] = useState<boolean>(false);
   
   // 在QuizPage组件内部，在state声明区域添加一个同步状态标识
   const [lastSyncTime, setLastSyncTime] = useState<number>(0);
@@ -476,15 +495,15 @@ function QuizPage(): JSX.Element {
     }
     
     // 步骤5：检查其他状态变量
-    if (hasAccessToFullQuiz || hasRedeemed) {
-      console.log(`[QuizPage] 内部状态检查: hasAccessToFullQuiz=${hasAccessToFullQuiz}, hasRedeemed=${hasRedeemed}`);
+    if (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+      console.log(`[QuizPage] 内部状态检查: hasAccessToFullQuiz=${quizStatus.hasAccessToFullQuiz}, hasRedeemed=${quizStatus.hasRedeemed}`);
       return true;
     }
     
     // 步骤6：如果所有检查都未通过，返回false
     console.log(`[QuizPage] 所有权限检查均未通过，返回false`);
     return false;
-  }, [questionSet, user, hasAccessToFullQuiz, hasRedeemed]);
+  }, [questionSet, user, quizStatus.hasAccessToFullQuiz, quizStatus.hasRedeemed]);
 
   // 修改checkAccess函数，严格检查每个权限来源
   const checkAccess = async () => {
@@ -495,10 +514,10 @@ function QuizPage(): JSX.Element {
     // 免费题库直接授权
     if (!questionSet.isPaid) {
       console.log(`[checkAccess] 免费题库，直接授予访问权限`);
-      setHasAccessToFullQuiz(true);
+      setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       saveAccessToLocalStorage(questionSet.id, true);
-      setTrialEnded(false);
-      setShowPurchasePage(false);
+      setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus({ ...quizStatus, showPurchasePage: false });
       return;
     }
     
@@ -510,14 +529,14 @@ function QuizPage(): JSX.Element {
     console.log(`[checkAccess] 重新检查权限: ${hasFullAccess}`);
     
     // 更新访问权限状态
-    setHasAccessToFullQuiz(hasFullAccess);
+    setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: hasFullAccess });
     
     // 根据检查结果更新本地存储
     if (hasFullAccess) {
       console.log(`[checkAccess] 用户有访问权限，保存到本地缓存并重置试用结束状态`);
       saveAccessToLocalStorage(questionSet.id, true);
-      setTrialEnded(false);
-      setShowPurchasePage(false);
+      setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus({ ...quizStatus, showPurchasePage: false });
     } else {
       console.log(`[checkAccess] 用户无访问权限，检查试用状态`);
       saveAccessToLocalStorage(questionSet.id, false);
@@ -525,9 +544,9 @@ function QuizPage(): JSX.Element {
       // 检查是否已达试用限制
       if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
         console.log(`[checkAccess] 已达到试用限制：${answeredQuestions.length}/${questionSet.trialQuestions}`);
-        setTrialEnded(true);
+        setQuizStatus({ ...quizStatus, trialEnded: true });
       } else {
-        setTrialEnded(false);
+        setQuizStatus({ ...quizStatus, trialEnded: false });
       }
     }
     
@@ -542,7 +561,7 @@ function QuizPage(): JSX.Element {
   
   // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查
   useEffect(() => {
-    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${hasRedeemed}`);
+    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${quizStatus.hasRedeemed}`);
     if (user && user.purchases) {
       console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
@@ -550,14 +569,14 @@ function QuizPage(): JSX.Element {
     // 确保页面加载时不会显示购买弹窗
     if (questionSet && !questionSet.isPaid) {
       console.log(`[useEffect] 检测到免费题库，确保不会显示购买弹窗`);
-      setHasAccessToFullQuiz(true);
-      setTrialEnded(false);
-      setShowPurchasePage(false);
+      setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+      setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus({ ...quizStatus, showPurchasePage: false });
       saveAccessToLocalStorage(questionSet.id, true);
     }
     
     checkAccess();
-  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, hasRedeemed]);
+  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, quizStatus.hasRedeemed]);
   
   // 修改trialEnded的判定逻辑，避免错误提示购买
   useEffect(() => {
@@ -568,8 +587,8 @@ function QuizPage(): JSX.Element {
     // 如果是免费题库，永远不会试用结束
     if (!questionSet.isPaid) {
       console.log(`[QuizPage] 免费题库不存在试用结束概念`);
-      if (trialEnded) setTrialEnded(false);
-      if (showPurchasePage) setShowPurchasePage(false);
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
       return;
     }
     
@@ -579,15 +598,15 @@ function QuizPage(): JSX.Element {
     // 如果用户有访问权限，确保状态一致性
     if (hasFullAccess) {
       console.log(`[QuizPage] 用户有完整访问权限，确保不显示试用结束/购买页面`);
-      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
-      if (trialEnded) setTrialEnded(false);
-      if (showPurchasePage) setShowPurchasePage(false);
+      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
       return;
     }
     
     // 到这里说明：付费题库 + 用户无完整访问权限
     console.log(`[QuizPage] 用户对付费题库无完整访问权限，检查试用状态`);
-    if (hasAccessToFullQuiz) setHasAccessToFullQuiz(false);
+    if (quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
     
     // 确定试用题目数量
     const trialQuestionsCount = questionSet.trialQuestions || 0;
@@ -595,7 +614,7 @@ function QuizPage(): JSX.Element {
     // 如果试用题目数为0，直接标记为试用结束
     if (trialQuestionsCount <= 0) {
       console.log(`[QuizPage] 付费题库无试用题或试用题为0，直接标记试用结束`);
-      if (!trialEnded) setTrialEnded(true);
+      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
       return;
     }
     
@@ -605,17 +624,17 @@ function QuizPage(): JSX.Element {
     
     // 更新试用结束状态
     if (isTrialLimitReached) {
-      if (!trialEnded) setTrialEnded(true);
+      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
     } else {
-      if (trialEnded) setTrialEnded(false);
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
     }
   }, [
     questionSet, 
     answeredQuestions.length,
     checkFullAccessFromAllSources,
-    hasAccessToFullQuiz,
-    trialEnded,
-    showPurchasePage
+    quizStatus.hasAccessToFullQuiz,
+    quizStatus.trialEnded,
+    quizStatus.showPurchasePage
   ]);
   
   // 获取题库和题目数据
@@ -623,8 +642,8 @@ function QuizPage(): JSX.Element {
     if (!questionSetId) return;
     
     const fetchQuestionSet = async () => {
-      setLoading(true);
-      setError(null);
+      setQuizStatus({ ...quizStatus, loading: true });
+      setQuizStatus({ ...quizStatus, error: null });
       
       try {
         // 解析URL参数
@@ -653,7 +672,7 @@ function QuizPage(): JSX.Element {
         
         if (response.success && response.data) {
           // 更新明确的试用模式状态
-          setIsInTrialMode(isExplicitTrialMode);
+          setQuizStatus({ ...quizStatus, isInTrialMode: isExplicitTrialMode });
           
           // 改进对试用题目数量的确定逻辑
           const trialQuestionsFromApi = response.data.trialQuestions;
@@ -709,9 +728,9 @@ function QuizPage(): JSX.Element {
           // 免费题库直接授予访问权限，不显示购买页面
           if (!questionSetData.isPaid) {
             console.log(`[QuizPage] 免费题库，授予访问权限`);
-            setHasAccessToFullQuiz(true);
-            setTrialEnded(false);
-            setShowPurchasePage(false);
+            setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+            setQuizStatus({ ...quizStatus, trialEnded: false });
+            setQuizStatus({ ...quizStatus, showPurchasePage: false });
             saveAccessToLocalStorage(questionSetData.id, true);
           }
           
@@ -721,12 +740,12 @@ function QuizPage(): JSX.Element {
             
             // 设置试用模式状态，但不触发购买提示
             if (questionSetData.isPaid) {
-              setHasAccessToFullQuiz(false);
-              setHasRedeemed(false);
+              setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
+              setQuizStatus({ ...quizStatus, hasRedeemed: false });
               // 重要：确保刚进入时不会显示试用结束状态
-              setTrialEnded(false);
-              setShowPaymentModal(false); 
-              setShowPurchasePage(false); // 确保不立即显示购买页面
+              setQuizStatus({ ...quizStatus, trialEnded: false });
+              setQuizStatus({ ...quizStatus, showPaymentModal: false }); 
+              setQuizStatus({ ...quizStatus, showPurchasePage: false }); // 确保不立即显示购买页面
               
               // 更新文档标题
               document.title = `${questionSetData.title} (试用模式) - 答题系统`;
@@ -816,10 +835,10 @@ function QuizPage(): JSX.Element {
               if (questionSetData.isPaid) {
                 console.log('[QuizPage] 试用付费题库，设置相关状态');
                 // 根据URL参数设置状态以确保试用功能正常
-                setHasAccessToFullQuiz(false);
-                setHasRedeemed(false);
+                setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
+                setQuizStatus({ ...quizStatus, hasRedeemed: false });
                 // 清除试用结束状态，允许用户开始试用
-                setTrialEnded(false);
+                setQuizStatus({ ...quizStatus, trialEnded: false });
               }
             }
             
@@ -932,16 +951,16 @@ function QuizPage(): JSX.Element {
             }
           } else {
             console.error("题库中没有题目");
-            setError('此题库不包含任何题目');
+            setQuizStatus({ ...quizStatus, error: '此题库不包含任何题目' });
           }
         } else {
-          setError('无法加载题库数据');
+          setQuizStatus({ ...quizStatus, error: '无法加载题库数据' });
         }
       } catch (error) {
         console.error('获取题库详情失败:', error);
-        setError('获取题库数据失败');
+        setQuizStatus({ ...quizStatus, error: '获取题库数据失败' });
       } finally {
-        setLoading(false);
+        setQuizStatus({ ...quizStatus, loading: false });
       }
     };
     
@@ -950,10 +969,10 @@ function QuizPage(): JSX.Element {
   
   // 在加载完题目数据后设置questionStartTime
   useEffect(() => {
-    if (questions.length > 0 && !loading) {
+    if (questions.length > 0 && !quizStatus.loading) {
       setQuestionStartTime(Date.now());
     }
-  }, [questions, loading]);
+  }, [questions, quizStatus.loading]);
 
   // 检查 localStorage 中是否有已兑换记录
   useEffect(() => {
@@ -980,9 +999,9 @@ function QuizPage(): JSX.Element {
             
             if (isRedeemed) {
               console.log(`[QuizPage] 检测到题库 ${normalizedCurrentId} 已兑换记录，启用完整访问权限`);
-              setHasRedeemed(true);
-              setHasAccessToFullQuiz(true);
-              setTrialEnded(false);
+              setQuizStatus({ ...quizStatus, hasRedeemed: true });
+              setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+              setQuizStatus({ ...quizStatus, trialEnded: false });
             }
           } else {
             console.log(`[QuizPage] localStorage中的redeemedQuestionSetIds不是数组:`, redeemedIds);
@@ -1022,9 +1041,9 @@ function QuizPage(): JSX.Element {
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
-    if (trialEnded && !hasAccessToFullQuiz && !hasRedeemed) {
+    if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
       toast.warning('试用已结束，请购买完整版或使用兑换码继续答题');
-      setShowPaymentModal(true);
+      setQuizStatus({ ...quizStatus, showPaymentModal: true });
       return;
     }
     
@@ -1102,11 +1121,11 @@ function QuizPage(): JSX.Element {
       console.log(`[Socket事件] 收到访问权限更新: questionSetId=${data.questionSetId}, hasAccess=${data.hasAccess}`);
       if (data.questionSetId === questionSet.id) {
         console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}`);
-        setHasAccessToFullQuiz(data.hasAccess);
+        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: data.hasAccess });
         
         // 权限开启后，同时确保试用结束状态重置
         if (data.hasAccess) {
-          setTrialEnded(false);
+          setQuizStatus({ ...quizStatus, trialEnded: false });
         }
       }
     };
@@ -1123,8 +1142,8 @@ function QuizPage(): JSX.Element {
       
       if (isMatch) {
         console.log(`[Socket事件] 设置题库访问权限为true`);
-        setHasAccessToFullQuiz(true);
-        setTrialEnded(false);
+        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+        setQuizStatus({ ...quizStatus, trialEnded: false });
         
         // 主动检查一次权限
         setTimeout(() => {
@@ -1165,9 +1184,9 @@ function QuizPage(): JSX.Element {
       // 更新本地状态和存储
       if (questionSet) {
         console.log(`[QuizPage] 更新本地状态和存储`);
-        setHasAccessToFullQuiz(true);
-        setTrialEnded(false);
-        setHasRedeemed(true);
+        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+        setQuizStatus({ ...quizStatus, trialEnded: false });
+        setQuizStatus({ ...quizStatus, hasRedeemed: true });
         
         // 保存访问权限到localStorage
         if (effectiveId) {
@@ -1353,7 +1372,7 @@ function QuizPage(): JSX.Element {
         
         // 检查是否达到试用限制
         const trialLimit = questionSet.trialQuestions || 0;
-        if (questionSet.isPaid && !hasAccessToFullQuiz && !hasRedeemed && trialLimit > 0) {
+        if (questionSet.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && trialLimit > 0) {
           // 检查是否刚好达到限制
           const isTrialLimitReached = updatedAnsweredQuestions.length >= trialLimit;
           
@@ -1366,7 +1385,7 @@ function QuizPage(): JSX.Element {
               const currentHasAccess = checkFullAccessFromAllSources();
               if (!currentHasAccess) {
                 // 设置试用结束状态
-                setTrialEnded(true);
+                setQuizStatus({ ...quizStatus, trialEnded: true });
                 
                 // 显示提示信息
                 toast.info(`您已完成${trialLimit}道试用题目限制，需要购买完整版或使用兑换码继续`, {
@@ -1376,7 +1395,7 @@ function QuizPage(): JSX.Element {
                 });
                 
                 // 显示购买页面
-                setShowPurchasePage(true);
+                setQuizStatus({ ...quizStatus, showPurchasePage: true });
               }
             }, 1500);
           }
@@ -1400,11 +1419,11 @@ function QuizPage(): JSX.Element {
     questions.length, 
     socket, 
     user, 
-    hasAccessToFullQuiz, 
-    hasRedeemed, 
+    quizStatus.hasAccessToFullQuiz, 
+    quizStatus.hasRedeemed, 
     questionSet, 
-    setTrialEnded, 
-    setShowPurchasePage,
+    setQuizStatus, 
+    setAnsweredQuestions,
     checkFullAccessFromAllSources
   ]);
   
@@ -1457,8 +1476,8 @@ function QuizPage(): JSX.Element {
     if (hasFullAccess) {
       console.log('[QuizPage] 用户有完整访问权限，允许提交答案');
       // 确保状态一致性
-      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
-      if (trialEnded) setTrialEnded(false);
+      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
     }
     
     // 获取当前问题
@@ -1492,8 +1511,8 @@ function QuizPage(): JSX.Element {
               // 再次检查确认状态没有变化
               if (!checkFullAccessFromAllSources()) {
                 console.log('[QuizPage] 确认用户仍无访问权限，显示购买窗口');
-                setTrialEnded(true);
-                setShowPurchasePage(true);
+                setQuizStatus({ ...quizStatus, trialEnded: true });
+                setQuizStatus({ ...quizStatus, showPurchasePage: true });
                 
                 // 显示提示
                 toast.info('您已达到试用题目限制，请购买完整版继续使用', {
@@ -1518,10 +1537,10 @@ function QuizPage(): JSX.Element {
     questionSet, 
     answeredQuestions, 
     checkFullAccessFromAllSources,
-    hasAccessToFullQuiz,
-    setTrialEnded,
-    setShowPurchasePage,
-    trialEnded
+    quizStatus.hasAccessToFullQuiz,
+    setQuizStatus,
+    setAnsweredQuestions,
+    quizStatus.trialEnded
   ]);
   
   // 修改下一题逻辑，确保试用限制
@@ -1535,8 +1554,8 @@ function QuizPage(): JSX.Element {
     if (hasFullAccess) {
       console.log('[QuizPage] 用户有完整访问权限，允许进入下一题');
       // 更新状态
-      if (!hasAccessToFullQuiz) setHasAccessToFullQuiz(true);
-      if (trialEnded) setTrialEnded(false);
+      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
     } 
     // 如果已达到试用限制，阻止继续
     else if (isTrialLimitReached()) {
@@ -1550,10 +1569,10 @@ function QuizPage(): JSX.Element {
       });
       
       // 设置试用结束状态
-      setTrialEnded(true);
+      setQuizStatus({ ...quizStatus, trialEnded: true });
       
       // 显示购买页面
-      setShowPurchasePage(true);
+      setQuizStatus({ ...quizStatus, showPurchasePage: true });
       return; // 阻止继续前进到下一题
     }
     
@@ -1567,7 +1586,7 @@ function QuizPage(): JSX.Element {
     if (currentQuestionIndex === questions.length - 1) {
       console.log('[QuizPage] 当前是最后一题，将标记为完成');
       syncProgressToServer(true).then(() => {
-        setQuizComplete(true);
+        setQuizStatus({ ...quizStatus, quizComplete: true });
         console.log('[QuizPage] 答题已完成，已同步进度');
       });
       return;
@@ -1586,8 +1605,8 @@ function QuizPage(): JSX.Element {
       } else {
         // 如果不能访问，显示购买提示
         console.log('[QuizPage] 无法访问下一题，显示购买提示');
-        setTrialEnded(true);
-        setShowPurchasePage(true);
+        setQuizStatus({ ...quizStatus, trialEnded: true });
+        setQuizStatus({ ...quizStatus, showPurchasePage: true });
         
         toast.info('试用题目已达上限，请购买完整版或使用兑换码继续', {
           position: "top-center",
@@ -1603,10 +1622,9 @@ function QuizPage(): JSX.Element {
     answeredQuestions.length, 
     syncProgressToServer, 
     checkFullAccessFromAllSources,
-    hasAccessToFullQuiz,
-    setTrialEnded,
-    setShowPurchasePage,
-    trialEnded,
+    quizStatus.hasAccessToFullQuiz,
+    setQuizStatus,
+    quizStatus.trialEnded,
     isTrialLimitReached,
     canAccessQuestion
   ]);
@@ -1614,7 +1632,7 @@ function QuizPage(): JSX.Element {
   // 跳转到指定题目的处理函数
   const handleJumpToQuestion = useCallback((questionIndex: number) => {
     // 阻止在提交过程中或完成状态下跳转
-    if (isSubmittingRef.current || quizComplete) {
+    if (isSubmittingRef.current || quizStatus.quizComplete) {
       console.log('[QuizPage] 无法跳转：正在提交答案或已完成问答');
       return;
     }
@@ -1641,17 +1659,20 @@ function QuizPage(): JSX.Element {
       });
       
       // 设置试用结束状态
-      setTrialEnded(true);
+      setQuizStatus({ ...quizStatus, trialEnded: true });
       
       // 显示购买页面
-      setShowPurchasePage(true);
+      setQuizStatus({ ...quizStatus, showPurchasePage: true });
     }
   }, [
     questions.length, 
-    quizComplete, 
+    quizStatus.quizComplete, 
     canAccessQuestion,
-    setTrialEnded,
-    setShowPurchasePage
+    setQuizStatus,
+    setAnsweredQuestions,
+    setSelectedOptions,
+    setQuestionStartTime,
+    setQuizStatus
   ]);
 
   // 格式化时间显示函数
@@ -1681,7 +1702,7 @@ function QuizPage(): JSX.Element {
   // 确保handleResetQuiz也同步进度
   const handleResetQuiz = useCallback(async () => {
     try {
-      setLoading(true);
+      setQuizStatus({ ...quizStatus, loading: true });
       
       // 清除任何现有的定时器
       if (timeoutId.current) {
@@ -1698,15 +1719,15 @@ function QuizPage(): JSX.Element {
       // 重置计时器
       setQuizTotalTime(0);
       setQuizStartTime(Date.now());
-      setIsTimerActive(true);
+      setQuizStatus({ ...quizStatus, isTimerActive: true });
       
       // 重置所有状态
       setCurrentQuestionIndex(0);
       setSelectedOptions([]);
-      setShowExplanation(false);
+      setQuizStatus({ ...quizStatus, showExplanation: false });
       setAnsweredQuestions([]);
       setCorrectAnswers(0);
-      setQuizComplete(false);
+      setQuizStatus({ ...quizStatus, quizComplete: false });
       setQuestionStartTime(Date.now());
       
       // 使用原始问题数组重新设置问题
@@ -1789,7 +1810,7 @@ function QuizPage(): JSX.Element {
         } catch (error) {
           console.error('重置进度失败:', error);
           // 显示友好的错误提示
-          setError('重置进度失败，请尝试重新加载页面');
+          setQuizStatus({ ...quizStatus, error: '重置进度失败，请尝试重新加载页面' });
           
           // 出错时也强制刷新页面
           setTimeout(() => {
@@ -1806,7 +1827,7 @@ function QuizPage(): JSX.Element {
       console.error('重置测试失败:', error);
       toast.error('重置测试失败，请刷新页面重试');
     } finally {
-      setLoading(false);
+      setQuizStatus({ ...quizStatus, loading: false });
     }
   }, [
     questionSet, 
@@ -1822,7 +1843,7 @@ function QuizPage(): JSX.Element {
   // 创建一个固定在页面底部的购买栏组件
   const TrialPurchaseBar = () => {
     // 仅当满足以下条件时显示：付费题库 + 试用模式 + 无完整访问权限
-    if (!questionSet?.isPaid || hasAccessToFullQuiz || hasRedeemed) {
+    if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
       return null;
     }
     
@@ -1855,7 +1876,7 @@ function QuizPage(): JSX.Element {
           </div>
           <div className="flex space-x-2">
             <button
-              onClick={() => setShowPaymentModal(true)}
+              onClick={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
               className={`px-4 py-2 text-sm rounded-md hover:bg-blue-700 focus:outline-none shadow-sm
                 ${isTrialLimitReached 
                   ? "bg-blue-600 text-white animate-pulse" 
@@ -1864,7 +1885,7 @@ function QuizPage(): JSX.Element {
               购买完整版 ¥{questionSet.price || 0}
             </button>
             <button
-              onClick={() => setShowRedeemCodeModal(true)}
+              onClick={() => setQuizStatus({ ...quizStatus, showRedeemCodeModal: true })}
               className="px-4 py-2 bg-green-50 text-green-700 text-sm border border-green-300 rounded-lg font-medium transition flex items-center justify-center"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1880,7 +1901,7 @@ function QuizPage(): JSX.Element {
 
   // 渲染内容更新
   const renderContent = () => {
-    if (loading) {
+    if (quizStatus.loading) {
       return (
         <div className="flex justify-center items-center h-64">
           <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin"></div>
@@ -1888,11 +1909,11 @@ function QuizPage(): JSX.Element {
       );
     }
 
-    if (error) {
+    if (quizStatus.error) {
       return (
         <div className="text-center py-12">
           <div className="text-red-500 text-xl mb-4">加载失败</div>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <p className="text-gray-600 mb-6">{quizStatus.error}</p>
           <button 
             onClick={() => {window.location.reload()}}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -1918,7 +1939,7 @@ function QuizPage(): JSX.Element {
       );
     }
 
-    if (quizComplete) {
+    if (quizStatus.quizComplete) {
       // 计算统计数据
       const correctCount = answeredQuestions.filter(q => q.isCorrect).length;
       const totalCount = questions.length;
@@ -1933,7 +1954,7 @@ function QuizPage(): JSX.Element {
           return '免费题库';
         }
         
-        if (hasAccessToFullQuiz) {
+        if (quizStatus.hasAccessToFullQuiz) {
           return `付费题库 (已购买)`;
         }
         
@@ -2091,9 +2112,9 @@ function QuizPage(): JSX.Element {
               </button>
               
               {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 */}
-              {questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && (
+              {questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
                 <button
-                  onClick={() => setShowPaymentModal(true)}
+                  onClick={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
                   className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
                 >
                   <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -2124,12 +2145,12 @@ function QuizPage(): JSX.Element {
           
           <div className="flex items-center">
             {/* 添加试用模式下的购买和兑换按钮 */}
-            {(isInTrialMode || (questionSet?.isPaid && !hasAccessToFullQuiz)) && (
+            {(quizStatus.isInTrialMode || (questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz)) && (
               <div className="flex mr-4 space-x-2">
                 <button
                   onClick={() => {
                     console.log('[QuizPage] 点击购买按钮，打开支付模态框');
-                    setShowPaymentModal(true);
+                    setQuizStatus({ ...quizStatus, showPaymentModal: true });
                   }}
                   className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none transition-colors"
                 >
@@ -2138,7 +2159,7 @@ function QuizPage(): JSX.Element {
                 <button
                   onClick={() => {
                     console.log('[QuizPage] 点击兑换码按钮，打开兑换模态框');
-                    setShowRedeemCodeModal(true);
+                    setQuizStatus({ ...quizStatus, showRedeemCodeModal: true });
                   }}
                   className="px-3 py-1 bg-green-50 text-green-700 text-sm border border-green-300 rounded hover:bg-green-100 focus:outline-none transition-colors"
                 >
@@ -2168,8 +2189,8 @@ function QuizPage(): JSX.Element {
                     setAnsweredQuestions([]);
                     setCorrectAnswers(0);
                     setSelectedOptions([]);
-                    setShowExplanation(false);
-                    setQuizComplete(false);
+                    setQuizStatus({ ...quizStatus, showExplanation: false });
+                    setQuizStatus({ ...quizStatus, quizComplete: false });
                     
                     // 重置同步状态
                     unsyncedChangesRef.current = false;
@@ -2187,7 +2208,7 @@ function QuizPage(): JSX.Element {
             </button>
             
             {/* 计时器 */}
-            {isTimerActive && (
+            {quizStatus.isTimerActive && (
               <div className="bg-blue-50 text-blue-800 px-3 py-1 rounded-lg text-sm flex items-center mr-2">
                 <svg className="w-4 h-4 mr-1 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2212,7 +2233,7 @@ function QuizPage(): JSX.Element {
             onNext={handleNextQuestion}
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
-            hasFullAccess={hasAccessToFullQuiz || hasRedeemed || checkFullAccessFromAllSources()}
+            hasFullAccess={quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed || checkFullAccessFromAllSources()}
             questionSetId={questionSetId || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
@@ -2228,7 +2249,7 @@ function QuizPage(): JSX.Element {
           answeredQuestions={answeredQuestions}
           currentIndex={currentQuestionIndex}
           trialLimit={questionSet?.trialQuestions}
-          isTrialMode={(!hasAccessToFullQuiz && !hasRedeemed && questionSet?.isPaid) || false}
+          isTrialMode={(!quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && questionSet?.isPaid) || false}
           isTrialLimitReached={isTrialLimitReached()}
           onJump={handleJumpToQuestion}
         />
@@ -2253,66 +2274,66 @@ function QuizPage(): JSX.Element {
     
     // 如果是免费题库，永远不显示购买页面
     if (!questionSet.isPaid) {
-      if (showPurchasePage) setShowPurchasePage(false);
-      if (trialEnded) setTrialEnded(false);
+      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
       return;
     }
     
     // 如果用户有完整访问权限，不显示购买页面
-    if (hasAccessToFullQuiz || hasRedeemed || checkFullAccessFromAllSources()) {
-      if (showPurchasePage) setShowPurchasePage(false);
-      if (trialEnded) setTrialEnded(false);
+    if (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed || checkFullAccessFromAllSources()) {
+      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
       return;
     }
     
     // 如果已达到试用限制，显示试用结束状态
     if (isTrialLimitReached()) {
-      if (!trialEnded) setTrialEnded(true);
+      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
       
       // 仅当试用已结束且还未显示购买页面时，显示购买页面
-      if (trialEnded && !showPurchasePage) {
+      if (quizStatus.trialEnded && !quizStatus.showPurchasePage) {
         console.log('[QuizPage] 试用已结束，显示购买页面');
-        setShowPurchasePage(true);
+        setQuizStatus({ ...quizStatus, showPurchasePage: true });
       }
     } else {
       // 未达到限制时，确保状态正确
-      if (trialEnded) setTrialEnded(false);
-      if (showPurchasePage) setShowPurchasePage(false);
+      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
     }
   }, [
     questionSet, 
     answeredQuestions.length, 
-    hasAccessToFullQuiz, 
-    hasRedeemed,
+    quizStatus.hasAccessToFullQuiz, 
+    quizStatus.hasRedeemed,
     checkFullAccessFromAllSources,
     isTrialLimitReached,
-    trialEnded,
-    showPurchasePage
+    quizStatus.trialEnded,
+    quizStatus.showPurchasePage
   ]);
   
   // 修改渲染函数，确保PurchasePage优先显示
   return (
     <div className="min-h-screen bg-gray-50 py-8 pb-20">
       {/* 优先显示购买页面，强制中断正常答题流程 */}
-      {showPurchasePage && questionSet && (
+      {quizStatus.showPurchasePage && questionSet && (
         <PurchasePage 
           questionSet={questionSet}
           trialCount={questionSet.trialQuestions || 0}
-          onPurchase={() => setShowPaymentModal(true)}
-          onRedeem={() => setShowRedeemCodeModal(true)}
+          onPurchase={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
+          onRedeem={() => setQuizStatus({ ...quizStatus, showRedeemCodeModal: true })}
           onBack={() => navigate('/')}
         />
       )}
       
       {/* 只有在不显示购买页面时才显示其他UI */}
-      {!showPurchasePage && (
+      {!quizStatus.showPurchasePage && (
         <>
           {/* 固定在底部的购买栏 */}
           <TrialPurchaseBar />
           
           <div className="container mx-auto px-4">
             {/* 试用模式指示器 - 在页面顶部显示 */}
-            {isInTrialMode && questionSet?.isPaid && !hasAccessToFullQuiz && !hasRedeemed && (
+            {quizStatus.isInTrialMode && questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded shadow-sm">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -2327,13 +2348,13 @@ function QuizPage(): JSX.Element {
                   </div>
                   <div className="ml-auto flex space-x-2">
                     <button
-                      onClick={() => setShowPaymentModal(true)}
+                      onClick={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
                       className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none"
                     >
                       购买完整版
                     </button>
                     <button
-                      onClick={() => setShowRedeemCodeModal(true)}
+                      onClick={() => setQuizStatus({ ...quizStatus, showRedeemCodeModal: true })}
                       className="px-3 py-1 bg-green-50 text-green-700 text-sm border border-green-300 rounded hover:bg-green-100 focus:outline-none"
                     >
                       使用兑换码
@@ -2346,27 +2367,27 @@ function QuizPage(): JSX.Element {
             {renderContent()}
             
             {/* 购买模态窗口 */}
-            {showPaymentModal && questionSet && (
+            {quizStatus.showPaymentModal && questionSet && (
               <PaymentModal
-                isOpen={showPaymentModal}
-                onClose={() => setShowPaymentModal(false)}
+                isOpen={quizStatus.showPaymentModal}
+                onClose={() => setQuizStatus({ ...quizStatus, showPaymentModal: false })}
                 questionSet={questionSet}
                 onSuccess={() => {
-                  setHasAccessToFullQuiz(true);
-                  setTrialEnded(false);
-                  setShowPaymentModal(false);
+                  setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+                  setQuizStatus({ ...quizStatus, trialEnded: false });
+                  setQuizStatus({ ...quizStatus, showPaymentModal: false });
                 }}
               />
             )}
             
             {/* 兑换码模态窗口 */}
-            {showRedeemCodeModal && (
+            {quizStatus.showRedeemCodeModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold">题库兑换码</h2>
                     <button
-                      onClick={() => setShowRedeemCodeModal(false)}
+                      onClick={() => setQuizStatus({ ...quizStatus, showRedeemCodeModal: false })}
                       className="text-gray-500 hover:text-gray-700"
                     >
                       <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2376,13 +2397,13 @@ function QuizPage(): JSX.Element {
                   </div>
                   <RedeemCodeForm onRedeemSuccess={(questionSetId) => {
                     console.log(`[QuizPage] 兑换码成功回调，题库ID: ${questionSetId}`);
-                    setShowRedeemCodeModal(false);
+                    setQuizStatus({ ...quizStatus, showRedeemCodeModal: false });
                     
                     // 立即更新UI状态
                     console.log(`[QuizPage] 直接设置访问权限为true和重置试用状态`);
-                    setHasAccessToFullQuiz(true);
-                    setTrialEnded(false);
-                    setHasRedeemed(true); // 标记为已兑换
+                    setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+                    setQuizStatus({ ...quizStatus, trialEnded: false });
+                    setQuizStatus({ ...quizStatus, hasRedeemed: true }); // 标记为已兑换
                     
                     // 保存访问权限到localStorage
                     saveAccessToLocalStorage(questionSetId, true);
