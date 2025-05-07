@@ -205,10 +205,10 @@ const PurchasePage: React.FC<{
           </div>
         </div>
         
-        <div className="space-y-3 mb-6">
+        <div className="space-y-4 mb-6">
           <button 
             onClick={onPurchase}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -217,9 +217,15 @@ const PurchasePage: React.FC<{
             立即购买完整版
           </button>
           
+          <div className="flex items-center">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="mx-4 text-sm text-gray-500">或者</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+          
           <button 
             onClick={onRedeem}
-            className="w-full py-3 bg-green-50 hover:bg-green-100 text-green-700 border border-green-300 rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-white hover:bg-green-50 text-green-700 border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center shadow-sm hover:shadow-md transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -230,7 +236,7 @@ const PurchasePage: React.FC<{
           
           <button 
             onClick={onBack}
-            className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-3 mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
             disabled={isProcessing}
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -375,8 +381,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         <button
           onClick={handlePurchase}
           disabled={isProcessing}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-70"
+          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
         >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
           确认购买
         </button>
         
@@ -474,8 +483,11 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         <button
           onClick={handleRedeem}
           disabled={isProcessing || !code.trim()}
-          className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition disabled:opacity-70"
+          className="w-full py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
         >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
           确认兑换
         </button>
         
@@ -2166,7 +2178,14 @@ function QuizPage(): JSX.Element {
           </div>
           <div className="flex space-x-2">
             <button
-              onClick={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
+              onClick={() => {
+                console.log('[TrialPurchaseBar] 点击购买按钮');
+                toast.info('正在准备支付...', { autoClose: 1500 });
+                setQuizStatus(prev => ({
+                  ...prev,
+                  showPaymentModal: true
+                }));
+              }}
               className={`px-4 py-2 text-sm rounded-md hover:bg-blue-700 focus:outline-none shadow-sm
                 ${isTrialLimitReached 
                   ? "bg-blue-600 text-white animate-pulse" 
@@ -2175,8 +2194,15 @@ function QuizPage(): JSX.Element {
               购买完整版 ¥{questionSet.price || 0}
             </button>
             <button
-              onClick={() => setQuizStatus({ ...quizStatus, showRedeemCodeModal: true })}
-              className="px-4 py-2 bg-green-50 text-green-700 text-sm border border-green-300 rounded-lg font-medium transition flex items-center justify-center"
+              onClick={() => {
+                console.log('[TrialPurchaseBar] 点击兑换按钮');
+                toast.info('正在准备兑换...', { autoClose: 1500 });
+                setQuizStatus(prev => ({
+                  ...prev,
+                  showRedeemCodeModal: true
+                }));
+              }}
+              className="px-4 py-2 bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center hover:bg-green-100"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -2404,7 +2430,14 @@ function QuizPage(): JSX.Element {
               {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 */}
               {questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
                 <button
-                  onClick={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
+                  onClick={() => {
+                    console.log('[QuizPage] 完成页面点击购买按钮');
+                    toast.info('正在准备支付...', { autoClose: 1500 });
+                    setQuizStatus(prev => ({
+                      ...prev,
+                      showPaymentModal: true
+                    }));
+                  }}
                   className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
                 >
                   <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -2479,8 +2512,11 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 点击购买按钮，打开支付模态框');
                     setQuizStatus({ ...quizStatus, showPaymentModal: true });
                   }}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none transition-colors"
+                  className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
                 >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
                   购买完整版
                 </button>
                 <button
@@ -2488,8 +2524,11 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 点击兑换码按钮，打开兑换模态框');
                     setQuizStatus({ ...quizStatus, showRedeemCodeModal: true });
                   }}
-                  className="px-3 py-1 bg-green-50 text-green-700 text-sm border border-green-300 rounded hover:bg-green-100 focus:outline-none transition-colors"
+                  className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
                 >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
                   使用兑换码
                 </button>
               </div>
@@ -2650,52 +2689,63 @@ function QuizPage(): JSX.Element {
             // 打印日志
             console.log('[QuizPage] 从试用结束页面点击购买按钮');
             
-            // 先关闭购买页面，然后打开支付模态窗口
-            setQuizStatus({
-              ...quizStatus,
-              showPurchasePage: false,
-              showPaymentModal: true,
-              isProcessingPayment: true
-            });
+            // 添加点击反馈
+            toast.info('正在准备支付...', { autoClose: 1500 });
             
-            // 小延迟确保状态更新完毕
+            // 立即更新处理状态，给用户视觉反馈
+            setQuizStatus(prev => ({
+              ...prev,
+              isProcessingPayment: true
+            }));
+            
+            // 先关闭购买页面，然后打开支付模态窗口
             setTimeout(() => {
               setQuizStatus(prev => ({
                 ...prev,
+                showPurchasePage: false,
+                showPaymentModal: true,
                 isProcessingPayment: false
               }));
-            }, 500);
+            }, 300);
           }}
           onRedeem={() => {
             // 打印日志
             console.log('[QuizPage] 从试用结束页面点击兑换按钮');
             
-            // 先关闭购买页面，然后打开兑换模态窗口
-            setQuizStatus({
-              ...quizStatus,
-              showPurchasePage: false,
-              showRedeemCodeModal: true,
-              isProcessingRedeem: true
-            });
+            // 添加点击反馈
+            toast.info('正在准备兑换...', { autoClose: 1500 });
             
-            // 小延迟确保状态更新完毕
+            // 立即更新处理状态，给用户视觉反馈
+            setQuizStatus(prev => ({
+              ...prev,
+              isProcessingRedeem: true
+            }));
+            
+            // 先关闭购买页面，然后打开兑换模态窗口
             setTimeout(() => {
               setQuizStatus(prev => ({
                 ...prev,
+                showPurchasePage: false,
+                showRedeemCodeModal: true,
                 isProcessingRedeem: false
               }));
-            }, 500);
+            }, 300);
           }}
           onBack={() => {
             // 打印日志
             console.log('[QuizPage] 从试用结束页面点击返回按钮');
             
+            // 添加点击反馈
+            toast.info('正在返回...', { autoClose: 1000 });
+            
             // 关闭购买页面，导航到首页
-            setQuizStatus({
-              ...quizStatus,
-              showPurchasePage: false
-            });
-            navigate('/');
+            setTimeout(() => {
+              setQuizStatus(prev => ({
+                ...prev,
+                showPurchasePage: false
+              }));
+              navigate('/');
+            }, 200);
           }}
         />
       )}
@@ -2723,15 +2773,35 @@ function QuizPage(): JSX.Element {
                   </div>
                   <div className="ml-auto flex space-x-2">
                     <button
-                      onClick={() => setQuizStatus({ ...quizStatus, showPaymentModal: true })}
-                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none"
+                      onClick={() => {
+                        console.log('[QuizPage] 顶部指示器点击购买按钮');
+                        toast.info('正在准备支付...', { autoClose: 1500 });
+                        setQuizStatus(prev => ({
+                          ...prev,
+                          showPaymentModal: true
+                        }));
+                      }}
+                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
                     >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
                       购买完整版
                     </button>
                     <button
-                      onClick={() => setQuizStatus({ ...quizStatus, showRedeemCodeModal: true })}
-                      className="px-3 py-1 bg-green-50 text-green-700 text-sm border border-green-300 rounded hover:bg-green-100 focus:outline-none"
+                      onClick={() => {
+                        console.log('[QuizPage] 顶部指示器点击兑换按钮');
+                        toast.info('正在准备兑换...', { autoClose: 1500 });
+                        setQuizStatus(prev => ({
+                          ...prev,
+                          showRedeemCodeModal: true
+                        }));
+                      }}
+                      className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
                     >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
                       使用兑换码
                     </button>
                   </div>
