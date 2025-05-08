@@ -236,9 +236,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       // 2. 确认支付
       let paymentResult;
       
-      // 根据环境使用不同的确认方式
-      if (import.meta.env.MODE === 'development' || import.meta.env.VITE_USE_MOCK_PAYMENT === 'true') {
-        console.log('[支付] 使用模拟支付确认');
+      // 检查是否是模拟支付intent (ID以pi_mock_开头)
+      const isMockPayment = intentData.id && intentData.id.startsWith('pi_mock_');
+      
+      if (isMockPayment) {
+        // 对模拟支付，始终使用模拟确认方法
+        console.log('[支付] 检测到模拟支付ID, 使用模拟支付确认流程');
         paymentResult = await confirmMockPayment(intentData.client_secret, {
           card: cardElement,
           billing_details: {
@@ -247,6 +250,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
           }
         });
       } else {
+        // 对真实支付，使用Stripe.js确认
         if (!stripe) {
           throw new Error('Stripe未初始化');
         }
