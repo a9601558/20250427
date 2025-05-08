@@ -59,12 +59,6 @@ interface Purchase {
     title: string;
     description?: string;
   };
-  // 兼容性字段 - 后端可能返回的字段
-  questionSet?: {
-    id: string;
-    title: string;
-    description?: string;
-  };
 }
 
 // 兑换记录类型
@@ -368,7 +362,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   const totalValidityDays = 180;
   
   // 获取题库标题
-  const title = purchase.purchaseQuestionSet?.title || purchase.questionSet?.title || '未知题库';
+  const title = purchase.purchaseQuestionSet?.title || '未知题库';
   
   // 使用剩余天数确定颜色
   const getStatusColorClass = () => {
@@ -497,8 +491,8 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   // 计算总有效期 - 默认为30天
   const totalValidityDays = 30;
   
-  // 获取题库标题
-  const title = redeem.redeemQuestionSet?.title || (redeem as any).questionSet?.title || '未知题库';
+  // 获取题库标题 - 使用类型断言避免TypeScript错误
+  const title = redeem.redeemQuestionSet?.title || ((redeem as any).questionSet?.title) || '未知题库';
   
   // 使用剩余天数确定颜色
   const getStatusColorClass = () => {
@@ -880,6 +874,19 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
       )}
     </div>
   );
+};
+
+// 添加一个工具函数来处理API返回的题库数据
+const processQuestionSetData = (questionSetData: any): Purchase['purchaseQuestionSet'] => {
+  // 如果数据为空，返回undefined而不是null，以符合类型定义
+  if (!questionSetData) return undefined;
+  
+  // 标准化题库信息格式
+  return {
+    id: String(questionSetData.id || ''),
+    title: String(questionSetData.title || '未知题库'),
+    description: questionSetData.description ? String(questionSetData.description) : undefined
+  };
 };
 
 const ProfilePage: React.FC = () => {
@@ -1595,134 +1602,249 @@ const ProfilePage: React.FC = () => {
       setPurchasesLoading(true);
       console.log('[ProfilePage] 正在刷新购买数据...');
 
-      // 首先尝试从localStorage获取保存的购买记录
-      try {
-        const purchasedStr = localStorage.getItem('purchasedQuestionSets');
-        if (purchasedStr) {
-          const purchasedIds = JSON.parse(purchasedStr);
-          console.log(`[ProfilePage] 从本地存储找到 ${purchasedIds.length} 个已购题库ID`);
-          
-          // 如果有本地存储的购买记录但当前购买列表为空，尝试为每个ID创建临时购买记录
-          if (Array.isArray(purchasedIds) && purchasedIds.length > 0 && purchases.length === 0) {
-            const tempPurchases: Purchase[] = [];
+      // 直接从API获取购买记录
+      const purchaseResponse = await purchaseService.getUserPurchases();
+      
+      if (purchaseResponse.success && Array.isArray(purchaseResponse.data)) {
+        console.log(`[ProfilePage] 成功获取购买记录: ${purchaseResponse.data.length}条`);
+        
+        // 格式化购买记录
+        const formattedPurchases = purchaseResponse.data
+          .filter(p => p && p.questionSetId && p.amount > 0) // 过滤有效记录
+          .map((p) => {
+            // 获取题库信息，优先使用purchaseQuestionSet，如果不存在则尝试使用questionSet
+            const questionSetInfo = processQuestionSetData(p.purchaseQuestionSet) || 
+                                  processQuestionSetData((p as any).questionSet);
             
-            for (const qsId of purchasedIds) {
-              // 获取题库信息
-              try {
-                const qsResponse = await questionSetService.getQuestionSetById(qsId);
-                if (qsResponse.success && qsResponse.data) {
-                  const questionSet = qsResponse.data;
-                  
-                  // 创建临时购买记录
-                  const tempPurchase: Purchase = {
-                    id: `local_${qsId.substring(0, 8)}`,
-                    userId: user?.id,
-                    questionSetId: qsId,
-                    purchaseDate: new Date().toISOString(),
-                    expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(), // 6个月
-                    amount: questionSet.price || 0,
-                    status: 'active',
-                    paymentMethod: 'local',
-                    purchaseQuestionSet: {
-                      id: questionSet.id,
-                      title: questionSet.title,
-                      description: questionSet.description
-                    }
-                  };
-                  
-                  tempPurchases.push(tempPurchase);
-                  console.log(`[ProfilePage] 为题库 ${qsId} 创建临时购买记录`);
-                }
-              } catch (qsError) {
-                console.error(`[ProfilePage] 获取题库 ${qsId} 详情失败:`, qsError);
-              }
-            }
-            
-            if (tempPurchases.length > 0) {
-              console.log(`[ProfilePage] 从本地存储创建了 ${tempPurchases.length} 条临时购买记录`);
-              setPurchases(prevPurchases => [...prevPurchases, ...tempPurchases]);
-            }
-          }
-        }
-      } catch (localError) {
-        console.error('[ProfilePage] 读取本地购买记录失败:', localError);
-      }
+            return {
+              id: p.id || '',
+              userId: p.userId || user?.id || '',
+              questionSetId: String(p.questionSetId || '').trim(),
+              purchaseDate: p.purchaseDate || new Date().toISOString(),
+              expiryDate: p.expiryDate || '',
+              amount: Number(p.amount || 0),
+              status: p.status || 'active',
+              paymentMethod: p.paymentMethod || '',
+              transactionId: p.transactionId || '',
+              purchaseQuestionSet: questionSetInfo
+            };
+          });
 
-      // 尝试通过API重新获取用户数据，确保购买记录是最新的
-      const response = await userService.getCurrentUser();
-      if (response.success && response.data) {
-        // 更新购买数据
-        const userPurchases = response.data.purchases || [];
-        console.log(`[ProfilePage] 从服务器获取到 ${userPurchases.length} 条购买记录`);
-        
-        // 确保格式符合本地 Purchase 接口格式
-        const formattedPurchases = userPurchases.map((p: any) => ({
-          id: p.id || '',
-          userId: p.userId || user?.id || '',
-          questionSetId: String(p.questionSetId || p.question_set_id || '').trim(),
-          purchaseDate: p.purchaseDate || p.purchase_date || new Date().toISOString(),
-          expiryDate: p.expiryDate || p.expiry_date || '',
-          amount: Number(p.amount || 0),
-          status: p.status || 'active',
-          paymentMethod: p.paymentMethod || p.payment_method || '',
-          transactionId: p.transactionId || p.transaction_id || '',
-          purchaseQuestionSet: p.purchaseQuestionSet || p.questionSet || undefined
-        }));
-        
-        // 如果API返回了购买记录，用它替换当前的状态
         if (formattedPurchases.length > 0) {
           setPurchases(formattedPurchases);
-          console.log(`[ProfilePage] 已使用服务器数据更新购买记录`);
+          console.log(`[ProfilePage] 已更新购买记录: ${formattedPurchases.length}条`);
           
-          // 更新本地存储的购买记录
+          // 保存到本地存储用于离线访问
           try {
             const questionSetIds = formattedPurchases.map(p => p.questionSetId);
             localStorage.setItem('purchasedQuestionSets', JSON.stringify(questionSetIds));
-            console.log(`[ProfilePage] 已更新本地存储的购买记录: ${questionSetIds.length} 条`);
-          } catch (saveError) {
-            console.error('[ProfilePage] 保存购买记录到本地存储失败:', saveError);
+          } catch (error) {
+            console.error('[ProfilePage] 保存购买记录到本地存储失败:', error);
           }
-        }
-        
-        // 对于每个没有详细题库信息的购买记录，获取题库详情
-        const purchasesToProcess = formattedPurchases.length > 0 ? formattedPurchases : purchases;
-        for (const purchase of purchasesToProcess) {
-          if (purchase.questionSetId && (!purchase.purchaseQuestionSet || !purchase.purchaseQuestionSet.title)) {
-            try {
-              console.log(`[ProfilePage] 获取题库详情: ${purchase.questionSetId}`);
-              const qsResponse = await questionSetService.getQuestionSetById(purchase.questionSetId);
-              
-              if (qsResponse.success && qsResponse.data) {
-                // 找到并更新这个购买记录
-                const questionSetData = qsResponse.data;
-                setPurchases(prevPurchases => 
-                  prevPurchases.map(p => 
-                    p.id === purchase.id 
-                      ? {
-                          ...p, 
-                          purchaseQuestionSet: {
-                            id: questionSetData.id ?? purchase.questionSetId,
-                            title: questionSetData.title ?? 'Unknown Title',
-                            description: questionSetData.description ?? ''
-                          }
-                        }
-                      : p
-                  )
-                );
-                console.log(`[ProfilePage] 更新题库详情成功: ${questionSetData.title ?? 'Unknown'}`);
-              }
-            } catch (err) {
-              console.error(`[ProfilePage] 获取题库详情失败: ${purchase.questionSetId}`, err);
-            }
-          }
+        } else {
+          console.log('[ProfilePage] API返回的购买记录为空');
+          
+          // 尝试从用户数据中获取购买记录
+          await tryGetPurchasesFromUserData();
         }
       } else {
-        console.error('[ProfilePage] 获取用户数据失败:', response.message);
+        console.log('[ProfilePage] 购买记录获取失败或为空，尝试从用户数据获取');
+        await tryGetPurchasesFromUserData();
       }
+      
+      // 补充缺失的题库信息
+      await enrichPurchasesWithQuestionSetDetails();
     } catch (error) {
       console.error('[ProfilePage] 刷新购买数据时出错:', error);
+      
+      // 发生错误时，尝试从用户数据获取
+      await tryGetPurchasesFromUserData();
     } finally {
       setPurchasesLoading(false);
+    }
+  };
+
+  // 从用户数据中获取购买记录的辅助函数
+  const tryGetPurchasesFromUserData = async () => {
+    console.log('[ProfilePage] 尝试从用户数据中获取购买记录');
+    
+    try {
+      // 获取最新的用户数据
+      const response = await userService.getCurrentUser();
+      
+      if (response.success && response.data && response.data.purchases) {
+        const userPurchases = response.data.purchases || [];
+        console.log(`[ProfilePage] 从用户数据获取到 ${userPurchases.length} 条购买记录`);
+        
+        if (userPurchases.length > 0) {
+          // 格式化购买记录
+          const formattedPurchases = userPurchases
+            .filter((p: any) => p && p.questionSetId)
+            .map((p: any) => {
+              // 获取题库信息，优先使用purchaseQuestionSet，如果不存在则尝试使用questionSet
+              const questionSetInfo = processQuestionSetData(p.purchaseQuestionSet) || 
+                                    processQuestionSetData((p as any).questionSet);
+              
+              return {
+                id: p.id || '',
+                userId: p.userId || user?.id || '',
+                questionSetId: String(p.questionSetId || p.question_set_id || '').trim(),
+                purchaseDate: p.purchaseDate || p.purchase_date || new Date().toISOString(),
+                expiryDate: p.expiryDate || p.expiry_date || '',
+                amount: Number(p.amount || 0),
+                status: p.status || 'active',
+                paymentMethod: p.paymentMethod || p.payment_method || '',
+                transactionId: p.transactionId || p.transaction_id || '',
+                purchaseQuestionSet: questionSetInfo
+              };
+            });
+        
+          setPurchases(formattedPurchases);
+          console.log(`[ProfilePage] 已从用户数据更新购买记录: ${formattedPurchases.length}条`);
+        } else {
+          // 从本地存储中恢复购买记录
+          tryGetPurchasesFromLocalStorage();
+        }
+      } else {
+        console.log('[ProfilePage] 无法从用户数据获取购买记录，尝试本地存储');
+        tryGetPurchasesFromLocalStorage();
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 从用户数据获取购买记录失败:', error);
+      tryGetPurchasesFromLocalStorage();
+    }
+  };
+
+  // 从本地存储获取购买记录的辅助函数
+  const tryGetPurchasesFromLocalStorage = () => {
+    console.log('[ProfilePage] 尝试从本地存储恢复购买记录');
+    
+    try {
+      const purchasedStr = localStorage.getItem('purchasedQuestionSets');
+      if (purchasedStr) {
+        try {
+          const purchasedIds = JSON.parse(purchasedStr);
+          
+          if (Array.isArray(purchasedIds) && purchasedIds.length > 0) {
+            console.log(`[ProfilePage] 从本地存储找到 ${purchasedIds.length} 个已购题库ID`);
+            
+            // 为每个ID创建临时购买记录
+            const tempPurchases = purchasedIds.map(qsId => {
+              const qsInfo = {
+                id: qsId,
+                title: '已购题库'
+              };
+              
+              return {
+                id: `local_${qsId.substring(0, 8)}`,
+                userId: user?.id,
+                questionSetId: qsId,
+                purchaseDate: new Date().toISOString(),
+                expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(), // 6个月
+                amount: 0,
+                status: 'active',
+                paymentMethod: 'local',
+                purchaseQuestionSet: qsInfo
+              };
+            });
+            
+            setPurchases(prevPurchases => {
+              // 如果已有购买记录，合并并去重
+              if (prevPurchases.length > 0) {
+                const existingIds = new Set(prevPurchases.map(p => p.questionSetId));
+                const newPurchases = tempPurchases.filter(p => !existingIds.has(p.questionSetId));
+                return [...prevPurchases, ...newPurchases];
+              }
+              return tempPurchases;
+            });
+            
+            console.log(`[ProfilePage] 已从本地存储创建临时购买记录`);
+          }
+        } catch (error) {
+          console.error('[ProfilePage] 解析本地购买记录失败:', error);
+        }
+      } else {
+        console.log('[ProfilePage] 本地存储中没有购买记录');
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 从本地存储获取购买记录失败:', error);
+    }
+  };
+
+  // 补充题库详情的辅助函数
+  const enrichPurchasesWithQuestionSetDetails = async () => {
+    console.log('[ProfilePage] 开始补充题库详情');
+    
+    // 获取所有需要补充详情的购买记录
+    const purchasesNeedingDetails = purchases.filter(
+      p => p.questionSetId && (!p.purchaseQuestionSet?.title)
+    );
+    
+    if (purchasesNeedingDetails.length === 0) {
+      console.log('[ProfilePage] 所有购买记录都已有题库详情，无需补充');
+      return;
+    }
+    
+    console.log(`[ProfilePage] 需要补充 ${purchasesNeedingDetails.length} 条购买记录的题库详情`);
+    
+    // 获取所有题库列表
+    try {
+      const allQuestionSets = await fetchQuestionSets();
+      if (!allQuestionSets || allQuestionSets.length === 0) {
+        console.log('[ProfilePage] 无法获取题库列表，放弃补充详情');
+        return;
+      }
+      
+      // 创建题库ID到题库信息的映射
+      const questionSetMap = new Map();
+      allQuestionSets.forEach(qs => {
+        if (qs && qs.id) {
+          questionSetMap.set(String(qs.id).trim(), qs);
+        }
+      });
+      
+      // 更新每个缺少详情的购买记录
+      let updatedCount = 0;
+      
+      setPurchases(prevPurchases => {
+        return prevPurchases.map(purchase => {
+          // 如果已有题库详情，保持不变
+          if (purchase.purchaseQuestionSet && purchase.purchaseQuestionSet.title) {
+            return purchase;
+          }
+          
+          // 查找题库详情
+          const questionSet = questionSetMap.get(String(purchase.questionSetId).trim());
+          if (questionSet) {
+            updatedCount++;
+            const qsInfo = {
+              id: questionSet.id,
+              title: questionSet.title || '题库',
+              description: questionSet.description || ''
+            };
+            return {
+              ...purchase,
+              purchaseQuestionSet: qsInfo
+            };
+          }
+          
+          // 如果找不到题库详情，添加一个默认标题
+          const defaultInfo = {
+            id: purchase.questionSetId,
+            title: `题库 ${purchase.questionSetId.substring(0, 8)}`,
+            description: ''
+          };
+          
+          return {
+            ...purchase,
+            purchaseQuestionSet: defaultInfo
+          };
+        });
+      });
+      
+      console.log(`[ProfilePage] 已补充 ${updatedCount} 条购买记录的题库详情`);
+    } catch (error) {
+      console.error('[ProfilePage] 补充题库详情失败:', error);
     }
   };
 
@@ -2132,6 +2254,7 @@ const ProfilePage: React.FC = () => {
     
     wrongAnswers.forEach(answer => {
       const setId = answer.questionSetId;
+      // 使用类型断言或可选链安全访问questionSet.title
       const setTitle = answer.questionSet?.title || '未知题库';
       
       if (!groups[setId]) {
