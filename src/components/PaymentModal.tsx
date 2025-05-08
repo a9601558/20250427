@@ -13,10 +13,10 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 interface PaymentModalProps {
   isOpen?: boolean;
   onClose: () => void;
-  questionSet?: QuestionSet;
-  questionSetId?: string;
-  onSuccess: (purchaseInfo: {
+  questionSet: QuestionSet;
+  onSuccess: (data: {
     questionSetId: string;
+    purchaseId?: string;
     remainingDays: number;
   }) => void;
 }
@@ -43,60 +43,65 @@ interface StripePaymentFormProps {
 const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit, onCancel, isProcessing }) => {
   const stripe = useStripe();
   const elements = useElements();
-  const { user } = useUser();
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string>('');
   const [paymentIntentId, setPaymentIntentId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const initializePayment = async () => {
-      if (!amount || amount <= 0) {
-        console.error('[StripePaymentForm] Invalid amount:', amount);
-        setError('Invalid payment amount');
-        return;
-      }
-
-      setIsLoading(true);
+    // Create a payment intent when the form loads
+    const createPaymentIntent = async () => {
       try {
-        console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount}`);
+        if (!amount || amount <= 0) {
+          console.error('[StripePaymentForm] Invalid amount:', amount);
+          setError('Invalid payment amount');
+          return;
+        }
+
+        setIsLoading(true);
+        // Convert amount to cents for Stripe
+        const amountInCents = Math.round(amount * 100);
+        console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount} (${amountInCents} cents)`);
         
-        const intentData = await processPayment(
-          amount,
-          'cny',
+        const response = await axios.post(
+          `${API_BASE_URL}/payments/create-intent`,
           {
-            userId: user?.id || 'anonymous',
-            description: '题库购买'
+            amount: amountInCents,
+            currency: 'cny'
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
           }
         );
 
-        if (intentData && intentData.clientSecret) {
-          console.log('[StripePaymentForm] Payment intent created successfully');
-          setClientSecret(intentData.clientSecret);
-          setPaymentIntentId(intentData.id);
-          setError(null);
+        if (response.data.success) {
+          console.log('[StripePaymentForm] Payment intent created:', response.data);
+          setClientSecret(response.data.clientSecret);
+          setPaymentIntentId(response.data.paymentIntentId);
         } else {
-          console.error('[StripePaymentForm] No client secret in response');
-          setError('Could not initialize payment. Please try again.');
+          throw new Error(response.data.message || 'Failed to create payment intent');
         }
-      } catch (err) {
-        console.error('[StripePaymentForm] Error creating payment intent:', err);
-        setError('Failed to connect to payment service.');
+      } catch (error) {
+        console.error('[StripePaymentForm] Error creating payment intent:', error);
+        setError(error instanceof Error ? error.message : 'Failed to create payment intent');
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializePayment();
-  }, [amount, user?.id]);
+    createPaymentIntent();
+  }, [amount]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
     if (!stripe || !elements) {
-      setError('Payment system is not ready yet. Please try again.');
       return;
     }
+    
+    setError(null);
     
     if (!clientSecret) {
       setError('Payment system is not ready yet. Please try again.');
@@ -105,12 +110,12 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
     setIsLoading(true);
     try {
+      // Confirm the card payment
       const result = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement)!,
           billing_details: {
-            name: user?.username || 'Anonymous Customer',
-            email: user?.email
+            name: 'Anonymous Customer',
           },
         }
       });
@@ -121,7 +126,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
           const paymentMethodId = typeof result.paymentIntent.payment_method === 'string' 
             ? result.paymentIntent.payment_method 
-            : result.paymentIntent.payment_method?.id || null;
+            : null;
 
           onSubmit({
             paymentIntentId: paymentIntentId || result.paymentIntent.id,
@@ -133,8 +138,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           setError(`Payment status: ${result.paymentIntent?.status || 'unknown'}. Please try again.`);
         }
       }
-    } catch (err) {
-      console.error('[StripePaymentForm] Payment confirmation error:', err);
+    } catch (error) {
+      console.error('[StripePaymentForm] Payment confirmation error:', error);
       setError('An error occurred while processing your payment. Please try again.');
     } finally {
       setIsLoading(false);
@@ -142,95 +147,66 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">支付方式</h2>
-        <button
-          onClick={onCancel}
-          className="text-gray-400 hover:text-gray-600"
-          disabled={isProcessing || isLoading}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        </button>
+    <form onSubmit={handleSubmit} className="p-6">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold mb-2">支付金额</h3>
+        <p className="text-2xl font-bold text-green-600">¥{amount}</p>
       </div>
-      
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          卡号信息
+        </label>
+        <div className="p-3 border rounded-md bg-white">
+          <CardElement
+            options={{
+              style: {
+                base: {
+                  fontSize: '16px',
+                  color: '#424770',
+                  '::placeholder': {
+                    color: '#aab7c4',
+                  },
+                },
+                invalid: {
+                  color: '#9e2146',
+                },
+              },
+            }}
+          />
+        </div>
+      </div>
+
       {error && (
         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
           {error}
         </div>
       )}
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <p className="text-sm text-gray-600 mb-3">请输入信用卡信息完成支付：</p>
-          <div className="p-3 bg-white rounded-md border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-            <CardElement
-              options={{
-                style: {
-                  base: {
-                    fontSize: '16px',
-                    color: '#424770',
-                    '::placeholder': {
-                      color: '#aab7c4',
-                    },
-                  },
-                  invalid: {
-                    color: '#9e2146',
-                  },
-                },
-                hidePostalCode: true,
-              }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-gray-500">
-            测试卡号：4242 4242 4242 4242，有效期：任意未来日期，CVV：任意3位数
-          </p>
-        </div>
-        
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <div className="flex justify-between items-center text-lg">
-            <span className="text-gray-700">总金额:</span>
-            <span className="font-bold text-green-600">¥{amount.toFixed(2)}</span>
-          </div>
-        </div>
-        
-        <div className="flex justify-end space-x-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-            disabled={isProcessing || isLoading}
-          >
-            取消
-          </button>
-          <button
-            type="submit"
-            disabled={!stripe || isProcessing || isLoading || !clientSecret}
-            className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
-              (!stripe || isProcessing || isLoading || !clientSecret) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isProcessing || isLoading ? (
-              <div className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                处理中...
-              </div>
-            ) : (
-              `确认支付 ¥${amount.toFixed(2)}`
-            )}
-          </button>
-        </div>
-      </form>
-    </div>
+
+      <div className="flex justify-end space-x-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+          disabled={isProcessing || isLoading}
+        >
+          取消
+        </button>
+        <button
+          type="submit"
+          disabled={!stripe || !elements || isProcessing || isLoading}
+          className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
+            (!stripe || !elements || isProcessing || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isProcessing || isLoading ? '处理中...' : '确认支付'}
+        </button>
+      </div>
+    </form>
   );
 };
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, questionSet: propQuestionSet, questionSetId, onSuccess }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, questionSet: propQuestionSet, onSuccess }) => {
   const { user, addPurchase, refreshPurchases } = useUser();
   const { socket } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -242,10 +218,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const scriptRef = useRef<HTMLScriptElement | null>(null);
   const cardRef = useRef<any>(null);
-  const [questionSet, setQuestionSet] = useState<QuestionSet | undefined>(propQuestionSet);
-  const [isLoading, setIsLoading] = useState(!!questionSetId && !propQuestionSet);
+  const [questionSet, setQuestionSet] = useState<QuestionSet>(propQuestionSet);
   const [alreadyPurchased, setAlreadyPurchased] = useState(false);
   const [showStripeForm, setShowStripeForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // 检查是否已购买
   useEffect(() => {
@@ -277,6 +253,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
               
               onSuccess({
                 questionSetId: existingPurchase.questionSetId,
+                purchaseId: existingPurchase.id,
                 remainingDays
               });
             }
@@ -291,13 +268,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     checkIfAlreadyPurchased();
   }, [user, questionSet, refreshPurchases, onSuccess, onClose]);
 
-  // 如果提供了questionSetId但没有questionSet，则加载questionSet
+  // 如果提供了questionSet但没有questionSet，则加载questionSet
   useEffect(() => {
-    if (questionSetId && !propQuestionSet) {
+    if (propQuestionSet && !questionSet) {
       const fetchQuestionSet = async () => {
         setIsLoading(true);
         try {
-          const response = await questionSetApi.getQuestionSetById(questionSetId);
+          const response = await questionSetApi.getQuestionSetById(propQuestionSet.id);
           if (response.success && response.data) {
             setQuestionSet(response.data);
           } else {
@@ -315,7 +292,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     } else if (propQuestionSet) {
       setQuestionSet(propQuestionSet);
     }
-  }, [questionSetId, propQuestionSet]);
+  }, [propQuestionSet, questionSet]);
 
   // 加载Stripe
   useEffect(() => {
@@ -640,6 +617,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
         setTimeout(() => {
           const purchaseInfo = {
             questionSetId: purchase.questionSetId,
+            purchaseId: purchase.id,
             remainingDays: Math.ceil((new Date(expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
           };
           onSuccess(purchaseInfo);

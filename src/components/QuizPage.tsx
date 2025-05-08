@@ -4297,7 +4297,11 @@ function QuizPage(): JSX.Element {
       {quizStatus.showPaymentModal && questionSet && (
         <PaymentModal
           isOpen={quizStatus.showPaymentModal}
-          questionSet={questionSet}
+          questionSet={{
+            ...questionSet,
+            // 确保价格是有效的数字
+            price: typeof questionSet.price === 'number' ? questionSet.price : parseFloat(String(questionSet.price || 0))
+          }}
           onClose={() => {
             console.log('[QuizPage] 关闭支付模态窗口');
             setQuizStatus(prev => ({
@@ -4308,19 +4312,21 @@ function QuizPage(): JSX.Element {
             }));
           }}
           onSuccess={(data) => {
-            console.log('[QuizPage] 支付成功，触发自定义事件');
+            console.log('[QuizPage] 支付成功，触发自定义事件', data);
             // 关闭支付模态窗口
             setQuizStatus(prev => ({
               ...prev,
               showPaymentModal: false,
-              hasAccessToFullQuiz: true
+              hasAccessToFullQuiz: true,
+              trialEnded: false
             }));
             
             // 触发购买成功事件
-            const customEvent = new CustomEvent('purchase:success', {
-              detail: data
-            });
-            document.dispatchEvent(customEvent);
+            window.dispatchEvent(
+              new CustomEvent('purchase:success', {
+                detail: data
+              })
+            );
             
             // 显示成功提示
             toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 });
