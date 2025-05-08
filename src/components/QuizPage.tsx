@@ -23,6 +23,36 @@ import { getOptionLabel, formatOptions } from '../utils/optionUtils';
 import { saveAccessToLocalStorage, getAccessFromLocalStorage, saveRedeemedQuestionSetId, checkFullAccessFromAllSources } from '../utils/accessUtils';
 import { formatTime, calculateRemainingDays, formatDate } from '../utils/timeUtils';
 
+// 设置全局请求超时时间，特别是对试用模式页面
+axios.defaults.timeout = 5000; // 5秒超时
+
+// 添加响应拦截器，确保API请求不会无限挂起
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // 如果是超时错误，提供更明确的错误信息
+    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+      console.error('[API] 请求超时:', error.config.url);
+      
+      // 检查是否是试用模式请求
+      const isTrialUrl = window.location.search.includes('trial') || 
+                         window.location.search.includes('mode=trial');
+      
+      if (isTrialUrl) {
+        console.warn('[API] 试用模式请求超时，使用特殊处理');
+        // 让请求错误直接通过，而由页面的超时机制处理
+        return Promise.reject({
+          isTimeout: true,
+          isTrialMode: true,
+          message: '试用模式API请求超时'
+        });
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // 定义答题记录类型
 interface AnsweredQuestion {
   index: number;
@@ -802,6 +832,96 @@ function QuizPage(): JSX.Element {
     parseInt(searchParams.get('lastQuestion') || '0')
   );
   
+  // 检测URL参数中的试用模式标记
+  const isTrialModeFromUrl = searchParams.get('mode') === 'trial' || searchParams.get('trial') === 'true';
+  const trialLimitFromUrl = (() => {
+    const limitFromUrl = searchParams.get('trialLimit') || searchParams.get('limit');
+    if (limitFromUrl) {
+      const parsed = parseInt(limitFromUrl, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 5; // 默认试用5题
+  })();
+  
+  // 日志输出URL信息，便于调试
+  console.log(`[QuizPage] 页面初始化 - URL信息:`, {
+    path: location.pathname,
+    search: location.search,
+    isTrialMode: isTrialModeFromUrl,
+    trialLimit: trialLimitFromUrl
+  });
+  
+  // 添加紧急超时保护 - 无论如何都会在指定时间后结束加载状态
+  useEffect(() => {
+    // 检查是否是试用模式，试用模式需要更短的超时
+    const isTrialMode = isTrialModeFromUrl;
+    
+    // 试用模式使用更短的超时时间
+    const timeoutDuration = isTrialMode ? 6000 : 12000; // 试用模式6秒，普通模式12秒
+    
+    console.log(`[QuizPage] 初始化紧急超时保护: ${isTrialMode ? '试用模式' : '普通模式'}, ${timeoutDuration/1000}秒`);
+    
+    const emergencyTimeoutId = setTimeout(() => {
+      console.log('[QuizPage] 检查紧急超时保护');
+      
+      // 直接检查DOM来避免React状态依赖问题
+      const loadingIndicatorExists = document.querySelector('.animate-spin') !== null;
+      
+      if (loadingIndicatorExists) {
+        console.error(`[QuizPage] 触发紧急超时保护 - 强制结束加载状态 (${timeoutDuration/1000}秒后)`);
+        
+        // 强制更新状态，退出加载
+        setQuizStatus(prev => ({ 
+          ...prev, 
+          loading: false, 
+          error: isTrialMode 
+            ? '试用模式加载超时，请返回首页重试' 
+            : '加载超时，请刷新页面或返回首页重试' 
+        }));
+        
+        // 显示用户提示
+        toast.error(isTrialMode ? '试用模式加载超时' : '页面加载超时，请尝试刷新重试', { 
+          position: 'top-center',
+          autoClose: 5000 
+        });
+        
+        // 如果是试用模式，添加返回首页按钮
+        if (isTrialMode) {
+          setTimeout(() => {
+            // 尝试添加返回按钮到页面
+            const backButton = document.createElement('button');
+            backButton.innerText = '返回首页';
+            backButton.className = 'px-4 py-2 mt-4 bg-blue-500 text-white rounded hover:bg-blue-600';
+            backButton.onclick = () => navigate('/');
+            
+            // 查找错误消息容器
+            const errorContainer = document.querySelector('.text-red-500');
+            if (errorContainer) {
+              errorContainer.parentNode?.appendChild(backButton);
+            } else {
+              // 如果找不到错误容器，尝试添加到页面主容器
+              const mainContainer = document.querySelector('main') || document.body;
+              
+              // 创建错误容器
+              const newErrorContainer = document.createElement('div');
+              newErrorContainer.className = 'flex flex-col items-center justify-center p-4';
+              newErrorContainer.innerHTML = '<p class="text-red-500 mb-4">试用模式加载超时，请返回首页重试</p>';
+              
+              // 添加按钮
+              newErrorContainer.appendChild(backButton);
+              mainContainer.prepend(newErrorContainer);
+            }
+          }, 500);
+        }
+      }
+    }, timeoutDuration);
+    
+    // 清理函数
+    return () => clearTimeout(emergencyTimeoutId);
+  }, [navigate, isTrialModeFromUrl]);
+  
   // Imported from src/pages/QuizPage.tsx - Add access check state
   const [accessCheckComplete, setAccessCheckComplete] = useState(false);
   const [accessRights, setAccessRights] = useState<{hasAccess: boolean, remainingDays?: number | null}>({
@@ -1056,27 +1176,26 @@ function QuizPage(): JSX.Element {
       // 如果依然处于加载状态，强制退出加载
       if (quizStatus.loading) {
         console.error('[QuizPage] 加载超时 - 已经等待超过15秒');
-        setQuizStatus({ 
-          ...quizStatus, 
+        setQuizStatus(prev => ({ 
+          ...prev, 
           loading: false, 
           error: '加载超时，请刷新页面重试或返回首页' 
-        });
+        }));
       }
     }, 15000);
     
     const fetchQuestionSet = async () => {
-      setQuizStatus({ ...quizStatus, loading: true });
-      setQuizStatus({ ...quizStatus, error: null });
+      setQuizStatus(prev => ({ ...prev, loading: true, error: null }));
       
       try {
         // 解析URL参数
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
-        const trialLimitParam = urlParams.get('trialLimit') || urlParams.get('limit'); // 同时支持两种参数名
+        // 支持两种格式的试用模式参数
+        const trialLimitParam = urlParams.get('trialLimit') || urlParams.get('limit'); 
         const specificQuestions = urlParams.get('questions');
         
         // 检查URL中的trial参数，支持两种形式："?mode=trial" 或 "?trial=true"
-        // 这样可以确保向后兼容性
         const isExplicitTrialMode = mode === 'trial' || urlParams.get('trial') === 'true';
         
         // 增强调试日志
@@ -1092,8 +1211,8 @@ function QuizPage(): JSX.Element {
         
         try {
           // 获取题库详情 - 先从API缓存获取
+          console.log('[QuizPage] 开始请求题库数据...');
           const response = await questionSetApi.getQuestionSetById(id);
-          
           console.log('[QuizPage] 获取题库响应:', response);
           
           // 检查是否有疑似数据问题
@@ -1163,8 +1282,8 @@ function QuizPage(): JSX.Element {
               }
             }
             
-            // 更新明确的试用模式状态
-            setQuizStatus(prev => ({...prev, isInTrialMode: isExplicitTrialMode}));
+            // 更新明确的试用模式状态 - 简化处理逻辑，避免循环依赖
+            const newIsInTrialMode = isExplicitTrialMode;
             
             // 改进对试用题目数量的确定逻辑
             const trialQuestionsFromApi = directApiData?.trialQuestions || response.data.trialQuestions;
@@ -1385,7 +1504,7 @@ function QuizPage(): JSX.Element {
               setQuizStatus(prev => ({...prev, loading: false, error: '此题库不包含任何题目'}));
             }
           } else {
-            console.error('API返回错误:', response);
+            console.error('[QuizPage] API返回错误:', response);
             setQuizStatus(prev => ({...prev, loading: false, error: '无法加载题库数据'}));
           }
         } catch (error) {
@@ -1393,7 +1512,7 @@ function QuizPage(): JSX.Element {
           setQuizStatus(prev => ({...prev, loading: false, error: '获取题库数据失败'}));
         }
       } catch (outerError) {
-        console.error('页面初始化失败:', outerError);
+        console.error('[QuizPage] 页面初始化失败:', outerError);
         setQuizStatus(prev => ({...prev, loading: false, error: '页面初始化失败，请刷新重试'}));
       }
     };
@@ -3235,6 +3354,19 @@ function QuizPage(): JSX.Element {
             toast.success('兑换成功！现在可以查看完整题库', { autoClose: 3000 });
           }}
         />
+      )}
+
+      {/* 为试用模式添加备用机制，如果API超时则显示临时内容 */}
+      {isTrialModeFromUrl && quizStatus.loading && (
+        <div className="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10 rounded-xl">
+              <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
+              <p className="text-blue-600 font-medium">正在加载试用题库...</p>
+              <p className="text-gray-500 text-sm mt-2">如果加载时间过长，请<button onClick={() => navigate('/')} className="text-blue-500 underline">返回首页</button></p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
