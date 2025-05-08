@@ -26,6 +26,7 @@ router.get('/stats', getProgressStats);
 router.get('/stats/:userId', getUserProgressStats);
 router.get('/records', getUserProgressRecords);
 router.delete('/record/:id', deleteProgressRecord);
+router.get('/summary', getProgressSummary);
 
 // 通用更新进度路由
 router.post('/', updateProgress);
@@ -37,7 +38,5 @@ router.post('/:questionSetId', updateProgress);
 router.get('/:userId', getUserProgress);
 router.get('/:userId/:questionSetId', getProgressByQuestionSetId);
 router.delete('/:userId/:questionSetId', resetProgress);
-
-router.get('/summary', getProgressSummary);
 
 export default router; 

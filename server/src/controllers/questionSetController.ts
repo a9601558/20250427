@@ -103,13 +103,24 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
     
     // 为每个题库获取准确的问题数量
     const enhancedSets = await Promise.all(questionSets.map(async (set) => {
-      // 直接查询问题数量
-      const questionCount = await Question.count({ where: { questionSetId: set.id } });
+      let questionCount = 0;
+      
+      // 只有当 set.id 存在且有效时才查询问题数量
+      if (set && set.id) {
+        try {
+          questionCount = await Question.count({ 
+            where: { questionSetId: set.id }
+          });
+        } catch (countError) {
+          console.error(`获取题库 ${set.id} 的问题数量失败:`, countError);
+          // 如果查询失败，使用默认值 0
+        }
+      }
       
       const setJSON = set.toJSON();
       return {
         ...setJSON,
-        questionCount  // 添加准确的问题数量
+        questionCount  // 添加问题数量
       };
     }));
     

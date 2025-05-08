@@ -8,11 +8,11 @@ import {
   uploadQuestionSets,
   getQuestionSetCategories,
   getQuestionSetsByCategory,
-  addQuestionToQuestionSet
+  addQuestionToQuestionSet,
+  setFeaturedQuestionSet
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
-import { updateQuestionSetFeaturedStatus } from '../controllers/homepageController';
 
 const router = express.Router();
 
@@ -51,7 +51,7 @@ router.delete('/:id', protect, admin, deleteQuestionSet);
 router.post('/:id/questions', protect, admin, addQuestionToQuestionSet);
 
 // Featured status update route
-router.put('/:id/featured', protect, admin, updateQuestionSetFeaturedStatus);
+router.put('/:id/featured', protect, admin, setFeaturedQuestionSet);
 
 // Base routes
 router.post('/', protect, admin, createQuestionSet);
