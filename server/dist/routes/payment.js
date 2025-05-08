@@ -19,6 +19,15 @@ router.post('/create-intent', auth_1.authenticateJwt, async (req, res) => {
                 message: '请提供有效的支付金额和货币'
             });
         }
+        // 确保金额有效
+        const numericAmount = parseInt(String(amount), 10);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: '支付金额必须大于0'
+            });
+        }
+        console.log(`[支付路由] 创建支付意向: 金额=${numericAmount}, 货币=${currency}`);
         // 确保用户ID与认证用户匹配
         if (metadata && metadata.userId && metadata.userId !== req.user?.id) {
             return res.status(403).json({
@@ -33,10 +42,11 @@ router.post('/create-intent', auth_1.authenticateJwt, async (req, res) => {
         };
         // 创建支付Intent
         const paymentIntent = await (0, stripe_1.stripePaymentIntent)({
-            amount,
+            amount: numericAmount,
             currency,
             metadata: enhancedMetadata
         });
+        console.log(`[支付路由] 支付意向创建成功: ${paymentIntent.id}`);
         res.json({
             success: true,
             clientSecret: paymentIntent.client_secret,
@@ -56,6 +66,13 @@ router.post('/create-intent', auth_1.authenticateJwt, async (req, res) => {
 router.get('/verify/:paymentIntentId', auth_1.authenticateJwt, async (req, res) => {
     try {
         const { paymentIntentId } = req.params;
+        if (!paymentIntentId) {
+            return res.status(400).json({
+                success: false,
+                message: '请提供有效的支付ID'
+            });
+        }
+        console.log(`[支付路由] 验证支付状态: ${paymentIntentId}`);
         // 验证支付Intent
         const verification = await (0, stripe_1.verifyPaymentIntent)(paymentIntentId);
         // 检查用户ID是否匹配
@@ -77,7 +94,7 @@ router.get('/verify/:paymentIntentId', auth_1.authenticateJwt, async (req, res) 
             if (existingPurchase) {
                 // 如果记录已存在但状态不是active，更新为active
                 if (existingPurchase.status !== 'active') {
-                    console.log(`[Verify] 更新购买记录状态: ${existingPurchase.id}`);
+                    console.log(`[支付路由] 更新购买记录状态: ${existingPurchase.id}`);
                     await existingPurchase.update({
                         status: 'active',
                         updatedAt: new Date()
@@ -105,6 +122,7 @@ router.get('/verify/:paymentIntentId', auth_1.authenticateJwt, async (req, res) 
                 const now = new Date();
                 const expiryDate = new Date(now);
                 expiryDate.setMonth(expiryDate.getMonth() + 6);
+                console.log(`[支付路由] 创建新购买记录，用户: ${req.user?.id}, 题库: ${verification.metadata.questionSetId}`);
                 // 创建购买记录
                 await models_1.default.Purchase.create({
                     id: (0, uuid_1.v4)(),
@@ -178,39 +196,13 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
                             userId
                         }
                     });
-                    if (existingPurchase) {
-                        // 如果记录已存在但不是active状态，更新为active
-                        if (existingPurchase.status !== 'active') {
-                            console.log(`[Webhook] 更新购买记录状态: ${existingPurchase.id}`);
-                            await existingPurchase.update({
-                                status: 'active',
-                                updatedAt: new Date()
-                            });
-                            // 发送购买成功事件
-                            if (req.app.get('io')) {
-                                const io = req.app.get('io');
-                                io.emit('purchase:success', {
-                                    userId,
-                                    questionSetId,
-                                    purchaseId: existingPurchase.id,
-                                    expiryDate: existingPurchase.expiryDate.toISOString()
-                                });
-                                // 更新访问权限
-                                io.emit('questionSet:accessUpdate', {
-                                    userId,
-                                    questionSetId,
-                                    hasAccess: true
-                                });
-                            }
-                        }
-                    }
-                    else {
+                    if (!existingPurchase) {
                         // 计算过期时间（6个月后）
                         const now = new Date();
                         const expiryDate = new Date(now);
                         expiryDate.setMonth(expiryDate.getMonth() + 6);
                         // 创建购买记录
-                        const purchase = await models_1.default.Purchase.create({
+                        await models_1.default.Purchase.create({
                             id: (0, uuid_1.v4)(),
                             userId,
                             questionSetId,
@@ -227,7 +219,7 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
                             io.emit('purchase:success', {
                                 userId,
                                 questionSetId,
-                                purchaseId: purchase.id,
+                                purchaseId: (0, uuid_1.v4)(),
                                 expiryDate: expiryDate.toISOString()
                             });
                             // 更新访问权限
@@ -240,18 +232,19 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
                     }
                 }
                 break;
+            // 其他事件类型可以在这里处理
             case 'payment_intent.payment_failed':
-                const failedPaymentIntent = event.data.object;
-                console.log('支付失败:', failedPaymentIntent.id, failedPaymentIntent.last_payment_error?.message);
+                console.log('支付失败:', event.data.object);
                 break;
             default:
                 console.log(`未处理的事件类型: ${event.type}`);
         }
-        res.json({ received: true });
+        // 向Stripe返回成功响应
+        res.status(200).send('Event received');
     }
     catch (error) {
-        console.error('Webhook错误:', error);
-        res.status(400).send(`Webhook Error: ${error instanceof Error ? error.message : '未知错误'}`);
+        console.error('处理Stripe Webhook错误:', error);
+        res.status(400).send('Webhook Error');
     }
 });
 exports.default = router;

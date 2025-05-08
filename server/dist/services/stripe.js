@@ -7,8 +7,10 @@ exports.constructEvent = exports.verifyPaymentIntent = exports.stripePaymentInte
 const stripe_1 = __importDefault(require("stripe"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+// Use the provided test key if environment variable is not set
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_51RHMVW4ec3wxfwe9upMBdw5Csj7TtiydSEHmDzKOJDp7HScEqZ2Qee5hRnk9p5s0Rpv6xPvp7eQJ4chu8eJRLdUj00FIxpXkhX';
 // Initialize Stripe with your secret key
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '', {
+const stripe = new stripe_1.default(STRIPE_SECRET_KEY, {
     apiVersion: '2022-11-15', // Use the compatible API version
 });
 /**
@@ -16,6 +18,7 @@ const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '', {
  */
 const stripePaymentIntent = async (params) => {
     try {
+        console.log(`Creating Stripe payment intent: amount=${params.amount}, currency=${params.currency}`);
         const paymentIntent = await stripe.paymentIntents.create({
             amount: params.amount,
             currency: params.currency,
@@ -24,6 +27,7 @@ const stripePaymentIntent = async (params) => {
                 enabled: true,
             },
         });
+        console.log(`Payment intent created successfully: ${paymentIntent.id}`);
         return paymentIntent;
     }
     catch (error) {
@@ -37,7 +41,9 @@ exports.stripePaymentIntent = stripePaymentIntent;
  */
 const verifyPaymentIntent = async (paymentIntentId) => {
     try {
+        console.log(`Verifying payment intent: ${paymentIntentId}`);
         const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        console.log(`Payment intent status: ${paymentIntent.status}`);
         return {
             status: paymentIntent.status,
             amount: paymentIntent.amount,

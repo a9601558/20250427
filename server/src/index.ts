@@ -37,6 +37,7 @@ import purchaseRoutes from './routes/purchaseRoutes';
 import redeemCodeRoutes from './routes/redeemCodeRoutes';
 import homepageRoutes from './routes/homepageRoutes';
 import wrongAnswerRoutes from './routes/wrongAnswerRoutes';
+import paymentRoutes from './routes/payment';
 
 // Initialize express app
 const app = express();
@@ -67,6 +68,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/redeem-codes', redeemCodeRoutes);
 app.use('/api/homepage', homepageRoutes);
 app.use('/api/wrong-answers', wrongAnswerRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
