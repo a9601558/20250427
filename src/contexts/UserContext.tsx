@@ -254,13 +254,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
     
-    // 短暂延迟后通知其他组件，避免状态更新冲突
-    setTimeout(() => {
-      notifyUserChange(null); // 通知用户登出
-      
-      // 刷新页面以确保完全清理状态
-      window.location.reload();
-    }, 100);
+    // 通知用户登出，但不强制刷新页面
+    notifyUserChange(null);
+    
+    // 返回到首页
+    window.location.href = '/';
   };
 
   const login = async (username: string, password: string): Promise<boolean> => {

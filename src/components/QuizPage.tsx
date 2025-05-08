@@ -3730,22 +3730,57 @@ function QuizPage(): JSX.Element {
                 </summary>
                 <div className="mt-4 space-y-3">
                   {answeredQuestions.map((answer, index) => {
-                    if (!answer.questionIndex) return null;
+                    // 确保 questionIndex 存在且有效
+                    if (typeof answer.questionIndex !== 'number' || answer.questionIndex < 0) return null;
+                    
                     const question = questions[answer.questionIndex];
                     if (!question) return null;
+                    
+                    // 获取题目内容，优先使用 question.text，如果不存在则使用 question.question
+                    const questionContent = question.text || question.question || '未知问题';
                     
                     return (
                       <div key={index} className={`p-3 rounded-lg border ${answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                         <div className="flex justify-between items-start">
                           <div className="flex items-center">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-2 ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                              {(answer.questionIndex ?? 0) + 1}
+                              {answer.questionIndex + 1}
                             </div>
-                            <div className="text-sm font-medium text-gray-700">{question.question ? (question.question.length > 100 ? `${question.question.substring(0, 100)}...` : question.question) : '未知问题'}</div>
+                            <div className="text-sm font-medium text-gray-700">
+                              {questionContent.length > 100 ? `${questionContent.substring(0, 100)}...` : questionContent}
+                            </div>
                           </div>
                           <div className={`text-xs px-2 py-0.5 rounded-full ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
                             {answer.isCorrect ? '正确' : '错误'}
                           </div>
+                        </div>
+                        {/* 添加选择的答案和正确答案显示 */}
+                        <div className="mt-2 text-xs">
+                          {answer.selectedOption && (
+                            <div className="text-gray-600">
+                              已选答案: {Array.isArray(answer.selectedOption) 
+                                ? answer.selectedOption.map(opt => {
+                                    const option = question.options.find(o => o.id === opt);
+                                    return option ? option.text : '未知选项';
+                                  }).join(', ')
+                                : (() => {
+                                    const option = question.options.find(o => o.id === answer.selectedOption);
+                                    return option ? option.text : '未知选项';
+                                  })()
+                              }
+                            </div>
+                          )}
+                          {!answer.isCorrect && (
+                            <div className="text-green-600 mt-1">
+                              正确答案: {question.questionType === 'single'
+                                ? (() => {
+                                    const correctOption = question.options.find(o => o.isCorrect);
+                                    return correctOption ? correctOption.text : '未知';
+                                  })()
+                                : question.options.filter(o => o.isCorrect).map(o => o.text).join(', ')
+                              }
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
