@@ -148,6 +148,20 @@ interface ProgressData {
   [key: string]: any;
 }
 
+// 添加通用的isPaidQuiz工具函数，确保全应用一致性
+const isPaidQuiz = (quizData: any): boolean => {
+  if (!quizData) return false;
+  
+  // 处理所有可能的情况
+  if (quizData.isPaid === true) return true;
+  if (typeof quizData.isPaid === 'number' && quizData.isPaid === 1) return true;
+  if (String(quizData.isPaid) === '1') return true;
+  if (quizData.price && quizData.price > 0) return true;
+  
+  // 默认认为非付费
+  return false;
+};
+
 // 修改 IQuestionSet 接口添加 expiryDate 属性
 interface IQuestionSet {
   id: string;
@@ -496,10 +510,10 @@ interface AccessRights {
 
 // 在合适的位置添加PaymentModal和RedeemCodeModal的Props接口定义
 interface PaymentModalProps {
-  isOpen: boolean; // Add isOpen property to match usage
+  isOpen: boolean; 
   questionSet: IQuestionSet | null;
   onClose: () => void;
-  onSuccess: (data: any) => void; // Changed from onPurchaseSuccess to match usage
+  onSuccess: (data: any) => void;
 }
 
 interface RedeemCodeModalProps {
@@ -542,11 +556,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       price: questionSet.price
     });
     
-    // 改进后的付费题库检查逻辑 - 同时接受布尔值和数字
-    // 数据库中是tinyint(1)，可能被转换为不同类型
-    if (!questionSet.isPaid && String(questionSet.isPaid) !== '1') {
-      console.error(`[PaymentModal] 题库${questionSet.id} 非付费题库，无法进行购买:`, 
-        { isPaid: questionSet.isPaid, type: typeof questionSet.isPaid });
+    // 使用通用的isPaidQuiz函数检查题库付费状态
+    if (!isPaidQuiz(questionSet)) {
+      console.error(`[PaymentModal] 题库${questionSet.id} 检测为免费题库，无法进行购买:`, 
+        { isPaid: questionSet.isPaid, type: typeof questionSet.isPaid, price: questionSet.price });
       setError("该题库为免费题库，无需购买");
       toast.error("该题库为免费题库，无需购买");
       setIsProcessing(false);
@@ -589,8 +602,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           price: refreshedSet.price
         });
         
-        // 验证题库确实是付费题库
-        if (!refreshedSet.isPaid && String(refreshedSet.isPaid) !== '1') {
+        // 使用通用的isPaidQuiz函数检查服务器返回的题库付费状态
+        if (!isPaidQuiz(refreshedSet)) {
           console.error(`[PaymentModal] 服务器确认题库${normalizedId}为免费题库`);
           setError("服务器确认该题库为免费题库，无需购买");
           toast.error("服务器确认该题库为免费题库，无需购买");
@@ -610,10 +623,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           setBtnClicked(false);
           return;
         }
-        // 对于其他错误，记录警告但尝试继续(使用本地缓存数据)
-        console.warn('[PaymentModal] 无法从服务器确认题库状态，将使用本地数据继续...');
-        // 假设本地数据正确
-        isConfirmedPaidQuiz = true;
+        // 对于其他错误，如果本地确认是付费题库，仍然继续
+        if (isPaidQuiz(questionSet)) {
+          console.warn('[PaymentModal] 无法从服务器确认题库状态，但本地确认为付费题库，将继续...');
+          isConfirmedPaidQuiz = true;
+        } else {
+          console.error('[PaymentModal] 题库付费状态无法确认，中止购买');
+          setError("无法确认题库付费状态，请稍后再试");
+          toast.error("无法确认题库付费状态，请稍后再试");
+          setIsProcessing(false);
+          setBtnClicked(false);
+          return;
+        }
       }
       
       // 步骤2: 检查用户是否已经购买该题库
@@ -1411,7 +1432,7 @@ function QuizPage(): JSX.Element {
     console.log(`[QuizPage] 检查题库ID "${questionSetId}" 的访问权限`);
     
     // 步骤1：免费题库检查（最高优先级）
-    if (!questionSet.isPaid) {
+    if (!isPaidQuiz(questionSet)) {
       console.log('[QuizPage] 免费题库，直接返回true');
       return true;
     }
@@ -1513,7 +1534,7 @@ function QuizPage(): JSX.Element {
     console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限`);
     
     // 免费题库直接授权
-    if (!questionSet.isPaid) {
+    if (!isPaidQuiz(questionSet)) {
       console.log(`[checkAccess] 免费题库，直接授予访问权限`);
       setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       saveAccessToLocalStorage(questionSet.id, true);
@@ -1568,7 +1589,7 @@ function QuizPage(): JSX.Element {
     }
     
     // 确保页面加载时不会显示购买弹窗
-    if (questionSet && !questionSet.isPaid) {
+    if (questionSet && !isPaidQuiz(questionSet)) {
       console.log(`[useEffect] 检测到免费题库，确保不会显示购买弹窗`);
       setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       setQuizStatus({ ...quizStatus, trialEnded: false });
@@ -1586,7 +1607,7 @@ function QuizPage(): JSX.Element {
     console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}, 试用题目数: ${questionSet.trialQuestions}`);
     
     // 如果是免费题库，永远不会试用结束
-    if (!questionSet.isPaid) {
+    if (!isPaidQuiz(questionSet)) {
       console.log(`[QuizPage] 免费题库不存在试用结束概念`);
       if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
       if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
@@ -1727,7 +1748,7 @@ function QuizPage(): JSX.Element {
           setQuestionSet(questionSetData);
           
           // 免费题库直接授予访问权限，不显示购买页面
-          if (!questionSetData.isPaid) {
+          if (!isPaidQuiz(questionSetData)) {
             console.log(`[QuizPage] 免费题库，授予访问权限`);
             setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
             setQuizStatus({ ...quizStatus, trialEnded: false });
@@ -1740,7 +1761,7 @@ function QuizPage(): JSX.Element {
             console.log(`[QuizPage] 初始化试用模式，限制题目数: ${determinedTrialCount}`);
             
             // 设置试用模式状态，但不触发购买提示
-            if (questionSetData.isPaid) {
+            if (isPaidQuiz(questionSetData)) {
               setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
               setQuizStatus({ ...quizStatus, hasRedeemed: false });
               // 重要：确保刚进入时不会显示试用结束状态
@@ -2795,9 +2816,9 @@ function QuizPage(): JSX.Element {
   // 创建一个固定在页面底部的购买栏组件
   const TrialPurchaseBar = () => {
     // 仅当满足以下条件时显示购买栏：付费题库 + 试用模式 + 无完整访问权限
-    if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+    if (!questionSet || !isPaidQuiz(questionSet) || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
       // 对于已购买或已兑换的题库，显示有效期信息而不是购买栏
-      if (questionSet?.isPaid && (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed)) {
+      if (questionSet && isPaidQuiz(questionSet) && (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed)) {
         // 查找当前题库的有效期信息
         let expiryInfo = null;
         
@@ -3060,7 +3081,7 @@ function QuizPage(): JSX.Element {
       const getAccessStatusText = () => {
         if (!questionSet) return '';
         
-        if (!questionSet.isPaid) {
+        if (!isPaidQuiz(questionSet)) {
           return '免费题库';
         }
         
@@ -3222,7 +3243,7 @@ function QuizPage(): JSX.Element {
               </button>
               
               {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 */}
-              {questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
+              {questionSet && isPaidQuiz(questionSet) && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
                 <button
                   onClick={(e) => {
                     // 阻止事件冒泡
@@ -3500,7 +3521,7 @@ function QuizPage(): JSX.Element {
     console.log(`[QuizPage] 试用限制状态检查 - 已答题:${answeredQuestions.length}, 限制:${questionSet.trialQuestions}, 已达限制:${isTrialLimitReached()}`);
     
     // 如果是免费题库，永远不显示购买页面
-    if (!questionSet.isPaid) {
+    if (!isPaidQuiz(questionSet)) {
       if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
       if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
       return;
