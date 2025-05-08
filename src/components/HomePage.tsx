@@ -378,8 +378,18 @@ const HomePage: React.FC = () => {
       console.log('[HomePage] 添加试用模式参数');
       params.append('mode', 'trial');
       
-      // 确保免费题目数量合理
-      params.append('limit', '5');
+      // 为了兼容性同时添加两个参数
+      if (set.trialQuestions) {
+        // 优先使用题库配置的试用题目数量
+        params.append('trialLimit', String(set.trialQuestions));
+        params.append('limit', String(set.trialQuestions));
+      } else {
+        // 默认试用5题
+        params.append('trialLimit', '5');
+        params.append('limit', '5');
+      }
+      
+      console.log(`[HomePage] 设置试用模式参数: mode=trial, limit=${set.trialQuestions || '5'}, URL参数:`, params.toString());
     }
     
     // 设置一个加载超时，防止无限加载
@@ -396,13 +406,26 @@ const HomePage: React.FC = () => {
       const url = `/quiz/${set.id}?${params.toString()}`;
       console.log(`[HomePage] 导航到: ${url}`);
       navigate(url);
+      
+      // 记录题库访问事件
+      if (socket && user?.id) {
+        socket.emit('user:activity', {
+          userId: user.id,
+          action: 'start_quiz',
+          questionSetId: set.id,
+          hasFullAccess: set.hasAccess,
+          accessType: set.accessType,
+          mode: isTrial ? 'trial' : 'normal',
+          timestamp: Date.now()
+        });
+      }
     } catch (error) {
       console.error('[HomePage] 跳转时出错:', error);
       setErrorMessage('跳转至题库时出错，请刷新页面重试');
       setLoading(false);
       clearTimeout(loadingTimeout);
     }
-  }, [navigate, setErrorMessage]);
+  }, [navigate, setErrorMessage, socket, user]);
 
   // Add getLocalAccessCache function before it's used
   const getLocalAccessCache = useCallback(() => {
