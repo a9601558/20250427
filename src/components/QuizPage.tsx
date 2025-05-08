@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import { questionSetApi } from '../utils/api';
@@ -792,12 +792,22 @@ interface IQuestionSet {
 }
 
 function QuizPage(): JSX.Element {
-  const { questionSetId } = useParams<{ questionSetId: string }>();
-  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const location = useLocation();
-  const { user, hasAccessToQuestionSet, syncAccessRights, updateUser } = useUser();
-  const { socket } = useSocket() as { socket: Socket | null };
-  const { fetchUserProgress } = useUserProgress();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user, syncAccessRights, hasAccessToQuestionSet } = useUser();
+  const { socket } = useSocket();
+  const [lastQuestion, setLastQuestion] = useState<number>(
+    parseInt(searchParams.get('lastQuestion') || '0')
+  );
+  
+  // Imported from src/pages/QuizPage.tsx - Add access check state
+  const [accessCheckComplete, setAccessCheckComplete] = useState(false);
+  const [accessRights, setAccessRights] = useState<{hasAccess: boolean, remainingDays?: number | null}>({
+    hasAccess: false,
+    remainingDays: null
+  });
   
   // 将 isSubmittingRef 移动到组件内部
   const isSubmittingRef = useRef<boolean>(false);
@@ -883,10 +893,10 @@ function QuizPage(): JSX.Element {
         const newAccessRights: AccessRights = {};
         
         // 如果questionSetId存在，则检查当前题库
-        if (questionSetId) {
+        if (id) {
           // 保留当前题库的权限，后续会重新检查
-          if (accessRights && accessRights[questionSetId]) {
-            newAccessRights[questionSetId] = accessRights[questionSetId];
+          if (accessRights && accessRights[id]) {
+            newAccessRights[id] = accessRights[id];
           }
         }
         
@@ -896,7 +906,7 @@ function QuizPage(): JSX.Element {
     } catch (e) {
       console.error('[QuizPage] 清除权限缓存出错:', e);
     }
-  }, [questionSetId]);
+  }, [id]);
   
   // 修改保存权限函数，确保准确保存
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
@@ -1220,7 +1230,7 @@ function QuizPage(): JSX.Element {
   
   // 获取题库和题目数据
   useEffect(() => {
-    if (!questionSetId) return;
+    if (!id) return;
     
     const fetchQuestionSet = async () => {
       setQuizStatus({ ...quizStatus, loading: true });
@@ -1249,7 +1259,7 @@ function QuizPage(): JSX.Element {
         });
         
         // 获取题库详情 - 先从API缓存获取
-        const response = await questionSetApi.getQuestionSetById(questionSetId);
+        const response = await questionSetApi.getQuestionSetById(id);
         
         // 检查是否有疑似数据问题
         let questionSetData: IQuestionSet | null = null;
@@ -1286,7 +1296,7 @@ function QuizPage(): JSX.Element {
               // 直接从API获取最新数据，绕过可能的缓存
               const timestamp = new Date().getTime();
               const directResponse = await axios.get(
-                `${API_BASE_URL}/question-sets/${questionSetId}?t=${timestamp}`, 
+                `${API_BASE_URL}/question-sets/${id}?t=${timestamp}`, 
                 { 
                   headers: { 
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -1390,9 +1400,9 @@ function QuizPage(): JSX.Element {
               document.title = `${questionSetData.title} (试用模式) - 答题系统`;
               
               // 保存试用模式状态
-              sessionStorage.setItem(`quiz_${questionSetId}_trial_mode`, 'true');
+              sessionStorage.setItem(`quiz_${id}_trial_mode`, 'true');
               if (determinedTrialCount > 0) {
-                sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(determinedTrialCount));
+                sessionStorage.setItem(`quiz_${id}_trial_limit`, String(determinedTrialCount));
               }
               
               // 只显示提示，不显示购买窗口
@@ -1486,7 +1496,7 @@ function QuizPage(): JSX.Element {
             
             // 从本地存储加载上次的答题进度
             try {
-              const localProgressKey = `quiz_progress_${questionSetId}`;
+              const localProgressKey = `quiz_progress_${id}`;
               const savedProgressStr = localStorage.getItem(localProgressKey);
               
               if (savedProgressStr) {
@@ -1548,7 +1558,7 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 恢复本地进度后，请求服务器进度以确保最新');
                     socket.emit('progress:get', {
                       userId: user.id,
-                      questionSetId
+                      questionSetId: id
                     });
                   }
                 } else {
@@ -1562,7 +1572,7 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 请求服务器进度数据');
                     socket.emit('progress:get', {
                       userId: user.id,
-                      questionSetId
+                      questionSetId: id
                     });
                   }
                 }
@@ -1577,7 +1587,7 @@ function QuizPage(): JSX.Element {
                   console.log('[QuizPage] 请求服务器进度数据');
                   socket.emit('progress:get', {
                     userId: user.id,
-                    questionSetId
+                    questionSetId: id
                   });
                 }
               }
@@ -1604,7 +1614,7 @@ function QuizPage(): JSX.Element {
     };
     
     fetchQuestionSet();
-  }, [questionSetId, socket, user]);
+  }, [id, socket, user]);
   
   // 在加载完题目数据后设置questionStartTime
   useEffect(() => {
@@ -1671,7 +1681,7 @@ function QuizPage(): JSX.Element {
     // 添加进度删除事件处理
     const handleProgressDelete = (data: {questionSetId: string}) => {
       console.log('[QuizPage] 收到progress:delete事件:', data);
-      if (data.questionSetId === questionSetId) {
+      if (data.questionSetId === id) {
         // 如果删除的是当前题库的进度，重置本地状态
         console.log('[QuizPage] 当前题库进度被删除，重置状态');
         setAnsweredQuestions([]);
@@ -1684,7 +1694,7 @@ function QuizPage(): JSX.Element {
         setQuizStartTime(Date.now());
         
         // 如果有本地存储，也清除
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const localProgressKey = `quiz_progress_${id}`;
         localStorage.removeItem(localProgressKey);
         
         // 通知用户
@@ -1704,7 +1714,7 @@ function QuizPage(): JSX.Element {
       (socket as Socket).off('progress:data', handleProgressData);
       (socket as Socket).off('progress:delete', handleProgressDelete);
     };
-  }, [socket, user?.id, questionSetId]);
+  }, [socket, user?.id, id]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
@@ -1970,7 +1980,7 @@ function QuizPage(): JSX.Element {
   
   // 修改syncProgressToServer函数为手动保存函数
   const saveProgressManually = useCallback(async () => {
-    if (!user?.id || !questionSetId || !socket) {
+    if (!user?.id || !id || !socket) {
       toast.error('保存失败，请确认您已登录');
       return;
     }
@@ -1983,7 +1993,7 @@ function QuizPage(): JSX.Element {
       // 准备要发送的进度数据包
       const progressBundle = {
         userId: user.id,
-        questionSetId,
+        questionSetId: id,
         lastQuestionIndex: currentQuestionIndex,
         answeredQuestions,
         timeSpent: quizTotalTime,
@@ -2013,7 +2023,7 @@ function QuizPage(): JSX.Element {
       
       // 更新本地存储
       try {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const localProgressKey = `quiz_progress_${id}`;
         const localProgressUpdate = {
           lastQuestionIndex: currentQuestionIndex,
           answeredQuestions,
@@ -2043,7 +2053,7 @@ function QuizPage(): JSX.Element {
     } finally {
       setIsSaving(false);
     }
-  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, correctAnswers, questions.length]);
+  }, [user?.id, id, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, correctAnswers, questions.length]);
   
   // 修改handleAnswerSubmit函数，不再自动同步，移除阻塞行为
   const handleAnswerSubmit = useCallback(async (
@@ -2055,7 +2065,7 @@ function QuizPage(): JSX.Element {
     console.log(`[QuizPage] handleAnswerSubmit: 开始处理答案提交 - 题目ID=${question.id}, 索引=${questionIndex}`);
     
     try {
-      if (!questionSetId || !question.id) {
+      if (!id || !question.id) {
         console.error('[QuizPage] 题目ID或题库ID缺失');
         return;
       }
@@ -2096,7 +2106,7 @@ function QuizPage(): JSX.Element {
       
       // 更新本地存储
       if (questionSet) {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const localProgressKey = `quiz_progress_${id}`;
         const localProgressUpdate = {
           lastQuestionIndex: questionIndex,
           answeredQuestions: updatedAnsweredQuestions,
@@ -2124,7 +2134,7 @@ function QuizPage(): JSX.Element {
     }
   }, [
     answeredQuestions, 
-    questionSetId, 
+    id, 
     questionStartTime, 
     questions.length, 
     questionSet
@@ -2450,7 +2460,7 @@ function QuizPage(): JSX.Element {
     }
   }, [
     questionSet, 
-    questionSetId, 
+    id, 
     originalQuestions, 
     saveProgressManually, 
     navigate,
@@ -3129,7 +3139,7 @@ function QuizPage(): JSX.Element {
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
             hasFullAccess={true} // 始终允许访问所有题目，确保流畅体验
-            questionSetId={questionSetId || ''}
+            questionSetId={id || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
             isSubmittingAnswer={false} // 移除提交锁定
@@ -3218,96 +3228,45 @@ function QuizPage(): JSX.Element {
   
   // 在渲染函数前添加DirectPurchaseDebugButton组件
   const DirectPurchaseDebugButton: React.FC<{questionSetId: string; price: number}> = ({ questionSetId, price }) => {
-    const [isLoading, setIsLoading] = useState(false);
-    
     const handleDirectPurchase = async () => {
-      if (!questionSetId) return;
-      
-      setIsLoading(true);
-      
       try {
-        // 显示处理提示
-        toast.info("正在尝试直接购买流程，绕过isPaid验证...", { autoClose: 2000 });
+        if (!questionSetId) return;
+        toast.info('正在处理...');
+        const { createDirectPurchase } = await import('../utils/paymentUtils');
+        const result = await createDirectPurchase(questionSetId, price, user?.id);
         
-        // 1. 尝试强制购买API
-        try {
-          const response = await axios.post(
-            `${API_BASE_URL}/purchases/direct-purchase`,
-            {
-              questionSetId,
-              price,
-              paymentMethod: 'bypass',
-              forcePaid: true
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              }
+        if (result) {
+          toast.success('直接购买成功！');
+          // 将题库ID添加到本地存储
+          try {
+            const purchasedStr = localStorage.getItem('purchasedQuestionSets') || '[]';
+            const purchasedSets = JSON.parse(purchasedStr);
+            if (!purchasedSets.includes(questionSetId)) {
+              purchasedSets.push(questionSetId);
+              localStorage.setItem('purchasedQuestionSets', JSON.stringify(purchasedSets));
             }
-          );
-          
-          if (response.data && response.data.success) {
-            toast.success('直接购买成功！正在更新访问权限...', {
-              autoClose: 2000
-            });
-            
-            // 保存到localStorage
-            saveAccessToLocalStorage(questionSetId, true);
-            
-            // 触发购买成功事件
-            window.dispatchEvent(
-              new CustomEvent('purchase:success', {
-                detail: {
-                  questionSetId,
-                  purchaseId: response.data.data?.id || `direct-${Date.now()}`,
-                  expiryDate: response.data.data?.expiryDate || 
-                    new Date(Date.now() + 365*24*60*60*1000).toISOString()
-                }
-              })
-            );
-            
-            // 刷新页面以应用新状态
-            setTimeout(() => {
-              window.location.href = `/quiz/${questionSetId}?t=${Date.now()}`;
-            }, 2000);
-            
-            return;
+          } catch (e) {
+            console.error('保存购买记录失败', e);
           }
-        } catch (apiError) {
-          console.error('[DirectPurchase] API调用失败:', apiError);
-          // 继续尝试本地方法
-        }
-        
-        // 2. 如果API失败，使用本地模拟购买成功
-        console.log('[DirectPurchase] 尝试本地模拟购买成功');
-        
-        // 保存到localStorage
-        saveAccessToLocalStorage(questionSetId, true);
-        
-        // 触发购买成功事件
-        window.dispatchEvent(
-          new CustomEvent('purchase:success', {
+          
+          // 触发购买成功事件
+          const purchaseEvent = new CustomEvent('purchase:success', {
             detail: {
-              questionSetId,
-              purchaseId: `local-${Date.now()}`,
-              expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString()
+              questionSetId: questionSetId,
+              purchaseId: result.id,
+              transactionId: result.transactionId
             }
-          })
-        );
-        
-        toast.success('已在本地模拟购买成功，正在刷新页面...', {
-          autoClose: 2000
-        });
-        
-        // 刷新页面以应用新状态
-        setTimeout(() => {
-          window.location.href = `/quiz/${questionSetId}?forceBuy=true&t=${Date.now()}`;
-        }, 2000);
+          });
+          window.dispatchEvent(purchaseEvent);
+          
+          // 刷新页面以重新验证权限
+          window.location.reload();
+        } else {
+          toast.error('购买失败');
+        }
       } catch (error) {
-        console.error('[DirectPurchase] 直接购买错误:', error);
-        toast.error('直接购买失败，请刷新页面重试');
-      } finally {
-        setIsLoading(false);
+        console.error('直接购买失败', error);
+        toast.error('购买处理时出错');
       }
     };
     
@@ -3321,10 +3280,10 @@ function QuizPage(): JSX.Element {
       <div className="fixed bottom-24 right-4 z-50">
         <button
           onClick={handleDirectPurchase}
-          disabled={isLoading}
+          disabled={quizStatus.isProcessingPayment || quizStatus.showPaymentModal}
           className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2"
         >
-          {isLoading ? (
+          {quizStatus.isProcessingPayment ? (
             <>
               <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

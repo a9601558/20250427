@@ -322,13 +322,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
 
       console.log(`[支付] 创建购买记录:`, purchase);
       
-      // 添加购买记录到用户状态
-      await addPurchase(purchase);
-      console.log(`[支付] 购买记录已添加到用户状态`);
+      // 标记是否已保存到数据库
+      let savedToDatabase = false;
       
-      // 直接调用API确保购买记录保存到数据库
+      // 1. 尝试通过多种API端点保存购买记录到数据库
       try {
-        console.log(`[支付] 直接调用API保存购买记录`);
+        console.log(`[支付] 开始尝试多种方式保存购买记录`);
         
         // 获取token
         const token = localStorage.getItem('token');
@@ -336,82 +335,203 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
           throw new Error('未找到认证信息');
         }
         
-        // 直接调用API保存购买记录
-        const directSaveResponse = await fetch('/api/purchases', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(purchase)
-        });
-        
-        if (!directSaveResponse.ok) {
-          console.error('[支付] 直接保存购买记录失败:', await directSaveResponse.text());
-        } else {
-          const result = await directSaveResponse.json();
-          console.log(`[支付] 直接保存购买记录成功:`, result);
+        // 尝试方式1: 标准购买API
+        try {
+          console.log(`[支付] 尝试方式1: 标准purchases API`);
+          const standardResponse = await fetch('/api/purchases', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(purchase)
+          });
+          
+          if (standardResponse.ok) {
+            const result = await standardResponse.json();
+            console.log(`[支付] 标准API保存成功:`, result);
+            savedToDatabase = true;
+          } else {
+            console.warn('[支付] 标准API保存失败:', await standardResponse.text());
+          }
+        } catch (standardError) {
+          console.warn('[支付] 标准API出错:', standardError);
         }
-      } catch (directSaveError) {
-        console.error('[支付] 直接保存购买记录时出错:', directSaveError);
-        // 不抛出错误，让支付流程继续
-      }
-      
-      // 通过socket发送实时通知
-      if (socket) {
-        console.log(`[支付] 通过socket发送购买成功通知`);
-        // 发送购买成功事件
-        socket.emit('purchase:success', {
-          userId: user.id,
-          questionSetId: purchase.questionSetId,
-          purchaseId: purchase.id,
-          expiryDate: purchase.expiryDate
-        });
         
-        // 发送访问权限更新事件
-        socket.emit('questionSet:accessUpdate', {
-          userId: user.id,
-          questionSetId: purchase.questionSetId,
-          hasAccess: true,
-          source: 'payment'
-        });
-      }
-      
-      // 显示成功消息
-      setSuccessMessage(`支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${formatDate(expiryDate)}`);
-      
-      // 保存访问记录到localStorage
-      saveAccessToLocalStorage(String(questionSet?.id).trim(), true);
-      
-      // 触发全局事件通知其他组件
-      window.dispatchEvent(new CustomEvent('accessRights:updated', { 
-        detail: { 
-          userId: user.id,
-          questionSetId: purchase.questionSetId,
-          hasAccess: true,
-          source: 'payment'
-        } 
-      }));
-      
-      // 通知系统刷新用户数据 - 强制刷新用户信息及购买记录
-      try {
-        const userApi = window.require ? window.require('../utils/api').userApi : null;
-        if (userApi && userApi.getCurrentUser) {
-          console.log('[支付] 刷新用户数据以确保购买记录同步');
-          const refreshedUserData = await userApi.getCurrentUser();
-          if (refreshedUserData.success && refreshedUserData.data) {
-            // 触发用户数据更新事件，通知系统用户数据已更新
-            window.dispatchEvent(new CustomEvent('user:data:updated', { 
-              detail: { userId: user.id, timestamp: Date.now() }
-            }));
+        // 如果第一种方式失败，尝试方式2: 强制创建购买API
+        if (!savedToDatabase) {
+          try {
+            console.log(`[支付] 尝试方式2: force-create API`);
+            const forceResponse = await fetch('/api/purchases/force-create', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                ...purchase,
+                forceBuy: true
+              })
+            });
+            
+            if (forceResponse.ok) {
+              const result = await forceResponse.json();
+              console.log(`[支付] force-create API保存成功:`, result);
+              savedToDatabase = true;
+            } else {
+              console.warn('[支付] force-create API保存失败:', await forceResponse.text());
+            }
+          } catch (forceError) {
+            console.warn('[支付] force-create API出错:', forceError);
           }
         }
-      } catch (refreshError) {
-        console.error('[支付] 刷新用户数据失败，但购买流程已完成', refreshError);
-        // 购买已成功，即使刷新失败也不影响主流程
+        
+        // 如果前两种方式都失败，尝试方式3: 更新用户API
+        if (!savedToDatabase) {
+          try {
+            console.log(`[支付] 尝试方式3: 用户更新API`);
+            const userUpdateResponse = await fetch(`/api/users/${user.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                purchases: [...(user.purchases || []), purchase]
+              })
+            });
+            
+            if (userUpdateResponse.ok) {
+              const result = await userUpdateResponse.json();
+              console.log(`[支付] 用户更新API保存成功:`, result);
+              savedToDatabase = true;
+            } else {
+              console.warn('[支付] 用户更新API保存失败:', await userUpdateResponse.text());
+            }
+          } catch (updateError) {
+            console.warn('[支付] 用户更新API出错:', updateError);
+          }
+        }
+        
+        // 如果所有API方式都失败，尝试update-access端点
+        if (!savedToDatabase) {
+          try {
+            console.log(`[支付] 尝试方式4: update-access API`);
+            const accessUpdateResponse = await fetch('/api/purchases/update-access', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                userId: user.id,
+                questionSetId: purchase.questionSetId,
+                hasAccess: true,
+                purchase: purchase
+              })
+            });
+            
+            if (accessUpdateResponse.ok) {
+              const result = await accessUpdateResponse.json();
+              console.log(`[支付] update-access API保存成功:`, result);
+              savedToDatabase = true;
+            } else {
+              console.warn('[支付] update-access API保存失败:', await accessUpdateResponse.text());
+            }
+          } catch (accessError) {
+            console.warn('[支付] update-access API出错:', accessError);
+          }
+        }
+      } catch (apiError) {
+        console.error('[支付] API保存尝试过程中发生错误:', apiError);
+        // 继续流程，通过其他方式确保用户能访问
       }
       
-      // 如果提供了成功回调，延迟调用确保状态已更新
+      // 如果API保存成功，记录日志
+      if (savedToDatabase) {
+        console.log(`[支付] 已成功通过API将购买记录保存到数据库`);
+      } else {
+        console.warn(`[支付] 所有API保存方法都失败，将依赖用户上下文和本地存储`);
+      }
+      
+      // 2. 添加购买记录到用户本地状态
+      try {
+        console.log(`[支付] 添加购买记录到用户状态`);
+        await addPurchase(purchase);
+        console.log(`[支付] 购买记录已添加到用户状态`);
+      } catch (stateError) {
+        console.error('[支付] 添加购买记录到用户状态失败:', stateError);
+        // 继续流程，不中断支付成功处理
+      }
+      
+      // 3. 通过socket发送实时通知
+      try {
+        if (socket) {
+          console.log(`[支付] 通过socket发送购买成功通知`);
+          // 发送购买成功事件
+          socket.emit('purchase:success', {
+            userId: user.id,
+            questionSetId: purchase.questionSetId,
+            purchaseId: purchase.id,
+            expiryDate: purchase.expiryDate
+          });
+          
+          // 发送访问权限更新事件
+          socket.emit('questionSet:accessUpdate', {
+            userId: user.id,
+            questionSetId: purchase.questionSetId,
+            hasAccess: true,
+            source: 'payment'
+          });
+        }
+      } catch (socketError) {
+        console.error('[支付] socket通知发送失败:', socketError);
+        // 继续流程，不中断支付成功处理
+      }
+      
+      // 4. 保存访问记录到localStorage
+      try {
+        console.log(`[支付] 保存访问记录到localStorage`);
+        saveAccessToLocalStorage(String(questionSet?.id).trim(), true);
+        
+        // 额外保存购买记录到localStorage
+        try {
+          const purchased = localStorage.getItem('purchasedQuestionSets') || '[]';
+          const purchasedSets = JSON.parse(purchased);
+          
+          if (!purchasedSets.includes(purchase.questionSetId)) {
+            purchasedSets.push(purchase.questionSetId);
+            localStorage.setItem('purchasedQuestionSets', JSON.stringify(purchasedSets));
+            console.log(`[支付] 题库ID已添加到本地购买记录`);
+          }
+        } catch (localError) {
+          console.error('[支付] 保存购买记录到localStorage失败:', localError);
+        }
+      } catch (localStorageError) {
+        console.error('[支付] 本地存储访问记录失败:', localStorageError);
+        // 继续流程，不中断支付成功处理
+      }
+      
+      // 5. 触发全局事件通知其他组件
+      try {
+        console.log(`[支付] 触发全局访问权限更新事件`);
+        window.dispatchEvent(new CustomEvent('accessRights:updated', { 
+          detail: { 
+            userId: user.id,
+            questionSetId: purchase.questionSetId,
+            hasAccess: true,
+            source: 'payment'
+          } 
+        }));
+      } catch (eventError) {
+        console.error('[支付] 触发全局事件失败:', eventError);
+        // 继续流程，不中断支付成功处理
+      }
+      
+      // 6. 显示成功消息
+      setSuccessMessage(`支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${formatDate(expiryDate)}`);
+      
+      // 7. 如果提供了成功回调，延迟调用确保状态已更新
       if (onSuccess) {
         console.log(`[支付] 调用onSuccess回调`);
         setTimeout(() => {

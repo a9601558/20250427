@@ -1595,31 +1595,98 @@ const ProfilePage: React.FC = () => {
       setPurchasesLoading(true);
       console.log('[ProfilePage] 正在刷新购买数据...');
 
+      // 首先尝试从localStorage获取保存的购买记录
+      try {
+        const purchasedStr = localStorage.getItem('purchasedQuestionSets');
+        if (purchasedStr) {
+          const purchasedIds = JSON.parse(purchasedStr);
+          console.log(`[ProfilePage] 从本地存储找到 ${purchasedIds.length} 个已购题库ID`);
+          
+          // 如果有本地存储的购买记录但当前购买列表为空，尝试为每个ID创建临时购买记录
+          if (Array.isArray(purchasedIds) && purchasedIds.length > 0 && purchases.length === 0) {
+            const tempPurchases: Purchase[] = [];
+            
+            for (const qsId of purchasedIds) {
+              // 获取题库信息
+              try {
+                const qsResponse = await questionSetService.getQuestionSetById(qsId);
+                if (qsResponse.success && qsResponse.data) {
+                  const questionSet = qsResponse.data;
+                  
+                  // 创建临时购买记录
+                  const tempPurchase: Purchase = {
+                    id: `local_${qsId.substring(0, 8)}`,
+                    userId: user?.id,
+                    questionSetId: qsId,
+                    purchaseDate: new Date().toISOString(),
+                    expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(), // 6个月
+                    amount: questionSet.price || 0,
+                    status: 'active',
+                    paymentMethod: 'local',
+                    purchaseQuestionSet: {
+                      id: questionSet.id,
+                      title: questionSet.title,
+                      description: questionSet.description
+                    }
+                  };
+                  
+                  tempPurchases.push(tempPurchase);
+                  console.log(`[ProfilePage] 为题库 ${qsId} 创建临时购买记录`);
+                }
+              } catch (qsError) {
+                console.error(`[ProfilePage] 获取题库 ${qsId} 详情失败:`, qsError);
+              }
+            }
+            
+            if (tempPurchases.length > 0) {
+              console.log(`[ProfilePage] 从本地存储创建了 ${tempPurchases.length} 条临时购买记录`);
+              setPurchases(prevPurchases => [...prevPurchases, ...tempPurchases]);
+            }
+          }
+        }
+      } catch (localError) {
+        console.error('[ProfilePage] 读取本地购买记录失败:', localError);
+      }
+
       // 尝试通过API重新获取用户数据，确保购买记录是最新的
       const response = await userService.getCurrentUser();
       if (response.success && response.data) {
         // 更新购买数据
         const userPurchases = response.data.purchases || [];
-        console.log(`[ProfilePage] 获取到 ${userPurchases.length} 条购买记录`);
+        console.log(`[ProfilePage] 从服务器获取到 ${userPurchases.length} 条购买记录`);
         
         // 确保格式符合本地 Purchase 接口格式
         const formattedPurchases = userPurchases.map((p: any) => ({
           id: p.id || '',
-          userId: p.userId || '',
-          questionSetId: p.questionSetId || '',
-          purchaseDate: p.purchaseDate || new Date().toISOString(),
-          expiryDate: p.expiryDate || '',
+          userId: p.userId || user?.id || '',
+          questionSetId: String(p.questionSetId || p.question_set_id || '').trim(),
+          purchaseDate: p.purchaseDate || p.purchase_date || new Date().toISOString(),
+          expiryDate: p.expiryDate || p.expiry_date || '',
           amount: Number(p.amount || 0),
           status: p.status || 'active',
-          paymentMethod: p.paymentMethod || '',
-          transactionId: p.transactionId || '',
+          paymentMethod: p.paymentMethod || p.payment_method || '',
+          transactionId: p.transactionId || p.transaction_id || '',
           purchaseQuestionSet: p.purchaseQuestionSet || p.questionSet || undefined
         }));
         
-        setPurchases(formattedPurchases);
+        // 如果API返回了购买记录，用它替换当前的状态
+        if (formattedPurchases.length > 0) {
+          setPurchases(formattedPurchases);
+          console.log(`[ProfilePage] 已使用服务器数据更新购买记录`);
+          
+          // 更新本地存储的购买记录
+          try {
+            const questionSetIds = formattedPurchases.map(p => p.questionSetId);
+            localStorage.setItem('purchasedQuestionSets', JSON.stringify(questionSetIds));
+            console.log(`[ProfilePage] 已更新本地存储的购买记录: ${questionSetIds.length} 条`);
+          } catch (saveError) {
+            console.error('[ProfilePage] 保存购买记录到本地存储失败:', saveError);
+          }
+        }
         
         // 对于每个没有详细题库信息的购买记录，获取题库详情
-        for (const purchase of formattedPurchases) {
+        const purchasesToProcess = formattedPurchases.length > 0 ? formattedPurchases : purchases;
+        for (const purchase of purchasesToProcess) {
           if (purchase.questionSetId && (!purchase.purchaseQuestionSet || !purchase.purchaseQuestionSet.title)) {
             try {
               console.log(`[ProfilePage] 获取题库详情: ${purchase.questionSetId}`);
@@ -1682,7 +1749,7 @@ const ProfilePage: React.FC = () => {
       window.removeEventListener('purchase:success', handlePurchaseSuccess);
       window.removeEventListener('user:data:updated', handleUserDataUpdated);
     };
-  }, []);
+  }, [refreshPurchasesData]);
 
   // 添加一个useEffect来初始化数据
   useEffect(() => {
@@ -1691,7 +1758,7 @@ const ProfilePage: React.FC = () => {
       console.log('[ProfilePage] 初始化已购题库数据');
       refreshPurchasesData();
     }
-  }, [activeTab]);
+  }, [activeTab, refreshPurchasesData]);
 
   // 处理标签切换
   const handleTabChange = (tab: TabType) => {

@@ -117,8 +117,7 @@ interface DatabasePurchaseRecord {
 const HomePage: React.FC = () => {
   const { user, isAdmin, syncAccessRights } = useUser();
   const { socket } = useSocket();
-  // Remove unused destructured variables
-  const { /* progressStats, fetchUserProgress */ } = useUserProgress();
+  const { } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -138,6 +137,49 @@ const HomePage: React.FC = () => {
   // Add loading timeout ref to avoid getting stuck in loading state
   const loadingTimeoutRef = useRef<any>(null);
 
+  // 用户登录后立即同步 - 从pages/HomePage.tsx整合
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[HomePage] 用户已登录，同步访问权限');
+      syncAccessRights();
+    }
+  }, [user?.id, syncAccessRights]);
+  
+  // 监听访问权限更新事件 - 从pages/HomePage.tsx整合
+  useEffect(() => {
+    const handleAccessUpdate = (event: CustomEvent) => {
+      console.log('[HomePage] 接收到访问权限更新事件:', event.detail);
+    };
+    
+    window.addEventListener('accessRights:updated', handleAccessUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('accessRights:updated', handleAccessUpdate as EventListener);
+    };
+  }, []);
+  
+  // 监听设备同步事件 - 从pages/HomePage.tsx整合
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    
+    const handleDeviceSync = (data: {userId: string, type: string}) => {
+      if (data.userId !== user.id) return;
+      
+      console.log(`[HomePage] 收到设备同步事件: ${data.type}`);
+      
+      if (data.type === 'access_refresh') {
+        // 收到设备同步通知后重新同步数据
+        syncAccessRights();
+      }
+    };
+    
+    socket.on('user:deviceSync', handleDeviceSync);
+    
+    return () => {
+      socket.off('user:deviceSync', handleDeviceSync);
+    };
+  }, [socket, user?.id, syncAccessRights]);
+  
   // 在这里添加BaseCard组件定义（组件内部）
   const BaseCard: React.FC<{
     key: string;
