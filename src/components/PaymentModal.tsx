@@ -220,6 +220,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       return;
     }
 
+    // 验证题库和价格
+    if (!questionSet || !questionSet.id) {
+      setError('题库信息未加载，请刷新页面重试');
+      return;
+    }
+
+    const price = parseFloat(String(questionSet.price));
+    if (isNaN(price) || price <= 0) {
+      setError('题库价格无效，请联系管理员');
+      return;
+    }
+
+    console.log(`[支付] 开始处理支付, 题库ID: ${questionSet.id}, 价格: ${price}`);
     setIsProcessing(true);
     setError('');
 
@@ -236,9 +249,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   // 真实Stripe支付流程
   const handleStripePayment = async () => {
     try {
+      const price = parseFloat(String(questionSet?.price || 0));
+      if (isNaN(price) || price <= 0) {
+        throw new Error('题库价格无效');
+      }
+
+      console.log(`[支付] 处理付款，金额: ${price}`);
+
       // 1. 创建支付Intent
       const intentData = await processPayment(
-        questionSet?.price || 0, 
+        price, 
         'cny',
         {
           userId: user?.id || 'anonymous',
@@ -250,6 +270,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       if (!intentData || !intentData.clientSecret) {
         throw new Error('创建支付意向失败');
       }
+
+      console.log(`[支付] 支付意向创建成功，准备确认支付`);
 
       // 2. 确认支付
       const { paymentIntent, error } = await stripe.confirmCardPayment(intentData.clientSecret, {
@@ -264,6 +286,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
 
       if (error) {
         // 支付失败
+        console.error('[支付] 支付确认失败:', error);
         throw new Error(error.message || '支付确认失败');
       }
 
@@ -287,6 +310,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
         });
       } else {
         // 支付状态不是成功
+        console.error(`[支付] 支付未完成，状态: ${paymentIntent.status}`);
         throw new Error(`支付未完成，状态: ${paymentIntent.status}`);
       }
     } catch (error: any) {

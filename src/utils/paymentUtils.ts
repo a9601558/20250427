@@ -1,11 +1,11 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 
-// 获取API基础URL
-const BASE_URL = API_BASE_URL || 'http://localhost:3000/api';
+// 获取API基础URL，确保末尾没有斜杠
+const BASE_URL = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
 
 /**
- * 处理支付流程 - 只使用真实支付API
+ * 处理支付流程 - 创建支付意向
  */
 export const processPayment = async (
   amount: number,
@@ -26,31 +26,41 @@ export const processPayment = async (
     throw new Error('无效的支付金额');
   }
   
-  // 使用真实支付API
+  // 使用支付API
   console.log('[支付] 使用Stripe支付API，金额(分):', amountInCents);
-  const response = await axios.post(
-    `${BASE_URL}/payments/create-intent`,
-    {
-      amount: amountInCents,
-      currency, 
-      metadata
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/payments/create-intent`,
+      {
+        amount: amountInCents,
+        currency, 
+        metadata
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       }
+    );
+    
+    if (response.data && response.data.success) {
+      // 确保返回的数据格式一致
+      console.log('[支付] 创建支付意向成功:', response.data);
+      return {
+        id: response.data.paymentIntentId,
+        clientSecret: response.data.clientSecret
+      };
+    } else {
+      console.error('[支付] 创建支付意向失败:', response.data);
+      throw new Error(response.data?.message || '创建支付意向失败');
     }
-  );
-  
-  if (response.data && response.data.success) {
-    // 确保返回的数据格式一致
-    return {
-      id: response.data.paymentIntentId,
-      clientSecret: response.data.clientSecret
-    };
-  } else {
-    throw new Error(response.data?.message || '创建支付意向失败');
+  } catch (error: any) {
+    console.error('[支付] 创建支付意向请求失败:', error);
+    if (error.response) {
+      console.error('[支付] 服务器响应:', error.response.data);
+    }
+    throw new Error(error.message || '创建支付意向请求失败');
   }
 };
 
@@ -247,31 +257,31 @@ export async function verifyPaymentStatus(paymentIntentId: string) {
     
     if (response.data && response.data.success) {
       console.log('[支付] 支付验证成功:', response.data);
-      return {
-        isSuccessful: response.data.isSuccessful,
-        status: response.data.status,
-        questionSetId: response.data.questionSetId
-      };
+      return response.data;
     } else {
       console.error('[支付] 支付验证失败:', response.data);
-      throw new Error(response.data?.message || '验证支付状态失败');
+      throw new Error(response.data?.message || '支付验证失败');
     }
-  } catch (error) {
-    console.error('[支付] 验证支付请求失败:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[支付] 支付验证请求失败:', error);
+    if (error.response) {
+      console.error('[支付] 服务器响应:', error.response.data);
+    }
+    throw new Error(error.message || '支付验证请求失败');
   }
 }
 
 /**
- * 刷新用户购买列表
+ * 刷新用户购买记录
  */
 export async function refreshUserPurchases() {
-  console.log('[支付] 刷新用户购买列表');
+  console.log('[支付] 刷新用户购买记录');
   
   // 从localStorage获取token
   const token = localStorage.getItem('token');
   if (!token) {
-    throw new Error('未找到认证信息，请重新登录');
+    console.warn('[支付] 未找到认证信息，无法刷新购买记录');
+    return [];
   }
   
   try {
@@ -280,21 +290,20 @@ export async function refreshUserPurchases() {
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store'
+          'Content-Type': 'application/json'
         }
       }
     );
     
     if (response.data && response.data.success) {
-      console.log('[支付] 获取用户购买列表成功:', response.data.data?.length || 0, '条记录');
+      console.log(`[支付] 购买记录刷新成功: ${response.data.data.length} 条记录`);
       return response.data.data || [];
     } else {
-      console.error('[支付] 获取用户购买列表失败:', response.data);
+      console.error('[支付] 购买记录刷新失败:', response.data);
       return [];
     }
-  } catch (error) {
-    console.error('[支付] 获取用户购买列表请求失败:', error);
+  } catch (error: any) {
+    console.error('[支付] 购买记录刷新请求失败:', error);
     return [];
   }
 } 
