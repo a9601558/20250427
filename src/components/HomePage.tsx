@@ -24,6 +24,7 @@ interface BaseQuestionSet {
   trialQuestions: number | null;
   questionCount?: number;
   isFeatured: boolean;
+  featuredCategory?: string; // 添加精选分类属性
   createdAt: Date;
   updatedAt: Date;
   hasAccess?: boolean;
@@ -74,17 +75,6 @@ const calculateQuestionCount = (set: BaseQuestionSet): number => {
   }
   return 0; // 不再使用 trialQuestions 作为后备选项
 };
-
-// 使用本地接口替代
-interface HomeContentData {
-  welcomeTitle: string;
-  welcomeDescription: string;
-  featuredCategories: string[];
-  announcements: string;
-  footerText: string;
-  bannerImage?: string;
-  theme?: 'light' | 'dark' | 'auto';
-}
 
 // 删除重复的 QuestionSet 接口，统一使用 BaseQuestionSet
 
@@ -469,12 +459,12 @@ const HomePage: React.FC = () => {
       // 对比Socket数据与数据库结果，检测不一致
       if (socketDataRef.current[questionSetId] && 
           socketDataRef.current[questionSetId].hasAccess !== hasAccess) {
-        console.warn(`[HomePage] 权限不一致: 数据库=${hasAccess}, Socket=${socketDataRef.current[questionSetId].hasAccess}`);
+        console.warn(`[HomePage] 权限不一致，执行数据库验证 - Socket=${hasAccess}, 数据库=${socketDataRef.current[questionSetId].hasAccess}`);
       }
       
       return hasAccess;
     } catch (error) {
-      console.error(`[HomePage] 检查数据库权限失败:`, error);
+      console.error('[HomePage] 检查数据库权限失败:', error);
       return false;
     }
   }, [user?.id]);
@@ -589,15 +579,34 @@ const HomePage: React.FC = () => {
       console.log("[HomePage] 精选分类过滤前数量:", filteredSets.length);
       console.log("[HomePage] 使用的精选分类:", homeContent.featuredCategories);
       
-      // 修复过滤逻辑，确保同时检查分类和featuredCategory属性
-      filteredSets = filteredSets.filter(set => 
-        // 属于精选分类
-        homeContent.featuredCategories.includes(set.category) || 
-        // 或者本身被标记为精选
-        set.isFeatured === true || 
-        // 或者精选分类与题库精选分类匹配
-        (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory))
+      // 增加详细日志，帮助诊断问题
+      const categoriesInSets = Array.from(new Set(filteredSets.map(s => s.category)));
+      console.log("[HomePage] 题库中现有的分类:", categoriesInSets);
+      
+      // 统计每种分类情况的题库数量
+      const featuredCategorySets = filteredSets.filter(set => homeContent.featuredCategories.includes(set.category));
+      const isFeaturedSets = filteredSets.filter(set => set.isFeatured === true);
+      const featuredCategoryPropSets = filteredSets.filter(set => 
+        set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory)
       );
+      
+      console.log(`[HomePage] 分类统计 - 分类匹配: ${featuredCategorySets.length}个, isFeatured=true: ${isFeaturedSets.length}个, featuredCategory匹配: ${featuredCategoryPropSets.length}个`);
+      
+      // 修复过滤逻辑，确保同时检查分类和featuredCategory属性
+      filteredSets = filteredSets.filter(set => {
+        // 属于精选分类
+        const categoryMatches = homeContent.featuredCategories.includes(set.category);
+        // 或者本身被标记为精选
+        const isFeatured = set.isFeatured === true;
+        // 或者精选分类与题库精选分类匹配
+        const featuredCategoryMatches = set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory);
+        
+        const shouldInclude = categoryMatches || isFeatured || featuredCategoryMatches;
+        if (shouldInclude && set.isFeatured) {
+          console.log(`[HomePage] 精选题库 "${set.title}" 包含在结果中，原因: ${categoryMatches ? '分类匹配' : ''}${isFeatured ? ' isFeatured=true' : ''}${featuredCategoryMatches ? ' featuredCategory匹配' : ''}`);
+        }
+        return shouldInclude;
+      });
       
       console.log(`[HomePage] 精选分类过滤后: ${filteredSets.length}个符合条件的题库`);
     }
@@ -816,6 +825,22 @@ const HomePage: React.FC = () => {
             remainingDays = null;
           }
           
+          // 处理featuredCategory - 如果题库的分类在精选分类中，则添加featuredCategory属性
+          let featuredCategory: string | undefined = undefined;
+          if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+            if (homeContent.featuredCategories.includes(set.category)) {
+              featuredCategory = set.category;
+            }
+            // 如果题库被标记为精选，但没有指定featuredCategory，使用第一个精选分类
+            else if (set.isFeatured && !set.featuredCategory) {
+              featuredCategory = homeContent.featuredCategories[0];
+            }
+            // 保留现有的featuredCategory，如果它存在且在精选分类中
+            else if (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory)) {
+              featuredCategory = set.featuredCategory;
+            }
+          }
+          
           // 确保validityPeriod字段存在，默认为30天
           const validityPeriod = set.validityPeriod || 180;
           
@@ -824,7 +849,8 @@ const HomePage: React.FC = () => {
             hasAccess,
             accessType,
             remainingDays,
-            validityPeriod
+            validityPeriod,
+            featuredCategory // 添加featuredCategory属性
           };
         });
         
@@ -929,7 +955,7 @@ const HomePage: React.FC = () => {
     } finally {
       pendingFetchRef.current = false;
     }
-  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage]);
+  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories]); // 添加homeContent.featuredCategories作为依赖项
   
   // 初始化时获取题库列表
   useEffect(() => {
@@ -1630,6 +1656,12 @@ const HomePage: React.FC = () => {
         if (response.success && response.data) {
           console.log('[HomePage] 首页内容加载成功:', response.data);
           setHomeContent(response.data);
+          
+          // 当首页内容更新后，重新处理题库列表，以便应用精选分类
+          if (questionSets.length > 0) {
+            console.log('[HomePage] 首页内容更新后刷新题库列表，应用新的精选分类');
+            fetchQuestionSets({ forceFresh: true });
+          }
         } else {
           console.error('[HomePage] 加载首页内容失败:', response.message);
         }
@@ -1670,7 +1702,17 @@ const HomePage: React.FC = () => {
   // 添加到useEffect中
   useEffect(() => {
     setupRenderEffects();
-  }, [setupRenderEffects]);
+    
+    // 当精选分类变化时，重新获取题库列表
+    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0 && questionSets.length > 0) {
+      console.log('[HomePage] 精选分类变化，重新应用分类到题库');
+      // 延迟执行避免连续多次刷新
+      const timer = setTimeout(() => {
+        fetchQuestionSets({ forceFresh: true });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [setupRenderEffects, homeContent.featuredCategories]);
 
   if (loading) {
     return (

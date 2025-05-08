@@ -216,39 +216,49 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 max-w-md mx-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">账号管理</h2>
+    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-4 border-b pb-3">
+        <h2 className="text-xl font-bold text-gray-800">账号管理</h2>
         {onClose && (
           <button 
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="关闭"
           >
-            ✕
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
           </button>
         )}
       </div>
       
       {/* 账号列表 */}
       <div className="mb-6">
-        <h3 className="text-md font-medium mb-2">已登录账号</h3>
+        <h3 className="text-lg font-medium mb-3 text-gray-700">已登录账号</h3>
         {accounts.length === 0 ? (
-          <p className="text-gray-500 text-sm">没有保存的账号</p>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-500 text-center">
+            没有保存的账号
+          </div>
         ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
+          <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
             {accounts.map(account => (
               <div 
                 key={account.userId}
-                className={`border rounded p-3 ${account.userId === user?.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+                className={`border rounded-lg p-3 ${account.userId === user?.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'} transition-all`}
               >
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-start">
                   <div>
-                    <div className="font-medium">{account.username}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="font-medium text-gray-800">{account.username}</div>
+                    <div className="text-xs text-gray-500 mt-1">
                       上次登录: {formatLastLogin(account.lastLogin)}
                     </div>
                     {account.autoLogin && (
-                      <div className="text-xs text-green-600 mt-1">自动登录已启用</div>
+                      <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        自动登录
+                      </div>
                     )}
                   </div>
                   <div className="flex space-x-2">
@@ -256,16 +266,22 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
                       <button
                         onClick={() => handleSwitchAccount(account.userId)}
                         disabled={loading}
-                        className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded transition-colors"
+                        title="切换到此账号"
                       >
-                        切换
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
                       </button>
                     )}
                     <button
                       onClick={() => handleClearAccountData(account.userId)}
-                      className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                      className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded transition-colors"
+                      title="清除此账号数据"
                     >
-                      清除
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -277,68 +293,64 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
       
       {/* 当前账号设置 */}
       {user && (
-        <div className="border-t pt-4 mb-6">
-          <h3 className="text-md font-medium mb-2">当前账号设置</h3>
+        <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <h3 className="text-lg font-medium mb-3 text-gray-700">当前账号设置</h3>
           
           {/* 自动登录设置 */}
           <div className="mb-4">
             <div className="flex items-center justify-between">
-              <label htmlFor="autoLogin" className="text-sm font-medium text-gray-700">
-                自动登录此账号
+              <label className="flex items-center cursor-pointer">
+                <div className="mr-3">
+                  <span className="block text-sm font-medium text-gray-700">自动登录</span>
+                  <span className="block text-xs text-gray-500 mt-1">下次打开应用时自动使用此账号</span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={autoLoginEnabled}
+                    onChange={handleToggleAutoLogin}
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${autoLoginEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition transform ${autoLoginEnabled ? 'translate-x-4' : ''}`}></div>
+                </div>
               </label>
-              <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                <input 
-                  id="autoLogin" 
-                  type="checkbox" 
-                  checked={autoLoginEnabled}
-                  onChange={handleToggleAutoLogin}
-                  className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                />
-                <label 
-                  htmlFor="autoLogin" 
-                  className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${autoLoginEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}
-                />
-              </div>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              启用后，下次打开应用时将自动登录此账号
-            </p>
           </div>
           
           {/* 令牌过期设置 */}
           <div>
-            <label htmlFor="tokenExpiry" className="text-sm font-medium text-gray-700 block mb-1">
-              令牌过期时间（天）
-            </label>
-            <div className="flex items-center">
-              <input
-                id="tokenExpiry"
-                type="range"
-                min="1"
-                max="90"
-                step="1"
-                value={tokenExpiryDays}
-                onChange={(e) => setTokenExpiryDays(parseInt(e.target.value, 10))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-              <span className="ml-2 text-sm font-medium">{tokenExpiryDays}天</span>
+            <label className="block text-sm font-medium text-gray-700 mb-2">令牌过期时间</label>
+            <div className="flex items-center space-x-2">
+              {[7, 15, 30, 60, 90].map(days => (
+                <button
+                  key={days}
+                  onClick={() => handleSetTokenExpiry(days)}
+                  className={`px-3 py-1.5 text-sm rounded-full ${
+                    tokenExpiryDays === days
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  } transition-colors`}
+                >
+                  {days}天
+                </button>
+              ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              设置账号令牌的有效期，超过此时间需重新登录
-            </p>
-            <button
-              onClick={() => handleSetTokenExpiry(tokenExpiryDays)}
-              className="mt-2 text-sm px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-            >
-              保存设置
-            </button>
+            <p className="text-xs text-gray-500 mt-2">当前设置: {tokenExpiryDays}天后令牌过期</p>
           </div>
         </div>
       )}
       
-      <div className="text-xs text-gray-500 border-t pt-4">
-        <p>账号数据仅存储在本地，不会上传到服务器</p>
-        <p>清除浏览器缓存将导致所有保存的账号信息丢失</p>
+      {/* 底部按钮 */}
+      <div className="flex justify-end space-x-3 pt-3 border-t">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            关闭
+          </button>
+        )}
       </div>
     </div>
   );

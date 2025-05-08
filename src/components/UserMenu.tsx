@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import LoginModal from './LoginModal';
+import AccountSwitcher from './AccountSwitcher';
 
 const UserMenu: React.FC = () => {
   const { user, logout, isAdmin } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -46,6 +48,14 @@ const UserMenu: React.FC = () => {
     setTimeout(() => {
       navigate('/');
     }, 100);
+  };
+  
+  // 打开账号管理器
+  const handleOpenAccountSwitcher = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOpen(false);
+    setIsAccountSwitcherOpen(true);
   };
 
   // 如果用户未登录，显示登录按钮
@@ -104,6 +114,17 @@ const UserMenu: React.FC = () => {
               个人中心
             </Link>
             
+            {/* 添加账号管理选项 */}
+            <button
+              onClick={handleOpenAccountSwitcher}
+              className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
+            >
+              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              账号管理
+            </button>
+            
             {isAdmin() && (
               <Link
                 to="/admin"
@@ -128,6 +149,15 @@ const UserMenu: React.FC = () => {
               </svg>
               退出登录
             </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 账号管理器模态窗口 */}
+      {isAccountSwitcherOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
+            <AccountSwitcher onClose={() => setIsAccountSwitcherOpen(false)} />
           </div>
         </div>
       )}
