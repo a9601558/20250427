@@ -474,8 +474,8 @@ const PurchasePage: React.FC<{
         {/* Footer info */}
         <div className="text-center">
           <p className="text-xs text-gray-500 mb-2">
-            付费后立即获得完整题库的访问权限，内容持续更新
-          </p>
+          付费后立即获得完整题库的访问权限，内容持续更新
+        </p>
           <p className="text-xs text-gray-400">
             支持Stripe安全支付，确保您的付款安全
           </p>
@@ -529,9 +529,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
-    // 添加明确的付费题库检查
-    if (!questionSet.isPaid) {
-      console.error(`[PaymentModal] 题库${questionSet.id} (${questionSet.title}) 非付费题库，无法进行购买:`, questionSet);
+    // 改进后的付费题库检查逻辑 - 同时接受布尔值和数字
+    // 数据库中是tinyint(1)，可能被转换为不同类型
+    if (!questionSet.isPaid && String(questionSet.isPaid) !== '1') {
+      console.error(`[PaymentModal] 题库${questionSet.id} 非付费题库，无法进行购买:`, 
+        { isPaid: questionSet.isPaid, type: typeof questionSet.isPaid });
       setError("该题库为免费题库，无需购买");
       toast.error("该题库为免费题库，无需购买");
       setIsProcessing(false);
@@ -539,13 +541,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
-    // 增加日志记录详细的题库信息，以便调试
-    console.log('[PaymentModal] 题库购买前信息检查:', {
+    // 记录题库信息以便调试
+    console.log('[PaymentModal] 购买题库信息:', {
       id: questionSet.id,
       title: questionSet.title,
       isPaid: questionSet.isPaid,
-      price: questionSet.price,
-      timestamp: new Date().toISOString()
+      price: questionSet.price
     });
     
     // Don't proceed if already processing
@@ -559,11 +560,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     setBtnClicked(true);
     
     try {
-      console.log(`[PaymentModal] Starting Stripe payment for quiz set ${questionSet.id}`);
+      // 标准化题库ID，避免ID不匹配问题
+      const normalizedId = String(questionSet.id).trim();
+      console.log(`[PaymentModal] 开始为题库 ${normalizedId} 创建购买订单`);
       
       // Call purchase API with Stripe payment method
       const response = await purchaseService.createPurchase(
-        questionSet.id,
+        normalizedId,
         'stripe', // Use stripe as payment method
         questionSet.price
       );
@@ -584,7 +587,24 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       } else {
         // API returned error
         console.error('[PaymentModal] Purchase failed:', response);
-        setError(response.message || '购买失败，请稍后再试');
+        
+        // 更好的错误处理和用户体验
+        if (response.message && (
+          response.message.includes('免费题库') || 
+          response.message.includes('free') ||
+          response.message.includes('not paid')
+        )) {
+          toast.info("题库状态与服务器不一致，正在刷新页面获取最新信息", {
+            autoClose: 3000,
+            onClose: () => window.location.reload()
+          });
+          setError("服务器显示该题库为免费，页面将在3秒后刷新以更新");
+          // 3秒后自动刷新页面获取最新状态
+          setTimeout(() => window.location.reload(), 3000);
+        } else {
+          setError(response.message || '购买失败，请稍后再试');
+        }
+        
         setIsProcessing(false);
         setBtnClicked(false);
       }
@@ -774,7 +794,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         
         // Wait a moment before closing modal to show success state
         setTimeout(() => {
-          onRedeemSuccess();
+        onRedeemSuccess();
         }, 1000);
       } else {
         // API returned error
@@ -857,28 +877,28 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         )}
         
         <form onSubmit={handleRedeem}>
-          <div className="mb-6">
+        <div className="mb-6">
             <label htmlFor="redeemCode" className="block text-sm font-medium text-gray-700 mb-2">
               输入兑换码
             </label>
-            <input
-              type="text"
+          <input
+            type="text"
               id="redeemCode"
-              value={code}
+            value={code}
               onChange={handleCodeChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
               placeholder="例如: EXAM-XXXX-XXXX"
-              disabled={isProcessing}
+            disabled={isProcessing}
               autoComplete="off"
               autoCapitalize="characters"
               autoFocus
-            />
+          />
             <p className="mt-2 text-xs text-gray-500">
               兑换码通常由12-16位字母和数字组成，区分大小写
             </p>
-          </div>
-          
-          <button
+        </div>
+        
+        <button
             type="submit"
             disabled={isProcessing || !code.trim() || !questionSet || !user}
             className={`
@@ -890,7 +910,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
             `}
           >
             {isProcessing ? '验证中...' : '验证并解锁'}
-          </button>
+        </button>
         </form>
         
         <p className="text-xs text-center text-gray-500 mt-4">
@@ -2741,7 +2761,7 @@ function QuizPage(): JSX.Element {
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                 </svg>
-                购买完整版 ¥{questionSet.price || 0}
+              购买完整版 ¥{questionSet.price || 0}
               </div>
             </button>
             <button
@@ -3340,20 +3360,20 @@ function QuizPage(): JSX.Element {
           onPurchase={() => {
             console.log('[QuizPage] 从PurchasePage点击购买按钮 - 时间:', new Date().toISOString());
             toast.info('正在准备支付...', { autoClose: 1500 });
-            setQuizStatus(prev => ({
-              ...prev,
+              setQuizStatus(prev => ({
+                ...prev,
               showPurchasePage: false,
               showPaymentModal: true
-            }));
+              }));
           }}
           onRedeem={() => {
             console.log('[QuizPage] 从PurchasePage点击兑换按钮 - 时间:', new Date().toISOString());
             toast.info('正在准备兑换...', { autoClose: 1500 });
-            setQuizStatus(prev => ({
-              ...prev,
+              setQuizStatus(prev => ({
+                ...prev,
               showPurchasePage: false,
               showRedeemCodeModal: true
-            }));
+              }));
           }}
           onBack={() => {
             console.log('[QuizPage] 从PurchasePage点击返回按钮');
@@ -3377,128 +3397,79 @@ function QuizPage(): JSX.Element {
           
           <div className="container mx-auto px-4">
             {/* 试用模式指示器 - 在页面顶部显示 */}
-            {quizStatus.isInTrialMode && questionSet?.isPaid && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded shadow-sm">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      <span className="font-medium">试用模式</span> - 您可以免费回答 {questionSet?.trialQuestions} 道题目（已回答 {answeredQuestions.length} 题）
-                    </p>
-                  </div>
-                  <div className="ml-auto flex space-x-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('[QuizPage] 顶部指示器点击购买按钮 - 当前时间:', new Date().toISOString());
-                        if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) {
-                          console.log('[QuizPage] 顶部指示器忽略点击 - isProcessingPayment:', quizStatus.isProcessingPayment, 'showPaymentModal:', quizStatus.showPaymentModal);
-                          return;
-                        }
-                        const button = e.currentTarget;
-                        button.classList.add('scale-95');
-                        setTimeout(() => button.classList.remove('scale-95'), 150);
-                        toast.info('正在准备支付...', { autoClose: 1500 });
-                        console.log('[QuizPage] 顶部指示器设置showPaymentModal=true');
-                        setQuizStatus(prev => ({
-                          ...prev,
-                          showPaymentModal: true
-                        }));
-                      }}
-                      type="button"
-                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 flex items-center"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                      </svg>
-                      购买完整版
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('[QuizPage] 顶部指示器点击兑换按钮 - 当前时间:', new Date().toISOString());
-                        if (quizStatus.isProcessingRedeem || quizStatus.showRedeemCodeModal) {
-                          console.log('[QuizPage] 顶部指示器忽略点击 - isProcessingRedeem:', quizStatus.isProcessingRedeem, 'showRedeemCodeModal:', quizStatus.showRedeemCodeModal);
-                          return;
-                        }
-                        const button = e.currentTarget;
-                        button.classList.add('scale-95');
-                        setTimeout(() => button.classList.remove('scale-95'), 150);
-                        toast.info('正在准备兑换...', { autoClose: 1500 });
-                        console.log('[QuizPage] 顶部指示器设置showRedeemCodeModal=true');
-                        setQuizStatus(prev => ({
-                          ...prev,
-                          showRedeemCodeModal: true
-                        }));
-                      }}
-                      type="button"
-                      className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 flex items-center"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                      使用兑换码
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            
             {renderContent()}
           </div>
         </>
       )}
-      
-      {/* 使用实际的PaymentModal组件替代内联实现 */}
+
+      {/* 使用实际的PaymentModal组件 */}
       {quizStatus.showPaymentModal && questionSet && (
         <PaymentModal
           isOpen={quizStatus.showPaymentModal}
           questionSet={questionSet}
           onClose={() => {
-            console.log('[QuizPage] PaymentModal onClose触发');
-            setQuizStatus(prev => ({ ...prev, showPaymentModal: false }));
-          }}
-          onSuccess={(data) => {
-            console.log('[QuizPage] PaymentModal onSuccess触发', data);
-            // 更新状态以反映成功购买
+            console.log('[QuizPage] 关闭支付模态窗口');
             setQuizStatus(prev => ({
               ...prev,
-              hasAccessToFullQuiz: true,
               showPaymentModal: false,
-              isProcessingPayment: false,
-              trialEnded: false
+              // 如果试用已结束且未成功购买，恢复购买页面
+              showPurchasePage: prev.trialEnded ? true : false
             }));
-            // 保存访问权限
-            if (questionSet?.id) {
-              saveAccessToLocalStorage(questionSet.id, true);
-            }
-            toast.success('购买成功！您现在可以访问完整题库');
+          }}
+          onSuccess={(data) => {
+            console.log('[QuizPage] 支付成功，触发自定义事件');
+            // 关闭支付模态窗口
+            setQuizStatus(prev => ({
+              ...prev,
+              showPaymentModal: false,
+              hasAccessToFullQuiz: true
+            }));
+            
+            // 触发购买成功事件
+            const customEvent = new CustomEvent('purchase:success', {
+              detail: data
+            });
+            document.dispatchEvent(customEvent);
+            
+            // 显示成功提示
+            toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 });
           }}
         />
       )}
-      
-      {/* 使用实际的RedeemCodeModal组件替代内联实现 */}
+
+      {/* 使用实际的RedeemCodeModal组件 */}
       {quizStatus.showRedeemCodeModal && questionSet && (
         <RedeemCodeModal
           questionSet={questionSet}
           onClose={() => {
-            console.log('[QuizPage] RedeemCodeModal onClose触发');
-            setQuizStatus(prev => ({ ...prev, showRedeemCodeModal: false }));
-          }}
-          onRedeemSuccess={() => {
-            console.log('[QuizPage] RedeemCodeModal onRedeemSuccess触发');
-            // 状态更新(hasAccessToFullQuiz, hasRedeemed, trialEnded)
-            // 应该由'redeem:success'事件监听器处理以保持一致性
-            // 这里只关闭模态窗口
+            console.log('[QuizPage] 关闭兑换码模态窗口');
             setQuizStatus(prev => ({
               ...prev,
               showRedeemCodeModal: false,
-              isProcessingRedeem: false
+              // 如果试用已结束且未成功兑换，恢复购买页面
+              showPurchasePage: prev.trialEnded ? true : false
             }));
+          }}
+          onRedeemSuccess={() => {
+            console.log('[QuizPage] 兑换成功，更新状态');
+            // 关闭兑换模态窗口
+            setQuizStatus(prev => ({
+              ...prev,
+              showRedeemCodeModal: false,
+              hasRedeemed: true
+            }));
+            
+            // 触发兑换成功事件
+            const customEvent = new CustomEvent('redeem:success', {
+              detail: {
+                questionSetId: questionSet.id,
+                forceRefresh: true
+              }
+            });
+            document.dispatchEvent(customEvent);
+            
+            // 显示成功提示
+            toast.success('兑换成功！现在可以查看完整题库', { autoClose: 3000 });
           }}
         />
       )}
