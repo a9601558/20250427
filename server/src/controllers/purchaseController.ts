@@ -115,7 +115,7 @@ export const getUserPurchases = async (req: Request, res: Response) => {
         message: '未授权',
       });
     }
-    
+
     console.log(`[getUserPurchases] 查询用户 ${userId} 的所有购买记录`);
 
     // 使用更直接的方式查询，确保包含题库信息
@@ -127,8 +127,8 @@ export const getUserPurchases = async (req: Request, res: Response) => {
       order: [['purchaseDate', 'DESC']],
       include: [
         {
-          model: QuestionSet,
-          as: 'questionSet',
+        model: QuestionSet,
+          as: 'purchaseQuestionSet',
           attributes: ['id', 'title', 'description', 'category', 'icon', 'questionCount'],
           required: false
         },
@@ -153,13 +153,13 @@ export const getUserPurchases = async (req: Request, res: Response) => {
         
         // 标准化问题集信息
         const purchaseData = rawPurchase as any; // Use type assertion to fix TypeScript errors
-        const questionSetInfo = purchaseData.questionSet ? {
-          id: purchaseData.questionSet.id,
-          title: purchaseData.questionSet.title,
-          description: purchaseData.questionSet.description,
-          category: purchaseData.questionSet.category,
-          icon: purchaseData.questionSet.icon,
-          questionCount: purchaseData.questionSet.questionCount
+        const questionSetInfo = purchaseData.purchaseQuestionSet ? {
+          id: purchaseData.purchaseQuestionSet.id,
+          title: purchaseData.purchaseQuestionSet.title,
+          description: purchaseData.purchaseQuestionSet.description,
+          category: purchaseData.purchaseQuestionSet.category,
+          icon: purchaseData.purchaseQuestionSet.icon,
+          questionCount: purchaseData.purchaseQuestionSet.questionCount
         } : null;
         
         // 创建一个标准格式的响应对象
@@ -347,7 +347,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
       include: [
         {
           model: QuestionSet,
-          as: 'questionSet',
+          as: 'purchaseQuestionSet',
           required: true
         }
       ]
@@ -377,7 +377,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
         const remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
         
         // Get the question set from the association
-        const questionSetData = purchase.get('questionSet');
+        const questionSetData = purchase.get('purchaseQuestionSet');
         if (!questionSetData) {
           console.error('[getActivePurchases] Question set data not found for purchase:', purchase.id);
           throw new Error('Question set data not found');
@@ -404,7 +404,7 @@ export const getActivePurchases = async (req: Request, res: Response) => {
           expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           remainingDays: 30,
           status: purchase.status || 'active',
-          questionSet: purchase.get('questionSet'),
+          questionSet: purchase.get('purchaseQuestionSet'),
           hasAccess: true
         };
       }
@@ -529,30 +529,30 @@ export const forceCreatePurchase = async (req: Request, res: Response) => {
     console.log(`[forceCreatePurchase] 尝试强制创建购买记录: ${questionSetId}, 用户: ${req.user.id}`);
 
     try {
-      // 检查题库是否存在
-      const questionSet = await QuestionSet.findByPk(questionSetId);
-      if (!questionSet) {
+    // 检查题库是否存在
+    const questionSet = await QuestionSet.findByPk(questionSetId);
+    if (!questionSet) {
         console.log(`[forceCreatePurchase] 题库不存在: ${questionSetId}`);
-        return sendError(res, 404, '题库不存在');
-      }
-      
-      // 检查用户是否已经购买过该题库
-      try {
-        const existingPurchase = await Purchase.findOne({
-          where: {
-            userId: req.user.id,
-            questionSetId: questionSetId,
-            status: 'active',
-            expiryDate: {
-              [Op.gt]: new Date()
-            }
-          }
-        });
+      return sendError(res, 404, '题库不存在');
+    }
 
-        if (existingPurchase) {
-          console.log(`[forceCreatePurchase] 用户已购买题库: ${req.user.id}, ${questionSetId}`);
-          
-          // 直接返回已有的购买记录，不创建新记录
+    // 检查用户是否已经购买过该题库
+      try {
+    const existingPurchase = await Purchase.findOne({
+      where: {
+        userId: req.user.id,
+        questionSetId: questionSetId,
+        status: 'active',
+        expiryDate: {
+          [Op.gt]: new Date()
+        }
+      }
+    });
+
+    if (existingPurchase) {
+      console.log(`[forceCreatePurchase] 用户已购买题库: ${req.user.id}, ${questionSetId}`);
+      
+      // 直接返回已有的购买记录，不创建新记录
           try {
             return sendResponse(res, 200, {
               ...existingPurchase.toJSON(),
@@ -573,32 +573,32 @@ export const forceCreatePurchase = async (req: Request, res: Response) => {
       } catch (findError) {
         console.error('[forceCreatePurchase] 查询现有购买记录失败:', findError);
         // 继续执行，尝试创建新记录
-      }
+    }
 
-      // 计算过期时间（6个月后）
-      const now = new Date();
-      const expiryDate = new Date(now);
-      expiryDate.setMonth(expiryDate.getMonth() + 6);
+    // 计算过期时间（6个月后）
+    const now = new Date();
+    const expiryDate = new Date(now);
+    expiryDate.setMonth(expiryDate.getMonth() + 6);
 
-      // 创建购买记录 - 强制模式下，忽略isPaid检查
+    // 创建购买记录 - 强制模式下，忽略isPaid检查
       try {
         const purchaseId = uuidv4();
-        const purchase = await Purchase.create({
+    const purchase = await Purchase.create({
           id: purchaseId,
-          userId: req.user.id,
-          questionSetId,
-          amount: price || questionSet.price || 0,
-          status: 'active', // 直接标记为激活状态
-          paymentMethod: paymentMethod || 'direct',
-          purchaseDate: now,
-          expiryDate: expiryDate,
-          createdAt: now,
-          updatedAt: now,
-          transactionId: `force_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
-        });
+      userId: req.user.id,
+      questionSetId,
+      amount: price || questionSet.price || 0,
+      status: 'active', // 直接标记为激活状态
+      paymentMethod: paymentMethod || 'direct',
+      purchaseDate: now,
+      expiryDate: expiryDate,
+      createdAt: now,
+      updatedAt: now,
+      transactionId: `force_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
+    });
 
-        console.log(`[forceCreatePurchase] 成功创建强制购买记录: ${purchase.id}`);
-        
+    console.log(`[forceCreatePurchase] 成功创建强制购买记录: ${purchase.id}`);
+
         // 简化响应，避免使用复杂的关联查询
         return sendResponse(res, 201, {
           id: purchase.id,
@@ -606,8 +606,8 @@ export const forceCreatePurchase = async (req: Request, res: Response) => {
           questionSetId,
           status: 'active',
           expiryDate: expiryDate.toISOString(),
-          remainingDays: 180, // 6个月
-          hasAccess: true
+      remainingDays: 180, // 6个月
+      hasAccess: true
         }, '强制购买记录创建成功');
       } catch (createError) {
         console.error('[forceCreatePurchase] 创建购买记录失败:', createError);

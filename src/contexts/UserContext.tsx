@@ -200,6 +200,28 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     setError(null);
     try {
+      // 在登录之前清除所有之前用户的本地存储数据
+      const oldToken = localStorage.getItem('token');
+      if (oldToken) {
+        console.log('[UserContext] 检测到之前的登录会话，清除旧数据...');
+        // 执行完整的清理，确保没有旧数据残留
+        localStorage.removeItem('token');
+        localStorage.removeItem('questionSetAccessCache');
+        localStorage.removeItem('redeemedQuestionSetIds');
+        
+        // 清除所有以quiz_progress_开头的本地存储项目
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('quiz_progress_') || 
+              key.startsWith('quizAccessRights') ||
+              key.startsWith('lastAttempt_')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // 清除API客户端缓存
+        apiClient.clearCache();
+      }
+      
       const response = await userApi.login(username, password);
       if (response.success && response.data) {
         const token = response.data.token || '';
@@ -354,12 +376,27 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 确保先改变状态，再调用notifyUserChange
     localStorage.removeItem('token');
     
+    // 清除所有相关的本地存储数据
+    localStorage.removeItem('questionSetAccessCache');
+    localStorage.removeItem('redeemedQuestionSetIds');
+    
+    // 清除所有以quiz_progress_开头的本地存储项目
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('quiz_progress_') || 
+          key.startsWith('quizAccessRights') ||
+          key.startsWith('lastAttempt_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
     // 清除API客户端缓存和状态
     apiClient.clearCache();
     apiClient.setAuthHeader(null);
     userProgressService.clearCachedUserId();
     
     setUser(null);
+    
+    console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
     
     // 短暂延迟后通知其他组件，避免状态更新冲突
     setTimeout(() => {

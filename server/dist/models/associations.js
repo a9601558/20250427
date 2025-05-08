@@ -72,6 +72,12 @@ const setupAssociations = () => {
         foreignKey: 'questionSetId',
         as: 'purchaseQuestionSet'
     });
+    // 添加反向关联
+    QuestionSet_1.default.hasMany(Purchase_1.default, {
+        foreignKey: 'questionSetId',
+        as: 'purchaseQuestionSet',
+        onDelete: 'CASCADE'
+    });
     // 兑换码关联
     RedeemCode_1.default.belongsTo(QuestionSet_1.default, {
         foreignKey: 'questionSetId',

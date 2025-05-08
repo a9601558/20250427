@@ -12,6 +12,7 @@ import QuestionCard from './QuestionCard';
 import { toast } from 'react-toastify';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';
+import CreditCardForm, { CardDetails } from './CreditCardForm';
 
 // 从服务api中导入API_BASE_URL
 import { API_BASE_URL } from '../services/api';
@@ -496,12 +497,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [btnClicked, setBtnClicked] = useState(false);
+  const [showCreditCardForm, setShowCreditCardForm] = useState(false);
   
   // Reset error when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setBtnClicked(false);
+      setShowCreditCardForm(false);
     }
   }, [isOpen]);
   
@@ -548,7 +551,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     }
   };
   
-  const handlePurchase = async (e: React.MouseEvent) => {
+  const initiatePayment = async (e: React.MouseEvent) => {
     // Prevent event bubbling
     e.stopPropagation();
     e.preventDefault();
@@ -623,23 +626,37 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
+    // 显示信用卡表单
+    setShowCreditCardForm(true);
+  };
+  
+  const handlePurchase = async (cardDetails: CardDetails) => {
     setIsProcessing(true);
     setError(null);
     setBtnClicked(true);
     
     // 显示处理中提示
-    toast.info("正在处理您的购买请求...", { autoClose: 2000 });
+    toast.info("正在处理您的支付请求...", { autoClose: 2000 });
     
     try {
+      // 模拟信用卡验证延迟
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       // 标准化题库ID，避免ID不匹配问题
-      const normalizedId = String(questionSet.id).trim();
+      const normalizedId = String(questionSet!.id).trim();
       
       // 尝试使用直接购买接口
       try {
         console.log('[PaymentModal] 尝试调用直接购买API:', normalizedId);
+        console.log('[PaymentModal] 使用的信用卡信息:', {
+          cardNumber: cardDetails.cardNumber.replace(/\d(?=\d{4})/g, "*"),
+          cardHolder: cardDetails.cardHolder,
+          expiryDate: cardDetails.expiryDate,
+          cvv: "***"
+        });
         
         // 使用新的createDirectPurchase函数
-        const purchaseResult = await createDirectPurchase(normalizedId, questionSet.price);
+        const purchaseResult = await createDirectPurchase(normalizedId, questionSet!.price || 0);
         
         console.log('[PaymentModal] 直接购买结果:', purchaseResult);
         
@@ -649,7 +666,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           saveAccessToLocalStorage(normalizedId, true);
           
           // 显示成功提示
-          toast.success('购买成功！您现在可以访问完整题库', {
+          toast.success('支付成功！您现在可以访问完整题库', {
             autoClose: 3000
           });
           
@@ -681,52 +698,44 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       } catch (directPurchaseError) {
         console.error('[PaymentModal] 直接购买失败:', directPurchaseError);
         
-        // 尝试使用update-access接口作为备选方案
+        // 尝试备选方案 - 使用update-access
         try {
           console.log('[PaymentModal] 尝试使用update-access作为备选方案');
           
+          // 调用update-access接口
           const accessUpdateResponse = await axios.post(
             `${API_BASE_URL}/purchases/update-access`,
-            { 
-              questionSetId: normalizedId
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              }
-            }
+            { questionSetId: normalizedId },
+            { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
           );
           
           console.log('[PaymentModal] 访问权限更新响应:', accessUpdateResponse.data);
           
           if (accessUpdateResponse.data && accessUpdateResponse.data.success) {
-            // 成功 - 保存到本地
+            // 保存到本地
             saveAccessToLocalStorage(normalizedId, true);
             
-            // 显示成功提示
-            toast.success('成功获取访问权限！您现在可以访问完整题库', {
-              autoClose: 3000
-            });
+            toast.success('成功获取访问权限！您现在可以访问完整题库', { autoClose: 3000 });
             
             // 触发购买成功事件
             window.dispatchEvent(
               new CustomEvent('purchase:success', {
                 detail: {
                   questionSetId: normalizedId,
-                  purchaseId: accessUpdateResponse.data.data?.id || `access-${Date.now()}`,
-                  expiryDate: accessUpdateResponse.data.data?.expiryDate || 
-                    new Date(Date.now() + 30*24*60*60*1000).toISOString()
+                  purchaseId: accessUpdateResponse.data.purchaseId || `direct-${Date.now()}`,
+                  expiryDate: accessUpdateResponse.data.expiryDate || 
+                    new Date(Date.now() + 365*24*60*60*1000).toISOString()
                 }
               })
             );
             
-            // 关闭模态窗口，返回成功
+            // 通知成功
             setTimeout(() => {
               if (typeof onSuccess === 'function') {
                 onSuccess({
                   questionSetId: normalizedId,
-                  purchaseId: accessUpdateResponse.data.data?.id || `access-${Date.now()}`,
-                  remainingDays: 30 // 默认30天有效期
+                  purchaseId: accessUpdateResponse.data.purchaseId || `update-${Date.now()}`,
+                  remainingDays: 180 // 默认6个月有效期
                 });
               }
             }, 500);
@@ -737,48 +746,40 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           console.error('[PaymentModal] 备选方案也失败:', updateAccessError);
         }
         
-        // 如果所有API调用都失败，尝试一个更简单的解决方案
+        // 如果所有API调用都失败，尝试一种本地模拟
         try {
-          // 直接在本地标记为已购买
           console.log('[PaymentModal] 所有API调用失败，尝试本地模拟购买成功');
+          
+          // 保存到本地
           saveAccessToLocalStorage(normalizedId, true);
           
-          // 显示模拟成功提示
-          toast.success('已在本地记录购买成功，页面将在5秒后刷新', {
-            autoClose: 4000
-          });
+          toast.success('已在本地记录购买成功，页面将在5秒后刷新', { autoClose: 4000 });
           
-          // 触发模拟购买成功事件
+          // 触发购买成功事件
           window.dispatchEvent(
             new CustomEvent('purchase:success', {
               detail: {
                 questionSetId: normalizedId,
                 purchaseId: `local-${Date.now()}`,
-                expiryDate: new Date(Date.now() + 30*24*60*60*1000).toISOString()
+                expiryDate: new Date(Date.now() + 180*24*60*60*1000).toISOString()
               }
             })
           );
           
-          // 延迟关闭并刷新页面
+          // 通知成功
           setTimeout(() => {
             if (typeof onSuccess === 'function') {
               onSuccess({
                 questionSetId: normalizedId,
                 purchaseId: `local-${Date.now()}`,
-                remainingDays: 30
+                remainingDays: 180 // 默认6个月有效期
               });
             }
-            
-            // 延迟刷新页面
-            setTimeout(() => {
-              window.location.href = `/quiz/${normalizedId}?forceBuy=true&t=${Date.now()}`;
-            }, 5000);
           }, 500);
           
           return;
         } catch (localSimulationError) {
           console.error('[PaymentModal] 本地模拟也失败:', localSimulationError);
-          // 最后一步尝试简单刷新页面
           setError("无法处理购买，页面将在5秒后刷新");
           setTimeout(() => window.location.reload(), 5000);
         }
@@ -794,9 +795,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
   };
   
   const handleCloseClick = (e: React.MouseEvent) => {
-    // Prevent event bubbling
-    e.stopPropagation();
-    e.preventDefault();
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     
     if (isProcessing) {
       console.log('[PaymentModal] Cannot close while processing payment');
@@ -807,96 +809,74 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     onClose();
   };
   
-  // If not open, don't render anything
-  if (!isOpen) return null;
-  
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.stopPropagation()}
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+      onClick={handleCloseClick}
     >
       <div 
-        className="bg-white rounded-xl max-w-md w-full p-6 relative"
-        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
       >
-        {isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10 rounded-xl">
-            <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
-            <p className="text-blue-600 font-medium">处理中，请稍候...</p>
+        {!showCreditCardForm ? (
+          // 初始确认页面
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">购买确认</h2>
+              <button
+                onClick={handleCloseClick}
+                className="text-gray-400 hover:text-gray-600"
+                disabled={isProcessing}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+                {error}
+              </div>
+            )}
+            
+            <div className="mb-6">
+              <h3 className="font-bold text-lg mb-2">{questionSet?.title}</h3>
+              <p className="text-gray-600 mb-4">{questionSet?.description}</p>
+              <div className="flex justify-between items-center text-lg border-t pt-4">
+                <span>价格:</span>
+                <span className="font-bold text-green-600">¥{questionSet?.price || 0}</span>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={handleCloseClick}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                disabled={isProcessing}
+              >
+                取消
+              </button>
+              <button
+                onClick={initiatePayment}
+                className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
+                  isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={isProcessing}
+              >
+                {isProcessing ? '处理中...' : '继续支付'}
+              </button>
+            </div>
           </div>
+        ) : (
+          // 信用卡表单
+          <CreditCardForm
+            amount={questionSet?.price || 0}
+            onSubmit={handlePurchase}
+            onCancel={() => setShowCreditCardForm(false)}
+            isProcessing={isProcessing}
+          />
         )}
-        
-        <button
-          onClick={handleCloseClick}
-          disabled={isProcessing}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-          aria-label="Close"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        
-        <h3 className="text-xl font-bold text-gray-800 mb-4">购买完整题库</h3>
-        
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-        
-        <div className="mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 mb-4">
-            <h4 className="font-medium text-blue-800 mb-1">{questionSet?.title || '题库'}</h4>
-            <p className="text-blue-600 text-sm mb-3">{questionSet?.description || '完整练习题库'}</p>
-            <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold text-blue-800">¥{questionSet?.price || '0'}</span>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                包含 {questionSet?.questionCount || '0'} 题
-              </span>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center mb-2">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-gray-700 text-sm">一次购买永久使用</span>
-            </div>
-            <div className="flex items-center mb-2">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-gray-700 text-sm">随时访问所有题目</span>
-            </div>
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-gray-700 text-sm">支持多设备同步访问</span>
-            </div>
-          </div>
-        </div>
-        
-        <button
-          onClick={handlePurchase}
-          disabled={isProcessing || !questionSet || !user}
-          className={`
-            w-full py-3 ${btnClicked ? 'bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} 
-            text-white rounded-lg font-medium transition-all duration-200
-            flex items-center justify-center
-            disabled:opacity-70 disabled:cursor-not-allowed
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            ${isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}
-          `}
-        >
-          立即购买 ¥{questionSet?.price || '0'}
-        </button>
-        
-        <p className="text-xs text-center text-gray-500 mt-4">
-          点击"立即购买"，表示您同意我们的服务条款和隐私政策
-        </p>
       </div>
     </div>
   );

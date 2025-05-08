@@ -112,7 +112,7 @@ const getUserPurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     attributes: ['id', 'title', 'description', 'category', 'icon', 'questionCount'],
                     required: false
                 },
@@ -132,13 +132,13 @@ const getUserPurchases = async (req, res) => {
                 const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
                 // 标准化问题集信息
                 const purchaseData = rawPurchase; // Use type assertion to fix TypeScript errors
-                const questionSetInfo = purchaseData.questionSet ? {
-                    id: purchaseData.questionSet.id,
-                    title: purchaseData.questionSet.title,
-                    description: purchaseData.questionSet.description,
-                    category: purchaseData.questionSet.category,
-                    icon: purchaseData.questionSet.icon,
-                    questionCount: purchaseData.questionSet.questionCount
+                const questionSetInfo = purchaseData.purchaseQuestionSet ? {
+                    id: purchaseData.purchaseQuestionSet.id,
+                    title: purchaseData.purchaseQuestionSet.title,
+                    description: purchaseData.purchaseQuestionSet.description,
+                    category: purchaseData.purchaseQuestionSet.category,
+                    icon: purchaseData.purchaseQuestionSet.icon,
+                    questionCount: purchaseData.purchaseQuestionSet.questionCount
                 } : null;
                 // 创建一个标准格式的响应对象
                 return {
@@ -311,7 +311,7 @@ const getActivePurchases = async (req, res) => {
             include: [
                 {
                     model: models_1.QuestionSet,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     required: true
                 }
             ]
@@ -336,7 +336,7 @@ const getActivePurchases = async (req, res) => {
                 // 计算剩余天数，确保至少为1天
                 const remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
                 // Get the question set from the association
-                const questionSetData = purchase.get('questionSet');
+                const questionSetData = purchase.get('purchaseQuestionSet');
                 if (!questionSetData) {
                     console.error('[getActivePurchases] Question set data not found for purchase:', purchase.id);
                     throw new Error('Question set data not found');
@@ -363,7 +363,7 @@ const getActivePurchases = async (req, res) => {
                     expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     remainingDays: 30,
                     status: purchase.status || 'active',
-                    questionSet: purchase.get('questionSet'),
+                    questionSet: purchase.get('purchaseQuestionSet'),
                     hasAccess: true
                 };
             }
