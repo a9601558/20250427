@@ -11,6 +11,7 @@ const purchaseRoutes_1 = __importDefault(require("./purchaseRoutes"));
 const redeemCodeRoutes_1 = __importDefault(require("./redeemCodeRoutes"));
 const homepageRoutes_1 = __importDefault(require("./homepageRoutes"));
 const userProgressRoutes_1 = __importDefault(require("./userProgressRoutes"));
+const payment_1 = __importDefault(require("./payment"));
 const router = express_1.default.Router();
 // 挂载各个路由
 router.use('/users', userRoutes_1.default);
@@ -20,4 +21,5 @@ router.use('/purchases', purchaseRoutes_1.default);
 router.use('/redeem-codes', redeemCodeRoutes_1.default);
 router.use('/homepage', homepageRoutes_1.default);
 router.use('/user-progress', userProgressRoutes_1.default);
+router.use('/payments', payment_1.default);
 exports.default = router;

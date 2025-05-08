@@ -3,8 +3,10 @@ import { useUser } from '../contexts/UserContext';
 import { QuestionSet } from '../types';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
-import { createMockPaymentIntent, confirmMockPayment, processPayment } from '../utils/paymentUtils';
+import { processPayment, verifyPaymentStatus, refreshUserPurchases } from '../utils/paymentUtils';
 import { questionSetApi } from '../utils/api';
+import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 
 interface PaymentModalProps {
   isOpen?: boolean;
@@ -22,7 +24,7 @@ const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY ||
   'pk_test_51RHMVW4ec3wxfwe9vME773VFyquoIP1bVWbsCDZgrgerfzp8YMs0rLS4ZSleICEcIf9gmLIEftwXvPygbLp1LEkv00r5M3rCIV';
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, questionSet: propQuestionSet, questionSetId, onSuccess }) => {
-  const { user, addPurchase } = useUser();
+  const { user, addPurchase, refreshPurchases } = useUser();
   const { socket } = useSocket();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -35,6 +37,51 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   const cardRef = useRef<any>(null);
   const [questionSet, setQuestionSet] = useState<QuestionSet | undefined>(propQuestionSet);
   const [isLoading, setIsLoading] = useState(!!questionSetId && !propQuestionSet);
+  const [alreadyPurchased, setAlreadyPurchased] = useState(false);
+
+  // 检查是否已购买
+  useEffect(() => {
+    const checkIfAlreadyPurchased = async () => {
+      if (!user || !questionSet?.id) return;
+      
+      try {
+        // 刷新购买记录
+        const purchases = await refreshPurchases();
+        
+        // 查找匹配的购买记录
+        const existingPurchase = purchases.find((p: any) => 
+          p.questionSetId === String(questionSet.id).trim() && 
+          (p.status === 'active' || p.status === 'completed')
+        );
+        
+        if (existingPurchase) {
+          console.log(`[支付] 用户已购买此题库，关闭支付窗口`);
+          setAlreadyPurchased(true);
+          
+          // 自动关闭弹窗并调用成功回调
+          setTimeout(() => {
+            if (onSuccess) {
+              const now = new Date();
+              const expiryDate = existingPurchase.expiryDate ? new Date(existingPurchase.expiryDate) : null;
+              const remainingDays = expiryDate ? 
+                Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 
+                180;
+              
+              onSuccess({
+                questionSetId: existingPurchase.questionSetId,
+                remainingDays
+              });
+            }
+            onClose();
+          }, 500);
+        }
+      } catch (error) {
+        console.error('[支付] 检查购买状态失败:', error);
+      }
+    };
+    
+    checkIfAlreadyPurchased();
+  }, [user, questionSet, refreshPurchases, onSuccess, onClose]);
 
   // 如果提供了questionSetId但没有questionSet，则加载questionSet
   useEffect(() => {
@@ -177,14 +224,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     setError('');
 
     try {
-      // 判断是使用模拟支付还是真实支付
-      if (import.meta.env.MODE === 'development' || import.meta.env.VITE_USE_MOCK_PAYMENT === 'true') {
-        // 使用模拟支付流程
-        await handleMockPayment();
-      } else {
-        // 使用真实Stripe支付
-        await handleStripePayment();
-      }
+      // 使用真实Stripe支付
+      await handleStripePayment();
     } catch (err: any) {
       console.error('[支付错误]:', err);
       setError(err.message || '支付处理过程中发生错误，请重试');
@@ -192,33 +233,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     }
   };
 
-  // 模拟支付流程
-  const handleMockPayment = async () => {
-    console.log('[支付] 使用模拟支付流程');
-    
-    // 模拟支付处理延迟
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // 模拟交易ID
-    const transactionId = `tr_${Math.random().toString(36).substring(2, 12)}`;
-    
-    // 计算过期时间（6个月后）
-    const now = new Date();
-    const expiryDate = new Date(now);
-    expiryDate.setMonth(expiryDate.getMonth() + 6);
-    
-    // 完成后续处理
-    await finalizePurchase({
-      transactionId,
-      expiryDate: expiryDate.toISOString(),
-      paymentMethod: 'mock'
-    });
-  };
-
   // 真实Stripe支付流程
   const handleStripePayment = async () => {
     try {
-      // 1. 创建支付Intent - 根据环境使用真实或模拟API
+      // 1. 创建支付Intent
       const intentData = await processPayment(
         questionSet?.price || 0, 
         'cny',
@@ -229,64 +247,51 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
         }
       );
       
-      if (!intentData || !intentData.client_secret) {
+      if (!intentData || !intentData.clientSecret) {
         throw new Error('创建支付意向失败');
       }
 
       // 2. 确认支付
-      let paymentResult;
-      
-      // 根据环境使用不同的确认方式
-      if (import.meta.env.MODE === 'development' || import.meta.env.VITE_USE_MOCK_PAYMENT === 'true') {
-        console.log('[支付] 使用模拟支付确认');
-        paymentResult = await confirmMockPayment(intentData.client_secret, {
+      const { paymentIntent, error } = await stripe.confirmCardPayment(intentData.clientSecret, {
+        payment_method: {
           card: cardElement,
           billing_details: {
             name: user?.username || '用户',
             email: user?.email || undefined
           }
-        });
-      } else {
-        if (!stripe) {
-          throw new Error('Stripe未初始化');
         }
-        
-        console.log('[支付] 使用真实Stripe支付确认');
-        const result = await stripe.confirmCardPayment(intentData.client_secret, {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              name: user?.username || '用户',
-              email: user?.email || undefined
-            }
-          }
-        });
-        
-        paymentResult = result.paymentIntent || result.error || null;
+      });
+
+      if (error) {
+        // 支付失败
+        throw new Error(error.message || '支付确认失败');
       }
 
-      // 3. 处理支付结果
-      if (!paymentResult) {
-        throw new Error('支付确认失败或返回空结果');
-      }
-      
-      if (paymentResult.status === 'succeeded') {
+      if (paymentIntent.status === 'succeeded') {
+        // 支付成功
+        console.log('[支付] 支付成功:', paymentIntent);
+        
         // 计算过期时间（6个月后）
         const now = new Date();
         const expiryDate = new Date(now);
         expiryDate.setMonth(expiryDate.getMonth() + 6);
         
+        // 验证支付状态并确保服务器端已处理
+        await verifyPaymentStatus(paymentIntent.id);
+        
+        // 完成后续处理
         await finalizePurchase({
-          transactionId: paymentResult.id || intentData.id,
+          transactionId: paymentIntent.id,
           expiryDate: expiryDate.toISOString(),
           paymentMethod: 'card'
         });
       } else {
-        throw new Error(paymentResult.error?.message || `支付未完成，状态: ${paymentResult.status || '未知'}`);
+        // 支付状态不是成功
+        throw new Error(`支付未完成，状态: ${paymentIntent.status}`);
       }
-    } catch (err: any) {
-      console.error('[Stripe支付错误]:', err);
-      throw new Error(err.message || '支付处理失败，请重试');
+    } catch (error: any) {
+      console.error('[支付] Stripe支付错误:', error);
+      throw new Error(error.message || '支付处理失败');
     }
   };
 
@@ -305,24 +310,43 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     }
 
     try {
-      // 创建购买记录
-      const purchase = {
-        id: `purchase_${Math.random().toString(36).substring(2, 12)}`, // 确保有唯一ID
-        userId: user.id,
-        questionSetId: String(questionSet?.id).trim(), // 确保ID格式一致
-        purchaseDate: new Date().toISOString(),
-        expiryDate: expiryDate,
-        transactionId: transactionId,
-        paymentMethod: paymentMethod,
-        status: 'active', // 确保状态是active
-        amount: questionSet?.price || 0
-      };
-
-      console.log(`[支付] 创建购买记录:`, purchase);
+      console.log(`[支付] 支付成功，开始处理购买记录，交易ID: ${transactionId}`);
       
-      // 添加购买记录到用户状态
-      await addPurchase(purchase);
-      console.log(`[支付] 购买记录已添加到用户状态`);
+      // 刷新用户购买列表
+      const purchases = await refreshPurchases();
+      console.log(`[支付] 用户购买列表已刷新，共 ${purchases.length} 条记录`);
+      
+      // 查找与当前题库匹配的购买记录
+      const matchingPurchase = purchases.find((p: any) => 
+        p.questionSetId === String(questionSet?.id).trim() && 
+        p.status === 'active'
+      );
+      
+      let purchase;
+      
+      if (matchingPurchase) {
+        console.log(`[支付] 找到与当前题库匹配的购买记录:`, matchingPurchase);
+        purchase = matchingPurchase;
+      } else {
+        // 如果未找到匹配记录，创建本地购买记录（应急情况）
+        console.log(`[支付] 未找到匹配的购买记录，创建本地记录`);
+        purchase = {
+          id: `purchase_${Math.random().toString(36).substring(2, 12)}`,
+          userId: user.id,
+          questionSetId: String(questionSet?.id).trim(),
+          purchaseDate: new Date().toISOString(),
+          expiryDate: expiryDate,
+          transactionId: transactionId,
+          paymentMethod: paymentMethod,
+          status: 'active',
+          amount: questionSet?.price || 0
+        };
+        
+        // 添加购买记录到用户状态
+        await addPurchase(purchase);
+      }
+
+      console.log(`[支付] 使用购买记录:`, purchase);
       
       // 通过socket发送实时通知
       if (socket) {
@@ -392,6 +416,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
             autoClose: 5000,
             position: 'top-center'
           });
+          
+          // 强制关闭支付弹窗
+          setTimeout(() => {
+            onClose();
+          }, 1000);
         }, 300);
       }
       
@@ -402,6 +431,40 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       throw err;
     }
   };
+
+  // 如果已购买，直接显示成功消息
+  if (alreadyPurchased) {
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-75 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+        <div className="relative mx-auto p-5 border w-full max-w-md shadow-xl rounded-lg bg-white animate-fadeIn">
+          <div className="mb-6 text-center">
+            <div className="bg-green-50 p-4 rounded-md mb-6">
+              <div className="flex justify-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800">
+                    您已经购买了这个题库，无需重复购买。
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={onClose}
+                  className="inline-flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  关闭并继续使用
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isOpen) return null;
 

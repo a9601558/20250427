@@ -536,6 +536,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       // 更新访问权限 - 使用精确ID匹配
       accessRights[normalizedId] = hasAccess;
       
+      // 同时保存支付完成状态，确保不再显示支付窗口
+      if (hasAccess) {
+        accessRights[`${normalizedId}_paid`] = true;
+      }
+      
       // 记录修改时间，便于后续清理过期数据
       const timestamp = Date.now();
       const accessRightsWithMeta = {
@@ -1318,6 +1323,11 @@ function QuizPage(): JSX.Element {
       
       // 更新访问权限 - 使用精确ID匹配
       accessRights[normalizedId] = hasAccess;
+      
+      // 同时保存支付完成状态，确保不再显示支付窗口
+      if (hasAccess) {
+        accessRights[`${normalizedId}_paid`] = true;
+      }
       
       // 记录修改时间，便于后续清理过期数据
       const timestamp = Date.now();
@@ -2224,6 +2234,16 @@ function QuizPage(): JSX.Element {
         
         // Save access to local storage
         saveAccessToLocalStorage(receivedId, true);
+        
+        // Explicitly save payment completed flag to prevent the modal from reappearing
+        try {
+          // Store that payment is completed for this question set
+          const paymentKey = `quiz_payment_completed_${receivedId}`;
+          localStorage.setItem(paymentKey, 'true');
+          console.log(`[QuizPage] Saved payment completion status to localStorage: ${paymentKey}`);
+        } catch (e) {
+          console.error('[QuizPage] Error saving payment completion status:', e);
+        }
         
         // 增加重试机制，确保服务器端成功更新
         const ensureAccessSaved = async () => {

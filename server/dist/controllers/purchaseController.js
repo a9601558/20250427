@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateAccess = exports.forceCreatePurchase = exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = exports.getActivePurchases = exports.checkAccess = exports.getUserPurchases = exports.createPurchase = void 0;
 const sequelize_1 = require("sequelize");
 const models_1 = require("../models");
+const stripe_1 = require("../services/stripe");
 const uuid_1 = require("uuid");
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
@@ -57,7 +58,17 @@ const createPurchase = async (req, res) => {
         if (existingPurchase) {
             return sendError(res, 400, '您已经购买过该题库且仍在有效期内');
         }
-        // 创建购买记录
+        // 使用Stripe创建支付意向
+        const paymentIntent = await (0, stripe_1.stripePaymentIntent)({
+            amount: Math.round(parseFloat(amount) * 100), // 转换为分
+            currency: 'cny',
+            metadata: {
+                userId: req.user.id,
+                questionSetId: questionSetId,
+                questionSetTitle: questionSet.title
+            }
+        });
+        // 创建购买记录但设置为pending状态
         const purchase = await models_1.Purchase.create({
             id: (0, uuid_1.v4)(),
             userId: req.user.id,
@@ -67,21 +78,18 @@ const createPurchase = async (req, res) => {
             paymentMethod,
             purchaseDate: new Date(),
             expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+            transactionId: paymentIntent.id, // 使用Stripe的paymentIntent ID作为交易ID
             createdAt: new Date(),
             updatedAt: new Date()
         });
-        // TODO: 调用支付接口处理支付
-        // 这里应该调用实际的支付接口，比如微信支付、支付宝等
-        // 支付成功后更新购买状态
-        await purchase.update({ status: 'completed' });
-        const purchaseWithQuestionSet = await models_1.Purchase.findByPk(purchase.id, {
-            include: [{
-                    model: models_1.QuestionSet,
-                    as: 'purchaseQuestionSet',
-                    attributes: ['id', 'title', 'category', 'icon']
-                }]
+        // 返回支付意向信息，前端将使用它完成支付流程
+        sendResponse(res, 201, {
+            purchase: purchase,
+            paymentIntent: {
+                id: paymentIntent.id,
+                clientSecret: paymentIntent.client_secret
+            }
         });
-        sendResponse(res, 201, purchaseWithQuestionSet);
     }
     catch (error) {
         console.error('Create purchase error:', error);
@@ -106,7 +114,10 @@ const getUserPurchases = async (req, res) => {
         const purchases = await models_1.Purchase.findAll({
             where: {
                 userId: userId,
-                // 包括所有状态的购买记录
+                // 查询所有状态的购买记录，包括 pending、active 和 completed
+                status: {
+                    [sequelize_1.Op.in]: ['pending', 'active', 'completed']
+                }
             },
             order: [['purchaseDate', 'DESC']],
             include: [

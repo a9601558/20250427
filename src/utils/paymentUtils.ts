@@ -20,12 +20,18 @@ export const processPayment = async (
     throw new Error('未找到认证信息，请重新登录');
   }
   
-  // 真实支付流程
-  console.log('[支付] 使用真实支付流程');
+  // 确保金额是一个有效的数字并转为cents（分）
+  const amountInCents = Math.round(parseFloat(String(amount)) * 100);
+  if (isNaN(amountInCents) || amountInCents <= 0) {
+    throw new Error('无效的支付金额');
+  }
+  
+  // 使用真实支付API
+  console.log('[支付] 使用Stripe支付API，金额(分):', amountInCents);
   const response = await axios.post(
     `${BASE_URL}/payments/create-intent`,
     {
-      amount,
+      amount: amountInCents,
       currency, 
       metadata
     },
@@ -38,8 +44,11 @@ export const processPayment = async (
   );
   
   if (response.data && response.data.success) {
-    console.log('[支付] 成功创建支付意向:', response.data.data.id);
-    return response.data.data;
+    // 确保返回的数据格式一致
+    return {
+      id: response.data.paymentIntentId,
+      clientSecret: response.data.clientSecret
+    };
   } else {
     throw new Error(response.data?.message || '创建支付意向失败');
   }
@@ -211,4 +220,81 @@ export function isPaidQuiz(quizData: any, debug = false): boolean {
   }
   
   return false;
+}
+
+/**
+ * 验证支付状态并同步购买记录
+ */
+export async function verifyPaymentStatus(paymentIntentId: string) {
+  console.log(`[支付] 验证支付状态: ${paymentIntentId}`);
+  
+  // 从localStorage获取token
+  const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('未找到认证信息，请重新登录');
+  }
+  
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/payments/verify/${paymentIntentId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (response.data && response.data.success) {
+      console.log('[支付] 支付验证成功:', response.data);
+      return {
+        isSuccessful: response.data.isSuccessful,
+        status: response.data.status,
+        questionSetId: response.data.questionSetId
+      };
+    } else {
+      console.error('[支付] 支付验证失败:', response.data);
+      throw new Error(response.data?.message || '验证支付状态失败');
+    }
+  } catch (error) {
+    console.error('[支付] 验证支付请求失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 刷新用户购买列表
+ */
+export async function refreshUserPurchases() {
+  console.log('[支付] 刷新用户购买列表');
+  
+  // 从localStorage获取token
+  const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('未找到认证信息，请重新登录');
+  }
+  
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/purchases`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store'
+        }
+      }
+    );
+    
+    if (response.data && response.data.success) {
+      console.log('[支付] 获取用户购买列表成功:', response.data.data?.length || 0, '条记录');
+      return response.data.data || [];
+    } else {
+      console.error('[支付] 获取用户购买列表失败:', response.data);
+      return [];
+    }
+  } catch (error) {
+    console.error('[支付] 获取用户购买列表请求失败:', error);
+    return [];
+  }
 } 

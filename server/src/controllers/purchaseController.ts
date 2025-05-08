@@ -68,7 +68,18 @@ export const createPurchase = async (req: Request, res: Response) => {
       return sendError(res, 400, '您已经购买过该题库且仍在有效期内');
     }
 
-    // 创建购买记录
+    // 使用Stripe创建支付意向
+    const paymentIntent = await stripePaymentIntent({
+      amount: Math.round(parseFloat(amount) * 100), // 转换为分
+      currency: 'cny',
+      metadata: {
+        userId: req.user.id,
+        questionSetId: questionSetId,
+        questionSetTitle: questionSet.title
+      }
+    });
+
+    // 创建购买记录但设置为pending状态
     const purchase = await Purchase.create({
       id: uuidv4(),
       userId: req.user.id,
@@ -78,24 +89,19 @@ export const createPurchase = async (req: Request, res: Response) => {
       paymentMethod,
       purchaseDate: new Date(),
       expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+      transactionId: paymentIntent.id, // 使用Stripe的paymentIntent ID作为交易ID
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
-    // TODO: 调用支付接口处理支付
-    // 这里应该调用实际的支付接口，比如微信支付、支付宝等
-    // 支付成功后更新购买状态
-    await purchase.update({ status: 'completed' });
-
-    const purchaseWithQuestionSet = await Purchase.findByPk(purchase.id, {
-      include: [{
-        model: QuestionSet,
-        as: 'purchaseQuestionSet',
-        attributes: ['id', 'title', 'category', 'icon']
-      }]
+    // 返回支付意向信息，前端将使用它完成支付流程
+    sendResponse(res, 201, {
+      purchase: purchase,
+      paymentIntent: {
+        id: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret
+      }
     });
-
-    sendResponse(res, 201, purchaseWithQuestionSet);
   } catch (error) {
     console.error('Create purchase error:', error);
     sendError(res, 500, '创建购买记录失败');
@@ -122,7 +128,10 @@ export const getUserPurchases = async (req: Request, res: Response) => {
     const purchases = await Purchase.findAll({
       where: {
         userId: userId,
-        // 包括所有状态的购买记录
+        // 查询所有状态的购买记录，包括 pending、active 和 completed
+        status: {
+          [Op.in]: ['pending', 'active', 'completed']
+        }
       },
       order: [['purchaseDate', 'DESC']],
       include: [

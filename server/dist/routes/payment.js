@@ -74,7 +74,33 @@ router.get('/verify/:paymentIntentId', auth_1.authenticateJwt, async (req, res) 
                     userId: req.user?.id
                 }
             });
-            if (!existingPurchase) {
+            if (existingPurchase) {
+                // 如果记录已存在但状态不是active，更新为active
+                if (existingPurchase.status !== 'active') {
+                    console.log(`[Verify] 更新购买记录状态: ${existingPurchase.id}`);
+                    await existingPurchase.update({
+                        status: 'active',
+                        updatedAt: new Date()
+                    });
+                    // 发送购买成功事件
+                    if (req.app.get('io')) {
+                        const io = req.app.get('io');
+                        io.emit('purchase:success', {
+                            userId: req.user?.id,
+                            questionSetId: verification.metadata.questionSetId,
+                            purchaseId: existingPurchase.id,
+                            expiryDate: existingPurchase.expiryDate.toISOString()
+                        });
+                        // 更新访问权限
+                        io.emit('questionSet:accessUpdate', {
+                            userId: req.user?.id,
+                            questionSetId: verification.metadata.questionSetId,
+                            hasAccess: true
+                        });
+                    }
+                }
+            }
+            else {
                 // 计算过期时间（6个月后）
                 const now = new Date();
                 const expiryDate = new Date(now);
@@ -152,7 +178,33 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
                             userId
                         }
                     });
-                    if (!existingPurchase) {
+                    if (existingPurchase) {
+                        // 如果记录已存在但不是active状态，更新为active
+                        if (existingPurchase.status !== 'active') {
+                            console.log(`[Webhook] 更新购买记录状态: ${existingPurchase.id}`);
+                            await existingPurchase.update({
+                                status: 'active',
+                                updatedAt: new Date()
+                            });
+                            // 发送购买成功事件
+                            if (req.app.get('io')) {
+                                const io = req.app.get('io');
+                                io.emit('purchase:success', {
+                                    userId,
+                                    questionSetId,
+                                    purchaseId: existingPurchase.id,
+                                    expiryDate: existingPurchase.expiryDate.toISOString()
+                                });
+                                // 更新访问权限
+                                io.emit('questionSet:accessUpdate', {
+                                    userId,
+                                    questionSetId,
+                                    hasAccess: true
+                                });
+                            }
+                        }
+                    }
+                    else {
                         // 计算过期时间（6个月后）
                         const now = new Date();
                         const expiryDate = new Date(now);

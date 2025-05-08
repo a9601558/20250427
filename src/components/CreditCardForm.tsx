@@ -121,9 +121,9 @@ const CreditCardForm: React.FC<CreditCardFormProps> = ({
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
       <h2 className="text-xl font-bold mb-4 text-gray-800">支付确认</h2>
-      <div className="mb-4 p-2 bg-blue-50 rounded text-blue-700 text-sm">
-        <p className="font-medium">模拟支付环境</p>
-        <p>本系统使用模拟支付流程，不会产生实际费用</p>
+      <div className="mb-4 p-2 bg-yellow-50 rounded text-yellow-700 text-sm">
+        <p className="font-medium">安全支付提示</p>
+        <p>请确保您在安全环境下输入您的信用卡信息</p>
       </div>
       
       <div className="mb-6 flex justify-between items-center">

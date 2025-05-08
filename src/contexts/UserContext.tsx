@@ -6,6 +6,7 @@ import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
 import { userProgressService } from '../services/UserProgressService';
 import { toast } from 'react-toastify';
+import { refreshUserPurchases } from '../utils/paymentUtils';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -67,6 +68,7 @@ interface UserContextType {
   adminRegister: (userData: Partial<User>) => Promise<{ success: boolean; message: string }>;
   updateUserProgress: (progressUpdate: Partial<UserProgress>) => void;
   syncAccessRights: () => Promise<void>;
+  refreshPurchases: () => Promise<Purchase[]>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -82,6 +84,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // 添加当前用户ID引用，用于比较
   const prevUserIdRef = useRef<string | null>(null);
   const { socket } = useSocket();
+  const [userPurchases, setUserPurchases] = useState<Purchase[]>([]);
 
   // 当用户变化时触发事件
   const notifyUserChange = useCallback((newUser: User | null) => {
@@ -196,6 +199,55 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const logout = () => {
+    // 确保先改变状态，再调用notifyUserChange
+    localStorage.removeItem('token');
+    
+    // 清除所有相关的本地存储数据
+    localStorage.removeItem('questionSetAccessCache');
+    localStorage.removeItem('redeemedQuestionSetIds');
+    localStorage.removeItem('quizAccessRights');
+    
+    // 清除所有以quiz_progress_开头的本地存储项目
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('quiz_progress_') || 
+          key.startsWith('quizAccessRights') ||
+          key.startsWith('lastAttempt_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // 彻底清除所有与用户相关的缓存
+    try {
+      if (user && user.id) {
+        // 清除特定用户的缓存数据
+        const cache = getLocalAccessCache();
+        if (cache[user.id]) {
+          delete cache[user.id];
+          localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
+        }
+      }
+    } catch (e) {
+      console.error('[UserContext] 清除用户缓存失败:', e);
+    }
+    
+    // 清除API客户端缓存和状态
+    apiClient.clearCache();
+    apiClient.setAuthHeader(null);
+    userProgressService.clearCachedUserId();
+
+    // 清空状态
+    setUser(null);
+    setUserPurchases([]);
+    
+    console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
+    
+    // 短暂延迟后通知其他组件，避免状态更新冲突
+    setTimeout(() => {
+      notifyUserChange(null); // 通知用户登出
+    }, 100);
+  };
+
   const login = async (username: string, password: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
@@ -208,6 +260,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.removeItem('token');
         localStorage.removeItem('questionSetAccessCache');
         localStorage.removeItem('redeemedQuestionSetIds');
+        localStorage.removeItem('quizAccessRights');
         
         // 清除所有以quiz_progress_开头的本地存储项目
         Object.keys(localStorage).forEach(key => {
@@ -221,6 +274,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // 清除API客户端缓存
         apiClient.clearCache();
       }
+      
+      // 清空状态
+      setUser(null);
+      setUserPurchases([]);
       
       const response = await userApi.login(username, password);
       if (response.success && response.data) {
@@ -370,38 +427,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setLoading(false);
     }
-  };
-
-  const logout = () => {
-    // 确保先改变状态，再调用notifyUserChange
-    localStorage.removeItem('token');
-    
-    // 清除所有相关的本地存储数据
-    localStorage.removeItem('questionSetAccessCache');
-    localStorage.removeItem('redeemedQuestionSetIds');
-    
-    // 清除所有以quiz_progress_开头的本地存储项目
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('quiz_progress_') || 
-          key.startsWith('quizAccessRights') ||
-          key.startsWith('lastAttempt_')) {
-        localStorage.removeItem(key);
-      }
-    });
-    
-    // 清除API客户端缓存和状态
-    apiClient.clearCache();
-    apiClient.setAuthHeader(null);
-    userProgressService.clearCachedUserId();
-    
-    setUser(null);
-    
-    console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
-    
-    // 短暂延迟后通知其他组件，避免状态更新冲突
-    setTimeout(() => {
-      notifyUserChange(null); // 通知用户登出
-    }, 100);
   };
 
   const register = async (userData: Partial<User>): Promise<boolean> => {
@@ -1079,11 +1104,36 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user, socket]);
 
+  // 刷新购买记录
+  const refreshPurchases = useCallback(async () => {
+    if (!user) {
+      console.log('[用户] 用户未登录，无法刷新购买记录');
+      return [];
+    }
+
+    try {
+      console.log('[用户] 开始刷新购买记录');
+      const purchases = await refreshUserPurchases();
+      
+      if (purchases && Array.isArray(purchases)) {
+        console.log(`[用户] 刷新购买记录成功，获取 ${purchases.length} 条记录`);
+        setUserPurchases(purchases);
+        return purchases;
+      } else {
+        console.error('[用户] 刷新购买记录返回无效数据:', purchases);
+        return [];
+      }
+    } catch (error) {
+      console.error('[用户] 刷新购买记录失败:', error);
+      return [];
+    }
+  }, [user]);
+
   const contextValue = useMemo(() => ({
     user,
     loading,
     error,
-    userChangeEvent, // 导出事件给其他上下文
+    userChangeEvent,
     login,
     logout,
     register,
@@ -1104,8 +1154,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     deleteUser,
     adminRegister,
     updateUserProgress,
-    syncAccessRights
-  }), [user, loading, error, userChangeEvent]);
+    syncAccessRights,
+    refreshPurchases
+  }), [user, loading, error, userChangeEvent, login, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases]);
 
   return (
     <UserContext.Provider value={contextValue}>
