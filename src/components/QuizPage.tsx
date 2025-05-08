@@ -529,6 +529,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
+    // 增强日志，添加更多调试信息
+    console.log(`[PaymentModal] 购买操作开始，题库信息:`, {
+      id: questionSet.id,
+      title: questionSet.title,
+      isPaid: questionSet.isPaid,
+      type: typeof questionSet.isPaid,
+      price: questionSet.price
+    });
+    
     // 改进后的付费题库检查逻辑 - 同时接受布尔值和数字
     // 数据库中是tinyint(1)，可能被转换为不同类型
     if (!questionSet.isPaid && String(questionSet.isPaid) !== '1') {
@@ -540,14 +549,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       setBtnClicked(false);
       return;
     }
-    
-    // 记录题库信息以便调试
-    console.log('[PaymentModal] 购买题库信息:', {
-      id: questionSet.id,
-      title: questionSet.title,
-      isPaid: questionSet.isPaid,
-      price: questionSet.price
-    });
     
     // Don't proceed if already processing
     if (isProcessing || btnClicked) {
@@ -562,7 +563,123 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     try {
       // 标准化题库ID，避免ID不匹配问题
       const normalizedId = String(questionSet.id).trim();
-      console.log(`[PaymentModal] 开始为题库 ${normalizedId} 创建购买订单`);
+      
+      // 步骤1: 向服务器确认题库状态
+      console.log(`[PaymentModal] 步骤1: 正在向服务器确认题库状态...`);
+      let isConfirmedPaidQuiz = false;
+      
+      try {
+        // 从服务器获取题库最新状态
+        const refreshResponse = await questionSetApi.getQuestionSetById(normalizedId);
+        
+        if (!refreshResponse.success || !refreshResponse.data) {
+          throw new Error("无法获取题库最新状态");
+        }
+        
+        const refreshedSet = refreshResponse.data;
+        
+        console.log(`[PaymentModal] 服务器返回的题库状态:`, {
+          id: refreshedSet.id,
+          isPaid: refreshedSet.isPaid,
+          type: typeof refreshedSet.isPaid,
+          price: refreshedSet.price
+        });
+        
+        // 验证题库确实是付费题库
+        if (!refreshedSet.isPaid && String(refreshedSet.isPaid) !== '1') {
+          console.error(`[PaymentModal] 服务器确认题库${normalizedId}为免费题库`);
+          setError("服务器确认该题库为免费题库，无需购买");
+          toast.error("服务器确认该题库为免费题库，无需购买");
+          // 触发刷新页面以更新题库数据
+          setTimeout(() => window.location.reload(), 2000);
+          throw new Error("服务器确认该题库为免费题库");
+        }
+        
+        isConfirmedPaidQuiz = true;
+        console.log(`[PaymentModal] 服务器确认题库${normalizedId}为付费题库`);
+        
+      } catch (refreshError) {
+        console.error('[PaymentModal] 题库状态确认失败:', refreshError);
+        if (refreshError instanceof Error && 
+            refreshError.message === "服务器确认该题库为免费题库") {
+          setIsProcessing(false);
+          setBtnClicked(false);
+          return;
+        }
+        // 对于其他错误，记录警告但尝试继续(使用本地缓存数据)
+        console.warn('[PaymentModal] 无法从服务器确认题库状态，将使用本地数据继续...');
+        // 假设本地数据正确
+        isConfirmedPaidQuiz = true;
+      }
+      
+      // 步骤2: 检查用户是否已经购买该题库
+      console.log(`[PaymentModal] 步骤2: 检查用户是否已经购买题库${normalizedId}...`);
+      try {
+        // 使用purchaseService.checkAccess检查用户是否已有访问权限
+        const accessCheckResponse = await purchaseService.checkAccess(normalizedId);
+        console.log(`[PaymentModal] 访问权限检查结果:`, accessCheckResponse);
+        
+        // 确定响应的具体类型，以正确提取数据
+        const isApiResponse = accessCheckResponse && 
+                           typeof accessCheckResponse === 'object' && 
+                           'success' in accessCheckResponse &&
+                           'data' in accessCheckResponse;
+        
+        // 根据响应类型安全地提取数据
+        const accessData = isApiResponse 
+                        ? (accessCheckResponse as any).data 
+                        : accessCheckResponse;
+        
+        if (accessData && accessData.hasAccess) {
+          console.error(`[PaymentModal] 用户已购买题库${normalizedId}，无需重复购买`);
+          setError("您已购买此题库，无需重复购买");
+          toast.info("您已购买此题库，无需重复购买", {
+            autoClose: 3000,
+            onClose: () => {
+              // 关闭模态窗口，更新状态
+              if (typeof onSuccess === 'function') {
+                onSuccess({
+                  questionSetId: normalizedId,
+                  purchaseId: "existing",
+                  expiryDate: accessData.expiryDate || new Date(Date.now() + 365*24*60*60*1000).toISOString()
+                });
+              }
+            }
+          });
+          setIsProcessing(false);
+          setBtnClicked(false);
+          return;
+        }
+        
+        if (accessData && !accessData.isPaid) {
+          console.error(`[PaymentModal] 服务器报告题库${normalizedId}不是付费题库`);
+          setError("服务器确认该题库为免费题库，无需购买");
+          toast.error("服务器确认该题库为免费题库，无需购买");
+          setTimeout(() => window.location.reload(), 2000);
+          setIsProcessing(false);
+          setBtnClicked(false);
+          return;
+        }
+        
+        console.log(`[PaymentModal] 确认用户未购买题库${normalizedId}，可以继续购买流程`);
+        
+      } catch (accessCheckError) {
+        console.error('[PaymentModal] 访问权限检查失败:', accessCheckError);
+        // 对于访问检查错误，继续尝试购买流程
+        console.warn('[PaymentModal] 无法验证用户访问权限，将继续购买流程...');
+      }
+      
+      // 步骤3: 执行购买操作
+      console.log(`[PaymentModal] 步骤3: 开始为题库 ${normalizedId} 创建购买订单`);
+      
+      // 确认题库为付费且用户未购买，可以继续购买流程
+      if (!isConfirmedPaidQuiz) {
+        setError("无法确认题库付费状态，请稍后再试");
+        toast.error("无法确认题库付费状态，请稍后再试");
+        setIsProcessing(false);
+        setBtnClicked(false);
+        return;
+      }
       
       // Call purchase API with Stripe payment method
       const response = await purchaseService.createPurchase(
@@ -594,6 +711,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           response.message.includes('free') ||
           response.message.includes('not paid')
         )) {
+          // 题库状态不一致的特定错误处理
           toast.info("题库状态与服务器不一致，正在刷新页面获取最新信息", {
             autoClose: 3000,
             onClose: () => window.location.reload()
@@ -601,6 +719,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           setError("服务器显示该题库为免费，页面将在3秒后刷新以更新");
           // 3秒后自动刷新页面获取最新状态
           setTimeout(() => window.location.reload(), 3000);
+        } else if (response.message && response.message.includes('已购买')) {
+          // 已购买的特定错误处理
+          toast.info("您已购买此题库，无需重复购买", {
+            autoClose: 3000,
+            onClose: () => {
+              // 刷新页面以更新状态
+              window.location.reload();
+            }
+          });
+          setError("您已购买此题库，无需重复购买");
         } else {
           setError(response.message || '购买失败，请稍后再试');
         }
