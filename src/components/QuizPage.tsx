@@ -1136,10 +1136,13 @@ function QuizPage(): JSX.Element {
   }, [id]);
   
   // 修改checkAccess函数，避免多次单独更新状态导致渲染问题
-  const checkAccess = async () => {
-    if (!questionSet || !user) return;
+  const checkAccess = useCallback(async () => {
+    if (!questionSet || !user) {
+      console.log(`[checkAccess] 无题库数据或用户未登录，无法检查权限`);
+      return;
+    }
     
-    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限`);
+    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限, 用户ID: ${user.id}`);
     
     // 免费题库直接授权
     if (!isPaidQuiz(questionSet)) {
@@ -1173,13 +1176,12 @@ function QuizPage(): JSX.Element {
       console.log(`[checkAccess] 用户无访问权限，检查试用状态`);
       saveAccessToLocalStorage(questionSet.id, false);
       
-      
       // 检查是否已达试用限制
       if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
         console.log(`[checkAccess] 已达到试用限制：${answeredQuestions.length}/${questionSet.trialQuestions}`);
-        setQuizStatus({ ...quizStatus, trialEnded: true });
+        setQuizStatus(prev => ({ ...prev, trialEnded: true }));
       } else {
-        setQuizStatus({ ...quizStatus, trialEnded: false });
+        setQuizStatus(prev => ({ ...prev, trialEnded: false }));
       }
     }
     
@@ -1190,825 +1192,9 @@ function QuizPage(): JSX.Element {
         questionSetId: String(questionSet.id).trim()
       });
     }
-  };
+  }, [questionSet, user, answeredQuestions.length, quizStatus.hasRedeemed, socket]);
   
-  // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查
-  useEffect(() => {
-    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${quizStatus.hasRedeemed}`);
-    if (user && user.purchases) {
-      console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
-    }
-    
-    // 确保页面加载时不会显示购买弹窗
-    if (questionSet && !isPaidQuiz(questionSet)) {
-      console.log(`[useEffect] 检测到免费题库，确保不会显示购买弹窗`);
-      setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-      setQuizStatus({ ...quizStatus, trialEnded: false });
-      setQuizStatus({ ...quizStatus, showPurchasePage: false });
-      saveAccessToLocalStorage(questionSet.id, true);
-    }
-    
-    checkAccess();
-  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, quizStatus.hasRedeemed]);
-  
-  // 修改trialEnded的判定逻辑，避免错误提示购买
-  useEffect(() => {
-    if (!questionSet) return;
-    
-    console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}, 试用题目数: ${questionSet.trialQuestions}`);
-    
-    // 如果是免费题库，永远不会试用结束
-    if (!isPaidQuiz(questionSet)) {
-      console.log(`[QuizPage] 免费题库不存在试用结束概念`);
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
-      return;
-    }
-    
-    // 重新检查完整访问权限
-    const hasFullAccess = checkFullAccessFromAllSources(questionSet, user, quizStatus.hasRedeemed);
-    
-    // 如果用户有访问权限，确保状态一致性
-    if (hasFullAccess) {
-      console.log(`[QuizPage] 用户有完整访问权限，确保不显示试用结束/购买页面`);
-      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
-      return;
-    }
-    
-    // 到这里说明：付费题库 + 用户无完整访问权限
-    console.log(`[QuizPage] 用户对付费题库无完整访问权限，检查试用状态`);
-    if (quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
-    
-    // 确定试用题目数量
-    const trialQuestionsCount = questionSet.trialQuestions || 0;
-    
-    // 如果试用题目数为0，直接标记为试用结束
-    if (trialQuestionsCount <= 0) {
-      console.log(`[QuizPage] 付费题库无试用题或试用题为0，直接标记试用结束`);
-      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
-      return;
-    }
-    
-    // 检查已答题数是否达到试用限制
-    const isTrialLimitReached = answeredQuestions.length >= trialQuestionsCount;
-    console.log(`[QuizPage] 试用状态检查: 已答题数=${answeredQuestions.length}, 试用题数=${trialQuestionsCount}, 达到限制=${isTrialLimitReached}`);
-    
-    // 更新试用结束状态
-    if (isTrialLimitReached) {
-      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
-    } else {
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-    }
-  }, [
-    questionSet, 
-    answeredQuestions.length,
-    checkFullAccessFromAllSources,
-    quizStatus.hasAccessToFullQuiz,
-    quizStatus.trialEnded,
-    quizStatus.showPurchasePage
-  ]);
-  
-  // 修改useEffect，避免试用模式加载卡住
-  useEffect(() => {
-    // 如果没有ID，不做处理
-    if (!id) return;
-    
-    // 记录加载开始时间，用于检测无限加载
-    const loadStartTime = Date.now();
-    
-    // 添加超时保护机制，避免无限加载
-    const loadingTimeout = setTimeout(() => {
-      // 如果依然处于加载状态，强制退出加载
-      if (quizStatus.loading) {
-        console.error('[QuizPage] 加载超时 - 已经等待超过15秒');
-        setQuizStatus(prev => ({ 
-          ...prev, 
-          loading: false, 
-          error: '加载超时，请刷新页面重试或返回首页' 
-        }));
-      }
-    }, 15000);
-    
-    const fetchQuestionSet = async () => {
-      setQuizStatus(prev => ({ ...prev, loading: true, error: null }));
-      
-      // 添加额外的超时保护，确保fetch不会无限挂起
-      const fetchTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('API请求超时，无法加载题库'));
-        }, 8000); // 8秒超时
-      });
-      
-      try {
-        // 解析URL参数
-        const urlParams = new URLSearchParams(window.location.search);
-        const mode = urlParams.get('mode');
-        // 支持两种格式的试用模式参数
-        const trialLimitParam = urlParams.get('trialLimit') || urlParams.get('limit'); 
-        const specificQuestions = urlParams.get('questions');
-        
-        // 检查URL中的trial参数，支持两种形式："?mode=trial" 或 "?trial=true"
-        const isExplicitTrialMode = mode === 'trial' || urlParams.get('trial') === 'true';
-        
-        // 增强调试日志
-        console.log('[QuizPage] URL 参数解析:', {
-          fullUrl: window.location.href,
-          search: window.location.search,
-          mode,
-          trialLimitParam,
-          specificQuestions,
-          isExplicitTrialMode,
-          rawParams: Array.from(urlParams.entries())
-        });
-        
-        try {
-          // 获取题库详情 - 先从API缓存获取
-          console.log('[QuizPage] 开始请求题库数据...');
-          
-          // 使用Promise.race确保请求不会无限挂起
-          const response = await Promise.race([
-            questionSetApi.getQuestionSetById(id), 
-            fetchTimeoutPromise
-          ]) as any;
-          
-          console.log('[QuizPage] 获取题库响应:', response);
-          
-          // 检查是否有疑似数据问题
-          let questionSetData: IQuestionSet | null = null;
-          let directApiData = null;
-          
-          if (response.success && response.data) {
-            // 初步处理题库数据
-            questionSetData = {
-              id: response.data.id,
-              title: response.data.title,
-              description: response.data.description,
-              category: response.data.category,
-              icon: response.data.icon,
-              questions: getQuestions(response.data),
-              isPaid: response.data.isPaid || false,
-              price: response.data.price || 0,
-              isFeatured: response.data.isFeatured || false,
-              featuredCategory: response.data.featuredCategory,
-              hasAccess: false,
-              trialQuestions: 0, // 先初始化为0，后面再设置
-              questionCount: getQuestions(response.data).length,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            };
-            
-            // 使用调试模式检查题库付费状态
-            const cachedIsPaid = isPaidQuiz(questionSetData, true);
-            
-            // 如果缓存API返回的是付费题库，但缓存isPaid标识可能存在问题，直接从API获取
-            if (!cachedIsPaid && questionSetData.price > 0) {
-              console.log('[QuizPage] 检测到潜在的题库数据不一致：价格 > 0 但 isPaid 不为真，尝试直接调用 API');
-              
-              try {
-                // 直接从API获取最新数据，绕过可能的缓存
-                const timestamp = new Date().getTime();
-                const directResponse = await axios.get(
-                  `${API_BASE_URL}/question-sets/${id}?t=${timestamp}`, 
-                  { 
-                    headers: { 
-                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                      'Cache-Control': 'no-cache, no-store'
-                    } 
-                  }
-                );
-                
-                if (directResponse.data && directResponse.data.data) {
-                  directApiData = directResponse.data.data;
-                  
-                  // 验证直接API返回的付费状态
-                  const directIsPaid = isPaidQuiz(directApiData, true);
-                  
-                  // 如果直接API显示这是付费题库，更新本地数据
-                  if (directIsPaid) {
-                    console.log('[QuizPage] 直接API调用显示此题库为付费题库，更新本地数据');
-                    
-                    // 更新questionSetData
-                    questionSetData.isPaid = true;
-                    
-                    // 显示警告
-                    toast.warning('检测到题库数据不一致，已自动修复', { autoClose: 3000 });
-                  }
-                }
-              } catch (directApiError) {
-                console.error('[QuizPage] 直接API调用失败:', directApiError);
-                // 继续使用缓存数据，这只是额外验证
-              }
-            }
-            
-            // 更新明确的试用模式状态 - 简化处理逻辑，避免循环依赖
-            const newIsInTrialMode = isExplicitTrialMode;
-            
-            // 改进对试用题目数量的确定逻辑
-            const trialQuestionsFromApi = directApiData?.trialQuestions || response.data.trialQuestions;
-            let determinedTrialCount: number;
-            
-            if (isExplicitTrialMode) {
-              // 显式试用模式下，确保试用题数为正数
-              const limitFromUrl = trialLimitParam ? parseInt(trialLimitParam, 10) : undefined;
-              console.log(`[QuizPage] 从URL获取的试用题目数: ${limitFromUrl}`);
-              
-              if (limitFromUrl !== undefined && limitFromUrl > 0) {
-                determinedTrialCount = limitFromUrl;
-              } else if (trialQuestionsFromApi !== undefined && trialQuestionsFromApi > 0) {
-                determinedTrialCount = trialQuestionsFromApi;
-              } else {
-                determinedTrialCount = 5; // 显式试用模式下，若无有效正数限制，则默认为5题
-              }
-              console.log(`[QuizPage] 显式试用模式，试用题数: ${determinedTrialCount}`);
-            } else {
-              // 非显式试用模式 (直接访问 /quiz/:id)
-              if (trialQuestionsFromApi !== undefined && trialQuestionsFromApi !== null && trialQuestionsFromApi >= 0) {
-                determinedTrialCount = trialQuestionsFromApi;
-              } else {
-                // API未定义试用题数: 付费题库默认给1题隐式试用，免费题库0题
-                const useDirectApi = directApiData && isPaidQuiz(directApiData, false);
-                const useCachedApi = isPaidQuiz(questionSetData, false);
-                const finalIsPaid = useDirectApi || useCachedApi;
-                
-                determinedTrialCount = finalIsPaid ? 1 : 0;
-              }
-              console.log(`[QuizPage] 非显式试用模式，试用题数: ${determinedTrialCount}`);
-            }
-            
-            // 确保 determinedTrialCount 不为负
-            if (determinedTrialCount < 0) determinedTrialCount = 0;
-            
-            // 更新题库的试用题数
-            questionSetData.trialQuestions = determinedTrialCount;
-            
-            // 最终确认付费状态
-            const finalIsPaid = directApiData ? isPaidQuiz(directApiData) : isPaidQuiz(questionSetData);
-            
-            console.log(`[QuizPage] 题库数据处理: isPaid=${finalIsPaid}, trialQuestions=${determinedTrialCount}`);
-            
-            setQuestionSet(questionSetData);
-            
-            // 免费题库直接授予访问权限，不显示购买页面
-            if (!finalIsPaid) {
-              console.log(`[QuizPage] 免费题库，授予访问权限`);
-              setQuizStatus(prev => ({
-                ...prev, 
-                hasAccessToFullQuiz: true, 
-                trialEnded: false, 
-                showPurchasePage: false
-              }));
-              saveAccessToLocalStorage(questionSetData.id, true);
-            }
-
-            // 使用题库中包含的题目数据
-            const questionsData = getQuestions(response.data);
-            if (questionsData.length > 0) {
-              console.log("获取到题目:", questionsData.length);
-              
-              // 处理题目选项并设置数据
-              const processedQuestions = questionsData.map((q: any) => {
-                // 确保选项存在
-                if (!q.options || !Array.isArray(q.options)) {
-                  console.warn("题目缺少选项:", q.id);
-                  q.options = [];
-                }
-                
-                // 处理选项 - 使用固定的ID生成方式
-                const processedOptions = q.options.map((opt: any, index: number) => {
-                  // 使用题目ID和选项索引生成固定ID
-                  const optionId = opt.id || `q${q.id}-opt${index}`;
-                  return {
-                    id: optionId,
-                    text: opt.text,
-                    isCorrect: opt.isCorrect,
-                    label: getOptionLabel(index) // 添加字母标签
-                  };
-                });
-                
-                return {
-                  ...q,
-                  options: processedOptions,
-                  // 确保correctAnswer字段与选项ID对应
-                  correctAnswer: q.questionType === 'single' 
-                    ? processedOptions.find((opt: any) => opt.isCorrect)?.id
-                    : processedOptions.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.id)
-                };
-              });
-              
-              // 保存原始题目顺序
-              setOriginalQuestions(processedQuestions);
-              
-              // 如果是错题练习模式且指定了问题ID，则筛选题目
-              if (mode === 'wrong-answers' && specificQuestions) {
-                console.log('[QuizPage] 错题练习模式，筛选指定题目');
-                const questionIds = specificQuestions.split(',');
-                
-                // 只保留指定ID的题目
-                const filteredQuestions = processedQuestions.filter((q: Question) => 
-                  questionIds.includes(String(q.id))
-                );
-                
-                if (filteredQuestions.length > 0) {
-                  console.log(`[QuizPage] 筛选后的题目数量: ${filteredQuestions.length}`);
-                  setQuestions(filteredQuestions);
-                } else {
-                  // 如果筛选后没有题目，使用全部题目
-                  console.log('[QuizPage] 未找到指定题目，使用全部题目');
-                  setQuestions(processedQuestions);
-                }
-              } else {
-                setQuestions(processedQuestions);
-              }
-              
-              // 初始化问题开始时间
-              setQuestionStartTime(Date.now());
-              
-              // 从本地存储加载上次的答题进度
-              try {
-                const localProgressKey = `quiz_progress_${id}`;
-                const savedProgressStr = localStorage.getItem(localProgressKey);
-                
-                if (savedProgressStr) {
-                  const savedProgress = JSON.parse(savedProgressStr);
-                  console.log('[QuizPage] 找到本地保存的进度:', savedProgress);
-                  
-                  // 确认进度数据有效且不超过24小时
-                  const lastUpdated = new Date(savedProgress.lastUpdated || 0);
-                  const now = new Date();
-                  const hoursSinceLastUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
-                  
-                  if (hoursSinceLastUpdate < 24 && 
-                      savedProgress.answeredQuestions && 
-                      Array.isArray(savedProgress.answeredQuestions)) {
-                    
-                    // 检查是否有 lastQuestionIndex，确保在有效范围内
-                    let startIndex = 0;
-                    if (savedProgress.lastQuestionIndex !== undefined && 
-                        savedProgress.lastQuestionIndex >= 0 && 
-                        savedProgress.lastQuestionIndex < processedQuestions.length) {
-                      startIndex = savedProgress.lastQuestionIndex;
-                    } 
-                    // 否则基于已答题记录计算下一题位置
-                    else if (savedProgress.answeredQuestions.length > 0) {
-                      // 找出最大的已答题索引
-                      const indices = savedProgress.answeredQuestions
-                        .filter((q: any) => q.questionIndex !== undefined)
-                        .map((q: any) => q.questionIndex);
-                      
-                      if (indices.length > 0) {
-                        const maxAnsweredIndex = Math.max(...indices);
-                        // 从下一题开始，但不超过题目总数
-                        startIndex = Math.min(maxAnsweredIndex + 1, processedQuestions.length - 1);
-                      }
-                    }
-                    
-                    console.log(`[QuizPage] 从本地进度恢复: 从第${startIndex + 1}题开始`);
-                    setCurrentQuestionIndex(startIndex);
-                    
-                    // 恢复已回答问题列表
-                    const validAnsweredQuestions = savedProgress.answeredQuestions
-                      .filter((q: any) => q.questionIndex !== undefined && q.questionIndex < processedQuestions.length)
-                      .map((q: any) => ({
-                        index: q.index || 0,
-                        questionIndex: q.questionIndex,
-                        isCorrect: q.isCorrect || false,
-                        selectedOption: q.selectedOption || ''
-                      }));
-                    
-                    console.log('[QuizPage] 恢复已回答问题列表:', validAnsweredQuestions.length, '道题');
-                    setAnsweredQuestions(validAnsweredQuestions);
-                    
-                    // 计算正确答题数
-                    const correctCount = validAnsweredQuestions.filter((q: any) => q.isCorrect).length;
-                    setCorrectAnswers(correctCount);
-                  } else {
-                    console.log('[QuizPage] 本地进度已过期或无效，使用新进度');
-                    // 没有有效的本地进度时，从第一题开始并请求服务器进度
-                    setCurrentQuestionIndex(0);
-                    setAnsweredQuestions([]);
-                    setCorrectAnswers(0);
-                  }
-                } else {
-                  console.log('[QuizPage] 未找到本地保存的进度');
-                  // 没有本地进度时，从第一题开始并请求服务器进度
-                  setCurrentQuestionIndex(0);
-                  setAnsweredQuestions([]);
-                  setCorrectAnswers(0);
-                }
-              } catch (e) {
-                console.error('[QuizPage] 读取本地进度时出错:', e);
-                // 出错时，从第一题开始
-                setCurrentQuestionIndex(0);
-                setAnsweredQuestions([]);
-                setCorrectAnswers(0);
-              }
-              
-              // 加载完成，取消loading状态
-              setQuizStatus(prev => ({...prev, loading: false}));
-              
-              // 用时记录
-              const loadTime = Date.now() - loadStartTime;
-              console.log(`[QuizPage] 题库加载完成，用时: ${loadTime}ms`);
-              
-              // 如果是试用模式，显示提示
-              if (isExplicitTrialMode) {
-                toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}道题`, {
-                  autoClose: 5000,
-                  icon: '🔍'
-                });
-              }
-            } else {
-              console.error("题库中没有题目");
-              setQuizStatus(prev => ({...prev, loading: false, error: '此题库不包含任何题目'}));
-            }
-          } else {
-            console.error('[QuizPage] API返回错误:', response);
-            setQuizStatus(prev => ({...prev, loading: false, error: '无法加载题库数据'}));
-          }
-        } catch (error) {
-          console.error('获取题库详情失败:', error);
-          setQuizStatus(prev => ({...prev, loading: false, error: '获取题库数据失败'}));
-        }
-      } catch (outerError) {
-        console.error('[QuizPage] 页面初始化失败:', outerError);
-        setQuizStatus(prev => ({...prev, loading: false, error: '页面初始化失败，请刷新重试'}));
-      }
-    };
-    
-    // 启动获取题库数据
-    fetchQuestionSet();
-    
-    // 清理函数，移除超时
-    return () => {
-      clearTimeout(loadingTimeout);
-    };
-  }, [id, socket, user]);
-  
-  // 在加载完题目数据后设置questionStartTime
-  useEffect(() => {
-    if (questions.length > 0 && !quizStatus.loading) {
-      setQuestionStartTime(Date.now());
-    }
-  }, [questions, quizStatus.loading]);
-
-  // 检查 localStorage 中是否有已兑换记录
-  useEffect(() => {
-    if (questionSet?.id) {
-      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
-      console.log(`[QuizPage] 检查localStorage存储的已兑换题库IDs:`, redeemedQuestionSetIds);
-      
-      if (redeemedQuestionSetIds) {
-        try {
-          const redeemedIds = JSON.parse(redeemedQuestionSetIds);
-          
-          // 标准化当前题库ID
-          const normalizedCurrentId = String(questionSet.id).trim();
-          console.log(`[QuizPage] 当前题库ID (标准化): "${normalizedCurrentId}"`);
-          
-          // 检查是否已兑换，使用一致的ID格式比较
-          if (Array.isArray(redeemedIds)) {
-            // 输出所有已兑换ID，以便调试
-            console.log(`[QuizPage] 所有已兑换题库IDs:`, redeemedIds);
-            
-            // 将所有ID标准化后再比较
-            const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedCurrentId);
-            console.log(`[QuizPage] 题库 ${normalizedCurrentId} 是否已兑换: ${isRedeemed}`);
-            
-            if (isRedeemed) {
-              console.log(`[QuizPage] 检测到题库 ${normalizedCurrentId} 已兑换记录，启用完整访问权限`);
-              setQuizStatus({ ...quizStatus, hasRedeemed: true });
-              setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-              setQuizStatus({ ...quizStatus, trialEnded: false });
-            }
-          } else {
-            console.log(`[QuizPage] localStorage中的redeemedQuestionSetIds不是数组:`, redeemedIds);
-          }
-        } catch (e) {
-          console.error('解析已兑换题库ID列表失败', e);
-        }
-      } else {
-        console.log(`[QuizPage] localStorage中未找到已兑换题库记录`);
-      }
-    }
-  }, [questionSet?.id]);
-
-  // 处理Socket事件
-  useEffect(() => {
-    if (!socket || !user?.id) return;
-
-    const handleProgressData = (data: ProgressData) => {
-      // 处理进度数据
-      if (data && data.answeredQuestions) {
-        setAnsweredQuestions(data.answeredQuestions);
-        if (data.lastQuestionIndex !== undefined) {
-          setCurrentQuestionIndex(data.lastQuestionIndex);
-        }
-      }
-    };
-
-    // 添加进度删除事件处理
-    const handleProgressDelete = (data: {questionSetId: string}) => {
-      console.log('[QuizPage] 收到progress:delete事件:', data);
-      if (data.questionSetId === id) {
-        // 如果删除的是当前题库的进度，重置本地状态
-        console.log('[QuizPage] 当前题库进度被删除，重置状态');
-        setAnsweredQuestions([]);
-        setCurrentQuestionIndex(0);
-        setCorrectAnswers(0);
-        setSelectedOptions([]);
-        
-        // 重置计时器
-        setQuizTotalTime(0);
-        setQuizStartTime(Date.now());
-        
-        // 如果有本地存储，也清除
-        const localProgressKey = `quiz_progress_${id}`;
-        localStorage.removeItem(localProgressKey);
-        
-        // 通知用户
-        toast.info('题库进度已被重置', {
-          position: 'top-center',
-          autoClose: 3000
-        });
-      }
-    };
-
-    // 使用类型断言注册事件监听
-    (socket as Socket).on('progress:data', handleProgressData);
-    (socket as Socket).on('progress:delete', handleProgressDelete);
-    
-    return () => {
-      // 使用类型断言清理事件监听
-      (socket as Socket).off('progress:data', handleProgressData);
-      (socket as Socket).off('progress:delete', handleProgressDelete);
-    };
-  }, [socket, user?.id, id]);
-  
-  // 处理选择选项
-  const handleOptionSelect = (optionId: string) => {
-    // 如果试用已结束且没有购买，不允许继续答题
-    if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
-      toast.warning('试用已结束，请购买完整版或使用兑换码继续答题');
-      setQuizStatus({ ...quizStatus, showPaymentModal: true });
-      return;
-    }
-    
-    const currentQuestion = questions[currentQuestionIndex];
-    
-    if (currentQuestion.questionType === 'single') {
-      setSelectedOptions([optionId]);
-    } else {
-      // 多选题，切换选中状态
-      if (selectedOptions.includes(optionId)) {
-        setSelectedOptions(selectedOptions.filter(id => id !== optionId));
-      } else {
-        setSelectedOptions([...selectedOptions, optionId]);
-      }
-    }
-  };
-  
-  // 保存已兑换的题库ID到localStorage
-  const saveRedeemedQuestionSetId = (questionSetId: string) => {
-    console.log(`[QuizPage] 保存已兑换题库ID: ${questionSetId}`);
-    
-    if (!questionSetId) {
-      console.error('[QuizPage] 无法保存空的题库ID');
-      return;
-    }
-    
-    try {
-      const normalizedId = String(questionSetId).trim();
-      console.log(`[QuizPage] 规范化题库ID: ${normalizedId}`);
-      
-      // 获取现有的已兑换题库IDs
-      const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
-      console.log(`[QuizPage] 现有的已兑换题库IDs: ${redeemedQuestionSetIds}`);
-      
-      let newList = '';
-      
-      if (redeemedQuestionSetIds) {
-        try {
-          const parsed = JSON.parse(redeemedQuestionSetIds);
-          console.log(`[QuizPage] 解析的已兑换题库IDs:`, parsed);
-          
-          // 检查是否已存在
-          if (Array.isArray(parsed) && !parsed.includes(normalizedId)) {
-            parsed.push(normalizedId);
-            newList = JSON.stringify(parsed);
-          } else if (typeof parsed === 'string' && parsed !== normalizedId) {
-            newList = JSON.stringify([parsed, normalizedId]);
-          } else {
-            newList = JSON.stringify([normalizedId]);
-          }
-        } catch (error) {
-          console.error('[QuizPage] 解析已兑换题库IDs失败:', error);
-          newList = JSON.stringify([normalizedId]);
-        }
-      } else {
-        newList = JSON.stringify([normalizedId]);
-      }
-      
-      console.log(`[QuizPage] 保存新的已兑换题库IDs列表:`, newList);
-      localStorage.setItem('redeemedQuestionSetIds', newList);
-    } catch (error) {
-      console.error('[QuizPage] 保存已兑换题库ID失败:', error);
-    }
-  };
-  
-  // 添加 Socket 监听
-  useEffect(() => {
-    if (!socket || !questionSet) return;
-
-    // 监听题库访问状态更新
-    const handleQuestionSetAccessUpdate = (data: { 
-      questionSetId: string;
-      hasAccess: boolean;
-    }) => {
-      console.log(`[Socket事件] 收到访问权限更新: questionSetId=${data.questionSetId}, hasAccess=${data.hasAccess}`);
-      if (data.questionSetId === questionSet.id) {
-        console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}`);
-        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: data.hasAccess });
-        
-        // 权限开启后，同时确保试用结束状态重置
-        if (data.hasAccess) {
-          setQuizStatus({ ...quizStatus, trialEnded: false });
-          // 更新本地缓存
-          saveAccessToLocalStorage(questionSet.id, true);
-        }
-      }
-    };
-
-    // 监听购买成功事件
-    const handlePurchaseSuccess = (data: {
-      questionSetId: string;
-      purchaseId: string;
-      expiryDate: string;
-    }) => {
-      // Log using consistent naming and formatting
-      console.log(`[QuizPage] Purchase success event received: questionSetId=${data.questionSetId}, currentId=${questionSet?.id}`);
-      
-      // Normalize IDs for reliable comparison
-      const receivedId = String(data.questionSetId || '').trim();
-      const currentId = String(questionSet?.id || '').trim();
-      const isMatch = receivedId === currentId;
-      
-      console.log(`[QuizPage] ID comparison: received=${receivedId}, current=${currentId}, match=${isMatch}`);
-      
-      // Process matching events or events with no specific ID
-      if (isMatch || !currentId) {
-        console.log(`[QuizPage] Updating access rights for this question set`);
-        
-        // Update all relevant states in a single operation to prevent UI flickers
-        setQuizStatus(prev => ({
-          ...prev,
-          hasAccessToFullQuiz: true,
-          trialEnded: false,
-          showPaymentModal: false,
-          isProcessingPayment: false,
-          showPurchasePage: false // 确保购买页面被关闭
-        }));
-        
-        // Save access to local storage
-        saveAccessToLocalStorage(receivedId, true);
-        
-        // 增加重试机制，确保服务器端成功更新
-        const ensureAccessSaved = async () => {
-          try {
-            // 直接调用API确保服务器端更新权限
-            const accessUpdateResponse = await axios.post(
-              `${API_BASE_URL}/purchases/update-access`,
-              { 
-                questionSetId: receivedId,
-                purchaseId: data.purchaseId
-              },
-              {
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-              }
-            );
-            
-            console.log('[QuizPage] 访问权限更新响应:', accessUpdateResponse.data);
-          } catch (updateError) {
-            console.error('[QuizPage] 访问权限更新请求失败:', updateError);
-            // 失败后不再重试，但确保本地仍被标记为已购买
-          }
-        };
-        
-        // 执行确保访问权限更新的函数
-        ensureAccessSaved();
-        
-        // Force check access after a short delay to ensure server sync
-        setTimeout(() => {
-          console.log(`[QuizPage] Performing delayed access check after purchase`);
-          checkAccess();
-        }, 300);
-        
-        // Display success message
-        toast.success('购买成功！您现在可以访问完整题库', {
-          position: 'top-center',
-          autoClose: 3000
-        });
-      }
-    };
-
-    console.log(`[Socket] 注册题库访问和购买事件监听`);
-    socket.on('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
-    socket.on('purchase:success', handlePurchaseSuccess);
-    
-    // 添加document事件监听，确保从不同窗口触发的事件也能被捕获
-    const handleDocumentPurchaseSuccess = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail) {
-        handlePurchaseSuccess(customEvent.detail);
-      }
-    };
-    
-    document.addEventListener('purchase:success', handleDocumentPurchaseSuccess);
-
-    return () => {
-      console.log(`[Socket] 移除事件监听`);
-      socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
-      socket.off('purchase:success', handlePurchaseSuccess);
-      document.removeEventListener('purchase:success', handleDocumentPurchaseSuccess);
-    };
-  }, [socket, questionSet, quizStatus]);
-  
-  // 监听兑换码成功事件
-  useEffect(() => {
-    const handleRedeemSuccess = (e: Event) => {
-      console.log(`[QuizPage] Redeem success event received`);
-      const customEvent = e as CustomEvent;
-      
-      // Extract and normalize data from event
-      const eventDetail = customEvent.detail || {};
-      const receivedQuestionSetId = String(eventDetail.questionSetId || '').trim();
-      const legacyQuizId = String(eventDetail.quizId || '').trim(); // For backwards compatibility
-      const effectiveId = receivedQuestionSetId || legacyQuizId; // Prefer new ID format
-      const currentId = String(questionSet?.id || '').trim();
-      const isCurrentQuestionSet = effectiveId === currentId;
-      const forceRefresh = !!eventDetail.forceRefresh;
-      
-      console.log(`[QuizPage] Redeem event details:`, {
-        receivedId: effectiveId,
-        currentId,
-        isMatch: isCurrentQuestionSet,
-        forceRefresh
-      });
-      
-      // Update if it matches current question set or has forceRefresh flag
-      if (isCurrentQuestionSet || forceRefresh || !currentId) {
-        console.log(`[QuizPage] Updating access rights after redemption`);
-        
-        // Update all relevant states in a single operation to prevent UI flickers
-        setQuizStatus(prev => ({
-          ...prev,
-          hasAccessToFullQuiz: true,
-          trialEnded: false,
-          hasRedeemed: true,
-          showRedeemCodeModal: false,
-          isProcessingRedeem: false
-        }));
-        
-        // Save access to localStorage
-        if (effectiveId) {
-          saveAccessToLocalStorage(effectiveId, true);
-          saveRedeemedQuestionSetId(effectiveId);
-        }
-        
-        // Also save for current question set if different
-        if (currentId && currentId !== effectiveId) {
-          saveAccessToLocalStorage(currentId, true);
-          saveRedeemedQuestionSetId(currentId);
-        }
-        
-        // Force access check to ensure data consistency
-        setTimeout(() => {
-          console.log(`[QuizPage] Performing delayed access check after redemption`);
-          checkAccess();
-        }, 300);
-        
-        // Show success notification if not already shown by modal
-        if (!isCurrentQuestionSet) {
-          toast.success('兑换成功！您现在可以访问完整题库', {
-            position: 'top-center',
-            autoClose: 3000
-          });
-        }
-      }
-    };
-    
-    // Add event listener
-    window.addEventListener('redeem:success', handleRedeemSuccess);
-    
-    return () => {
-      window.removeEventListener('redeem:success', handleRedeemSuccess);
-    };
-  }, [questionSet, saveAccessToLocalStorage, saveRedeemedQuestionSetId, checkAccess]);
-  
-  // 修改syncProgressToServer函数为手动保存函数
+  // 添加手动保存进度的函数
   const saveProgressManually = useCallback(async () => {
     if (!user?.id || !id || !socket) {
       toast.error('保存失败，请确认您已登录');
@@ -2030,26 +1216,33 @@ function QuizPage(): JSX.Element {
         timestamp: new Date().toISOString()
       };
       
-      // 通过socket将打包的进度数据同步到服务器
-      socket.emit('progress:update', progressBundle);
-      
-      // 等待服务器响应
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('保存超时'));
-        }, 5000);
+      // 通过socket将打包的进度数据同步到服务器 - 确保socket不为null
+      if (socket) {
+        socket.emit('progress:update', progressBundle);
         
-        const handleSaveResponse = (response: {success: boolean}) => {
-          clearTimeout(timeout);
-          if (response.success) {
-            resolve();
+        // 等待服务器响应
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('保存超时'));
+          }, 5000);
+          
+          const handleSaveResponse = (response: {success: boolean}) => {
+            clearTimeout(timeout);
+            if (response.success) {
+              resolve();
+            } else {
+              reject(new Error('服务器保存失败'));
+            }
+          };
+          
+          // 注册事件监听前确保socket不为null
+          if (socket) {
+            socket.once('progress:update:result', handleSaveResponse);
           } else {
-            reject(new Error('服务器保存失败'));
+            reject(new Error('Socket连接不可用'));
           }
-        };
-        
-        socket.once('progress:update:result', handleSaveResponse);
-      });
+        });
+      }
       
       // 更新本地存储
       try {
@@ -2716,12 +1909,53 @@ function QuizPage(): JSX.Element {
     );
   };
 
-  // 渲染内容更新
+  const createEmergencyQuizData = () => {
+    console.log('[QuizPage] 创建应急题库数据');
+    
+    // Create emergency questions
+    const emergencyQuestions: Question[] = Array(10).fill(null).map((_, i) => ({
+      id: `emergency-q-${i}`,
+      question: `这是应急模式的问题 #${i+1}`,
+      questionType: 'single',
+      options: [
+        { id: `emergency-q-${i}-opt0`, text: '选项A', isCorrect: i % 4 === 0, label: 'A' },
+        { id: `emergency-q-${i}-opt1`, text: '选项B', isCorrect: i % 4 === 1, label: 'B' },
+        { id: `emergency-q-${i}-opt2`, text: '选项C', isCorrect: i % 4 === 2, label: 'C' },
+        { id: `emergency-q-${i}-opt3`, text: '选项D', isCorrect: i % 4 === 3, label: 'D' }
+      ],
+      correctAnswer: `emergency-q-${i}-opt${i % 4}`,
+      text: '',
+      explanation: `这是应急模式的解释 #${i+1}`,
+      hint: '选择一个最适合的选项',
+      difficulty: 'medium'
+    }));
+    
+    // Create emergency question set
+    const emergencyQuestionSet: IQuestionSet = {
+      id: 'emergency-mode',
+      title: '应急模式题库',
+      description: '由于网络问题，这是自动创建的应急题库',
+      isPaid: false,
+      price: 0,
+      trialQuestions: 10,
+      questionCount: emergencyQuestions.length,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    return {
+      questionSet: emergencyQuestionSet,
+      questions: emergencyQuestions
+    };
+  };
+
+  // 修改原有的renderContent函数来添加重试功能
   const renderContent = () => {
     if (quizStatus.loading) {
       return (
-        <div className="flex justify-center items-center h-64">
-          <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin"></div>
+        <div className="flex flex-col justify-center items-center h-64">
+          <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600">正在加载题库...</p>
         </div>
       );
     }
@@ -2731,27 +1965,90 @@ function QuizPage(): JSX.Element {
         <div className="text-center py-12">
           <div className="text-red-500 text-xl mb-4">加载失败</div>
           <p className="text-gray-600 mb-6">{quizStatus.error}</p>
-          <button 
-            onClick={() => {window.location.reload()}}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            重试
-          </button>
+          <div className="flex space-x-4 justify-center">
+            <button 
+              onClick={() => {window.location.reload()}}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              刷新页面
+            </button>
+            <button 
+              onClick={() => {
+                // 使用应急模式加载题目
+                const emergencyData = createEmergencyQuizData();
+                setQuestionSet(emergencyData.questionSet);
+                setQuestions(emergencyData.questions);
+                setOriginalQuestions(emergencyData.questions);
+                setCurrentQuestionIndex(0);
+                setAnsweredQuestions([]);
+                setSelectedOptions([]);
+                setQuestionStartTime(Date.now());
+                setQuizStatus(prev => ({
+                  ...prev,
+                  loading: false,
+                  error: null,
+                  isInTrialMode: true
+                }));
+                toast.info('已切换到应急模式，您可以继续体验', {
+                  position: 'top-center',
+                  autoClose: 5000
+                });
+              }}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              使用应急模式
+            </button>
+            <button 
+              onClick={() => {navigate('/')}}
+              className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+            >
+              返回首页
+            </button>
+          </div>
         </div>
       );
     }
 
+    // 原有的代码保持不变
     if (questions.length === 0) {
       return (
         <div className="text-center py-12">
           <div className="text-xl mb-4">没有找到问题</div>
           <p className="text-gray-600 mb-6">该题库暂无内容或您可能没有访问权限</p>
-          <button 
-            onClick={() => {navigate('/')}}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            返回首页
-          </button>
+          <div className="flex space-x-4 justify-center">
+            <button 
+              onClick={() => {navigate('/')}}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              返回首页
+            </button>
+            <button 
+              onClick={() => {
+                // 使用应急模式加载题目
+                const emergencyData = createEmergencyQuizData();
+                setQuestionSet(emergencyData.questionSet);
+                setQuestions(emergencyData.questions);
+                setOriginalQuestions(emergencyData.questions);
+                setCurrentQuestionIndex(0);
+                setAnsweredQuestions([]);
+                setSelectedOptions([]);
+                setQuestionStartTime(Date.now());
+                setQuizStatus(prev => ({
+                  ...prev,
+                  loading: false,
+                  error: null,
+                  isInTrialMode: true
+                }));
+                toast.info('已切换到应急模式，您可以继续体验', {
+                  position: 'top-center',
+                  autoClose: 5000
+                });
+              }}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              使用应急模式
+            </button>
+          </div>
         </div>
       );
     }
