@@ -770,8 +770,39 @@ export const purchaseService = {
   // 获取用户已兑换的题库记录
   async getUserRedeemCodes(): Promise<ApiResponse<RedeemCode[]>> {
     try {
+      console.log('[API] 开始获取用户兑换码列表');
       const response = await api.get('/redeem-codes/user');
+      
+      if (!response.data) {
+        console.error('[API] 兑换码 API 响应缺少数据字段');
+        return {
+          success: false,
+          message: '服务器返回数据格式错误',
+          error: '响应中缺少数据字段'
+        };
+      }
+      
+      if (!response.data.success) {
+        console.error('[API] 兑换码 API 返回失败状态:', response.data.message);
+        return {
+          success: false,
+          message: response.data.message || '获取兑换码列表失败',
+          error: response.data.error
+        };
+      }
+      
+      if (!Array.isArray(response.data.data)) {
+        console.error('[API] 兑换码 API 返回的数据不是数组:', response.data.data);
+        return {
+          success: false,
+          message: '服务器返回数据格式错误',
+          error: '预期数组但获得了不同类型'
+        };
+      }
+      
       const redeemCodes = response.data.data;
+      console.log('[API] 成功获取兑换码数据, 数量:', redeemCodes.length);
+      
       // 确保返回的数据使用正确的属性名
       redeemCodes.forEach((code: any) => {
         if (code.questionSet) {
@@ -779,15 +810,17 @@ export const purchaseService = {
           delete code.questionSet;
         }
       });
+      
       return {
         success: true,
         data: redeemCodes
       };
     } catch (error: any) {
+      console.error('[API] 获取兑换码列表出错:', error);
       return {
         success: false,
-        message: error.message,
-        error: error.error
+        message: error.message || '获取兑换码列表时发生网络错误',
+        error: error.error || error.toString()
       };
     }
   }

@@ -1337,35 +1337,53 @@ const ProfilePage: React.FC = () => {
     
     try {
       setRedeemCodesLoading(true);
+      console.log('[ProfilePage] 开始获取兑换码数据');
+      
       const response = await purchaseService.getUserRedeemCodes();
       
       if (response.success && response.data) {
-        const validRedeemCodes = response.data
-          .filter((r: any) => r && r.questionSetId)
-          .map((r: any) => {
-            const redeemRecord: RedeemRecord = {
-              id: r.id || '',
-              code: r.code,
-              questionSetId: r.questionSetId,
-              usedAt: r.usedAt || r.createdAt,
-              expiryDate: r.expiryDate,
-              redeemQuestionSet: r.redeemQuestionSet || 
-                (r.questionSet ? { 
-                  id: r.questionSet.id, 
-                  title: r.questionSet.title,
-                  description: r.questionSet.description
-                } : undefined)
-            };
-            return redeemRecord;
-          });
+        console.log('[ProfilePage] 兑换码数据获取成功, 数量:', response.data.length);
         
-        setRedeemCodes(validRedeemCodes);
+        try {
+          const validRedeemCodes = response.data
+            .filter((r: any) => r && r.questionSetId)
+            .map((r: any) => {
+              const redeemRecord: RedeemRecord = {
+                id: r.id || '',
+                code: r.code || '',
+                questionSetId: r.questionSetId,
+                usedAt: r.usedAt || r.createdAt || new Date().toISOString(),
+                expiryDate: r.expiryDate || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+                redeemQuestionSet: r.redeemQuestionSet || 
+                  (r.questionSet ? { 
+                    id: r.questionSet.id, 
+                    title: r.questionSet.title || '未知题库',
+                    description: r.questionSet.description || ''
+                  } : {
+                    id: r.questionSetId,
+                    title: '未知题库',
+                    description: ''
+                  })
+              };
+              return redeemRecord;
+            });
+          
+          console.log('[ProfilePage] 处理后的有效兑换码数量:', validRedeemCodes.length);
+          setRedeemCodes(validRedeemCodes);
+        } catch (dataError) {
+          console.error('[ProfilePage] 处理兑换码数据时出错:', dataError);
+          toast.error('处理兑换码数据失败');
+        }
       } else {
+        console.error('[ProfilePage] 获取兑换码数据失败:', response.message);
         throw new Error(response.message || '获取兑换记录失败');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[ProfilePage] 获取兑换码异常:', error);
       toast.error('获取兑换记录失败');
-      console.error('[ProfilePage] Error fetching redeem codes:', error);
+      
+      // 设置一个空数组以避免渲染错误
+      setRedeemCodes([]);
     } finally {
       setRedeemCodesLoading(false);
     }

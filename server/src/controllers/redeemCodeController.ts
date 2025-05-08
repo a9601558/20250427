@@ -399,6 +399,7 @@ export const deleteRedeemCode = async (req: Request, res: Response) => {
 export const getUserRedeemCodes = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
+    console.log(`[RedeemCodeController] Getting redeemed codes for user: ${userId}`);
     
     // 查找用户已兑换的所有兑换码
     const redeemCodes = await RedeemCode.findAll({
@@ -410,43 +411,59 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
         {
           model: QuestionSet,
           as: 'redeemQuestionSet',
-          attributes: ['id', 'title', 'description', 'icon', 'category']
+          attributes: ['id', 'title', 'description', 'icon', 'category'],
+          required: false // 使用left join以确保即使没有关联的题库也能返回兑换码
         }
       ],
       order: [['usedAt', 'DESC']]
     });
 
-    // 获取相关的购买记录以检查有效期
-    const purchases = await Purchase.findAll({
-      where: { 
-        userId,
-        status: 'active'
-      }
-    });
+    console.log(`[RedeemCodeController] Found ${redeemCodes.length} redeemed codes for user`);
 
-    // 为兑换码添加失效日期信息
-    const codeWithExpiry = redeemCodes.map(code => {
-      const purchase = purchases.find(p => p.questionSetId === code.questionSetId);
-      // 确保 usedAt 是字符串类型
-      const usedAtString = code.usedAt ? code.usedAt.toString() : new Date().toISOString();
-      const usedDate = new Date(usedAtString);
-      const defaultExpiryDate = new Date(usedDate.getTime() + 180 * 24 * 60 * 60 * 1000); // 默认6个月有效期
-      
-      return {
-        ...code.toJSON(),
-        expiryDate: purchase?.expiryDate ?? defaultExpiryDate
-      };
-    });
+    try {
+      // 获取相关的购买记录以检查有效期
+      const purchases = await Purchase.findAll({
+        where: { 
+          userId,
+          status: 'active'
+        }
+      });
 
-    res.json({
-      success: true,
-      data: codeWithExpiry
-    });
+      console.log(`[RedeemCodeController] Found ${purchases.length} active purchases for user`);
+
+      // 为兑换码添加失效日期信息
+      const codeWithExpiry = redeemCodes.map(code => {
+        const codeJSON = code.toJSON();
+        const purchase = purchases.find(p => p.questionSetId === code.questionSetId);
+        
+        // 确保 usedAt 是字符串类型
+        const usedAtString = code.usedAt ? code.usedAt.toString() : new Date().toISOString();
+        const usedDate = new Date(usedAtString);
+        const defaultExpiryDate = new Date(usedDate.getTime() + 180 * 24 * 60 * 60 * 1000); // 默认6个月有效期
+        
+        return {
+          ...codeJSON,
+          expiryDate: purchase?.expiryDate ?? defaultExpiryDate
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: codeWithExpiry
+      });
+    } catch (purchaseError) {
+      console.error('[RedeemCodeController] Error getting purchase data:', purchaseError);
+      // 即使获取购买记录失败，也返回兑换码数据
+      return res.json({
+        success: true,
+        data: redeemCodes.map(code => code.toJSON())
+      });
+    }
   } catch (error: any) {
-    console.error('Get user redeemed codes error:', error);
+    console.error('[RedeemCodeController] Get user redeemed codes error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: '服务器错误，获取兑换码列表失败'
     });
   }
 };
