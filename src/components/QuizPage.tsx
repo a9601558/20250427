@@ -9,8 +9,7 @@ import { purchaseService, redeemCodeService, userService } from '../services/api
 import { useUserProgress } from '../contexts/UserProgressContext';
 import RedeemCodeForm from './RedeemCodeForm';
 import QuestionCard from './QuestionCard';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 import { Socket } from 'socket.io-client';
 
 // 定义答题记录类型
@@ -200,21 +199,23 @@ const PurchasePage: React.FC<{
       hideProgressBar: false
     });
     
-    // 直接执行回调，避免延迟
-    if (typeof onPurchase === 'function') {
-      onPurchase();
-    } else {
-      console.error('[PurchasePage] onPurchase不是一个函数');
-      toast.error('支付功能暂时不可用，请稍后再试');
-    }
-    
-    // 300ms后重置按钮状态
+    // 短暂延迟后执行回调
     setTimeout(() => {
-      setBtnStates(prev => ({
-        ...prev,
-        purchase: { ...prev.purchase, clicked: false }
-      }));
-    }, 300);
+      if (typeof onPurchase === 'function') {
+        onPurchase();
+      } else {
+        console.error('[PurchasePage] onPurchase不是一个函数');
+        toast.error('支付功能暂时不可用，请稍后再试');
+      }
+      
+      // 300ms后重置按钮状态
+      setTimeout(() => {
+        setBtnStates(prev => ({
+          ...prev,
+          purchase: { ...prev.purchase, clicked: false }
+        }));
+      }, 300);
+    }, 150);
   };
   
   // 处理兑换按钮点击
@@ -234,21 +235,23 @@ const PurchasePage: React.FC<{
       hideProgressBar: false
     });
     
-    // 直接执行回调，避免延迟
-    if (typeof onRedeem === 'function') {
-      onRedeem();
-    } else {
-      console.error('[PurchasePage] onRedeem不是一个函数');
-      toast.error('兑换功能暂时不可用，请稍后再试');
-    }
-    
-    // 300ms后重置按钮状态
+    // 短暂延迟后执行回调
     setTimeout(() => {
-      setBtnStates(prev => ({
-        ...prev,
-        redeem: { ...prev.redeem, clicked: false }
-      }));
-    }, 300);
+      if (typeof onRedeem === 'function') {
+        onRedeem();
+      } else {
+        console.error('[PurchasePage] onRedeem不是一个函数');
+        toast.error('兑换功能暂时不可用，请稍后再试');
+      }
+      
+      // 300ms后重置按钮状态
+      setTimeout(() => {
+        setBtnStates(prev => ({
+          ...prev,
+          redeem: { ...prev.redeem, clicked: false }
+        }));
+      }, 300);
+    }, 150);
   };
   
   // 处理返回按钮点击
@@ -417,8 +420,8 @@ const PurchasePage: React.FC<{
         {/* 底部信息提示 */}
         <div className="text-center">
           <p className="text-xs text-gray-500 mb-2">
-            付费后立即获得完整题库的访问权限，内容持续更新
-          </p>
+          付费后立即获得完整题库的访问权限，内容持续更新
+        </p>
           <p className="text-xs text-gray-400">
             支持Stripe安全支付，确保您的付款安全
           </p>
@@ -473,8 +476,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       if (response.success && response.data) {
         console.log('[PaymentModal] 购买成功:', response.data);
         toast.success('购买成功！您现在可以访问完整题库');
-        
-        // 直接调用成功回调，不使用setTimeout
         onSuccess(response.data);
       } else {
         console.error('[PaymentModal] 购买失败:', response);
@@ -595,8 +596,6 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
       if (response.success && response.data) {
         console.log('[RedeemCodeModal] 兑换成功:', response.data);
         toast.success('兑换成功！您现在可以访问完整题库');
-        
-        // 直接调用成功回调，不使用setTimeout
         onRedeemSuccess();
       } else {
         console.error('[RedeemCodeModal] 兑换失败:', response);
@@ -2370,7 +2369,7 @@ function QuizPage(): JSX.Element {
     
     // 计算还剩多少题可以试用
     const answeredCount = answeredQuestions.length;
-    const totalTrialQuestions = questionSet?.trialQuestions || 0;
+    const totalTrialQuestions = questionSet.trialQuestions || 0;
     const remainingTrialQuestions = Math.max(0, totalTrialQuestions - answeredCount);
     
     // 判断是否已达到试用限制
@@ -2400,28 +2399,26 @@ function QuizPage(): JSX.Element {
               onClick={() => {
                 console.log('[TrialPurchaseBar] 点击购买按钮');
                 toast.info('正在准备支付...', { autoClose: 1500 });
-                // 直接更新状态，不使用函数式更新
-                setQuizStatus({
-                  ...quizStatus,
+                setQuizStatus(prev => ({
+                  ...prev,
                   showPaymentModal: true
-                });
+                }));
               }}
               className={`px-4 py-2 text-sm rounded-md hover:bg-blue-700 focus:outline-none shadow-sm
                 ${isTrialLimitReached 
                   ? "bg-blue-600 text-white animate-pulse" 
                   : "bg-blue-600 text-white"}`}
             >
-              购买完整版 ¥{questionSet?.price || 0}
+              购买完整版 ¥{questionSet.price || 0}
             </button>
             <button
               onClick={() => {
                 console.log('[TrialPurchaseBar] 点击兑换按钮');
                 toast.info('正在准备兑换...', { autoClose: 1500 });
-                // 直接更新状态，不使用函数式更新
-                setQuizStatus({
-                  ...quizStatus,
+                setQuizStatus(prev => ({
+                  ...prev,
                   showRedeemCodeModal: true
-                });
+                }));
               }}
               className="px-4 py-2 bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center hover:bg-green-100"
             >
@@ -2900,19 +2897,6 @@ function QuizPage(): JSX.Element {
   // 修改渲染函数，确保PurchasePage优先显示
   return (
     <div className="min-h-screen bg-gray-50 py-8 pb-20">
-      {/* 添加ToastContainer组件 */}
-      <ToastContainer 
-        position="top-center"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
-      
       {/* 添加StyleInjector组件 */}
       <StyleInjector />
       
@@ -2929,12 +2913,21 @@ function QuizPage(): JSX.Element {
             // 添加点击反馈
             toast.info('正在准备支付...', { autoClose: 1500 });
             
-            // 不再使用setTimeout，直接更新状态
-            setQuizStatus({
-              ...quizStatus,
-              showPurchasePage: false,
-              showPaymentModal: true
-            });
+            // 立即更新处理状态，给用户视觉反馈
+            setQuizStatus(prev => ({
+              ...prev,
+              isProcessingPayment: true
+            }));
+            
+            // 先关闭购买页面，然后打开支付模态窗口
+            setTimeout(() => {
+              setQuizStatus(prev => ({
+                ...prev,
+                showPurchasePage: false,
+                showPaymentModal: true,
+                isProcessingPayment: false
+              }));
+            }, 300);
           }}
           onRedeem={() => {
             // 打印日志
@@ -2943,12 +2936,21 @@ function QuizPage(): JSX.Element {
             // 添加点击反馈
             toast.info('正在准备兑换...', { autoClose: 1500 });
             
-            // 不再使用setTimeout，直接更新状态
-            setQuizStatus({
-              ...quizStatus,
-              showPurchasePage: false,
-              showRedeemCodeModal: true
-            });
+            // 立即更新处理状态，给用户视觉反馈
+            setQuizStatus(prev => ({
+              ...prev,
+              isProcessingRedeem: true
+            }));
+            
+            // 先关闭购买页面，然后打开兑换模态窗口
+            setTimeout(() => {
+              setQuizStatus(prev => ({
+                ...prev,
+                showPurchasePage: false,
+                showRedeemCodeModal: true,
+                isProcessingRedeem: false
+              }));
+            }, 300);
           }}
           onBack={() => {
             // 打印日志
@@ -2958,11 +2960,13 @@ function QuizPage(): JSX.Element {
             toast.info('正在返回...', { autoClose: 1000 });
             
             // 关闭购买页面，导航到首页
-            setQuizStatus({
-              ...quizStatus,
+            setTimeout(() => {
+              setQuizStatus(prev => ({
+                ...prev,
               showPurchasePage: false
-            });
+              }));
             navigate('/');
+            }, 200);
           }}
         />
       )}
@@ -2985,7 +2989,7 @@ function QuizPage(): JSX.Element {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-yellow-700">
-                      <span className="font-medium">试用模式</span> - 您可以免费回答 {questionSet?.trialQuestions} 道题目（已回答 {answeredQuestions.length} 题）
+                      <span className="font-medium">试用模式</span> - 您可以免费回答 {questionSet.trialQuestions} 道题目（已回答 {answeredQuestions.length} 题）
                     </p>
                   </div>
                   <div className="ml-auto flex space-x-2">
@@ -2993,11 +2997,10 @@ function QuizPage(): JSX.Element {
                       onClick={() => {
                         console.log('[QuizPage] 顶部指示器点击购买按钮');
                         toast.info('正在准备支付...', { autoClose: 1500 });
-                        // 直接更新状态，不使用函数式更新
-                        setQuizStatus({
-                          ...quizStatus,
+                        setQuizStatus(prev => ({
+                          ...prev,
                           showPaymentModal: true
-                        });
+                        }));
                       }}
                       className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
                     >
@@ -3010,11 +3013,10 @@ function QuizPage(): JSX.Element {
                       onClick={() => {
                         console.log('[QuizPage] 顶部指示器点击兑换按钮');
                         toast.info('正在准备兑换...', { autoClose: 1500 });
-                        // 直接更新状态，不使用函数式更新
-                        setQuizStatus({
-                          ...quizStatus,
+                        setQuizStatus(prev => ({
+                          ...prev,
                           showRedeemCodeModal: true
-                        });
+                        }));
                       }}
                       className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
                     >
@@ -3035,25 +3037,24 @@ function QuizPage(): JSX.Element {
               <PaymentModal
                 isOpen={quizStatus.showPaymentModal}
                 onClose={() => {
-                  // 直接更新状态，不使用函数式更新
-                  setQuizStatus({
-                    ...quizStatus,
+                  setQuizStatus(prevStatus => ({
+                    ...prevStatus,
                     showPaymentModal: false,
                     isProcessingPayment: false
-                  });
+                  }));
                 }}
                 questionSet={questionSet}
                 onSuccess={(data: any) => {
                   console.log('[QuizPage] PaymentModal 支付成功:', data);
                   
                   // 更新状态
-                  setQuizStatus({
-                    ...quizStatus,
+                  setQuizStatus(prevStatus => ({
+                    ...prevStatus,
                     showPaymentModal: false,
                     isProcessingPayment: false,
                     hasAccessToFullQuiz: true,
                     trialEnded: false
-                  });
+                  }));
                   
                   // 保存权限到本地存储
                   if (questionSetId) {
@@ -3085,11 +3086,11 @@ function QuizPage(): JSX.Element {
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold">题库兑换码</h2>
                     <button
-                      onClick={() => setQuizStatus({
-                        ...quizStatus,
+                      onClick={() => setQuizStatus(prevStatus => ({
+                        ...prevStatus,
                         showRedeemCodeModal: false,
                         isProcessingRedeem: false
-                      })}
+                      }))}
                       className="text-gray-500 hover:text-gray-700"
                     >
                       <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3103,14 +3104,14 @@ function QuizPage(): JSX.Element {
                       console.log(`[QuizPage] 兑换码成功回调，题库ID: ${redeemedQuestionSetId}`);
                       
                       // 更新状态
-                      setQuizStatus({
-                        ...quizStatus,
+                      setQuizStatus(prevStatus => ({
+                        ...prevStatus,
                         showRedeemCodeModal: false,
                         isProcessingRedeem: false,
                         hasAccessToFullQuiz: true,
                         hasRedeemed: true,
                         trialEnded: false
-                      });
+                      }));
                       
                       // 保存兑换状态
                       const redeemedSets = JSON.parse(localStorage.getItem('redeemedQuestionSets') || '[]');
