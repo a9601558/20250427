@@ -76,10 +76,10 @@ const initializeSocket = (): Socket => {
 
     // 监听断开连接事件
     socket.on('disconnect', (reason) => {
-      console.log(`Socket.IO断开连接: ${reason}`);
+      // console.log(`Socket.IO断开连接: ${reason}`);
       
-      // 停止心跳检测
-      stopHeartbeat();
+      // // 停止心跳检测
+      // stopHeartbeat();
       
       // 分析断开原因
       if (reason === 'transport close') {

@@ -50,6 +50,7 @@ router.post('/', purchaseController_1.createPurchase);
 router.get('/', purchaseController_1.getUserPurchases);
 router.get('/check/:questionSetId', purchaseController_1.checkAccess);
 router.get('/active', purchaseController_1.getActivePurchases);
+router.post('/force-create', purchaseController_1.forceCreatePurchase);
 /**
  * 检查用户对题库的访问权限
  * GET /api/purchases/check/:questionSetId

@@ -3,7 +3,8 @@ import {
   createPurchase,
   getUserPurchases,
   checkAccess,
-  getActivePurchases
+  getActivePurchases,
+  forceCreatePurchase
 } from '../controllers/purchaseController';
 import { protect } from '../middleware/authMiddleware';
 import * as purchaseService from '../services/purchaseService';
@@ -20,6 +21,7 @@ router.post('/', createPurchase);
 router.get('/', getUserPurchases);
 router.get('/check/:questionSetId', checkAccess);
 router.get('/active', getActivePurchases);
+router.post('/force-create', forceCreatePurchase);
 
 /**
  * 检查用户对题库的访问权限

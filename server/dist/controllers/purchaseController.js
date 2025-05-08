@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = exports.getActivePurchases = exports.checkAccess = exports.getUserPurchases = exports.createPurchase = void 0;
+exports.forceCreatePurchase = exports.extendPurchase = exports.cancelPurchase = exports.getPurchaseById = exports.getActivePurchases = exports.checkAccess = exports.getUserPurchases = exports.createPurchase = void 0;
 const sequelize_1 = require("sequelize");
 const models_1 = require("../models");
 const uuid_1 = require("uuid");
@@ -404,3 +404,75 @@ const extendPurchase = async (req, res) => {
     }
 };
 exports.extendPurchase = extendPurchase;
+// @desc    Force create purchase (for debugging and bypass validation)
+// @route   POST /api/v1/purchases/force-create
+// @access  Private
+const forceCreatePurchase = async (req, res) => {
+    try {
+        const { questionSetId, paymentMethod, price, forceBuy } = req.body;
+        // 验证必填字段
+        if (!questionSetId) {
+            return sendError(res, 400, '缺少必要参数: questionSetId');
+        }
+        console.log(`[forceCreatePurchase] 尝试强制创建购买记录: ${questionSetId}, 用户: ${req.user.id}`);
+        // 检查题库是否存在
+        const questionSet = await models_1.QuestionSet.findByPk(questionSetId);
+        if (!questionSet) {
+            return sendError(res, 404, '题库不存在');
+        }
+        // 检查用户是否已经购买过该题库
+        const existingPurchase = await models_1.Purchase.findOne({
+            where: {
+                userId: req.user.id,
+                questionSetId: questionSetId,
+                status: 'active',
+                expiryDate: {
+                    [sequelize_1.Op.gt]: new Date()
+                }
+            }
+        });
+        if (existingPurchase) {
+            console.log(`[forceCreatePurchase] 用户已购买题库: ${req.user.id}, ${questionSetId}`);
+            // 直接返回已有的购买记录，不创建新记录
+            return sendResponse(res, 200, existingPurchase, '用户已经购买过该题库且仍在有效期内');
+        }
+        // 计算过期时间（6个月后）
+        const now = new Date();
+        const expiryDate = new Date(now);
+        expiryDate.setMonth(expiryDate.getMonth() + 6);
+        // 创建购买记录 - 强制模式下，忽略isPaid检查
+        const purchase = await models_1.Purchase.create({
+            id: (0, uuid_1.v4)(),
+            userId: req.user.id,
+            questionSetId,
+            amount: price || questionSet.price || 0,
+            status: 'active', // 直接标记为激活状态
+            paymentMethod: paymentMethod || 'direct',
+            purchaseDate: now,
+            expiryDate: expiryDate,
+            createdAt: now,
+            updatedAt: now,
+            transactionId: `force_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
+        });
+        console.log(`[forceCreatePurchase] 成功创建强制购买记录: ${purchase.id}`);
+        const purchaseWithQuestionSet = await models_1.Purchase.findByPk(purchase.id, {
+            include: [{
+                    model: models_1.QuestionSet,
+                    as: 'purchaseQuestionSet',
+                    attributes: ['id', 'title', 'category', 'icon']
+                }]
+        });
+        // 添加更多详细的返回信息
+        const responseData = {
+            ...purchaseWithQuestionSet?.toJSON(),
+            remainingDays: 180, // 6个月
+            hasAccess: true
+        };
+        sendResponse(res, 201, responseData, '强制购买记录创建成功');
+    }
+    catch (error) {
+        console.error('[forceCreatePurchase] 创建强制购买记录失败:', error);
+        sendError(res, 500, '创建强制购买记录失败', error);
+    }
+};
+exports.forceCreatePurchase = forceCreatePurchase;
