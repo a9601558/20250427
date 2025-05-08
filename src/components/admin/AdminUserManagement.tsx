@@ -377,10 +377,10 @@ const AdminUserManagement: React.FC = () => {
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {user.purchases?.length || 0}
+                      {user.userPurchases?.length || user.purchases?.length || 0}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {Object.keys(user.progress || {}).length}
+                      {user.progress ? Object.keys(user.progress).length : 0}
                     </td>
                     <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
                       <button

@@ -6,6 +6,7 @@ export interface User {
   isAdmin: boolean;
   progress: Record<string, UserProgress>;
   purchases?: Purchase[];
+  userPurchases?: Purchase[];
   redeemCodes?: RedeemCode[];
   examCountdowns?: string | any[];
 }

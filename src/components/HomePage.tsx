@@ -589,6 +589,7 @@ const HomePage: React.FC = () => {
       console.log("[HomePage] 精选分类过滤前数量:", filteredSets.length);
       console.log("[HomePage] 使用的精选分类:", homeContent.featuredCategories);
       
+      // 修复过滤逻辑，确保同时检查分类和featuredCategory属性
       filteredSets = filteredSets.filter(set => 
         // 属于精选分类
         homeContent.featuredCategories.includes(set.category) || 
@@ -1639,6 +1640,37 @@ const HomePage: React.FC = () => {
 
     loadHomeContent();
   }, []);
+
+  // 在setupRenderEffects函数中添加更多对精选分类的调试输出
+  const setupRenderEffects = useCallback(() => {
+    console.log('[HomePage] 设置渲染效果...');
+    
+    // 确保首次渲染时正确处理精选分类
+    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
+      console.log('[HomePage] 首页包含以下精选分类:', homeContent.featuredCategories);
+      
+      // 将精选分类与题库分类进行比较
+      const categoriesInQuestionSets = Array.from(new Set(questionSets.map(s => s.category)));
+      console.log('[HomePage] 题库中的分类:', categoriesInQuestionSets);
+      
+      // 找出匹配的分类
+      const matchingCategories = homeContent.featuredCategories.filter(c => 
+        categoriesInQuestionSets.includes(c)
+      );
+      console.log('[HomePage] 匹配的精选分类:', matchingCategories);
+      
+      // 找出被标记为精选的题库
+      const featuredSets = questionSets.filter(s => s.isFeatured);
+      console.log('[HomePage] 标记为精选的题库数量:', featuredSets.length);
+    }
+    
+    // 已有的代码...
+  }, [questionSets, homeContent.featuredCategories]);
+
+  // 添加到useEffect中
+  useEffect(() => {
+    setupRenderEffects();
+  }, [setupRenderEffects]);
 
   if (loading) {
     return (

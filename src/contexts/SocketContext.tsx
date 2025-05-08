@@ -8,13 +8,15 @@ interface SocketContextType {
   isConnected: boolean;
   reconnect: () => void;
   lastError: string | null;
+  hideNotification: () => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
   reconnect: () => {},
-  lastError: null
+  lastError: null,
+  hideNotification: () => {}
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -23,6 +25,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [showNotification, setShowNotification] = useState<boolean>(true);
   const { user } = useUser();
   
   // 使用useRef存储重连计数器和定时器引用，减少不必要的渲染
@@ -32,6 +35,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const maxReconnectDelay = 30000; // 最大重连延迟30秒
   const maxReconnectAttempts = 10; // 最大重连尝试次数
   const requestsCount = useRef<{[key: string]: {count: number, lastTime: number}}>({});
+  
+  // Load notification preference from localStorage on initial render
+  useEffect(() => {
+    const hideSocketNotif = localStorage.getItem('hideSocketNotification');
+    if (hideSocketNotif === 'true') {
+      setShowNotification(false);
+    }
+  }, []);
+  
+  // Function to hide notification and save preference
+  const hideNotification = () => {
+    setShowNotification(false);
+    localStorage.setItem('hideSocketNotification', 'true');
+  };
   
   // 使用节流函数减少请求频率
   const throttleRequest = (eventName: string, data: any, interval = 2000) => {
@@ -192,21 +209,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
   
   return (
-    <SocketContext.Provider value={{ socket, isConnected, reconnect, lastError }}>
+    <SocketContext.Provider value={{ socket, isConnected, reconnect, lastError, hideNotification }}>
       {children}
-      {lastError && !isConnected && reconnectCount.current >= maxReconnectAttempts && (
+      {lastError && !isConnected && reconnectCount.current >= maxReconnectAttempts && showNotification && (
         <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-md">
           <div className="flex items-center">
             <div>
               <p className="font-bold">连接失败</p>
               <p className="text-sm">{lastError}</p>
             </div>
-            <button 
-              onClick={reconnect}
-              className="ml-4 bg-red-200 hover:bg-red-300 text-red-800 py-1 px-2 rounded text-sm"
-            >
-              重试连接
-            </button>
+            <div className="flex ml-4">
+              <button 
+                onClick={reconnect}
+                className="bg-red-200 hover:bg-red-300 text-red-800 py-1 px-2 rounded text-sm mr-2"
+              >
+                重试连接
+              </button>
+              <button 
+                onClick={hideNotification}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 py-1 px-2 rounded text-sm"
+                title="永久关闭此提示"
+              >
+                关闭
+              </button>
+            </div>
           </div>
         </div>
       )}
