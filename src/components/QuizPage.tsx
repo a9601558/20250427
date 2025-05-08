@@ -12,7 +12,13 @@ import QuestionCard from './QuestionCard';
 import { toast } from 'react-toastify';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';
-import CreditCardForm, { CardDetails } from './CreditCardForm';
+import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { 
+  Elements, 
+  CardElement, 
+  useStripe, 
+  useElements,
+} from '@stripe/react-stripe-js';
 
 // 从服务api中导入API_BASE_URL
 import { API_BASE_URL } from '../services/api';
@@ -491,20 +497,238 @@ interface RedeemCodeModalProps {
   onRedeemSuccess: () => void;
 }
 
+// Define the payment data interface
+interface StripePaymentData {
+  paymentIntentId: string;
+  paymentMethodId: string | any; // Update the type to accommodate Stripe's PaymentMethod object
+  amount: number;
+  status: string;
+}
+
+// Define the Stripe payment form props
+interface StripePaymentFormProps {
+  amount: number;
+  onSubmit: (paymentData: StripePaymentData) => void;
+  onCancel: () => void;
+  isProcessing: boolean;
+}
+
+// Initialize Stripe promise
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
+
+// Helper function to check if payment has been completed for a specific questionSetId
+const isPaymentCompleted = (questionSetId: string): boolean => {
+  if (!questionSetId) return false;
+  
+  try {
+    // Check direct payment completion flag
+    const paymentCompletedKey = `quiz_payment_completed_${questionSetId}`;
+    const directFlag = localStorage.getItem(paymentCompletedKey);
+    if (directFlag === 'true') return true;
+    
+    // Check access rights record
+    const accessRightsStr = localStorage.getItem('quizAccessRights');
+    if (accessRightsStr) {
+      try {
+        const accessRights = JSON.parse(accessRightsStr);
+        if (accessRights && typeof accessRights === 'object') {
+          // Check for the specific _paid flag
+          const normalizedId = String(questionSetId).trim();
+          if (accessRights[`${normalizedId}_paid`] === true) {
+            return true;
+          }
+        }
+      } catch (e) {
+        console.error('[isPaymentCompleted] Error parsing access rights:', e);
+      }
+    }
+    
+    return false;
+  } catch (e) {
+    console.error('[isPaymentCompleted] Error checking payment status:', e);
+    return false;
+  }
+};
+
+// Stripe payment form component
+const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit, onCancel, isProcessing }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [error, setError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string>('');
+  const [paymentIntentId, setPaymentIntentId] = useState<string>('');
+
+  useEffect(() => {
+    // Create a payment intent when the form loads
+    const createPaymentIntent = async () => {
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/payments/create-intent`, 
+          { 
+            amount: amount * 100, // Convert to cents for Stripe
+            currency: 'cny'
+          },
+          {
+            headers: { 
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json' 
+            }
+          }
+        );
+        
+        if (response.data && response.data.clientSecret) {
+          setClientSecret(response.data.clientSecret);
+          if (response.data.paymentIntentId) {
+            setPaymentIntentId(response.data.paymentIntentId);
+          }
+        } else {
+          setError('Could not initialize payment. Please try again.');
+        }
+      } catch (err) {
+        console.error('Error creating payment intent:', err);
+        setError('Failed to connect to payment service.');
+      }
+    };
+
+    if (amount > 0) {
+      createPaymentIntent();
+    }
+  }, [amount]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    
+    if (!stripe || !elements) {
+      // Stripe.js has not loaded yet
+      return;
+    }
+    
+    setError(null);
+    
+    if (!clientSecret) {
+      setError('Payment system is not ready yet. Please try again.');
+      return;
+    }
+
+    // Confirm the card payment
+    const result = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: elements.getElement(CardElement)!,
+        billing_details: {
+          // You can collect additional billing details here if needed
+          name: 'Anonymous Customer',
+        },
+      }
+    });
+
+    if (result.error) {
+      // Show error to your customer
+      setError(result.error.message || 'Payment failed');
+    } else {
+      if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+        // Payment succeeded, call the onSubmit callback
+        onSubmit({
+          paymentIntentId: paymentIntentId || result.paymentIntent.id,
+          paymentMethodId: result.paymentIntent.payment_method, // This can be a string or PaymentMethod object
+          amount: amount,
+          status: 'succeeded'
+        });
+      } else {
+        setError(`Payment status: ${result.paymentIntent?.status || 'unknown'}. Please try again.`);
+      }
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-800">支付方式</h2>
+        <button
+          onClick={onCancel}
+          className="text-gray-400 hover:text-gray-600"
+          disabled={isProcessing}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+          {error}
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <p className="text-sm text-gray-600 mb-3">请输入信用卡信息完成支付：</p>
+          <div className="p-3 bg-white rounded-md border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+            <CardElement
+              options={{
+                style: {
+                  base: {
+                    fontSize: '16px',
+                    color: '#424770',
+                    '::placeholder': {
+                      color: '#aab7c4',
+                    },
+                  },
+                  invalid: {
+                    color: '#9e2146',
+                  },
+                },
+                hidePostalCode: true,
+              }}
+            />
+          </div>
+        </div>
+        
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <div className="flex justify-between items-center text-lg">
+            <span className="text-gray-700">总金额:</span>
+            <span className="font-bold text-green-600">¥{amount.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+            disabled={isProcessing}
+          >
+            取消
+          </button>
+          <button
+            type="submit"
+            disabled={!stripe || isProcessing || !clientSecret}
+            className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
+              (!stripe || isProcessing || !clientSecret) ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isProcessing ? '处理中...' : '确认支付'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 // 添加PaymentModal组件
 const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuccess, isOpen }) => {
   const { user } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [btnClicked, setBtnClicked] = useState(false);
-  const [showCreditCardForm, setShowCreditCardForm] = useState(false);
+  const [showStripeForm, setShowStripeForm] = useState(false);
   
   // Reset error when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setBtnClicked(false);
-      setShowCreditCardForm(false);
+      setShowStripeForm(false);
     }
   }, [isOpen]);
   
@@ -539,6 +763,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       // 同时保存支付完成状态，确保不再显示支付窗口
       if (hasAccess) {
         accessRights[`${normalizedId}_paid`] = true;
+        
+        // Save a separate direct flag for payment completion
+        const paymentCompletedKey = `quiz_payment_completed_${normalizedId}`;
+        localStorage.setItem(paymentCompletedKey, 'true');
+        console.log(`[PaymentModal] 保存支付完成标记: ${paymentCompletedKey}`);
       }
       
       // 记录修改时间，便于后续清理过期数据
@@ -563,6 +792,28 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     
     if (!user || !questionSet) {
       setError("无法进行购买，请确认您已登录且题库信息完整");
+      return;
+    }
+    
+    // Check if payment is already completed
+    const normalizedId = String(questionSet.id).trim();
+    if (isPaymentCompleted(normalizedId)) {
+      console.log(`[PaymentModal] 检测到题库 ${normalizedId} 已完成支付，不再显示支付表单`);
+      
+      // Update access rights for consistency
+      saveAccessToLocalStorage(normalizedId, true);
+      
+      // Show success message
+      toast.success('您已成功支付此题库，无需重复支付', { autoClose: 3000 });
+      
+      // Close the modal
+      if (typeof onSuccess === 'function') {
+        onSuccess({
+          questionSetId: normalizedId,
+          purchaseId: `existing-${Date.now()}`,
+          remainingDays: 180
+        });
+      }
       return;
     }
     
@@ -631,11 +882,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
-    // 显示信用卡表单
-    setShowCreditCardForm(true);
+    // 显示Stripe支付表单
+    setShowStripeForm(true);
   };
   
-  const handlePurchase = async (cardDetails: CardDetails) => {
+  const handlePurchase = async (paymentData: StripePaymentData) => {
     setIsProcessing(true);
     setError(null);
     setBtnClicked(true);
@@ -644,30 +895,38 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     toast.info("正在处理您的支付请求...", { autoClose: 2000 });
     
     try {
-      // 模拟信用卡验证延迟
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       // 标准化题库ID，避免ID不匹配问题
       const normalizedId = String(questionSet!.id).trim();
       
       // 尝试使用直接购买接口
       try {
         console.log('[PaymentModal] 尝试调用直接购买API:', normalizedId);
-        console.log('[PaymentModal] 使用的信用卡信息:', {
-          cardNumber: cardDetails.cardNumber.replace(/\d(?=\d{4})/g, "*"),
-          cardHolder: cardDetails.cardHolder,
-          expiryDate: cardDetails.expiryDate,
-          cvv: "***"
+        console.log('[PaymentModal] 使用的支付数据:', {
+          paymentIntentId: paymentData.paymentIntentId,
+          amount: paymentData.amount
         });
         
-        // 使用新的createDirectPurchase函数
-        const purchaseResult = await createDirectPurchase(normalizedId, questionSet!.price || 0);
+        // 调用购买API，发送Stripe支付数据
+        const purchaseResponse = await axios.post(
+          `${API_BASE_URL}/purchases/complete-stripe-purchase`,
+          {
+            questionSetId: normalizedId,
+            paymentIntentId: paymentData.paymentIntentId,
+            amount: paymentData.amount * 100 // Convert to cents for backend
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          }
+        );
         
-        console.log('[PaymentModal] 直接购买结果:', purchaseResult);
-        
-        if (purchaseResult) {
-          // 成功 - 保存到本地
+        if (purchaseResponse.data && purchaseResponse.data.success) {
+          const purchaseResult = purchaseResponse.data.data;
+          
           console.log('[PaymentModal] 购买成功：', purchaseResult);
+          
+          // Save access rights and payment completion status
           saveAccessToLocalStorage(normalizedId, true);
           
           // 显示成功提示
@@ -680,7 +939,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             new CustomEvent('purchase:success', {
               detail: {
                 questionSetId: normalizedId,
-                purchaseId: purchaseResult.id || `direct-${Date.now()}`,
+                purchaseId: purchaseResult.id || `stripe-${Date.now()}`,
                 expiryDate: purchaseResult.expiryDate || 
                   new Date(Date.now() + 365*24*60*60*1000).toISOString()
               }
@@ -692,13 +951,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             if (typeof onSuccess === 'function') {
               onSuccess({
                 questionSetId: normalizedId,
-                purchaseId: purchaseResult.id || `direct-${Date.now()}`,
+                purchaseId: purchaseResult.id || `stripe-${Date.now()}`,
                 remainingDays: 180 // 默认6个月有效期
               });
             }
           }, 500);
           
           return;
+        } else {
+          throw new Error(purchaseResponse.data?.message || 'Purchase failed');
         }
       } catch (directPurchaseError) {
         console.error('[PaymentModal] 直接购买失败:', directPurchaseError);
@@ -717,7 +978,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           console.log('[PaymentModal] 访问权限更新响应:', accessUpdateResponse.data);
           
           if (accessUpdateResponse.data && accessUpdateResponse.data.success) {
-            // 保存到本地
+            // Save access rights and payment completion status
             saveAccessToLocalStorage(normalizedId, true);
             
             toast.success('成功获取访问权限！您现在可以访问完整题库', { autoClose: 3000 });
@@ -755,7 +1016,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         try {
           console.log('[PaymentModal] 所有API调用失败，尝试本地模拟购买成功');
           
-          // 保存到本地
+          // Save access rights and payment completion status
           saveAccessToLocalStorage(normalizedId, true);
           
           toast.success('已在本地记录购买成功，页面将在5秒后刷新', { autoClose: 4000 });
@@ -823,7 +1084,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
-        {!showCreditCardForm ? (
+        {!showStripeForm ? (
           // 初始确认页面
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
@@ -874,13 +1135,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             </div>
           </div>
         ) : (
-          // 信用卡表单
-          <CreditCardForm
-            amount={typeof questionSet?.price === 'number' ? questionSet.price : 0}
-            onSubmit={handlePurchase}
-            onCancel={() => setShowCreditCardForm(false)}
-            isProcessing={isProcessing}
-          />
+          // Stripe支付表单
+          <Elements stripe={stripePromise}>
+            <StripePaymentForm
+              amount={typeof questionSet?.price === 'number' ? questionSet.price : 0}
+              onSubmit={handlePurchase}
+              onCancel={() => setShowStripeForm(false)}
+              isProcessing={isProcessing}
+            />
+          </Elements>
         )}
       </div>
     </div>
@@ -1265,6 +1528,59 @@ function QuizPage(): JSX.Element {
   const [pendingSync, setPendingSync] = useState<boolean>(false);
   const unsyncedChangesRef = useRef<boolean>(false);
   const timeoutId = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  // 添加支付检查effect，确保支付完成后不再显示支付弹窗
+  useEffect(() => {
+    // 本地函数检查支付状态 - 因为isPaymentCompleted在外部定义
+    const checkPaymentStatus = (questionSetId: string): boolean => {
+      // 直接从localStorage检查支付状态
+      try {
+        // 检查直接支付完成标志
+        const paymentCompletedKey = `quiz_payment_completed_${questionSetId}`;
+        const directFlag = localStorage.getItem(paymentCompletedKey);
+        if (directFlag === 'true') return true;
+        
+        // 检查访问权限记录
+        const accessRightsStr = localStorage.getItem('quizAccessRights');
+        if (accessRightsStr) {
+          try {
+            const accessRights = JSON.parse(accessRightsStr);
+            if (accessRights && typeof accessRights === 'object') {
+              // 检查特定的_paid标志
+              const normalizedId = String(questionSetId).trim();
+              if (accessRights[`${normalizedId}_paid`] === true) {
+                return true;
+              }
+            }
+          } catch (e) {
+            console.error('[checkPaymentStatus] 解析访问权限失败:', e);
+          }
+        }
+        
+        return false;
+      } catch (e) {
+        console.error('[checkPaymentStatus] 检查支付状态失败:', e);
+        return false;
+      }
+    };
+
+    if (questionSet && quizStatus.showPaymentModal) {
+      const normalizedId = String(questionSet.id).trim();
+      if (checkPaymentStatus(normalizedId)) {
+        console.log(`[QuizPage] 已检测到题库 ${normalizedId} 支付完成，不再显示支付窗口`);
+        setQuizStatus(prev => ({
+          ...prev,
+          showPaymentModal: false,
+          hasAccessToFullQuiz: true
+        }));
+        
+        // Show a notification
+        toast.info('您已完成该题库的支付，无需重复支付', {
+          autoClose: 2000
+        });
+      }
+    }
+  }, [questionSet, quizStatus.showPaymentModal]);
 
   // 每次应用启动时清除有问题的权限缓存
   useEffect(() => {
@@ -2114,6 +2430,67 @@ function QuizPage(): JSX.Element {
     // 如果试用已结束且没有购买，不允许继续答题
     if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
       toast.warning('试用已结束，请购买完整版或使用兑换码继续答题');
+      
+      // 检查是否已完成支付，避免重复显示支付窗口
+      const normalizedId = String(questionSet?.id || '').trim();
+      if (normalizedId) {
+        // 本地检查支付状态函数
+        const checkLocalPaymentStatus = (qsId: string): boolean => {
+          try {
+            // 检查直接支付完成标志
+            const paymentCompletedKey = `quiz_payment_completed_${qsId}`;
+            const directFlag = localStorage.getItem(paymentCompletedKey);
+            if (directFlag === 'true') return true;
+            
+            // 检查访问权限记录
+            const accessRightsStr = localStorage.getItem('quizAccessRights');
+            if (accessRightsStr) {
+              try {
+                const accessRights = JSON.parse(accessRightsStr);
+                if (accessRights && typeof accessRights === 'object') {
+                  // 检查特定的_paid标志
+                  if (accessRights[`${qsId}_paid`] === true) {
+                    return true;
+                  }
+                }
+              } catch (e) {
+                console.error('[checkLocalPaymentStatus] 解析访问权限失败:', e);
+              }
+            }
+            
+            return false;
+          } catch (e) {
+            console.error('[checkLocalPaymentStatus] 检查支付状态失败:', e);
+            return false;
+          }
+        };
+        
+        if (checkLocalPaymentStatus(normalizedId)) {
+          console.log(`[handleOptionSelect] 检测到题库 ${normalizedId} 已完成支付，不再显示支付窗口`);
+          
+          // 更新状态为已购买
+          setQuizStatus(prev => ({
+            ...prev,
+            hasAccessToFullQuiz: true,
+            trialEnded: false
+          }));
+          
+          // 显示通知
+          toast.info('您已完成该题库的支付，无需重复支付', {
+            autoClose: 2000
+          });
+          
+          // 刷新当前问题让用户继续答题
+          setTimeout(() => {
+            // 重置当前选项，允许用户重新选择
+            setSelectedOptions([]);
+          }, 100);
+          
+          return;
+        }
+      }
+      
+      // 如果未完成支付，则显示支付窗口
       setQuizStatus({ ...quizStatus, showPaymentModal: true });
       return;
     }
@@ -2379,6 +2756,40 @@ function QuizPage(): JSX.Element {
       window.removeEventListener('redeem:success', handleRedeemSuccess);
     };
   }, [questionSet, saveAccessToLocalStorage, saveRedeemedQuestionSetId, checkAccess]);
+  
+  // 添加错题收集事件监听器
+  useEffect(() => {
+    const handleWrongAnswerSave = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      console.log('[QuizPage] 接收到错题保存事件:', customEvent.detail);
+      
+      if (!customEvent.detail || !user?.id) {
+        console.warn('[QuizPage] 错题保存事件缺少必要数据或用户未登录');
+        return;
+      }
+      
+      // 调用错题收集API
+      (async () => {
+        try {
+          const response = await wrongAnswerService.saveWrongAnswer(customEvent.detail);
+          if (response.success) {
+            console.log('[QuizPage] 错题保存成功:', response);
+          } else {
+            console.error('[QuizPage] 错题保存失败:', response.message);
+          }
+        } catch (error) {
+          console.error('[QuizPage] 保存错题时出错:', error);
+        }
+      })();
+    };
+    
+    // 添加事件监听
+    window.addEventListener('wrongAnswer:save', handleWrongAnswerSave);
+    
+    return () => {
+      window.removeEventListener('wrongAnswer:save', handleWrongAnswerSave);
+    };
+  }, [user?.id, wrongAnswerService]);
   
   // 修改syncProgressToServer函数为手动保存函数
   const saveProgressManually = useCallback(async () => {
@@ -3035,6 +3446,59 @@ function QuizPage(): JSX.Element {
                 const button = e.currentTarget;
                 button.classList.add('scale-95');
                 setTimeout(() => button.classList.remove('scale-95'), 150);
+                
+                // 在显示支付窗口前，检查是否已经支付
+                const normalizedId = String(questionSet?.id || '').trim();
+                if (normalizedId) {
+                  // 本地检查支付状态函数
+                  const checkLocalPaymentStatus = (qsId: string): boolean => {
+                    try {
+                      // 检查直接支付完成标志
+                      const paymentCompletedKey = `quiz_payment_completed_${qsId}`;
+                      const directFlag = localStorage.getItem(paymentCompletedKey);
+                      if (directFlag === 'true') return true;
+                      
+                      // 检查访问权限记录
+                      const accessRightsStr = localStorage.getItem('quizAccessRights');
+                      if (accessRightsStr) {
+                        try {
+                          const accessRights = JSON.parse(accessRightsStr);
+                          if (accessRights && typeof accessRights === 'object') {
+                            // 检查特定的_paid标志
+                            if (accessRights[`${qsId}_paid`] === true) {
+                              return true;
+                            }
+                          }
+                        } catch (e) {
+                          console.error('[TrialPurchaseBar] 解析访问权限失败:', e);
+                        }
+                      }
+                      
+                      return false;
+                    } catch (e) {
+                      console.error('[TrialPurchaseBar] 检查支付状态失败:', e);
+                      return false;
+                    }
+                  };
+                  
+                  if (checkLocalPaymentStatus(normalizedId)) {
+                    console.log(`[TrialPurchaseBar] 检测到题库 ${normalizedId} 已完成支付，不再显示支付窗口`);
+                    
+                    // 更新状态为已购买
+                    setQuizStatus(prev => ({
+                      ...prev,
+                      hasAccessToFullQuiz: true,
+                      trialEnded: false
+                    }));
+                    
+                    // 显示通知
+                    toast.success('您已完成该题库的支付，无需重复支付', {
+                      autoClose: 3000
+                    });
+                    
+                    return;
+                  }
+                }
                 
                 toast.info('正在准备支付...', { autoClose: 1500 });
                 
