@@ -5,7 +5,7 @@ import { processPayment, verifyPaymentStatus } from '../utils/paymentUtils';
 import { useUser } from '../contexts/UserContext';
 
 // Use the provided public key
-const STRIPE_PUBLIC_KEY = 'pk_test_51RHMVW4ec3wxfwe9vME773VFyquoIP1bVWbsCDZgrgerfzp8YMs0rLS4ZSleICEcIf9gmLIEftwXvPygbLp1LEkv00r5M3rCIV';
+const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || 'pk_test_51RHMVW4ec3wxfwe9vME773VFyquoIP1bVWbsCDZgrgerfzp8YMs0rLS4ZSleICEcIf9gmLIEftwXvPygbLp1LEkv00r5M3rCIV';
 const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
 
 const CheckoutForm = () => {

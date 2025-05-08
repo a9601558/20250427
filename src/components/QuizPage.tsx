@@ -514,7 +514,7 @@ interface StripePaymentFormProps {
 }
 
 // Initialize Stripe promise
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || 'pk_test_51RHMVW4ec3wxfwe9vME773VFyquoIP1bVWbsCDZgrgerfzp8YMs0rLS4ZSleICEcIf9gmLIEftwXvPygbLp1LEkv00r5M3rCIV');
 
 // Helper function to check if payment has been completed for a specific questionSetId
 const isPaymentCompleted = (questionSetId: string): boolean => {
