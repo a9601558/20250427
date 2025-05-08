@@ -59,6 +59,7 @@ exports.purchaseAttributes = (0, exports.mapAttributes)({
 exports.purchaseQuestionSetAttributes = (0, exports.mapAttributes)({
     'id': 'id',
     'title': 'title',
+    'description': 'description',
     'category': 'category',
     'icon': 'icon',
     'is_paid': 'isPaid',

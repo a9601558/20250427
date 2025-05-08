@@ -113,7 +113,7 @@ const getUserPurchases = async (req, res) => {
                 {
                     model: models_1.QuestionSet,
                     as: 'purchaseQuestionSet',
-                    attributes: ['id', 'title', 'description', 'category', 'icon', 'questionCount'],
+                    attributes: ['id', 'title', 'description', 'category', 'icon'],
                     required: false
                 },
             ],
@@ -137,8 +137,7 @@ const getUserPurchases = async (req, res) => {
                     title: purchaseData.purchaseQuestionSet.title,
                     description: purchaseData.purchaseQuestionSet.description,
                     category: purchaseData.purchaseQuestionSet.category,
-                    icon: purchaseData.purchaseQuestionSet.icon,
-                    questionCount: purchaseData.purchaseQuestionSet.questionCount
+                    icon: purchaseData.purchaseQuestionSet.icon
                 } : null;
                 // 创建一个标准格式的响应对象
                 return {

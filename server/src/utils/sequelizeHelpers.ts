@@ -59,6 +59,7 @@ export const purchaseAttributes = mapAttributes({
 export const purchaseQuestionSetAttributes = mapAttributes({
   'id': 'id',
   'title': 'title',
+  'description': 'description',
   'category': 'category',
   'icon': 'icon',
   'is_paid': 'isPaid',

@@ -128,7 +128,9 @@ const CreditCardForm: React.FC<CreditCardFormProps> = ({
       
       <div className="mb-6 flex justify-between items-center">
         <span className="text-gray-600">支付金额:</span>
-        <span className="text-xl font-bold text-green-600">¥{amount.toFixed(2)}</span>
+        <span className="text-xl font-bold text-green-600">
+          ¥{(typeof amount === 'number' ? amount : 0).toFixed(2)}
+        </span>
       </div>
       
       <form onSubmit={handleSubmit}>

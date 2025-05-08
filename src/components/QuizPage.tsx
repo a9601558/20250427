@@ -871,7 +871,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         ) : (
           // 信用卡表单
           <CreditCardForm
-            amount={questionSet?.price || 0}
+            amount={typeof questionSet?.price === 'number' ? questionSet.price : 0}
             onSubmit={handlePurchase}
             onCancel={() => setShowCreditCardForm(false)}
             isProcessing={isProcessing}
