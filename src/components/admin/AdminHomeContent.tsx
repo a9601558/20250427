@@ -290,7 +290,7 @@ const AdminHomeContent: React.FC = () => {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold mb-6 pb-2 border-b">首页内容管理</h2>
+      <h2 className="text-2xl font-semibold mb-6 pb-2 border-b">首页内容管理</h2>
         <div className="flex space-x-3">
           <button
             onClick={handleReset}
@@ -326,30 +326,30 @@ const AdminHomeContent: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          {/* 欢迎标题 */}
+      <div className="space-y-6">
+        {/* 欢迎标题 */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium mb-4 pb-2 border-b">基本设置</h3>
             <div className="mb-4">
-              <label className="block mb-2 font-medium text-gray-700">欢迎标题</label>
-              <input
-                type="text"
-                name="welcomeTitle"
-                value={homeContent.welcomeTitle}
-                onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="mt-1 text-sm text-gray-500">显示在首页顶部的主标题</p>
-            </div>
+          <label className="block mb-2 font-medium text-gray-700">欢迎标题</label>
+          <input
+            type="text"
+            name="welcomeTitle"
+            value={homeContent.welcomeTitle}
+            onChange={handleInputChange}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
+          <p className="mt-1 text-sm text-gray-500">显示在首页顶部的主标题</p>
+        </div>
 
-            {/* 欢迎描述 */}
+        {/* 欢迎描述 */}
             <div className="mb-4">
-              <label className="block mb-2 font-medium text-gray-700">欢迎描述</label>
-              <textarea
-                name="welcomeDescription"
-                value={homeContent.welcomeDescription}
-                onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md h-24 focus:ring-blue-500 focus:border-blue-500"
+          <label className="block mb-2 font-medium text-gray-700">欢迎描述</label>
+          <textarea
+            name="welcomeDescription"
+            value={homeContent.welcomeDescription}
+            onChange={handleInputChange}
+            className="w-full p-2 border border-gray-300 rounded-md h-24 focus:ring-blue-500 focus:border-blue-500"
               ></textarea>
               <p className="mt-1 text-sm text-gray-500">显示在主标题下方的简短描述</p>
             </div>
@@ -364,20 +364,20 @@ const AdminHomeContent: React.FC = () => {
                 className="w-full p-2 border border-gray-300 rounded-md h-24 focus:ring-blue-500 focus:border-blue-500"
               ></textarea>
               <p className="mt-1 text-sm text-gray-500">显示在首页顶部的重要公告</p>
-            </div>
+        </div>
 
-            {/* 页脚文本 */}
+        {/* 页脚文本 */}
             <div className="mb-4">
-              <label className="block mb-2 font-medium text-gray-700">页脚文本</label>
-              <input
-                type="text"
-                name="footerText"
-                value={homeContent.footerText}
-                onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
+          <label className="block mb-2 font-medium text-gray-700">页脚文本</label>
+          <input
+            type="text"
+            name="footerText"
+            value={homeContent.footerText}
+            onChange={handleInputChange}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
               <p className="mt-1 text-sm text-gray-500">显示在页面底部的页脚文本</p>
-            </div>
+        </div>
 
             {/* 主题设置 */}
             <div className="mb-4">
@@ -385,7 +385,7 @@ const AdminHomeContent: React.FC = () => {
               <select 
                 name="theme"
                 value={homeContent.theme}
-                onChange={handleInputChange}
+            onChange={handleInputChange}
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="light">亮色主题</option>
@@ -393,26 +393,26 @@ const AdminHomeContent: React.FC = () => {
                 <option value="auto">跟随系统设置</option>
               </select>
               <p className="mt-1 text-sm text-gray-500">设置网站的默认显示主题</p>
-            </div>
+        </div>
 
             {/* Banner图片 */}
             <div className="mb-4">
               <label className="block mb-2 font-medium text-gray-700">Banner图片URL</label>
-              <input
-                type="text"
-                name="bannerImage"
-                value={homeContent.bannerImage || ''}
-                onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
+          <input
+            type="text"
+            name="bannerImage"
+            value={homeContent.bannerImage || ''}
+            onChange={handleInputChange}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
               <p className="mt-1 text-sm text-gray-500">显示在首页顶部的大图片URL</p>
-              {homeContent.bannerImage && (
+          {homeContent.bannerImage && (
                 <div className="mt-2 relative">
-                  <img 
-                    src={homeContent.bannerImage} 
+                <img 
+                  src={homeContent.bannerImage} 
                     alt="Banner预览" 
                     className="w-full h-auto rounded-md border border-gray-200"
-                    onError={(e) => {
+                  onError={(e) => {
                       (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x200?text=图片加载失败';
                     }}
                   />
@@ -422,7 +422,7 @@ const AdminHomeContent: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
+        </div>
         </div>
 
         <div className="space-y-6">
@@ -436,21 +436,21 @@ const AdminHomeContent: React.FC = () => {
 
             {/* 添加新分类 */}
             <div className="flex mb-6">
-              <input
-                type="text"
+            <input
+              type="text"
                 placeholder="输入新分类名称"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
                 className="flex-grow p-2 border border-gray-300 rounded-l-md focus:ring-blue-500 focus:border-blue-500"
-              />
-              <button
-                onClick={handleAddCategory}
-                disabled={isSaving || !newCategory.trim()}
+            />
+            <button
+              onClick={handleAddCategory}
+              disabled={isSaving || !newCategory.trim()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 disabled:bg-blue-300"
-              >
+            >
                 {isSaving ? '添加中...' : '添加'}
-              </button>
-            </div>
+            </button>
+          </div>
 
             {/* 分类列表 */}
             <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
@@ -459,12 +459,12 @@ const AdminHomeContent: React.FC = () => {
                   暂无精选分类，请添加
                 </div>
               ) : (
-                homeContent.featuredCategories.map((category, index) => (
+              homeContent.featuredCategories.map((category, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md group">
                     {editingCategoryIndex === index ? (
                       <div className="flex-grow flex">
-                        <input
-                          type="text"
+                  <input
+                    type="text"
                           value={editingCategoryValue}
                           onChange={(e) => setEditingCategoryValue(e.target.value)}
                           className="flex-grow p-1.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -507,8 +507,8 @@ const AdminHomeContent: React.FC = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                           </button>
-                          <button
-                            onClick={() => handleRemoveCategory(index)}
+                  <button
+                    onClick={() => handleRemoveCategory(index)}
                             className="p-1 text-red-600 hover:text-red-800"
                             title="删除"
                           >
@@ -535,15 +535,15 @@ const AdminHomeContent: React.FC = () => {
                             <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
-                          </button>
+                  </button>
                         </div>
                       </>
                     )}
-                  </div>
-                ))
-              )}
-            </div>
+                </div>
+              ))
+            )}
           </div>
+        </div>
 
           {/* 预览区域 */}
           <div className="bg-white p-6 rounded-lg shadow">

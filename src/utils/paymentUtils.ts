@@ -29,31 +29,31 @@ export const processPayment = async (
   // 使用支付API
   console.log('[支付] 使用Stripe支付API，金额(分):', amountInCents);
   try {
-    const response = await axios.post(
-      `${BASE_URL}/payments/create-intent`,
-      {
-        amount: amountInCents,
-        currency, 
-        metadata
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+  const response = await axios.post(
+    `${BASE_URL}/payments/create-intent`,
+    {
+      amount: amountInCents,
+      currency, 
+      metadata
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    );
-    
-    if (response.data && response.data.success) {
-      // 确保返回的数据格式一致
+    }
+  );
+  
+  if (response.data && response.data.success) {
+    // 确保返回的数据格式一致
       console.log('[支付] 创建支付意向成功:', response.data);
-      return {
-        id: response.data.paymentIntentId,
-        clientSecret: response.data.clientSecret
-      };
-    } else {
+    return {
+      id: response.data.paymentIntentId,
+      clientSecret: response.data.clientSecret
+    };
+  } else {
       console.error('[支付] 创建支付意向失败:', response.data);
-      throw new Error(response.data?.message || '创建支付意向失败');
+    throw new Error(response.data?.message || '创建支付意向失败');
     }
   } catch (error: any) {
     console.error('[支付] 创建支付意向请求失败:', error);

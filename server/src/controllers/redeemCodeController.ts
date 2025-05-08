@@ -159,17 +159,17 @@ export const getRedeemCodes = async (req: Request, res: Response) => {
             email: row.creatorEmail
           } : null
         };
-      });
-      
-      return res.json({
-        success: true,
-        data: {
+    });
+    
+    return res.json({
+      success: true,
+      data: {
           total: (countResult as any).total,
-          page,
-          pageSize,
+        page,
+        pageSize,
           list: formattedRows
-        }
-      });
+      }
+    });
     } catch (error) {
       console.error('[RedeemCodeController] 使用原生SQL查询获取兑换码列表失败:', error);
       return res.status(500).json({
@@ -396,7 +396,7 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
         rc.used_by as usedBy,
         rc.used_at as usedAt,
         rc.updated_at as updatedAt,
-        qs.id as questionSetId,
+        qs.id as qsId,
         qs.title as questionSetTitle,
         qs.description as questionSetDescription,
         qs.icon as questionSetIcon,
@@ -423,8 +423,8 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
         // 计算过期日期（基于使用日期+有效期天数）
         const usedAtDate = code.usedAt ? new Date(code.usedAt) : new Date(code.createdAt);
         const defaultExpiryDate = new Date(usedAtDate.getTime() + (code.validityDays || 180) * 24 * 60 * 60 * 1000);
-        
-        return {
+      
+      return {
           id: code.code, // 使用code作为id
           code: code.code,
           questionSetId: code.questionSetId,
@@ -442,16 +442,16 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
             icon: code.questionSetIcon,
             category: code.questionSetCategory
           }
-        };
-      });
+      };
+    });
 
       return res.json({
-        success: true,
+      success: true,
         data: formattedResults
-      });
+    });
     } catch (sqlError) {
       console.error('[RedeemCodeController] SQL error when getting redeem codes:', sqlError);
-      throw new Error('数据库查询错误: ' + (sqlError as Error).message);
+      throw new Error(`数据库查询错误: ${(sqlError as any).original?.sqlMessage || (sqlError as Error).message}`);
     }
   } catch (error: any) {
     console.error('[RedeemCodeController] Get user redeemed codes error:', error);

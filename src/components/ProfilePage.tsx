@@ -6,6 +6,7 @@ import { userProgressService, questionSetService, purchaseService, wrongAnswerSe
 import { useNavigate } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { CalendarIcon, CreditCardIcon, ClockIcon, CashIcon } from './Icons';
+import AccountSwitcher from './AccountSwitcher';
 
 // 原始进度记录类型
 interface ProgressRecord {
@@ -911,6 +912,8 @@ const ProfilePage: React.FC = () => {
   // 错误状态
   const [error, setError] = useState<string | null>(null);
 
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  
   // 获取题库数据
   const fetchQuestionSets = useCallback(async () => {
     try {
@@ -2218,6 +2221,29 @@ const ProfilePage: React.FC = () => {
           {activeTab === 'redeemed' && renderRedeemedContent()}
         </div>
       </div>
+      
+      {/* 添加账号管理入口按钮 */}
+      <div className="mb-6 flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800">个人中心</h1>
+        <button
+          onClick={() => setShowAccountSwitcher(true)}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
+          账号管理
+        </button>
+      </div>
+      
+      {/* 账号切换器模态框 */}
+      {showAccountSwitcher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <AccountSwitcher onClose={() => setShowAccountSwitcher(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

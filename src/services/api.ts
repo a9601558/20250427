@@ -388,8 +388,8 @@ export const questionService = {
       }
     } catch (error: any) {
       console.error('API Error - getQuestionsByQuestionSetId:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: error.response?.data?.message || '获取题目列表失败，请检查网络连接'
       };
     }

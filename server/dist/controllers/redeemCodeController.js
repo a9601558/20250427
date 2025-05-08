@@ -343,7 +343,7 @@ const getUserRedeemCodes = async (req, res) => {
         rc.used_by as usedBy,
         rc.used_at as usedAt,
         rc.updated_at as updatedAt,
-        qs.id as questionSetId,
+        qs.id as qsId,
         qs.title as questionSetTitle,
         qs.description as questionSetDescription,
         qs.icon as questionSetIcon,
@@ -391,7 +391,7 @@ const getUserRedeemCodes = async (req, res) => {
         }
         catch (sqlError) {
             console.error('[RedeemCodeController] SQL error when getting redeem codes:', sqlError);
-            throw new Error('数据库查询错误: ' + sqlError.message);
+            throw new Error(`数据库查询错误: ${sqlError.original?.sqlMessage || sqlError.message}`);
         }
     }
     catch (error) {

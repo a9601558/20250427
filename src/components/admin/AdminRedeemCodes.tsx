@@ -42,9 +42,9 @@ const AdminRedeemCodes: React.FC = () => {
         
         // 加载兑换码数据
         try {
-          const codes = await getRedeemCodes();
+        const codes = await getRedeemCodes();
           if (Array.isArray(codes)) {
-            setRedeemCodes(codes);
+        setRedeemCodes(codes);
           } else {
             // 如果返回的数据格式不是数组，可能是API响应格式变化
             console.error('兑换码数据不是数组格式:', codes);

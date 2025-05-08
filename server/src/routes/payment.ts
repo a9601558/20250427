@@ -18,7 +18,7 @@ router.post('/create-intent', authenticateJwt, async (req, res) => {
         message: '请提供有效的支付金额和货币'
       });
     }
-
+    
     // 确保金额有效
     const numericAmount = parseInt(String(amount), 10);
     if (isNaN(numericAmount) || numericAmount <= 0) {
@@ -97,32 +97,32 @@ router.get('/verify/:paymentIntentId', authenticateJwt, async (req, res) => {
     if (verification.isSuccessful && verification.metadata?.questionSetId) {
       try {
         // 检查是否已存在购买记录
-        const existingPurchase = await db.Purchase.findOne({
-          where: {
-            transactionId: paymentIntentId,
-            userId: req.user?.id
-          }
-        });
-
+      const existingPurchase = await db.Purchase.findOne({
+        where: {
+          transactionId: paymentIntentId,
+          userId: req.user?.id
+        }
+      });
+      
         if (!existingPurchase) {
-          // 计算过期时间（6个月后）
-          const now = new Date();
-          const expiryDate = new Date(now);
-          expiryDate.setMonth(expiryDate.getMonth() + 6);
-
-          // 创建购买记录
-          await db.Purchase.create({
-            id: uuidv4(),
-            userId: req.user?.id,
-            questionSetId: verification.metadata.questionSetId,
-            purchaseDate: now,
-            expiryDate,
-            amount: verification.amount / 100, // 转换回元
-            transactionId: paymentIntentId,
-            paymentMethod: 'card',
-            status: 'active'
-          });
-
+        // 计算过期时间（6个月后）
+        const now = new Date();
+        const expiryDate = new Date(now);
+        expiryDate.setMonth(expiryDate.getMonth() + 6);
+        
+        // 创建购买记录
+        await db.Purchase.create({
+          id: uuidv4(),
+          userId: req.user?.id,
+          questionSetId: verification.metadata.questionSetId,
+          purchaseDate: now,
+          expiryDate,
+          amount: verification.amount / 100, // 转换回元
+          transactionId: paymentIntentId,
+          paymentMethod: 'card',
+          status: 'active'
+        });
+        
           console.log(`[支付路由] 创建购买记录成功: ${paymentIntentId}`);
         }
       } catch (dbError) {
@@ -171,32 +171,32 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         if (paymentIntent.metadata?.userId && paymentIntent.metadata?.questionSetId) {
           try {
             // 检查是否已存在购买记录
-            const existingPurchase = await db.Purchase.findOne({
-              where: {
-                transactionId: paymentIntent.id,
+          const existingPurchase = await db.Purchase.findOne({
+            where: {
+              transactionId: paymentIntent.id,
                 userId: paymentIntent.metadata.userId
               }
             });
 
             if (!existingPurchase) {
-              // 计算过期时间（6个月后）
-              const now = new Date();
-              const expiryDate = new Date(now);
-              expiryDate.setMonth(expiryDate.getMonth() + 6);
-
-              // 创建购买记录
+            // 计算过期时间（6个月后）
+            const now = new Date();
+            const expiryDate = new Date(now);
+            expiryDate.setMonth(expiryDate.getMonth() + 6);
+            
+            // 创建购买记录
               await db.Purchase.create({
-                id: uuidv4(),
+              id: uuidv4(),
                 userId: paymentIntent.metadata.userId,
                 questionSetId: paymentIntent.metadata.questionSetId,
-                purchaseDate: now,
-                expiryDate,
-                amount: paymentIntent.amount / 100, // 转换回元
-                transactionId: paymentIntent.id,
-                paymentMethod: 'card',
-                status: 'active'
-              });
-
+              purchaseDate: now,
+              expiryDate,
+              amount: paymentIntent.amount / 100, // 转换回元
+              transactionId: paymentIntent.id,
+              paymentMethod: 'card',
+              status: 'active'
+            });
+            
               console.log(`[Webhook] 创建购买记录成功: ${paymentIntent.id}`);
             }
           } catch (dbError) {

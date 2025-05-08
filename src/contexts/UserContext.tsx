@@ -7,6 +7,7 @@ import apiClient from '../utils/api-client';
 import { userProgressService } from '../services/UserProgressService';
 import { toast } from 'react-toastify';
 import { refreshUserPurchases } from '../utils/paymentUtils';
+import { refreshTokenExpiry } from '../utils/authUtils';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -69,6 +70,7 @@ interface UserContextType {
   updateUserProgress: (progressUpdate: Partial<UserProgress>) => void;
   syncAccessRights: () => Promise<void>;
   refreshPurchases: () => Promise<Purchase[]>;
+  switchAccount: (userId: string) => Promise<boolean>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -200,88 +202,103 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
-    // 确保先改变状态，再调用notifyUserChange
-    localStorage.removeItem('token');
-    
-    // 清除所有相关的本地存储数据
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-        key.startsWith('quiz_progress_') ||
-        key.startsWith('quiz_payment_completed_') ||
-        key.startsWith('quiz_state_') ||
-        key.startsWith('lastAttempt_') ||
-        key.startsWith('quizAccessRights') ||
-        key === 'redeemedQuestionSetIds' ||
-        key === 'questionSetAccessCache'
-      )) {
-        keysToRemove.push(key);
-      }
-    }
-    
-    // 批量删除本地存储项
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    // 清除sessionStorage中的数据
-    const sessionKeysToRemove = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && (
-        key.startsWith('quiz_') ||
-        key.startsWith('user_')
-      )) {
-        sessionKeysToRemove.push(key);
-      }
-    }
-    
-    // 批量删除会话存储项
-    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-    
-    // 清除API客户端缓存和状态
-    apiClient.clearCache();
-    apiClient.setAuthHeader(null);
-    userProgressService.clearCachedUserId();
-
-    // 清空状态
-    setUser(null);
-    setUserPurchases([]);
-    
-    // 通知Socket断开连接
-    if (socket) {
-      socket.disconnect();
-    }
-    
-    console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
-    
-    // 通知用户登出，但不强制刷新页面
-    notifyUserChange(null);
-    
-    // 改为使用回调方式，而不是直接执行导航
-    // 这样可以让调用logout的组件决定是否需要导航
     try {
-      // 如果在React组件环境外调用，则回退到直接导航
-      if (typeof window !== 'undefined' && window.location) {
-        // 使用较温和的方式 - 使用pushState保持用户在当前页面
-        const currentLocation = window.location.pathname;
-        if (currentLocation !== '/' && currentLocation !== '/home') {
-          window.history.pushState({}, '', '/');
-          
-          // 触发一个自定义事件，让应用知道需要更新路由
-          const navigationEvent = new CustomEvent('app:navigation', { 
-            detail: { path: '/', reason: 'logout' } 
-          });
-          window.dispatchEvent(navigationEvent);
-        } else {
-          // 如果已经在首页，只需要触发页面刷新
-          const refreshEvent = new CustomEvent('app:refresh', { 
-            detail: { reason: 'logout' } 
-          });
-          window.dispatchEvent(refreshEvent);
+      // 保存当前活跃用户ID，以便保留其数据
+      const currentUserId = user?.id;
+      const currentToken = localStorage.getItem('token');
+      
+      // 如果有效的用户ID和令牌，保存用户专用令牌
+      if (currentUserId && currentToken) {
+        localStorage.setItem(`user_${currentUserId}_token`, currentToken);
+      }
+      
+      // 移除token和活跃用户标记，但保留用户数据
+      localStorage.removeItem('token');
+      localStorage.removeItem('activeUserId');
+      
+      // 清除用户状态
+      setUser(null);
+      notifyUserChange(null);
+      
+      console.log(`[UserContext] 用户登出，保留用户 ${currentUserId} 的数据`);
+      
+      // 清除所有相关的本地存储数据
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith('quiz_progress_') ||
+          key.startsWith('quiz_payment_completed_') ||
+          key.startsWith('quiz_state_') ||
+          key.startsWith('lastAttempt_') ||
+          key.startsWith('quizAccessRights') ||
+          key === 'redeemedQuestionSetIds' ||
+          key === 'questionSetAccessCache'
+        )) {
+          keysToRemove.push(key);
         }
       }
+      
+      // 批量删除本地存储项
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // 清除sessionStorage中的数据
+      const sessionKeysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (
+          key.startsWith('quiz_') ||
+          key.startsWith('user_')
+        )) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      
+      // 批量删除会话存储项
+      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+      
+      // 清除API客户端缓存和状态
+      apiClient.clearCache();
+      apiClient.setAuthHeader(null);
+      userProgressService.clearCachedUserId();
+
+      // 清空状态
+      setUserPurchases([]);
+      
+      // 通知Socket断开连接
+      if (socket) {
+        socket.disconnect();
+      }
+      
+      console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
+      
+      // 通知用户登出，但不强制刷新页面
+      try {
+        // 如果在React组件环境外调用，则回退到直接导航
+        if (typeof window !== 'undefined' && window.location) {
+          // 使用较温和的方式 - 使用pushState保持用户在当前页面
+          const currentLocation = window.location.pathname;
+          if (currentLocation !== '/' && currentLocation !== '/home') {
+            window.history.pushState({}, '', '/');
+            
+            // 触发一个自定义事件，让应用知道需要更新路由
+            const navigationEvent = new CustomEvent('app:navigation', { 
+              detail: { path: '/', reason: 'logout' } 
+            });
+            window.dispatchEvent(navigationEvent);
+          } else {
+            // 如果已经在首页，只需要触发页面刷新
+            const refreshEvent = new CustomEvent('app:refresh', { 
+              detail: { reason: 'logout' } 
+            });
+            window.dispatchEvent(refreshEvent);
+          }
+        }
+      } catch (error) {
+        console.error('[UserContext] 登出后导航错误:', error);
+      }
     } catch (error) {
-      console.error('[UserContext] 登出后导航错误:', error);
+      console.error('[UserContext] 登出时发生错误:', error);
     }
   };
 
@@ -292,48 +309,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 在登录之前清除所有之前用户的本地存储数据
       const oldToken = localStorage.getItem('token');
       if (oldToken) {
-        console.log('[UserContext] 检测到之前的登录会话，清除旧数据...');
-        
-        // 执行完整的清理
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (
-            key.startsWith('quiz_') ||
-            key.startsWith('user_') ||
-            key === 'token' ||
-            key === 'questionSetAccessCache' ||
-            key === 'redeemedQuestionSetIds' ||
-            key === 'quizAccessRights'
-          )) {
-            keysToRemove.push(key);
-          }
-        }
-        
-        // 批量删除本地存储项
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        
-        // 清除sessionStorage中的数据
-        const sessionKeysToRemove = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (key && (
-            key.startsWith('quiz_') ||
-            key.startsWith('user_')
-          )) {
-            sessionKeysToRemove.push(key);
-          }
-        }
-        
-        // 批量删除会话存储项
-        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-        
-        // 清除API客户端缓存
-        apiClient.clearCache();
+        console.log('[UserContext] 检测到之前的登录会话，保留会话数据...');
+        // 不再清除旧用户数据，而是保留它们，因为我们将使用用户ID前缀来隔离
       }
       
       // 清空状态
-      setUser(null);
       setUserPurchases([]);
       
       const response = await userApi.login(username, password);
@@ -348,8 +328,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // 使用用户ID作为前缀，隔离不同用户的数据
           const userPrefix = `user_${userData.id}_`;
           
+          // 也存储用户专用令牌，用于账号切换
+          localStorage.setItem(`${userPrefix}token`, token);
+          
+          // 存储当前活跃用户ID，用于会话管理
+          localStorage.setItem('activeUserId', userData.id);
+          
           // 设置用户状态
           setUser(userData);
+          
+          // 更新令牌过期时间
+          refreshTokenExpiry(userData.id);
           
           // 登录后初始化Socket连接
           const socketInstance = initializeSocket();
@@ -640,7 +629,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // 获取本地缓存
   const getLocalAccessCache = () => {
     try {
-      const raw = localStorage.getItem('questionSetAccessCache') || '{}';
+      if (!user?.id) return {};
+      
+      // 使用用户ID作为前缀获取特定用户的缓存
+      const userPrefix = `user_${user.id}_`;
+      const raw = localStorage.getItem(`${userPrefix}questionSetAccessCache`) || '{}';
       return JSON.parse(raw);
     } catch (e) {
       console.error('[UserContext] Error reading cache:', e);
@@ -654,21 +647,20 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Skip if no user or questionSetId
       if (!user?.id || !questionSetId) return;
       
+      // 使用用户ID作为前缀
+      const userPrefix = `user_${user.id}_`;
       const cache = getLocalAccessCache();
       
-      // Create user section if it doesn't exist
-      if (!cache[user.id]) cache[user.id] = {};
-      
-      // Store access info with timestamp
-      cache[user.id][questionSetId] = {
+      // 直接存储访问信息，无需再按用户ID嵌套
+      cache[questionSetId] = {
         hasAccess,
         remainingDays,
         timestamp: Date.now(),
         accessType
       };
       
-      // Save to localStorage
-      localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
+      // 使用用户前缀保存到localStorage
+      localStorage.setItem(`${userPrefix}questionSetAccessCache`, JSON.stringify(cache));
       console.log(`[UserContext] Saved access right for ${questionSetId} (User: ${user.id})`);
     } catch (error) {
       console.error('[UserContext] Error saving access rights to localStorage:', error);
@@ -704,8 +696,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 1. 首先检查本地缓存 (最快)
     try {
       const cache = getLocalAccessCache();
-      if (cache[user.id] && cache[user.id][questionSetId]) {
-        const accessInfo = cache[user.id][questionSetId];
+      if (cache[questionSetId]) {
+        const accessInfo = cache[questionSetId];
         
         // 检查缓存是否较新 (30分钟内)
         const isCacheRecent = (Date.now() - accessInfo.timestamp) < 1800000;
@@ -765,7 +757,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // 3. 检查已兑换题库的本地存储
     try {
-      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      const userPrefix = `user_${user.id}_`;
+      const redeemedStr = localStorage.getItem(`${userPrefix}redeemedQuestionSetIds`);
       if (redeemedStr) {
         const redeemedIds = JSON.parse(redeemedStr);
         if (Array.isArray(redeemedIds)) {
@@ -870,8 +863,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const redeemCode = async (code: string): Promise<{ success: boolean; message: string; questionSetId?: string; quizTitle?: string }> => {
-    if (!user) return { success: false, message: '请先登录' };
+    if (!user) {
+      return { success: false, message: '请先登录' };
+    }
+
     try {
+      const userPrefix = `user_${user.id}_`;
+      setLoading(true);
       console.log(`[RedeemCode] 开始兑换码: ${code}`);
       const response = await redeemCodeApi.redeemCode(code);
       
@@ -968,6 +966,33 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         console.log(`[RedeemCode] 返回兑换结果:`, { questionSetId, quizTitle });
         
+        // 使用用户ID前缀保存兑换信息到localStorage
+        try {
+          // 获取已有的兑换记录
+          const redeemedStr = localStorage.getItem(`${userPrefix}redeemedQuestionSetIds`) || '[]';
+          const redeemedIds = JSON.parse(redeemedStr);
+          
+          // 确保是数组
+          if (!Array.isArray(redeemedIds)) {
+            localStorage.setItem(`${userPrefix}redeemedQuestionSetIds`, JSON.stringify([questionSetId]));
+          } else if (!redeemedIds.includes(questionSetId)) {
+            // 添加新兑换的题库ID
+            redeemedIds.push(questionSetId);
+            localStorage.setItem(`${userPrefix}redeemedQuestionSetIds`, JSON.stringify(redeemedIds));
+          }
+          
+          // 记录兑换的详细信息
+          localStorage.setItem(
+            `${userPrefix}redeemed_${questionSetId}`,
+            JSON.stringify({
+              redeemedAt: new Date().toISOString(),
+              code
+            })
+          );
+        } catch (error) {
+          console.error('[UserContext] 保存兑换记录到本地存储失败:', error);
+        }
+        
         return {
           success: true,
           message: '兑换成功!',
@@ -987,6 +1012,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         success: false,
         message: error.message || '兑换过程中发生错误'
       };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1081,6 +1108,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user || !user.id || !socket) return;
     
     console.log('[UserContext] 开始跨设备访问权限同步');
+    const userPrefix = `user_${user.id}_`;
     
     try {
       // 1. 首先从服务器获取最新用户数据
@@ -1177,6 +1205,69 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
+  // 添加账号切换功能
+  const switchAccount = async (userId: string): Promise<boolean> => {
+    try {
+      console.log(`[UserContext] 尝试切换到用户账号: ${userId}`);
+      
+      // 保存当前令牌，以便稍后可以恢复
+      const currentToken = localStorage.getItem('token');
+      const currentUserId = user?.id;
+      
+      // 获取目标用户的会话令牌（如果有的话）
+      const userPrefix = `user_${userId}_`;
+      const targetUserToken = localStorage.getItem(`${userPrefix}token`);
+      
+      if (!targetUserToken) {
+        console.error(`[UserContext] 无法切换账号: 目标用户 ${userId} 无有效令牌`);
+        return false;
+      }
+      
+      // 保存当前会话状态（如果已登录）
+      if (currentUserId && currentToken) {
+        localStorage.setItem(`user_${currentUserId}_token`, currentToken);
+      }
+      
+      // 清除当前会话
+      setUser(null);
+      
+      // 设置新用户的令牌
+      localStorage.setItem('token', targetUserToken);
+      localStorage.setItem('activeUserId', userId);
+      
+      // 获取用户数据
+      const response = await userApi.getCurrentUser();
+      if (response.success && response.data) {
+        setUser(response.data);
+        notifyUserChange(response.data);
+        
+        // 同步访问权限
+        setTimeout(async () => {
+          await syncAccessRights();
+        }, 500);
+        
+        console.log(`[UserContext] 成功切换到用户: ${userId}`);
+        return true;
+      } else {
+        console.error(`[UserContext] 切换账号失败: 无法获取用户数据`);
+        // 恢复之前的会话
+        if (currentUserId && currentToken) {
+          localStorage.setItem('token', currentToken);
+          localStorage.setItem('activeUserId', currentUserId);
+          const prevResponse = await userApi.getCurrentUser();
+          if (prevResponse.success && prevResponse.data) {
+            setUser(prevResponse.data);
+            notifyUserChange(prevResponse.data);
+          }
+        }
+        return false;
+      }
+    } catch (error) {
+      console.error('[UserContext] 切换账号时发生错误:', error);
+      return false;
+    }
+  };
+
   const contextValue = useMemo(() => ({
     user,
     loading,
@@ -1203,8 +1294,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     adminRegister,
     updateUserProgress,
     syncAccessRights,
-    refreshPurchases
-  }), [user, loading, error, userChangeEvent, login, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases]);
+    refreshPurchases,
+    switchAccount
+  }), [user, loading, error, userChangeEvent, login, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases, switchAccount]);
 
   return (
     <UserContext.Provider value={contextValue}>
