@@ -69,8 +69,8 @@ const getRedeemCodes = async (req, res) => {
         const pageSize = parseInt(req.query.pageSize) || 10;
         const offset = (page - 1) * pageSize;
         const limit = pageSize;
-        const isUsedFilter = req.query.isUsed !== undefined ? `AND rc.is_used = ${req.query.isUsed === 'true' ? 1 : 0}` : '';
-        const questionSetFilter = req.query.questionSetId ? `AND rc.question_set_id = '${req.query.questionSetId}'` : '';
+        const isUsedFilter = req.query.isUsed !== undefined ? `AND rc.isUsed = ${req.query.isUsed === 'true' ? 1 : 0}` : '';
+        const questionSetFilter = req.query.questionSetId ? `AND rc.questionSetId = '${req.query.questionSetId}'` : '';
         // 使用原生SQL查询，避免Sequelize关联问题
         try {
             console.log('[RedeemCodeController] 使用原生SQL查询获取兑换码列表');
@@ -84,14 +84,14 @@ const getRedeemCodes = async (req, res) => {
             const dataSql = `
         SELECT 
           rc.code, 
-          rc.question_set_id as questionSetId,
-          rc.validity_days as validityDays,
-          rc.is_used as isUsed,
-          rc.used_by as usedBy,
-          rc.used_at as usedAt,
-          rc.created_by as createdBy,
-          rc.created_at as createdAt,
-          rc.updated_at as updatedAt,
+          rc.questionSetId as questionSetId,
+          rc.validityDays as validityDays,
+          rc.isUsed as isUsed,
+          rc.usedBy as usedBy,
+          rc.usedAt as usedAt,
+          rc.createdBy as createdBy,
+          rc.createdAt as createdAt,
+          rc.updatedAt as updatedAt,
           qs.id as questionSetId,
           qs.title as questionSetTitle,
           qs.description as questionSetDescription,
@@ -100,11 +100,11 @@ const getRedeemCodes = async (req, res) => {
           u2.username as creatorUsername,
           u2.email as creatorEmail
         FROM redeem_codes rc
-        LEFT JOIN question_sets qs ON rc.question_set_id = qs.id
-        LEFT JOIN users u1 ON rc.used_by = u1.id
-        LEFT JOIN users u2 ON rc.created_by = u2.id
+        LEFT JOIN question_sets qs ON rc.questionSetId = qs.id
+        LEFT JOIN users u1 ON rc.usedBy = u1.id
+        LEFT JOIN users u2 ON rc.createdBy = u2.id
         WHERE 1=1 ${isUsedFilter} ${questionSetFilter}
-        ORDER BY rc.created_at DESC
+        ORDER BY rc.createdAt DESC
         LIMIT ? OFFSET ?
       `;
             // 执行总数查询
@@ -230,7 +230,7 @@ const redeemCode = async (req, res) => {
         const purchaseId = (0, uuid_1.v4)();
         const now = new Date();
         const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天有效期
-        await models_1.sequelize.query(`INSERT INTO purchases (id, user_id, question_set_id, purchase_date, status, expiry_date, amount, created_at, updated_at)
+        await models_1.sequelize.query(`INSERT INTO purchases (id, userId, questionSetId, purchaseDate, status, expiryDate, amount, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)`, {
             replacements: [purchaseId, userId, questionSet.id, now, expiryDate, now, now],
             type: sequelize_1.QueryTypes.INSERT
@@ -248,22 +248,22 @@ const redeemCode = async (req, res) => {
             type: sequelize_1.QueryTypes.SELECT
         });
         // 查询用户的socket_id
-        const [userSocketResult] = await models_1.sequelize.query(`SELECT socket_id FROM users WHERE id = ?`, {
+        const [userSocketResult] = await models_1.sequelize.query(`SELECT socketId FROM users WHERE id = ?`, {
             replacements: [userId],
             type: sequelize_1.QueryTypes.SELECT
         });
         // 如果用户在线，通过Socket.IO发送兑换成功通知
         const userSocket = userSocketResult;
-        if (userSocket && userSocket.socket_id) {
+        if (userSocket && userSocket.socketId) {
             try {
                 const io = (0, socket_1.getSocketIO)();
                 // 发送题库访问权限更新
-                io.to(userSocket.socket_id).emit('questionSet:accessUpdate', {
+                io.to(userSocket.socketId).emit('questionSet:accessUpdate', {
                     questionSetId: questionSet.id,
                     hasAccess: true
                 });
                 // 发送兑换成功事件
-                io.to(userSocket.socket_id).emit('redeem:success', {
+                io.to(userSocket.socketId).emit('redeem:success', {
                     questionSetId: questionSet.id,
                     purchaseId: purchaseId,
                     expiryDate: expiryDate
@@ -337,21 +337,21 @@ const getUserRedeemCodes = async (req, res) => {
         const redeemCodesSql = `
       SELECT 
         rc.code, 
-        rc.question_set_id as questionSetId,
-        rc.validity_days as validityDays,
-        rc.created_at as createdAt, 
-        rc.used_by as usedBy,
-        rc.used_at as usedAt,
-        rc.updated_at as updatedAt,
+        rc.questionSetId as questionSetId,
+        rc.validityDays as validityDays,
+        rc.createdAt as createdAt, 
+        rc.usedBy as usedBy,
+        rc.usedAt as usedAt,
+        rc.updatedAt as updatedAt,
         qs.id as qsId,
         qs.title as questionSetTitle,
         qs.description as questionSetDescription,
         qs.icon as questionSetIcon,
         qs.category as questionSetCategory
       FROM redeem_codes rc
-      LEFT JOIN question_sets qs ON rc.question_set_id = qs.id
-      WHERE rc.used_by = ? AND rc.used_at IS NOT NULL
-      ORDER BY rc.used_at DESC
+      LEFT JOIN question_sets qs ON rc.questionSetId = qs.id
+      WHERE rc.usedBy = ? AND rc.usedAt IS NOT NULL
+      ORDER BY rc.usedAt DESC
     `;
         try {
             const redeemCodesResult = await models_1.sequelize.query(redeemCodesSql, {
