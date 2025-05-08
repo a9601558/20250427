@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
+import { CalendarIcon, CreditCardIcon, ClockIcon, CashIcon } from './Icons';
 
 // 原始进度记录类型
 interface ProgressRecord {
@@ -368,127 +369,106 @@ interface PurchaseCardProps {
 
 const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   const navigate = useNavigate();
-  const expiryDate = new Date(purchase.expiryDate);
-  const now = new Date();
-  const isExpired = expiryDate < now;
+  
+  // 提取题库数据，确保兼容不同来源的数据
+  const questionSet = purchase.purchaseQuestionSet || 
+    (purchase as any).questionSet || 
+    { id: purchase.questionSetId, title: `题库 (ID: ${purchase.questionSetId.substring(0, 8)}...)` };
   
   // 计算剩余天数
-  const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-  
-  // 计算总有效期 - 直接使用180天作为标准有效期，而不是根据购买日期和过期日期计算
-  const purchaseDate = new Date(purchase.purchaseDate);
-  
-  // 标准有效期180天 - 与知识付费的标准时长一致
-  const totalValidityDays = 180;
-  
-  // 获取题库标题
-  const title = purchase.purchaseQuestionSet?.title || purchase.questionSet?.title || '未知题库';
-  
-  // 使用剩余天数确定颜色
-  const getStatusColorClass = () => {
-    if (isExpired) return 'text-red-500 bg-red-50 border-red-100';
-    if (remainingDays < 30) return 'text-orange-500 bg-orange-50 border-orange-100';
-    return 'text-emerald-500 bg-emerald-50 border-emerald-100';
+  const calculateRemainingDays = (): number => {
+    try {
+      if (!purchase.expiryDate) return 0;
+      
+      const now = new Date();
+      const expiryDate = new Date(purchase.expiryDate);
+      
+      // 检查日期是否有效
+      if (isNaN(expiryDate.getTime())) {
+        console.error('[PurchaseCard] 无效的过期日期:', purchase.expiryDate);
+        return 0;
+      }
+      
+      const diffTime = expiryDate.getTime() - now.getTime();
+      return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    } catch (error) {
+      console.error('[PurchaseCard] 计算剩余天数出错:', error);
+      return 0;
+    }
   };
   
+  const remainingDays = calculateRemainingDays();
+  const hasExpired = remainingDays <= 0;
+  
+  const getStatusColorClass = () => {
+    if (hasExpired) return 'bg-red-100 text-red-800';
+    if (purchase.status === 'active') return 'bg-green-100 text-green-800';
+    if (purchase.status === 'pending') return 'bg-yellow-100 text-yellow-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  const getStatusText = () => {
+    if (hasExpired) return '已过期';
+    if (purchase.status === 'active') return '有效';
+    if (purchase.status === 'pending') return '待处理';
+    if (purchase.status === 'cancelled') return '已取消';
+    return purchase.status || '未知';
+  };
+  
+  const handleClick = () => {
+    if (questionSet && questionSet.id) {
+      navigate(`/quiz/${questionSet.id}`);
+    } else {
+      console.error('[PurchaseCard] 无法导航，题库ID不存在');
+      toast.error('无法打开题库，ID不存在');
+    }
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100 transform hover:-translate-y-1">
-      {/* 顶部状态条 */}
-      <div className={`h-2 ${isExpired ? 'bg-red-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'}`}></div>
+    <div 
+      className="bg-white rounded-lg shadow-md p-4 mb-4 hover:shadow-lg transition-shadow cursor-pointer"
+      onClick={handleClick}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <h3 className="text-lg font-semibold text-gray-800 truncate pr-2">
+          {questionSet?.title || `题库 (ID: ${purchase.questionSetId.substring(0, 8)}...)`}
+        </h3>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColorClass()}`}>
+          {getStatusText()}
+        </span>
+      </div>
       
-      <div className="p-5">
-        <div className="flex justify-between items-start mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 truncate flex items-center">
-            <svg className="w-5 h-5 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            {title}
-          </h2>
-          <div className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColorClass()}`}>
-            {isExpired ? '已过期' : remainingDays < 30 ? '即将过期' : '有效'}
-          </div>
+      <div className="text-sm text-gray-500 mb-3 max-h-12 overflow-hidden">
+        {questionSet?.description || '无描述'}
+      </div>
+      
+      <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+        <div className="flex items-center">
+          <CalendarIcon className="w-4 h-4 mr-1" />
+          {new Date(purchase.purchaseDate).toLocaleDateString()} 购买
         </div>
         
-        <div className="space-y-1 mt-5 mb-6">
-          <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50">
-            <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <div className="flex-1">
-              <div className="text-xs text-gray-500">购买日期</div>
-              <div className="text-sm font-medium">{formatDate(purchase.purchaseDate)}</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50">
-            <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <div className="text-xs text-gray-500">到期日期</div>
-              <div className={`text-sm font-medium ${isExpired ? 'text-red-500' : ''}`}>{formatDate(purchase.expiryDate)}</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center px-3 py-2 rounded-lg bg-gray-50">
-            <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
-            </svg>
-            <div className="flex-1">
-              <div className="text-xs text-gray-500">支付金额</div>
-              <div className="text-sm font-medium">¥{purchase.amount.toFixed(2)}</div>
-            </div>
-          </div>
+        <div className="flex items-center">
+          <CreditCardIcon className="w-4 h-4 mr-1" />
+          {purchase.amount ? `¥${purchase.amount.toFixed(2)}` : '免费'}
         </div>
-      
-        {!isExpired && (
-          <div className="mt-4">
-            <div className="flex justify-between items-center mb-2 text-sm">
-              <span className="text-gray-600">剩余有效期</span>
-              <div className="font-medium text-indigo-600 flex items-center">
-                <svg className="w-4 h-4 mr-1 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {remainingDays} 天
-              </div>
-            </div>
-            <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 transition-all duration-500"
-                style={{ width: `${Math.min(100, (remainingDays / totalValidityDays) * 100)}%` }}
-              ></div>
-            </div>
-            <div className="flex justify-end mt-1">
-              <span className="text-xs text-gray-500">{Math.round((remainingDays / totalValidityDays) * 100)}%</span>
-            </div>
+        
+        {!hasExpired && (
+          <div className="flex items-center">
+            <ClockIcon className="w-4 h-4 mr-1" />
+            剩余 {remainingDays} 天
           </div>
         )}
         
-        <button
-          onClick={() => navigate(`/quiz/${purchase.questionSetId}`)}
-          className={`w-full mt-5 py-2.5 rounded-lg flex items-center justify-center font-medium text-sm transition-all duration-300 ${
-            isExpired 
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-            : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:shadow-md'
-          }`}
-          disabled={isExpired}
-        >
-          {isExpired ? (
-            <>
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              题库已过期
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-              开始学习
-            </>
-          )}
-        </button>
+        {purchase.paymentMethod && (
+          <div className="flex items-center">
+            <CashIcon className="w-4 h-4 mr-1" />
+            {purchase.paymentMethod === 'wechat' ? '微信支付' : 
+              purchase.paymentMethod === 'alipay' ? '支付宝' : 
+              purchase.paymentMethod === 'direct' ? '直接购买' : 
+              purchase.paymentMethod}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1276,42 +1256,76 @@ const ProfilePage: React.FC = () => {
     
     try {
       setPurchasesLoading(true);
+      console.log('[ProfilePage] 开始获取用户购买记录');
+      
       const response = await purchaseService.getUserPurchases();
+      console.log('[ProfilePage] 购买记录响应:', response.success, response.data?.length || 0);
       
       if (response.success && response.data) {
         // 确保返回的数据格式正确，并过滤掉通过兑换码获得的记录
         const validPurchases = response.data
           .filter((p: any) => p && p.questionSetId) // 过滤掉无效记录
-          .filter((p: any) => p.amount > 0 && p.paymentMethod !== 'redeem') // 过滤掉通过兑换码获得的题库
+          .filter((p: any) => {
+            // 只保留直接购买的题库，过滤掉通过兑换码获得的题库和金额为0的记录
+            const shouldInclude = p.amount > 0 && p.paymentMethod !== 'redeem' && p.paymentMethod !== 'system';
+            if (!shouldInclude) {
+              console.log('[ProfilePage] 过滤掉非直接购买记录:', p.questionSetId, p.paymentMethod, p.amount);
+            }
+            return shouldInclude;
+          })
           .map((p: any) => {
             // 确保必需字段
+            let questionSetData = null;
+            
+            // 处理不同的题库数据格式
+            if (p.purchaseQuestionSet) {
+              questionSetData = p.purchaseQuestionSet;
+            } else if (p.questionSet) {
+              questionSetData = p.questionSet;
+            }
+            
+            // 如果没有题库数据，创建一个基本对象
+            if (!questionSetData && p.questionSetId) {
+              questionSetData = {
+                id: p.questionSetId,
+                title: `题库 ${p.questionSetId.substring(0, 8)}...`,
+                description: '无描述'
+              };
+              console.log('[ProfilePage] 为缺少题库数据的记录创建默认值:', p.questionSetId);
+            }
+            
             const purchase: Purchase = {
               id: p.id || '', // 确保id为字符串
               questionSetId: p.questionSetId,
-              purchaseDate: p.purchaseDate,
-              expiryDate: p.expiryDate,
+              purchaseDate: p.purchaseDate || new Date().toISOString(),
+              expiryDate: p.expiryDate || new Date(Date.now() + 30*24*60*60*1000).toISOString(),
               amount: typeof p.amount === 'string' ? parseFloat(p.amount) : (p.amount || 0), // 确保amount是数字
-              status: p.status,
-              paymentMethod: p.paymentMethod,
-              transactionId: p.transactionId,
-              // 处理关联数据兼容性问题
-              purchaseQuestionSet: p.purchaseQuestionSet || 
-                (p.questionSet ? { 
-                  id: p.questionSet.id, 
-                  title: p.questionSet.title,
-                  description: p.questionSet.description
-                } : undefined)
+              status: p.status || 'active',
+              paymentMethod: p.paymentMethod || 'direct',
+              transactionId: p.transactionId || '',
+              purchaseQuestionSet: questionSetData
             };
+            
             return purchase;
           });
         
+        console.log('[ProfilePage] 处理后有效的购买记录数量:', validPurchases.length);
+        if (validPurchases.length === 0) {
+          console.log('[ProfilePage] 警告: 没有有效的直接购买记录');
+        } else {
+          console.log('[ProfilePage] 第一条购买记录:', 
+            validPurchases[0].questionSetId, 
+            validPurchases[0].purchaseQuestionSet?.title || '无标题');
+        }
+        
         setPurchases(validPurchases);
       } else {
+        console.error('[ProfilePage] 获取购买记录失败:', response.message);
         throw new Error(response.message || '获取购买记录失败');
       }
     } catch (error) {
-      toast.error('获取购买记录失败');
-      console.error('[ProfilePage] Error fetching purchases:', error);
+      console.error('[ProfilePage] 获取购买记录异常:', error);
+      toast.error('获取购买记录失败，请刷新页面重试');
     } finally {
       setPurchasesLoading(false);
     }

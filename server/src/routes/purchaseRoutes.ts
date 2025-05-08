@@ -4,7 +4,8 @@ import {
   getUserPurchases,
   checkAccess,
   getActivePurchases,
-  forceCreatePurchase
+  forceCreatePurchase,
+  updateAccess
 } from '../controllers/purchaseController';
 import { protect } from '../middleware/authMiddleware';
 import * as purchaseService from '../services/purchaseService';
@@ -22,6 +23,7 @@ router.get('/', getUserPurchases);
 router.get('/check/:questionSetId', checkAccess);
 router.get('/active', getActivePurchases);
 router.post('/force-create', forceCreatePurchase);
+router.post('/update-access', updateAccess);
 
 /**
  * 检查用户对题库的访问权限

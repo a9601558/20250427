@@ -628,24 +628,80 @@ export const purchaseService = {
   // 获取用户的所有购买
   async getUserPurchases(): Promise<ApiResponse<Purchase[]>> {
     try {
+      console.log('[API] 开始请求获取用户购买记录');
       const response = await api.get('/purchases');
+      console.log('[API] 购买记录API响应:', response.status);
+      
+      // 检查响应数据是否存在并有效
+      if (!response.data || !response.data.data) {
+        console.error('[API] 购买记录API响应无效:', response.data);
+        return {
+          success: false,
+          message: '服务器返回数据无效',
+          data: []
+        };
+      }
+      
       const purchases = response.data.data;
-      // 确保返回的数据使用正确的属性名
-      purchases.forEach((purchase: any) => {
-        if (purchase.questionSet) {
-          purchase.purchaseQuestionSet = purchase.questionSet;
-          delete purchase.questionSet;
+      console.log(`[API] 获取到 ${purchases.length} 条购买记录`);
+      
+      // 确保所有购买记录都有正确的属性格式
+      const formattedPurchases = purchases.map((purchase: any) => {
+        try {
+          // 确保题库数据的一致性
+          let questionSetData = null;
+          if (purchase.purchaseQuestionSet) {
+            questionSetData = purchase.purchaseQuestionSet;
+          } else if (purchase.questionSet) {
+            questionSetData = purchase.questionSet;
+          }
+          
+          // 创建一个新的规范化的购买记录对象
+          return {
+            id: purchase.id || '',
+            userId: purchase.userId,
+            questionSetId: purchase.questionSetId,
+            purchaseDate: purchase.purchaseDate || new Date().toISOString(),
+            expiryDate: purchase.expiryDate || new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+            amount: typeof purchase.amount === 'string' ? parseFloat(purchase.amount) : (purchase.amount || 0),
+            status: purchase.status || 'active',
+            paymentMethod: purchase.paymentMethod || 'direct',
+            transactionId: purchase.transactionId || '',
+            purchaseQuestionSet: questionSetData,
+            remainingDays: purchase.remainingDays || 0,
+            hasAccess: purchase.hasAccess !== undefined ? purchase.hasAccess : true
+          };
+        } catch (error) {
+          console.error('[API] 处理购买记录时出错:', error, purchase);
+          // 返回基本信息，避免单条记录错误影响整个列表
+          return {
+            id: purchase.id || '',
+            questionSetId: purchase.questionSetId || '',
+            purchaseDate: new Date().toISOString(),
+            expiryDate: new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+            amount: 0,
+            status: 'unknown',
+            paymentMethod: 'unknown',
+            transactionId: ''
+          };
         }
       });
+      
+      // 过滤掉没有题库ID的无效记录
+      const validPurchases = formattedPurchases.filter((p: any) => p && p.questionSetId);
+      console.log(`[API] 返回 ${validPurchases.length} 条有效购买记录`);
+      
       return {
         success: true,
-        data: purchases
+        data: validPurchases
       };
     } catch (error: any) {
+      console.error('[API] 获取购买记录失败:', error);
       return {
         success: false,
-        message: error.message,
-        error: error.error
+        message: error.message || '获取购买记录失败',
+        error: error.toString(),
+        data: []
       };
     }
   },
