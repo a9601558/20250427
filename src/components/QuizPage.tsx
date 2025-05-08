@@ -529,6 +529,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
+    // 添加明确的付费题库检查
+    if (!questionSet.isPaid) {
+      console.error(`[PaymentModal] 题库${questionSet.id} (${questionSet.title}) 非付费题库，无法进行购买:`, questionSet);
+      setError("该题库为免费题库，无需购买");
+      toast.error("该题库为免费题库，无需购买");
+      setIsProcessing(false);
+      setBtnClicked(false);
+      return;
+    }
+    
+    // 增加日志记录详细的题库信息，以便调试
+    console.log('[PaymentModal] 题库购买前信息检查:', {
+      id: questionSet.id,
+      title: questionSet.title,
+      isPaid: questionSet.isPaid,
+      price: questionSet.price,
+      timestamp: new Date().toISOString()
+    });
+    
     // Don't proceed if already processing
     if (isProcessing || btnClicked) {
       console.log('[PaymentModal] Ignoring click - already processing');
