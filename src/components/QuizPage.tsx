@@ -175,162 +175,165 @@ const PurchasePage: React.FC<{
   isProcessing?: boolean;
 }> = ({ questionSet, onPurchase, onRedeem, onBack, trialCount, isProcessing = false }) => {
   
-  // 添加点击状态和动画状态
+  // Simplified state - single object for button states
   const [btnStates, setBtnStates] = useState({
-    purchase: { clicked: false, hovered: false },
-    redeem: { clicked: false, hovered: false },
-    back: { clicked: false, hovered: false }
+    purchase: { clicked: false },
+    redeem: { clicked: false },
+    back: { clicked: false }
   });
   
-  // 处理购买按钮点击
+  // Improved purchase button click handler
   const handlePurchaseClick = (e: React.MouseEvent) => {
-    // 阻止事件冒泡
+    // Critical: prevent event bubbling
     e.stopPropagation();
+    e.preventDefault();
     
-    console.log('[PurchasePage] 立即购买按钮被点击 - 当前时间:', new Date().toISOString());
+    console.log('[PurchasePage] Purchase button clicked at:', new Date().toISOString());
     
-    // 防止重复点击和处理中状态下点击
+    // Don't proceed if already processing or clicked
     if (isProcessing || btnStates.purchase.clicked) {
-      console.log('[PurchasePage] 忽略点击 - isProcessing:', isProcessing, 'clicked:', btnStates.purchase.clicked);
+      console.log('[PurchasePage] Ignoring click - isProcessing:', isProcessing, 'clicked:', btnStates.purchase.clicked);
       return;
     }
     
-    // 立即更新UI状态提供反馈
+    // Update button state using functional state update
     setBtnStates(prev => ({
       ...prev,
-      purchase: { ...prev.purchase, clicked: true }
+      purchase: { clicked: true }
     }));
     
-    // 显示loading提示
+    // Visual feedback
     toast.info('正在准备支付界面...', { 
       autoClose: 1000,
       position: 'top-center',
       hideProgressBar: false
     });
     
-    // 直接执行回调，减少不必要的延时
+    // Execute callback
     try {
-      console.log('[PurchasePage] 调用onPurchase回调');
+      console.log('[PurchasePage] Calling onPurchase callback');
       if (typeof onPurchase === 'function') {
         onPurchase();
       } else {
-        console.error('[PurchasePage] onPurchase不是一个函数');
+        console.error('[PurchasePage] onPurchase is not a function');
         toast.error('支付功能暂时不可用，请稍后再试');
       }
     } catch (err) {
-      console.error('[PurchasePage] 执行购买回调出错:', err);
+      console.error('[PurchasePage] Purchase callback error:', err);
       toast.error('处理购买请求时出错，请重试');
     }
     
-    // 300ms后重置按钮状态
+    // Reset button state after delay
     setTimeout(() => {
       setBtnStates(prev => ({
         ...prev,
-        purchase: { ...prev.purchase, clicked: false }
+        purchase: { clicked: false }
       }));
     }, 300);
   };
   
-  // 处理兑换按钮点击
+  // Improved redeem button click handler
   const handleRedeemClick = (e: React.MouseEvent) => {
-    // 阻止事件冒泡
+    // Critical: prevent event bubbling
     e.stopPropagation();
+    e.preventDefault();
     
-    console.log('[PurchasePage] 使用兑换码按钮被点击 - 当前时间:', new Date().toISOString());
+    console.log('[PurchasePage] Redeem button clicked at:', new Date().toISOString());
     
-    // 防止重复点击和处理中状态下点击
+    // Don't proceed if already processing or clicked
     if (isProcessing || btnStates.redeem.clicked) {
-      console.log('[PurchasePage] 忽略点击 - isProcessing:', isProcessing, 'clicked:', btnStates.redeem.clicked);
+      console.log('[PurchasePage] Ignoring click - isProcessing:', isProcessing, 'clicked:', btnStates.redeem.clicked);
       return;
     }
     
-    // 立即更新UI状态提供反馈
+    // Update button state using functional state update
     setBtnStates(prev => ({
       ...prev,
-      redeem: { ...prev.redeem, clicked: true }
+      redeem: { clicked: true }
     }));
     
-    // 显示loading提示
+    // Visual feedback
     toast.info('正在准备兑换界面...', { 
       autoClose: 1000,
       position: 'top-center',
       hideProgressBar: false
     });
     
-    // 直接执行回调，减少不必要的延时
+    // Execute callback
     try {
-      console.log('[PurchasePage] 调用onRedeem回调');
+      console.log('[PurchasePage] Calling onRedeem callback');
       if (typeof onRedeem === 'function') {
         onRedeem();
       } else {
-        console.error('[PurchasePage] onRedeem不是一个函数');
+        console.error('[PurchasePage] onRedeem is not a function');
         toast.error('兑换功能暂时不可用，请稍后再试');
       }
     } catch (err) {
-      console.error('[PurchasePage] 执行兑换回调出错:', err);
+      console.error('[PurchasePage] Redeem callback error:', err);
       toast.error('处理兑换请求时出错，请重试');
     }
     
-    // 300ms后重置按钮状态
+    // Reset button state after delay
     setTimeout(() => {
       setBtnStates(prev => ({
         ...prev,
-        redeem: { ...prev.redeem, clicked: false }
+        redeem: { clicked: false }
       }));
     }, 300);
   };
   
-  // 处理返回按钮点击
+  // Improved back button click handler
   const handleBackClick = (e: React.MouseEvent) => {
-    // 阻止事件冒泡
+    // Critical: prevent event bubbling
     e.stopPropagation();
+    e.preventDefault();
     
-    console.log('[PurchasePage] 返回首页按钮被点击 - 当前时间:', new Date().toISOString());
+    console.log('[PurchasePage] Back button clicked at:', new Date().toISOString());
     
-    // 防止重复点击和处理中状态下点击
+    // Don't proceed if already processing or clicked
     if (isProcessing || btnStates.back.clicked) {
-      console.log('[PurchasePage] 忽略点击 - isProcessing:', isProcessing, 'clicked:', btnStates.back.clicked);
+      console.log('[PurchasePage] Ignoring click - isProcessing:', isProcessing, 'clicked:', btnStates.back.clicked);
       return;
     }
     
-    // 立即更新UI状态提供反馈
+    // Update button state using functional state update
     setBtnStates(prev => ({
       ...prev,
-      back: { ...prev.back, clicked: true }
+      back: { clicked: true }
     }));
     
-    // 显示toast提示
+    // Visual feedback
     toast.info('正在返回首页...', { 
       autoClose: 1000,
       position: 'top-center'
     });
     
-    // 直接执行回调，减少不必要的延时
+    // Execute callback
     try {
-      console.log('[PurchasePage] 调用onBack回调');
+      console.log('[PurchasePage] Calling onBack callback');
       if (typeof onBack === 'function') {
         onBack();
       } else {
-        console.error('[PurchasePage] onBack不是一个函数');
+        console.error('[PurchasePage] onBack is not a function');
         toast.error('暂时无法返回，请刷新页面');
       }
     } catch (err) {
-      console.error('[PurchasePage] 执行返回回调出错:', err);
-    } finally {
-      // 重置按钮状态
-      setTimeout(() => {
-        setBtnStates(prev => ({
-          ...prev,
-          back: { ...prev.back, clicked: false }
-        }));
-      }, 300);
+      console.error('[PurchasePage] Back callback error:', err);
     }
+    
+    // Reset button state after delay
+    setTimeout(() => {
+      setBtnStates(prev => ({
+        ...prev,
+        back: { clicked: false }
+      }));
+    }, 300);
   };
   
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-95 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 relative overflow-hidden">
-        {/* 处理中状态遮罩 */}
+        {/* Processing overlay */}
         {isProcessing && (
           <div className="absolute inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center z-10">
             <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
@@ -338,7 +341,7 @@ const PurchasePage: React.FC<{
           </div>
         )}
         
-        {/* 顶部图标和标题 */}
+        {/* Title and info */}
         <div className="text-center mb-6">
           <div className="inline-block p-3 bg-blue-100 rounded-full text-blue-600 mb-3">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -350,7 +353,7 @@ const PurchasePage: React.FC<{
           <p className="text-gray-600 mb-4">请购买完整版或使用兑换码继续使用</p>
         </div>
         
-        {/* 题库信息卡片 */}
+        {/* Quiz set info */}
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-lg mb-8 shadow-sm border border-blue-200">
           <h3 className="text-lg font-medium text-blue-800 mb-2">{questionSet?.title || '题库'}</h3>
           <p className="text-blue-700 mb-4">{questionSet?.description || '详细学习各种问题，提升知识水平。'}</p>
@@ -365,9 +368,9 @@ const PurchasePage: React.FC<{
           </div>
         </div>
         
-        {/* 操作按钮区 */}
+        {/* Action buttons */}
         <div className="space-y-4 mb-6">
-          {/* 购买按钮 */}
+          {/* Purchase button */}
           <button 
             onClick={handlePurchaseClick}
             type="button" 
@@ -385,31 +388,31 @@ const PurchasePage: React.FC<{
             `}
             disabled={isProcessing}
           >
-            {/* 波纹效果层 */}
+            {/* Ripple effect */}
             {btnStates.purchase.clicked && (
               <span className="absolute inset-0 bg-white opacity-30 rounded-lg animate-ripple"></span>
             )}
             
-            {/* 按钮内容 */}
+            {/* Button content */}
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
             <span className="mr-2">立即购买完整版</span>
             
-            {/* 右箭头图标 */}
+            {/* Right arrow icon */}
             <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </button>
           
-          {/* 分隔线 */}
+          {/* Divider */}
           <div className="flex items-center">
             <div className="flex-grow border-t border-gray-200"></div>
             <span className="mx-4 text-sm text-gray-500">或者</span>
             <div className="flex-grow border-t border-gray-200"></div>
           </div>
           
-          {/* 兑换按钮 */}
+          {/* Redeem button */}
           <button 
             onClick={handleRedeemClick}
             type="button" 
@@ -427,24 +430,24 @@ const PurchasePage: React.FC<{
             `}
             disabled={isProcessing}
           >
-            {/* 波纹效果层 */}
+            {/* Ripple effect */}
             {btnStates.redeem.clicked && (
               <span className="absolute inset-0 bg-green-500 opacity-10 rounded-lg animate-ripple"></span>
             )}
             
-            {/* 按钮内容 */}
+            {/* Button content */}
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
             <span className="mr-2">使用兑换码解锁</span>
             
-            {/* 右箭头图标 */}
+            {/* Right arrow icon */}
             <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </button>
           
-          {/* 返回按钮 */}
+          {/* Back button */}
           <button 
             onClick={handleBackClick}
             type="button" 
@@ -468,14 +471,14 @@ const PurchasePage: React.FC<{
           </button>
         </div>
         
-        {/* 底部信息提示 */}
+        {/* Footer info */}
         <div className="text-center">
           <p className="text-xs text-gray-500 mb-2">
-          付费后立即获得完整题库的访问权限，内容持续更新
-        </p>
+            付费后立即获得完整题库的访问权限，内容持续更新
+          </p>
           <p className="text-xs text-gray-400">
             支持Stripe安全支付，确保您的付款安全
-        </p>
+          </p>
         </div>
       </div>
     </div>
@@ -508,130 +511,27 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
   const [error, setError] = useState<string | null>(null);
   const [btnClicked, setBtnClicked] = useState(false);
   
-  const handlePurchase = async () => {
-    if (!user || !questionSet) return;
-    
-    setIsProcessing(true);
-    setError(null);
-    setBtnClicked(true);
-    
-    try {
-      console.log('[PaymentModal] 开始处理Stripe支付');
-      // 调用购买API，使用Stripe支付方式
-      const response = await purchaseService.createPurchase(
-        questionSet.id,
-        'stripe', // 直接使用stripe作为支付方式
-        questionSet.price
-      );
-      
-      if (response.success && response.data) {
-        console.log('[PaymentModal] 购买成功:', response.data);
-        toast.success('购买成功！您现在可以访问完整题库');
-        onSuccess(response.data);
-      } else {
-        console.error('[PaymentModal] 购买失败:', response);
-        setError(response.message || '购买失败，请稍后再试');
-        setIsProcessing(false);
-        setBtnClicked(false);
-      }
-    } catch (err) {
-      console.error('[PaymentModal] 购买出错:', err);
-      setError('购买过程中出现错误，请稍后再试');
-      setIsProcessing(false);
+  // Reset error when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
       setBtnClicked(false);
     }
-  };
+  }, [isOpen]);
   
-  const handleCloseClick = () => {
-    if (isProcessing) return; // 如果正在处理，不允许关闭
-    onClose();
-  };
-  
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
-        {isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10 rounded-xl">
-            <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
-            <p className="text-blue-600 font-medium">处理中，请稍候...</p>
-          </div>
-        )}
-        
-        <button
-          onClick={handleCloseClick}
-          disabled={isProcessing}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        
-        <h2 className="text-xl font-bold text-gray-800 mb-4">购买完整版</h2>
-        
-        <div className="bg-blue-50 p-4 rounded-lg mb-6">
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="text-lg font-medium text-blue-800">{questionSet?.title}</h3>
-            <span className="text-xl font-bold text-blue-800">¥{questionSet?.price}</span>
-          </div>
-          <p className="text-blue-700 text-sm mb-2">{questionSet?.description}</p>
-          <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs">
-            包含 {questionSet?.questionCount} 道题 | 购买后永久有效
-          </span>
-        </div>
-        
-        {error && (
-          <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
-        
-        <div className="mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 mr-3">
-                <svg className="w-7 h-7 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0z" fill="#6772E5"/>
-                  <path d="M13.5 9.17c0-.59.177-1.067.532-1.434.354-.367.864-.55 1.531-.55.396 0 .74.066 1.036.2.295.133.516.317.661.55.146.233.218.492.218.775 0 .375-.1.695-.304.958-.204.263-.5.492-.889.683-.39.192-.927.392-1.615.6-.872.267-1.583.592-2.132.975-.55.383-.958.825-1.226 1.325-.268.5-.402 1.084-.402 1.75 0 .692.147 1.3.44 1.825.293.525.714.933 1.264 1.225.55.292 1.2.438 1.95.438.725 0 1.359-.15 1.9-.45.542-.3.959-.717 1.25-1.25.292-.533.438-1.142.438-1.825H16.8c0 .658-.186 1.167-.557 1.525-.372.358-.923.537-1.655.537-.683 0-1.214-.158-1.593-.475-.38-.317-.57-.75-.57-1.3 0-.35.114-.65.342-.9.228-.25.538-.467.93-.65.393-.183.876-.365 1.449-.545 1.036-.33 1.84-.654 2.413-.975.571-.32 1.003-.695 1.294-1.125.292-.43.438-.95.438-1.563 0-.675-.162-1.283-.487-1.825-.325-.542-.787-.967-1.386-1.275-.6-.308-1.303-.462-2.107-.462-.867 0-1.625.163-2.275.487-.65.325-1.153.775-1.506 1.35-.354.575-.531 1.234-.531 1.976h1.5c0-.592.178-1.08.532-1.467z" fill="#fff"/>
-                </svg>
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Stripe 安全支付</p>
-                <p className="text-xs text-gray-600">使用安全的Stripe支付处理</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <button
-          onClick={handlePurchase}
-          disabled={isProcessing}
-          className={`w-full py-3.5 ${btnClicked ? 'bg-blue-800' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'} text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-blue-800`}
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          {isProcessing ? '处理中...' : '确认购买'}
-        </button>
-        
-        <p className="text-xs text-center text-gray-500 mt-4">
-          点击确认购买，即表示您同意我们的服务条款和隐私政策
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// 添加RedeemCodeModal组件
-const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose, onRedeemSuccess }) => {
-  const [code, setCode] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [btnClicked, setBtnClicked] = useState(false);
-  
-  const handleRedeem = async () => {
-    if (!code.trim()) {
-      setError('请输入有效的兑换码');
+  const handlePurchase = async (e: React.MouseEvent) => {
+    // Prevent event bubbling
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (!user || !questionSet) {
+      setError("无法进行购买，请确认您已登录且题库信息完整");
+      return;
+    }
+    
+    // Don't proceed if already processing
+    if (isProcessing || btnClicked) {
+      console.log('[PaymentModal] Ignoring click - already processing');
       return;
     }
     
@@ -640,36 +540,70 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
     setBtnClicked(true);
     
     try {
-      console.log('[RedeemCodeModal] 开始处理兑换码:', code.trim());
-      // 调用兑换API
-      const response = await redeemCodeService.redeemCode(code.trim());
+      console.log(`[PaymentModal] Starting Stripe payment for quiz set ${questionSet.id}`);
+      
+      // Call purchase API with Stripe payment method
+      const response = await purchaseService.createPurchase(
+        questionSet.id,
+        'stripe', // Use stripe as payment method
+        questionSet.price
+      );
+      
+      console.log(`[PaymentModal] Purchase API response:`, response);
       
       if (response.success && response.data) {
-        console.log('[RedeemCodeModal] 兑换成功:', response.data);
-        toast.success('兑换成功！您现在可以访问完整题库');
-        onRedeemSuccess();
+        // Success - show notification and call success callback
+        console.log('[PaymentModal] Purchase successful:', response.data);
+        toast.success('购买成功！您现在可以访问完整题库');
+        
+        // Wait a moment before closing modal to show success state
+        setTimeout(() => {
+          if (typeof onSuccess === 'function') {
+            onSuccess(response.data);
+          }
+        }, 500);
       } else {
-        console.error('[RedeemCodeModal] 兑换失败:', response);
-        setError(response.message || '兑换失败，请检查兑换码是否正确');
+        // API returned error
+        console.error('[PaymentModal] Purchase failed:', response);
+        setError(response.message || '购买失败，请稍后再试');
         setIsProcessing(false);
         setBtnClicked(false);
       }
     } catch (err) {
-      console.error('[RedeemCodeModal] 兑换出错:', err);
-      setError('兑换过程中出现错误，请稍后再试');
+      // Exception during API call
+      console.error('[PaymentModal] Error during purchase:', err);
+      setError(typeof err === 'string' ? err : '购买过程中出现错误，请稍后再试');
       setIsProcessing(false);
       setBtnClicked(false);
     }
   };
   
-  const handleCloseClick = () => {
-    if (isProcessing) return; // 如果正在处理，不允许关闭
+  const handleCloseClick = (e: React.MouseEvent) => {
+    // Prevent event bubbling
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (isProcessing) {
+      console.log('[PaymentModal] Cannot close while processing payment');
+      return;
+    }
+    
+    console.log('[PaymentModal] Closing modal');
     onClose();
   };
   
+  // If not open, don't render anything
+  if (!isOpen) return null;
+  
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div 
+        className="bg-white rounded-xl max-w-md w-full p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         {isProcessing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10 rounded-xl">
             <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
@@ -681,53 +615,267 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
           onClick={handleCloseClick}
           disabled={isProcessing}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+          aria-label="Close"
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
         
-        <h2 className="text-xl font-bold text-gray-800 mb-4">使用兑换码</h2>
-        
-        <div className="bg-green-50 p-4 rounded-lg mb-6">
-          <h3 className="text-lg font-medium text-green-800 mb-2">{questionSet?.title}</h3>
-          <p className="text-green-700 text-sm mb-3">{questionSet?.description}</p>
-          <span className="bg-green-200 text-green-800 px-2 py-1 rounded text-xs">
-            包含 {questionSet?.questionCount} 道题
-          </span>
-        </div>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">购买完整题库</h3>
         
         {error && (
-          <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
             {error}
           </div>
         )}
         
         <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2">请输入兑换码</label>
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="例如: QUIZ-1234-ABCD-5678"
-            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isProcessing}
-          />
+          <div className="bg-blue-50 rounded-lg p-4 mb-4">
+            <h4 className="font-medium text-blue-800 mb-1">{questionSet?.title || '题库'}</h4>
+            <p className="text-blue-600 text-sm mb-3">{questionSet?.description || '完整练习题库'}</p>
+            <div className="flex justify-between items-center">
+              <span className="text-2xl font-bold text-blue-800">¥{questionSet?.price || '0'}</span>
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                包含 {questionSet?.questionCount || '0'} 题
+              </span>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex items-center mb-2">
+              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-gray-700 text-sm">一次购买永久使用</span>
+            </div>
+            <div className="flex items-center mb-2">
+              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-gray-700 text-sm">随时访问所有题目</span>
+            </div>
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-gray-700 text-sm">支持多设备同步访问</span>
+            </div>
+          </div>
         </div>
         
         <button
-          onClick={handleRedeem}
-          disabled={isProcessing || !code.trim()}
-          className={`w-full py-3.5 ${btnClicked ? 'bg-green-800' : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'} text-white rounded-lg font-medium transition flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed active:bg-green-800`}
+          onClick={handlePurchase}
+          disabled={isProcessing || !questionSet || !user}
+          className={`
+            w-full py-3 ${btnClicked ? 'bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} 
+            text-white rounded-lg font-medium transition-all duration-200
+            flex items-center justify-center
+            disabled:opacity-70 disabled:cursor-not-allowed
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            ${isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}
+          `}
         >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {isProcessing ? '处理中...' : '确认兑换'}
+          立即购买 ¥{questionSet?.price || '0'}
         </button>
         
         <p className="text-xs text-center text-gray-500 mt-4">
-          兑换码仅可使用一次，请勿泄露给他人
+          点击"立即购买"，表示您同意我们的服务条款和隐私政策
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// 添加RedeemCodeModal组件
+const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose, onRedeemSuccess }) => {
+  const { user } = useUser();
+  const [code, setCode] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCode(e.target.value);
+    if (error) setError(null);
+  };
+  
+  const handleRedeem = async (e: React.FormEvent) => {
+    // Prevent default form submission
+    e.preventDefault();
+    
+    // Prevent event bubbling
+    e.stopPropagation();
+    
+    if (!user || !questionSet) {
+      setError("请先登录或选择题库");
+      return;
+    }
+    
+    // Validate code
+    if (!code || code.trim().length < 6) {
+      setError("请输入有效的兑换码");
+      return;
+    }
+    
+    // Don't proceed if already processing
+    if (isProcessing) {
+      console.log('[RedeemCodeModal] Ignoring submission - already processing');
+      return;
+    }
+    
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      console.log(`[RedeemCodeModal] Attempting to redeem code "${code}" for quiz set ${questionSet.id}`);
+      
+      // Call redeem API - fix parameter count to match API
+      const response = await redeemCodeService.redeemCode(code.trim());
+      
+      console.log(`[RedeemCodeModal] Redeem API response:`, response);
+      
+      if (response.success) {
+        // Success - show notification
+        console.log('[RedeemCodeModal] Code redemption successful');
+        setSuccess(true);
+        
+        // Dispatch custom event for system-wide notification
+        window.dispatchEvent(
+          new CustomEvent('redeem:success', { 
+            detail: { 
+              questionSetId: questionSet.id,
+              code,
+              forceRefresh: true
+            } 
+          })
+        );
+        
+        toast.success('兑换成功！您现在可以访问完整题库');
+        
+        // Wait a moment before closing modal to show success state
+        setTimeout(() => {
+          onRedeemSuccess();
+        }, 1000);
+      } else {
+        // API returned error
+        console.error('[RedeemCodeModal] Code redemption failed:', response);
+        setError(response.message || '兑换码无效或已被使用');
+        setIsProcessing(false);
+      }
+    } catch (err) {
+      // Exception during API call
+      console.error('[RedeemCodeModal] Error during code redemption:', err);
+      setError(typeof err === 'string' ? err : '兑换过程中出现错误，请稍后再试');
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleCloseClick = (e: React.MouseEvent) => {
+    // Prevent event bubbling
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (isProcessing) {
+      console.log('[RedeemCodeModal] Cannot close while processing');
+      return;
+    }
+    
+    console.log('[RedeemCodeModal] Closing modal');
+    onClose();
+  };
+  
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div 
+        className="bg-white rounded-xl max-w-md w-full p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isProcessing && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10 rounded-xl">
+            <div className="w-12 h-12 border-t-4 border-green-500 border-solid rounded-full animate-spin mb-3"></div>
+            <p className="text-green-600 font-medium">验证中，请稍候...</p>
+          </div>
+        )}
+        
+        {success && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-95 z-10 rounded-xl">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-green-700 mb-2">兑换成功！</h3>
+            <p className="text-green-600">您已成功解锁完整题库</p>
+          </div>
+        )}
+        
+        <button
+          onClick={handleCloseClick}
+          disabled={isProcessing}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+          aria-label="Close"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        
+        <h3 className="text-xl font-bold text-gray-800 mb-4">兑换码解锁</h3>
+        
+        <div className="bg-blue-50 rounded-lg p-4 mb-6">
+          <h4 className="font-medium text-blue-800 mb-1">{questionSet?.title || '题库'}</h4>
+          <p className="text-blue-600 text-sm">{questionSet?.description || '完整练习题库'}</p>
+        </div>
+        
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleRedeem}>
+          <div className="mb-6">
+            <label htmlFor="redeemCode" className="block text-sm font-medium text-gray-700 mb-2">
+              输入兑换码
+            </label>
+            <input
+              type="text"
+              id="redeemCode"
+              value={code}
+              onChange={handleCodeChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+              placeholder="例如: EXAM-XXXX-XXXX"
+              disabled={isProcessing}
+              autoComplete="off"
+              autoCapitalize="characters"
+              autoFocus
+            />
+            <p className="mt-2 text-xs text-gray-500">
+              兑换码通常由12-16位字母和数字组成，区分大小写
+            </p>
+          </div>
+          
+          <button
+            type="submit"
+            disabled={isProcessing || !code.trim() || !questionSet || !user}
+            className={`
+              w-full py-3 ${isProcessing ? 'bg-green-700' : 'bg-green-600 hover:bg-green-700'} 
+              text-white rounded-lg font-medium transition-all duration-200
+              flex items-center justify-center
+              disabled:opacity-70 disabled:cursor-not-allowed
+              focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
+            `}
+          >
+            {isProcessing ? '验证中...' : '验证并解锁'}
+          </button>
+        </form>
+        
+        <p className="text-xs text-center text-gray-500 mt-4">
+          兑换成功后，您将获得该题库的永久访问权限
         </p>
       </div>
     </div>
@@ -1775,20 +1923,43 @@ function QuizPage(): JSX.Element {
       purchaseId: string;
       expiryDate: string;
     }) => {
-      console.log(`[Socket事件] 收到购买成功事件: questionSetId=${data.questionSetId}, 当前题库=${questionSet.id}`);
-      const isMatch = String(data.questionSetId).trim() === String(questionSet.id).trim();
-      console.log(`[Socket事件] 是否匹配当前题库: ${isMatch}`);
+      // Log using consistent naming and formatting
+      console.log(`[QuizPage] Purchase success event received: questionSetId=${data.questionSetId}, currentId=${questionSet?.id}`);
       
-      if (isMatch) {
-        console.log(`[Socket事件] 设置题库访问权限为true`);
-        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-        setQuizStatus({ ...quizStatus, trialEnded: false });
+      // Normalize IDs for reliable comparison
+      const receivedId = String(data.questionSetId || '').trim();
+      const currentId = String(questionSet?.id || '').trim();
+      const isMatch = receivedId === currentId;
+      
+      console.log(`[QuizPage] ID comparison: received=${receivedId}, current=${currentId}, match=${isMatch}`);
+      
+      // Process matching events or events with no specific ID
+      if (isMatch || !currentId) {
+        console.log(`[QuizPage] Updating access rights for this question set`);
         
-        // 主动检查一次权限
+        // Update all relevant states in a single operation to prevent UI flickers
+        setQuizStatus(prev => ({
+          ...prev,
+          hasAccessToFullQuiz: true,
+          trialEnded: false,
+          showPaymentModal: false,
+          isProcessingPayment: false
+        }));
+        
+        // Save access to local storage
+        saveAccessToLocalStorage(receivedId, true);
+        
+        // Force check access after a short delay to ensure server sync
         setTimeout(() => {
-          console.log(`[Socket事件] 购买后延迟检查权限`);
+          console.log(`[QuizPage] Performing delayed access check after purchase`);
           checkAccess();
         }, 300);
+        
+        // Display success message
+        toast.success('购买成功！您现在可以访问完整题库', {
+          position: 'top-center',
+          autoClose: 3000
+        });
       }
     };
 
@@ -1806,59 +1977,74 @@ function QuizPage(): JSX.Element {
   // 监听兑换码成功事件
   useEffect(() => {
     const handleRedeemSuccess = (e: Event) => {
-      console.log(`[QuizPage] 收到兑换成功事件`);
+      console.log(`[QuizPage] Redeem success event received`);
       const customEvent = e as CustomEvent;
       
-      // 从事件中获取题库ID
-      const eventQuestionSetId = String(customEvent.detail?.questionSetId || '').trim();
+      // Extract and normalize data from event
+      const eventDetail = customEvent.detail || {};
+      const receivedQuestionSetId = String(eventDetail.questionSetId || '').trim();
+      const legacyQuizId = String(eventDetail.quizId || '').trim(); // For backwards compatibility
+      const effectiveId = receivedQuestionSetId || legacyQuizId; // Prefer new ID format
+      const currentId = String(questionSet?.id || '').trim();
+      const isCurrentQuestionSet = effectiveId === currentId;
+      const forceRefresh = !!eventDetail.forceRefresh;
       
-      // 兼容旧版本事件中可能存在的quizId
-      const quizId = String(customEvent.detail?.quizId || '').trim();
-      const effectiveId = eventQuestionSetId || quizId; // 优先使用questionSetId
+      console.log(`[QuizPage] Redeem event details:`, {
+        receivedId: effectiveId,
+        currentId,
+        isMatch: isCurrentQuestionSet,
+        forceRefresh
+      });
       
-      const currentQuestionSetId = String(questionSet?.id || '').trim();
-      
-      console.log(`[QuizPage] 比较ID: 事件ID=${effectiveId}, 当前题库ID=${currentQuestionSetId}`);
-      
-      // 更新本地状态和存储
-      if (questionSet) {
-        console.log(`[QuizPage] 更新本地状态和存储`);
-        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-        setQuizStatus({ ...quizStatus, trialEnded: false });
-        setQuizStatus({ ...quizStatus, hasRedeemed: true });
+      // Update if it matches current question set or has forceRefresh flag
+      if (isCurrentQuestionSet || forceRefresh || !currentId) {
+        console.log(`[QuizPage] Updating access rights after redemption`);
         
-        // 保存访问权限到localStorage
+        // Update all relevant states in a single operation to prevent UI flickers
+        setQuizStatus(prev => ({
+          ...prev,
+          hasAccessToFullQuiz: true,
+          trialEnded: false,
+          hasRedeemed: true,
+          showRedeemCodeModal: false,
+          isProcessingRedeem: false
+        }));
+        
+        // Save access to localStorage
         if (effectiveId) {
           saveAccessToLocalStorage(effectiveId, true);
-        }
-        
-        // 如果当前题库ID与事件ID不同，也保存当前题库的访问权限
-        if (currentQuestionSetId && currentQuestionSetId !== effectiveId) {
-          saveAccessToLocalStorage(currentQuestionSetId, true);
-        }
-        
-        // 保存已兑换的题库ID
-        if (effectiveId) {
           saveRedeemedQuestionSetId(effectiveId);
-        } else if (currentQuestionSetId) {
-          saveRedeemedQuestionSetId(currentQuestionSetId);
         }
         
-        // 刷新数据
-        if (effectiveId === currentQuestionSetId || customEvent.detail?.forceRefresh) {
-          console.log(`[QuizPage] 强制刷新数据`);
+        // Also save for current question set if different
+        if (currentId && currentId !== effectiveId) {
+          saveAccessToLocalStorage(currentId, true);
+          saveRedeemedQuestionSetId(currentId);
+        }
+        
+        // Force access check to ensure data consistency
+        setTimeout(() => {
+          console.log(`[QuizPage] Performing delayed access check after redemption`);
           checkAccess();
+        }, 300);
+        
+        // Show success notification if not already shown by modal
+        if (!isCurrentQuestionSet) {
+          toast.success('兑换成功！您现在可以访问完整题库', {
+            position: 'top-center',
+            autoClose: 3000
+          });
         }
       }
     };
     
-    // 添加事件监听器
+    // Add event listener
     window.addEventListener('redeem:success', handleRedeemSuccess);
     
     return () => {
       window.removeEventListener('redeem:success', handleRedeemSuccess);
     };
-  }, [questionSet, checkAccess]);
+  }, [questionSet, saveAccessToLocalStorage, saveRedeemedQuestionSetId, checkAccess]);
   
   // 修改syncProgressToServer函数为手动保存函数
   const saveProgressManually = useCallback(async () => {
