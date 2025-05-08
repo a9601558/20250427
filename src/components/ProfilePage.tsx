@@ -916,6 +916,130 @@ const ProfilePage: React.FC = () => {
   // 错误状态
   const [error, setError] = useState<string | null>(null);
 
+  // 初始activeTab通过useRef来确保只设置一次
+  const initialTabRef = useRef<boolean>(false);
+  // 使用防抖函数来处理标签切换，避免频繁切换引起的多次渲染
+  const lastTabChangeTime = useRef<number>(0);
+  // 存储最后一次购买数据刷新的时间
+  const lastPurchasesRefreshRef = useRef<number>(0);
+
+  // 添加刷新购买数据的函数，使用throttling机制避免短时间内多次调用
+  const refreshPurchasesData = useCallback(async () => {
+    try {
+      // 防止重复请求的标记
+      const now = Date.now();
+      
+      // 如果距离上次刷新不到5秒，跳过
+      if (now - lastPurchasesRefreshRef.current < 5000) {
+        console.log('[ProfilePage] 跳过频繁刷新购买数据，上次刷新在', (now - lastPurchasesRefreshRef.current) / 1000, '秒前');
+        return;
+      }
+      
+      // 更新最后刷新时间
+      lastPurchasesRefreshRef.current = now;
+      
+      setPurchasesLoading(true);
+      console.log('[ProfilePage] 正在刷新购买数据...');
+
+      // 直接从API获取购买记录
+      const purchaseResponse = await purchaseService.getUserPurchases();
+      
+      if (purchaseResponse.success && Array.isArray(purchaseResponse.data)) {
+        console.log(`[ProfilePage] 成功获取购买记录: ${purchaseResponse.data.length}条`);
+        
+        // 格式化购买记录
+        const formattedPurchases = purchaseResponse.data
+          .filter(p => p && p.questionSetId && p.amount > 0) // 过滤有效记录
+          .map((p) => {
+            // 获取题库信息，优先使用purchaseQuestionSet，如果不存在则尝试使用questionSet
+            const questionSetInfo = processQuestionSetData(p.purchaseQuestionSet) || 
+                                  processQuestionSetData((p as any).questionSet);
+            
+            return {
+              id: p.id || '',
+              userId: p.userId || user?.id || '',
+              questionSetId: String(p.questionSetId || '').trim(),
+              purchaseDate: p.purchaseDate || new Date().toISOString(),
+              expiryDate: p.expiryDate || '',
+              amount: Number(p.amount || 0),
+              status: p.status || 'active',
+              paymentMethod: p.paymentMethod || '',
+              transactionId: p.transactionId || '',
+              purchaseQuestionSet: questionSetInfo
+            };
+          });
+
+        if (formattedPurchases.length > 0) {
+          setPurchases(formattedPurchases);
+          console.log(`[ProfilePage] 已更新购买记录: ${formattedPurchases.length}条`);
+          
+          // 保存到本地存储用于离线访问
+          try {
+            const questionSetIds = formattedPurchases.map(p => p.questionSetId);
+            localStorage.setItem('purchasedQuestionSets', JSON.stringify(questionSetIds));
+          } catch (error) {
+            console.error('[ProfilePage] 保存购买记录到本地存储失败:', error);
+          }
+        } else {
+          console.log('[ProfilePage] API返回的购买记录为空');
+          
+          // 尝试从用户数据中获取购买记录
+          await tryGetPurchasesFromUserData();
+        }
+      } else {
+        console.log('[ProfilePage] 购买记录获取失败或为空，尝试从用户数据获取');
+        await tryGetPurchasesFromUserData();
+      }
+      
+      // 补充缺失的题库信息
+      await enrichPurchasesWithQuestionSetDetails();
+    } catch (error) {
+      console.error('[ProfilePage] 刷新购买数据时出错:', error);
+      
+      // 发生错误时，尝试从用户数据获取
+      await tryGetPurchasesFromUserData();
+    } finally {
+      setPurchasesLoading(false);
+    }
+  }, [user?.id]);
+  
+  // 添加一个useEffect来初始化数据 - 确保依赖数组包含refreshPurchasesData
+  useEffect(() => {
+    // 只在首次渲染时设置activeTab并刷新购买数据
+    if (!initialTabRef.current && activeTab === 'purchases') {
+      console.log('[ProfilePage] 初始化已购题库数据, 首次加载');
+      initialTabRef.current = true;
+      
+      // 延迟请求，避免首次渲染时重复请求
+      const timer = setTimeout(() => {
+        refreshPurchasesData();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, refreshPurchasesData]);
+  
+  // 处理标签切换 - 使用useCallback避免不必要的重新创建
+  const handleTabChange = useCallback((tab: TabType) => {
+    // 防止频繁切换
+    const now = Date.now();
+    if (now - lastTabChangeTime.current < 1000) {
+      console.log('[ProfilePage] 标签切换太频繁，忽略此次切换');
+      return;
+    }
+    
+    lastTabChangeTime.current = now;
+    setActiveTab(tab);
+    
+    // 当切换到购买标签时，刷新购买数据
+    if (tab === 'purchases' && now - lastPurchasesRefreshRef.current > 5000) {
+      // 延迟执行，避免快速切换时的重复请求
+      setTimeout(() => {
+        refreshPurchasesData();
+      }, 300);
+    }
+  }, [refreshPurchasesData]);
+
   // 获取题库数据
   const fetchQuestionSets = useCallback(async () => {
     try {
@@ -1596,74 +1720,6 @@ const ProfilePage: React.FC = () => {
     return () => clearInterval(timer);
   }, [user?.id, checkAndCleanExpiredCache]);
 
-  // 添加刷新购买数据的函数
-  const refreshPurchasesData = async () => {
-    try {
-      setPurchasesLoading(true);
-      console.log('[ProfilePage] 正在刷新购买数据...');
-
-      // 直接从API获取购买记录
-      const purchaseResponse = await purchaseService.getUserPurchases();
-      
-      if (purchaseResponse.success && Array.isArray(purchaseResponse.data)) {
-        console.log(`[ProfilePage] 成功获取购买记录: ${purchaseResponse.data.length}条`);
-        
-        // 格式化购买记录
-        const formattedPurchases = purchaseResponse.data
-          .filter(p => p && p.questionSetId && p.amount > 0) // 过滤有效记录
-          .map((p) => {
-            // 获取题库信息，优先使用purchaseQuestionSet，如果不存在则尝试使用questionSet
-            const questionSetInfo = processQuestionSetData(p.purchaseQuestionSet) || 
-                                  processQuestionSetData((p as any).questionSet);
-            
-            return {
-              id: p.id || '',
-              userId: p.userId || user?.id || '',
-              questionSetId: String(p.questionSetId || '').trim(),
-              purchaseDate: p.purchaseDate || new Date().toISOString(),
-              expiryDate: p.expiryDate || '',
-              amount: Number(p.amount || 0),
-              status: p.status || 'active',
-              paymentMethod: p.paymentMethod || '',
-              transactionId: p.transactionId || '',
-              purchaseQuestionSet: questionSetInfo
-            };
-          });
-
-        if (formattedPurchases.length > 0) {
-          setPurchases(formattedPurchases);
-          console.log(`[ProfilePage] 已更新购买记录: ${formattedPurchases.length}条`);
-          
-          // 保存到本地存储用于离线访问
-          try {
-            const questionSetIds = formattedPurchases.map(p => p.questionSetId);
-            localStorage.setItem('purchasedQuestionSets', JSON.stringify(questionSetIds));
-          } catch (error) {
-            console.error('[ProfilePage] 保存购买记录到本地存储失败:', error);
-          }
-        } else {
-          console.log('[ProfilePage] API返回的购买记录为空');
-          
-          // 尝试从用户数据中获取购买记录
-          await tryGetPurchasesFromUserData();
-        }
-      } else {
-        console.log('[ProfilePage] 购买记录获取失败或为空，尝试从用户数据获取');
-        await tryGetPurchasesFromUserData();
-      }
-      
-      // 补充缺失的题库信息
-      await enrichPurchasesWithQuestionSetDetails();
-    } catch (error) {
-      console.error('[ProfilePage] 刷新购买数据时出错:', error);
-      
-      // 发生错误时，尝试从用户数据获取
-      await tryGetPurchasesFromUserData();
-    } finally {
-      setPurchasesLoading(false);
-    }
-  };
-
   // 从用户数据中获取购买记录的辅助函数
   const tryGetPurchasesFromUserData = async () => {
     console.log('[ProfilePage] 尝试从用户数据中获取购买记录');
@@ -1777,7 +1833,7 @@ const ProfilePage: React.FC = () => {
     
     // 获取所有需要补充详情的购买记录
     const purchasesNeedingDetails = purchases.filter(
-      p => p.questionSetId && (!p.purchaseQuestionSet?.title)
+      p => p.questionSetId && (!p.purchaseQuestionSet || !p.purchaseQuestionSet.title)
     );
     
     if (purchasesNeedingDetails.length === 0) {
@@ -1848,7 +1904,7 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  // 删除在useEffect内重复定义的refreshPurchasesData函数
+  // 修改监听购买事件的useEffect
   useEffect(() => {
     // 监听购买成功事件
     const handlePurchaseSuccess = () => {
@@ -1856,8 +1912,22 @@ const ProfilePage: React.FC = () => {
       refreshPurchasesData();
     };
     
-    // 监听用户数据更新事件
+    // 监听用户数据更新事件 - 避免频繁刷新
     const handleUserDataUpdated = () => {
+      // 使用节流控制更新频率，避免频繁刷新
+      const now = Date.now();
+      const lastUpdateKey = 'last_userdata_update';
+      const lastUpdate = parseInt(sessionStorage.getItem(lastUpdateKey) || '0', 10);
+      
+      // 如果5秒内已经更新过，跳过这次更新
+      if (now - lastUpdate < 5000) {
+        console.log('[ProfilePage] 跳过频繁的用户数据更新事件', (now - lastUpdate) / 1000, '秒内');
+        return;
+      }
+      
+      // 更新时间戳
+      sessionStorage.setItem(lastUpdateKey, now.toString());
+      
       console.log('[ProfilePage] 监听到用户数据更新事件，刷新购买数据');
       refreshPurchasesData();
     };
@@ -1872,25 +1942,6 @@ const ProfilePage: React.FC = () => {
       window.removeEventListener('user:data:updated', handleUserDataUpdated);
     };
   }, [refreshPurchasesData]);
-
-  // 添加一个useEffect来初始化数据
-  useEffect(() => {
-    // 当activeTab为'purchases'时，刷新购买数据
-    if (activeTab === 'purchases') {
-      console.log('[ProfilePage] 初始化已购题库数据');
-      refreshPurchasesData();
-    }
-  }, [activeTab, refreshPurchasesData]);
-
-  // 处理标签切换
-  const handleTabChange = (tab: TabType) => {
-    setActiveTab(tab);
-    
-    // 当切换到购买标签时，刷新购买数据
-    if (tab === 'purchases') {
-      refreshPurchasesData();
-    }
-  };
 
   // 渲染标签页
   const renderTabs = () => {

@@ -351,7 +351,7 @@ const HomePage: React.FC = () => {
     );
   };
   
-  // 修改handleStartQuiz函数，添加试用模式参数
+  // 修复无限加载问题的handleStartQuiz函数
   const handleStartQuiz = useCallback((set: PreparedQuestionSet) => {
     console.log(`[HomePage] 开始答题:`, set);
     
@@ -359,6 +359,7 @@ const HomePage: React.FC = () => {
     if (!set || !set.id || !set.title) {
       console.error('[handleStartQuiz] 无效题库数据:', set);
       setErrorMessage('无法访问题库：数据无效');
+      setLoading(false);
       return;
     }
     
@@ -374,38 +375,34 @@ const HomePage: React.FC = () => {
     
     // 如果是付费题库且用户没有访问权限，添加试用模式参数
     if (isTrial) {
+      console.log('[HomePage] 添加试用模式参数');
       params.append('mode', 'trial');
       
-      // 添加试用题目数量限制
-      if (set.trialQuestions) {
-        params.append('trialLimit', String(set.trialQuestions));
-      }
+      // 确保免费题目数量合理
+      params.append('limit', '5');
+    }
+    
+    // 设置一个加载超时，防止无限加载
+    const loadingTimeout = setTimeout(() => {
+      console.log('[HomePage] 加载超时，重置加载状态');
+      setLoading(false);
+    }, 10000);
+    
+    try {
+      // 清除任何现有错误
+      setErrorMessage(null);
       
-      console.log(`[HomePage] 设置试用模式参数: mode=trial, trialLimit=${set.trialQuestions || 'unset'}`);
+      // 导航到题库页面
+      const url = `/quiz/${set.id}?${params.toString()}`;
+      console.log(`[HomePage] 导航到: ${url}`);
+      navigate(url);
+    } catch (error) {
+      console.error('[HomePage] 跳转时出错:', error);
+      setErrorMessage('跳转至题库时出错，请刷新页面重试');
+      setLoading(false);
+      clearTimeout(loadingTimeout);
     }
-    
-    // 构建完整URL
-    const quizUrl = `/quiz/${set.id}?${params.toString()}`;
-    
-    console.log(`[HomePage] 跳转到URL: ${quizUrl}, 试用模式: ${isTrial ? '是' : '否'}`);
-    console.log(`[HomePage] URLSearchParams详情:`, Object.fromEntries(params.entries()));
-    
-    // 使用navigate进行路由跳转
-    navigate(quizUrl);
-    
-    // 记录题库访问事件
-    if (socket && user?.id) {
-      socket.emit('user:activity', {
-        userId: user.id,
-        action: 'start_quiz',
-        questionSetId: set.id,
-        hasFullAccess: set.hasAccess,
-        accessType: set.accessType,
-        mode: isTrial ? 'trial' : 'normal',
-        timestamp: Date.now()
-      });
-    }
-  }, [navigate, setErrorMessage, socket, user]);
+  }, [navigate, setErrorMessage]);
 
   // Add getLocalAccessCache function before it's used
   const getLocalAccessCache = useCallback(() => {
