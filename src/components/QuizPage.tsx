@@ -186,6 +186,9 @@ const PurchasePage: React.FC<{
   const handlePurchaseClick = () => {
     console.log('[PurchasePage] 立即购买按钮被点击');
     
+    // 防止重复点击和处理中状态下点击
+    if (isProcessing || btnStates.purchase.clicked) return;
+    
     // 立即更新UI状态提供反馈
     setBtnStates(prev => ({
       ...prev,
@@ -201,11 +204,16 @@ const PurchasePage: React.FC<{
     
     // 短暂延迟后执行回调
     setTimeout(() => {
-      if (typeof onPurchase === 'function') {
-        onPurchase();
-      } else {
-        console.error('[PurchasePage] onPurchase不是一个函数');
-        toast.error('支付功能暂时不可用，请稍后再试');
+      try {
+        if (typeof onPurchase === 'function') {
+          onPurchase();
+        } else {
+          console.error('[PurchasePage] onPurchase不是一个函数');
+          toast.error('支付功能暂时不可用，请稍后再试');
+        }
+      } catch (err) {
+        console.error('[PurchasePage] 执行购买回调出错:', err);
+        toast.error('处理购买请求时出错，请重试');
       }
       
       // 300ms后重置按钮状态
@@ -222,6 +230,9 @@ const PurchasePage: React.FC<{
   const handleRedeemClick = () => {
     console.log('[PurchasePage] 使用兑换码按钮被点击');
     
+    // 防止重复点击和处理中状态下点击
+    if (isProcessing || btnStates.redeem.clicked) return;
+    
     // 立即更新UI状态提供反馈
     setBtnStates(prev => ({
       ...prev,
@@ -237,11 +248,16 @@ const PurchasePage: React.FC<{
     
     // 短暂延迟后执行回调
     setTimeout(() => {
-      if (typeof onRedeem === 'function') {
-        onRedeem();
-      } else {
-        console.error('[PurchasePage] onRedeem不是一个函数');
-        toast.error('兑换功能暂时不可用，请稍后再试');
+      try {
+        if (typeof onRedeem === 'function') {
+          onRedeem();
+        } else {
+          console.error('[PurchasePage] onRedeem不是一个函数');
+          toast.error('兑换功能暂时不可用，请稍后再试');
+        }
+      } catch (err) {
+        console.error('[PurchasePage] 执行兑换回调出错:', err);
+        toast.error('处理兑换请求时出错，请重试');
       }
       
       // 300ms后重置按钮状态
@@ -258,6 +274,9 @@ const PurchasePage: React.FC<{
   const handleBackClick = () => {
     console.log('[PurchasePage] 返回首页按钮被点击');
     
+    // 防止重复点击和处理中状态下点击
+    if (isProcessing || btnStates.back.clicked) return;
+    
     // 立即更新UI状态提供反馈
     setBtnStates(prev => ({
       ...prev,
@@ -272,11 +291,23 @@ const PurchasePage: React.FC<{
     
     // 短暂延迟后执行回调
     setTimeout(() => {
-      if (typeof onBack === 'function') {
-        onBack();
-      } else {
-        console.error('[PurchasePage] onBack不是一个函数');
-        toast.error('暂时无法返回，请刷新页面');
+      try {
+        if (typeof onBack === 'function') {
+          onBack();
+        } else {
+          console.error('[PurchasePage] onBack不是一个函数');
+          toast.error('暂时无法返回，请刷新页面');
+        }
+      } catch (err) {
+        console.error('[PurchasePage] 执行返回回调出错:', err);
+      } finally {
+        // 重置按钮状态
+        setTimeout(() => {
+          setBtnStates(prev => ({
+            ...prev,
+            back: { ...prev.back, clicked: false }
+          }));
+        }, 300);
       }
     }, 150);
   };
@@ -327,13 +358,14 @@ const PurchasePage: React.FC<{
             className={`
               w-full py-4 relative overflow-hidden
               ${btnStates.purchase.clicked 
-                ? 'bg-blue-800 transform scale-[0.98]' 
+                ? 'bg-blue-800 transform scale-[0.98] shadow-inner' 
                 : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transform hover:-translate-y-0.5'
               } 
               text-white rounded-lg font-medium transition-all duration-200 
               flex items-center justify-center shadow-md hover:shadow-lg 
               disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+              active:scale-[0.98] active:shadow-inner
             `}
             disabled={isProcessing}
           >
@@ -367,13 +399,14 @@ const PurchasePage: React.FC<{
             className={`
               w-full py-4 relative overflow-hidden
               ${btnStates.redeem.clicked 
-                ? 'bg-green-100 text-green-800 transform scale-[0.98]' 
+                ? 'bg-green-100 text-green-800 transform scale-[0.98] shadow-inner' 
                 : 'bg-white hover:bg-green-50 text-green-700 transform hover:-translate-y-0.5'
               } 
               border-2 border-green-400 rounded-lg font-medium transition-all duration-200 
               flex items-center justify-center shadow-sm hover:shadow-md
               disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
               focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2
+              active:scale-[0.98] active:bg-green-100
             `}
             disabled={isProcessing}
           >
@@ -424,7 +457,7 @@ const PurchasePage: React.FC<{
         </p>
           <p className="text-xs text-gray-400">
             支持Stripe安全支付，确保您的付款安全
-          </p>
+        </p>
         </div>
       </div>
     </div>
@@ -702,6 +735,31 @@ const StyleInjector = () => {
       
       .animate-ripple {
         animation: ripple 0.6s ease-out;
+      }
+      
+      @keyframes pulse-scale {
+        0%, 100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+      
+      .animate-pulse-scale {
+        animation: pulse-scale 1.5s ease-in-out infinite;
+      }
+      
+      .scale-transition {
+        transition: transform 0.2s ease-out;
+      }
+      
+      .hover-raise:hover {
+        transform: translateY(-2px);
+      }
+      
+      .active-press:active {
+        transform: scale(0.95);
       }
     `;
     
@@ -2398,29 +2456,79 @@ function QuizPage(): JSX.Element {
             <button
               onClick={() => {
                 console.log('[TrialPurchaseBar] 点击购买按钮');
+                
+                // 防止重复处理
+                if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) return;
+                
+                // 增加按钮点击视觉反馈
+                const button = document.activeElement as HTMLElement;
+                if (button) {
+                  button.classList.add('scale-95');
+                  setTimeout(() => button.classList.remove('scale-95'), 150);
+                }
+                
                 toast.info('正在准备支付...', { autoClose: 1500 });
+                
+                // 使用安全的状态更新方式
                 setQuizStatus(prev => ({
                   ...prev,
-                  showPaymentModal: true
+                  showPaymentModal: true,
+                  isProcessingPayment: true
                 }));
+                
+                // 短时间后取消处理中状态
+                setTimeout(() => {
+                  setQuizStatus(prev => ({
+                    ...prev,
+                    isProcessingPayment: false
+                  }));
+                }, 300);
               }}
-              className={`px-4 py-2 text-sm rounded-md hover:bg-blue-700 focus:outline-none shadow-sm
+              className={`px-4 py-2 text-sm rounded-md transition-all duration-200
                 ${isTrialLimitReached 
-                  ? "bg-blue-600 text-white animate-pulse" 
-                  : "bg-blue-600 text-white"}`}
+                  ? "bg-blue-600 text-white animate-pulse transform hover:scale-105 hover:shadow-md active:scale-95" 
+                  : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+                } focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2`}
             >
-              购买完整版 ¥{questionSet.price || 0}
+              <div className="flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                购买完整版 ¥{questionSet.price || 0}
+              </div>
             </button>
             <button
               onClick={() => {
                 console.log('[TrialPurchaseBar] 点击兑换按钮');
+                
+                // 防止重复处理
+                if (quizStatus.isProcessingRedeem || quizStatus.showRedeemCodeModal) return;
+                
+                // 增加按钮点击视觉反馈
+                const button = document.activeElement as HTMLElement;
+                if (button) {
+                  button.classList.add('scale-95');
+                  setTimeout(() => button.classList.remove('scale-95'), 150);
+                }
+                
                 toast.info('正在准备兑换...', { autoClose: 1500 });
+                
+                // 使用安全的状态更新方式
                 setQuizStatus(prev => ({
                   ...prev,
-                  showRedeemCodeModal: true
+                  showRedeemCodeModal: true,
+                  isProcessingRedeem: true
                 }));
+                
+                // 短时间后取消处理中状态
+                setTimeout(() => {
+                  setQuizStatus(prev => ({
+                    ...prev,
+                    isProcessingRedeem: false
+                  }));
+                }, 300);
               }}
-              className="px-4 py-2 bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-lg font-medium transition flex items-center justify-center hover:bg-green-100"
+              className="px-4 py-2 bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-lg font-medium transition-all duration-200 flex items-center justify-center hover:bg-green-100 hover:shadow-md transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -2650,13 +2758,35 @@ function QuizPage(): JSX.Element {
                 <button
                   onClick={() => {
                     console.log('[QuizPage] 完成页面点击购买按钮');
+                    
+                    // 防止重复处理
+                    if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) return;
+                    
+                    // 增加按钮点击视觉反馈
+                    const button = document.activeElement as HTMLElement;
+                    if (button) {
+                      button.classList.add('scale-95');
+                      setTimeout(() => button.classList.remove('scale-95'), 150);
+                    }
+                    
                     toast.info('正在准备支付...', { autoClose: 1500 });
+                    
+                    // 使用安全的状态更新方式
                     setQuizStatus(prev => ({
                       ...prev,
-                      showPaymentModal: true
+                      showPaymentModal: true,
+                      isProcessingPayment: true
                     }));
+                    
+                    // 短时间后取消处理中状态
+                    setTimeout(() => {
+                      setQuizStatus(prev => ({
+                        ...prev,
+                        isProcessingPayment: false
+                      }));
+                    }, 300);
                   }}
-                  className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center"
+                  className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
                 >
                   <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -2730,7 +2860,7 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 点击购买按钮，打开支付模态框');
                     setQuizStatus({ ...quizStatus, showPaymentModal: true });
                   }}
-                  className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
+                  className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 flex items-center"
                 >
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -2742,7 +2872,7 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 点击兑换码按钮，打开兑换模态框');
                     setQuizStatus({ ...quizStatus, showRedeemCodeModal: true });
                   }}
-                  className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
+                  className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 flex items-center"
                 >
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -2963,9 +3093,9 @@ function QuizPage(): JSX.Element {
             setTimeout(() => {
               setQuizStatus(prev => ({
                 ...prev,
-              showPurchasePage: false
+                showPurchasePage: false
               }));
-            navigate('/');
+              navigate('/');
             }, 200);
           }}
         />
@@ -2996,13 +3126,35 @@ function QuizPage(): JSX.Element {
                     <button
                       onClick={() => {
                         console.log('[QuizPage] 顶部指示器点击购买按钮');
+                        
+                        // 防止重复处理
+                        if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) return;
+                        
+                        // 增加按钮点击视觉反馈
+                        const button = document.activeElement as HTMLElement;
+                        if (button) {
+                          button.classList.add('scale-95');
+                          setTimeout(() => button.classList.remove('scale-95'), 150);
+                        }
+                        
                         toast.info('正在准备支付...', { autoClose: 1500 });
+                        
+                        // 使用安全的状态更新方式
                         setQuizStatus(prev => ({
                           ...prev,
-                          showPaymentModal: true
+                          showPaymentModal: true,
+                          isProcessingPayment: true
                         }));
+                        
+                        // 短时间后取消处理中状态
+                        setTimeout(() => {
+                          setQuizStatus(prev => ({
+                            ...prev,
+                            isProcessingPayment: false
+                          }));
+                        }, 300);
                       }}
-                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
+                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 flex items-center"
                     >
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -3012,13 +3164,35 @@ function QuizPage(): JSX.Element {
                     <button
                       onClick={() => {
                         console.log('[QuizPage] 顶部指示器点击兑换按钮');
+                        
+                        // 防止重复处理
+                        if (quizStatus.isProcessingRedeem || quizStatus.showRedeemCodeModal) return;
+                        
+                        // 增加按钮点击视觉反馈
+                        const button = document.activeElement as HTMLElement;
+                        if (button) {
+                          button.classList.add('scale-95');
+                          setTimeout(() => button.classList.remove('scale-95'), 150);
+                        }
+                        
                         toast.info('正在准备兑换...', { autoClose: 1500 });
+                        
+                        // 使用安全的状态更新方式
                         setQuizStatus(prev => ({
                           ...prev,
-                          showRedeemCodeModal: true
+                          showRedeemCodeModal: true,
+                          isProcessingRedeem: true
                         }));
+                        
+                        // 短时间后取消处理中状态
+                        setTimeout(() => {
+                          setQuizStatus(prev => ({
+                            ...prev,
+                            isProcessingRedeem: false
+                          }));
+                        }, 300);
                       }}
-                      className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 flex items-center"
+                      className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 text-sm border-2 border-green-400 rounded-md hover:shadow-md focus:outline-none transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 flex items-center"
                     >
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
