@@ -1337,21 +1337,27 @@ const ProfilePage: React.FC = () => {
     
     try {
       setRedeemCodesLoading(true);
+      setError(null); // 清除之前的错误
       console.log('[ProfilePage] 开始获取兑换码数据');
       
       const response = await purchaseService.getUserRedeemCodes();
+      console.log('[ProfilePage] 兑换码API响应:', response.success);
       
       if (response.success && response.data) {
-        console.log('[ProfilePage] 兑换码数据获取成功, 数量:', response.data.length);
+        console.log('[ProfilePage] 兑换码数据获取成功, 原始数据:', response.data);
         
         try {
-          const validRedeemCodes = response.data
-            .filter((r: any) => r && r.questionSetId)
+          // 验证并过滤数据，确保所有必需的字段都存在
+          const validRedeemCodes = (response.data || [])
+            .filter((r: any) => r && (r.questionSetId || r.redeemQuestionSet?.id))
             .map((r: any) => {
+              const questionSetId = r.questionSetId || r.redeemQuestionSet?.id;
+              
+              // 确保基本数据
               const redeemRecord: RedeemRecord = {
-                id: r.id || '',
+                id: r.id || r.code || '',
                 code: r.code || '',
-                questionSetId: r.questionSetId,
+                questionSetId: questionSetId,
                 usedAt: r.usedAt || r.createdAt || new Date().toISOString(),
                 expiryDate: r.expiryDate || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
                 redeemQuestionSet: r.redeemQuestionSet || 
@@ -1360,29 +1366,41 @@ const ProfilePage: React.FC = () => {
                     title: r.questionSet.title || '未知题库',
                     description: r.questionSet.description || ''
                   } : {
-                    id: r.questionSetId,
-                    title: '未知题库',
-                    description: ''
+                    id: questionSetId,
+                    title: r.questionSetTitle || '未知题库',
+                    description: r.questionSetDescription || ''
                   })
               };
+              
+              // 确保redeemQuestionSet中的id与questionSetId一致
+              if (redeemRecord.redeemQuestionSet && !redeemRecord.redeemQuestionSet.id) {
+                redeemRecord.redeemQuestionSet.id = questionSetId;
+              }
+              
               return redeemRecord;
             });
           
           console.log('[ProfilePage] 处理后的有效兑换码数量:', validRedeemCodes.length);
+          
+          if (validRedeemCodes.length === 0 && response.data.length > 0) {
+            console.warn('[ProfilePage] 警告: 所有兑换码数据处理后无有效记录');
+          }
+          
           setRedeemCodes(validRedeemCodes);
         } catch (dataError) {
           console.error('[ProfilePage] 处理兑换码数据时出错:', dataError);
-          toast.error('处理兑换码数据失败');
+          toast.error('处理兑换码数据失败，请联系管理员');
+          setRedeemCodes([]); // 设置空数组避免UI错误
         }
       } else {
         console.error('[ProfilePage] 获取兑换码数据失败:', response.message);
-        throw new Error(response.message || '获取兑换记录失败');
+        setError(response.message || '获取兑换记录失败');
+        toast.error(response.message || '获取兑换记录失败');
+        setRedeemCodes([]); // 设置空数组避免UI错误
       }
     } catch (error: any) {
       console.error('[ProfilePage] 获取兑换码异常:', error);
-      toast.error('获取兑换记录失败');
-      
-      // 设置一个空数组以避免渲染错误
+      toast.error('获取兑换记录失败，请稍后重试');
       setRedeemCodes([]);
     } finally {
       setRedeemCodesLoading(false);
@@ -1924,6 +1942,32 @@ const ProfilePage: React.FC = () => {
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
           <p className="text-gray-500 text-sm">加载兑换数据中...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="bg-white p-8 rounded-lg text-center flex flex-col items-center">
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">获取兑换码失败</h3>
+          <p className="text-gray-600 mb-6 max-w-md">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              fetchRedeemCodes();
+            }}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-5 rounded-lg transition-colors duration-300 flex items-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            重试
+          </button>
         </div>
       );
     }

@@ -773,6 +773,8 @@ export const purchaseService = {
       console.log('[API] 开始获取用户兑换码列表');
       const response = await api.get('/redeem-codes/user');
       
+      console.log('[API] 兑换码API响应状态:', response.status);
+      
       if (!response.data) {
         console.error('[API] 兑换码 API 响应缺少数据字段');
         return {
@@ -805,9 +807,19 @@ export const purchaseService = {
       
       // 确保返回的数据使用正确的属性名
       redeemCodes.forEach((code: any) => {
+        if (!code.id && code.code) {
+          // 如果没有ID但有code，使用code作为ID
+          code.id = code.code;
+        }
+        
         if (code.questionSet) {
           code.redeemQuestionSet = code.questionSet;
           delete code.questionSet;
+        }
+        
+        // 确保有效的questionSetId
+        if (!code.questionSetId && code.redeemQuestionSet?.id) {
+          code.questionSetId = code.redeemQuestionSet.id;
         }
       });
       
@@ -817,9 +829,11 @@ export const purchaseService = {
       };
     } catch (error: any) {
       console.error('[API] 获取兑换码列表出错:', error);
+      console.error('[API] 错误详情:', error.response?.data || error.message);
+      
       return {
         success: false,
-        message: error.message || '获取兑换码列表时发生网络错误',
+        message: error.response?.data?.message || error.message || '获取兑换码列表时发生网络错误',
         error: error.error || error.toString()
       };
     }

@@ -401,64 +401,68 @@ export const getUserRedeemCodes = async (req: Request, res: Response) => {
     const userId = req.user.id;
     console.log(`[RedeemCodeController] Getting redeemed codes for user: ${userId}`);
     
-    // 查找用户已兑换的所有兑换码
-    const redeemCodes = await RedeemCode.findAll({
-      where: { 
-        usedBy: userId,
-        isUsed: true
-      },
-      include: [
-        {
-          model: QuestionSet,
-          as: 'redeemQuestionSet',
-          attributes: ['id', 'title', 'description', 'icon', 'category'],
-          required: false // 使用left join以确保即使没有关联的题库也能返回兑换码
+    // 使用原生SQL查询替代Sequelize的ORM操作，以避免列名不匹配问题
+    const redeemCodesSql = `
+      SELECT 
+        rc.code, 
+        rc.question_set_id as questionSetId,
+        rc.validity_days as validityDays,
+        rc.created_at as createdAt, 
+        rc.used_by as usedBy,
+        rc.used_at as usedAt,
+        rc.updated_at as updatedAt,
+        qs.id as questionSetId,
+        qs.title as questionSetTitle,
+        qs.description as questionSetDescription,
+        qs.icon as questionSetIcon,
+        qs.category as questionSetCategory
+      FROM redeem_codes rc
+      LEFT JOIN question_sets qs ON rc.question_set_id = qs.id
+      WHERE rc.used_by = :userId AND rc.used_at IS NOT NULL
+      ORDER BY rc.used_at DESC
+    `;
+    
+    const redeemCodesResult = await sequelize.query(
+      redeemCodesSql,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT
+      }
+    );
+    
+    console.log(`[RedeemCodeController] Found ${redeemCodesResult.length} redeemed codes for user using SQL`);
+    
+    // 转换结果格式为客户端期望的格式
+    const formattedResults = redeemCodesResult.map((code: any) => {
+      // 计算过期日期（基于使用日期+有效期天数）
+      const usedAtDate = code.usedAt ? new Date(code.usedAt) : new Date(code.createdAt);
+      const defaultExpiryDate = new Date(usedAtDate.getTime() + (code.validityDays || 180) * 24 * 60 * 60 * 1000);
+      
+      return {
+        id: code.code, // 使用code作为id
+        code: code.code,
+        questionSetId: code.questionSetId,
+        validityDays: code.validityDays || 180,
+        usedBy: code.usedBy,
+        usedAt: code.usedAt,
+        expiryDate: defaultExpiryDate.toISOString(),
+        createdAt: code.createdAt,
+        updatedAt: code.updatedAt,
+        // 格式化题库信息
+        redeemQuestionSet: {
+          id: code.questionSetId,
+          title: code.questionSetTitle || '未知题库',
+          description: code.questionSetDescription || '',
+          icon: code.questionSetIcon,
+          category: code.questionSetCategory
         }
-      ],
-      order: [['usedAt', 'DESC']]
+      };
     });
 
-    console.log(`[RedeemCodeController] Found ${redeemCodes.length} redeemed codes for user`);
-
-    try {
-      // 获取相关的购买记录以检查有效期
-      const purchases = await Purchase.findAll({
-        where: { 
-          userId,
-          status: 'active'
-        }
-      });
-
-      console.log(`[RedeemCodeController] Found ${purchases.length} active purchases for user`);
-
-      // 为兑换码添加失效日期信息
-      const codeWithExpiry = redeemCodes.map(code => {
-        const codeJSON = code.toJSON();
-        const purchase = purchases.find(p => p.questionSetId === code.questionSetId);
-        
-        // 确保 usedAt 是字符串类型
-        const usedAtString = code.usedAt ? code.usedAt.toString() : new Date().toISOString();
-        const usedDate = new Date(usedAtString);
-        const defaultExpiryDate = new Date(usedDate.getTime() + 180 * 24 * 60 * 60 * 1000); // 默认6个月有效期
-        
-        return {
-          ...codeJSON,
-          expiryDate: purchase?.expiryDate ?? defaultExpiryDate
-        };
-      });
-
-      return res.json({
-        success: true,
-        data: codeWithExpiry
-      });
-    } catch (purchaseError) {
-      console.error('[RedeemCodeController] Error getting purchase data:', purchaseError);
-      // 即使获取购买记录失败，也返回兑换码数据
-      return res.json({
-        success: true,
-        data: redeemCodes.map(code => code.toJSON())
-      });
-    }
+    return res.json({
+      success: true,
+      data: formattedResults
+    });
   } catch (error: any) {
     console.error('[RedeemCodeController] Get user redeemed codes error:', error);
     res.status(500).json({

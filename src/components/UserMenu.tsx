@@ -72,17 +72,17 @@ const UserMenu: React.FC = () => {
 
   // 如果用户已登录，显示用户菜单
   return (
-    <div className="relative inline-block text-left" ref={menuRef}>
+    <div className="relative inline-block text-left z-30" ref={menuRef}>
       <div className="flex items-center">
         <button
           onClick={handleUserNameClick}
-          className="mr-2 text-blue-600 hover:text-blue-800 font-medium"
+          className="mr-2 text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
         >
           {user.username}
         </button>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -91,7 +91,7 @@ const UserMenu: React.FC = () => {
       </div>
 
       {isOpen && (
-        <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+        <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-40">
           <div className="py-1">
             <Link
               to="/profile"

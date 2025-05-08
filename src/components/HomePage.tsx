@@ -137,7 +137,11 @@ const HomePage: React.FC = () => {
   const hasRequestedAccess = useRef<boolean>(false);
   // Add loading timeout ref to avoid getting stuck in loading state
   const loadingTimeoutRef = useRef<any>(null);
-
+  
+  const socketDataRef = useRef<{[key: string]: {hasAccess: boolean, remainingDays: number | null, accessType?: string}}>({}); 
+  // 修改bgClass的定义，确保不影响用户菜单的交互
+  const bgClass = "bg-gray-50 dark:bg-gray-900 py-8 relative pt-20"; // 移除min-h-screen, 添加pt-20确保内容不被header覆盖
+  
   // 在这里添加BaseCard组件定义（组件内部）
   const BaseCard: React.FC<{
     key: string;
@@ -427,9 +431,6 @@ const HomePage: React.FC = () => {
       console.error('[HomePage] 保存本地缓存失败', error);
     }
   }, [user?.id, getLocalAccessCache]);
-  
-  const socketDataRef = useRef<{[key: string]: {hasAccess: boolean, remainingDays: number | null, accessType?: string}}>({}); 
-  const bgClass = "min-h-screen bg-gray-50 dark:bg-gray-900 py-8";
   
   // 辅助函数：读取本地缓存的访问状态
   const getAccessFromLocalCache = useCallback((questionSetId: string, userId: string | undefined) => {
@@ -1617,7 +1618,7 @@ const HomePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center pt-32 pb-20"> {/* 移除min-h-screen，添加合适的padding */}
         <div className="text-xl">正在加载...</div>
       </div>
     );
@@ -1642,7 +1643,7 @@ const HomePage: React.FC = () => {
       )}
 
       {/* 高科技英雄区域 */}
-      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-10 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-10 overflow-hidden mt-8"> {/* 添加mt-8顶部间距 */}
         {/* 科技背景元素 */}
         <div className="absolute inset-0 z-0">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-700/20 via-transparent to-transparent"></div>
