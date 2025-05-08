@@ -13,7 +13,6 @@ const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
 const socket_1 = require("./config/socket");
 const associations_1 = require("./models/associations");
-const RedeemCode_1 = require("./models/RedeemCode");
 const appstate_1 = require("./utils/appstate");
 const HomepageSettings_1 = __importDefault(require("./models/HomepageSettings"));
 // Load environment variables
@@ -76,10 +75,8 @@ const server = (0, http_1.createServer)(app);
 // 同步数据库并启动服务器
 database_1.default.sync({ alter: false }).then(() => {
     console.log('Database synced');
-    // 显式初始化所有关联
+    // 初始化所有关联 - 现在所有关联都统一在 associations.ts 中管理
     (0, associations_1.setupAssociations)();
-    // 确保 RedeemCode 的关联被正确设置
-    (0, RedeemCode_1.setupAssociations)();
     console.log('All associations initialized');
     appstate_1.appState.associationsInitialized = true;
     // 确保 HomepageSettings 表有初始数据

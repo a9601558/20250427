@@ -6,7 +6,7 @@ import User from './User';
 import Question from './Question';
 import QuestionSet from './QuestionSet';
 import Purchase from './Purchase';
-import RedeemCode, { setupAssociations as setupRedeemCodeAssociations } from './RedeemCode';
+import RedeemCode from './RedeemCode';
 import Option from './Option';
 import HomepageSettings from './HomepageSettings';
 import UserProgress from './UserProgress';
@@ -63,8 +63,7 @@ WrongAnswer.belongsTo(QuestionSet, { as: 'questionSet', foreignKey: 'questionSet
 Question.hasMany(WrongAnswer, { as: 'wrongAnswers', foreignKey: 'questionId' });
 WrongAnswer.belongsTo(Question, { as: 'wrongAnswerQuestion', foreignKey: 'questionId' });
 
-// 设置RedeemCode的关联
-setupRedeemCodeAssociations();
+// 原来调用RedeemCode中的setupAssociations函数，现在已移至associations.ts中统一管理
 */
 
 // Export models

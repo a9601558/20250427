@@ -11,7 +11,6 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { initializeSocket } from './config/socket';
 import { setupAssociations } from './models/associations';
-import { setupAssociations as setupRedeemCodeAssociations } from './models/RedeemCode';
 import { appState } from './utils/appstate';
 import HomepageSettings from './models/HomepageSettings';
 import { questionSetAttributes, purchaseAttributes } from './utils/sequelizeHelpers';
@@ -88,11 +87,8 @@ const server = createServer(app);
 sequelize.sync({ alter: false }).then(() => {
   console.log('Database synced');
   
-  // 显式初始化所有关联
+  // 初始化所有关联 - 现在所有关联都统一在 associations.ts 中管理
   setupAssociations();
-  
-  // 确保 RedeemCode 的关联被正确设置
-  setupRedeemCodeAssociations();
   
   console.log('All associations initialized');
   appState.associationsInitialized = true;
