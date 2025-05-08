@@ -475,7 +475,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setError(response.data?.message || '注册失败，请重试');
         return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('注册失败:', error);
       setError(error.response?.data?.message || '注册失败，请检查网络连接');
       return false;
@@ -678,8 +678,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user?.id]);
 
-  // 修改hasAccessToQuestionSet函数的返回类型，与接口定义保持一致
-  const hasAccessToQuestionSet = useCallback(async (questionSetId: string): Promise<boolean> => {
+  // 在接口上方先声明refreshPurchases函数类型
+  const refreshUserPurchasesFromCache = async (): Promise<Purchase[]> => {
+    // 简化版的实现，从localStorage获取购买记录
+    try {
+      const cachedPurchases = localStorage.getItem('userPurchasesCache');
+      if (cachedPurchases) {
+        return JSON.parse(cachedPurchases);
+      }
+    } catch (e) {
+      console.error('Failed to get purchases from cache:', e);
+    }
+    return [];
+  };
+
+  // 修改hasAccessToQuestionSet为同步函数
+  const hasAccessToQuestionSet = useCallback((questionSetId: string): boolean => {
     if (!questionSetId || !user) return false;
     
     try {
@@ -688,31 +702,81 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const cachedAccess = localStorage.getItem(cacheKey);
       if (cachedAccess === 'true') return true;
       
-      // 然后检查用户的购买记录
-      if (userPurchases.length === 0) {
-        await refreshPurchases();
+      // 然后检查用户的购买记录 (同步检查)
+      if (user.purchases && user.purchases.length > 0) {
+        const purchase = user.purchases.find(p => 
+          String(p.questionSetId).trim() === String(questionSetId).trim() &&
+          (p.status === 'active' || p.status === 'completed')
+        );
+        
+        if (purchase) {
+          localStorage.setItem(cacheKey, 'true');
+          return true;
+        }
       }
       
-      const purchase = userPurchases.find(p => String(p.questionSetId).trim() === String(questionSetId).trim());
-      if (purchase && (purchase.status === 'active' || purchase.status === 'completed')) {
-        localStorage.setItem(cacheKey, 'true');
-        return true;
+      // 检查本地存储的其他访问权限标记
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      if (accessRightsStr) {
+        try {
+          const accessRights = JSON.parse(accessRightsStr);
+          const normalizedId = String(questionSetId).trim();
+          if (accessRights && accessRights[normalizedId] === true) {
+            return true;
+          }
+        } catch (e) {
+          console.error('Failed to parse access rights:', e);
+        }
       }
       
-      // 最后尝试检查服务器端
-      const response = await userApi.checkAccessToQuestionSet(questionSetId);
-      
-      if (response.success && response.data) {
-        localStorage.setItem(cacheKey, String(response.data.hasAccess));
-        return response.data.hasAccess;
+      // 检查已兑换题库
+      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+      if (redeemedStr) {
+        try {
+          const redeemedIds = JSON.parse(redeemedStr);
+          const normalizedId = String(questionSetId).trim();
+          if (Array.isArray(redeemedIds) && redeemedIds.some(id => String(id).trim() === normalizedId)) {
+            return true;
+          }
+        } catch (e) {
+          console.error('Failed to parse redeemed IDs:', e);
+        }
       }
       
+      // 默认无权限访问
       return false;
     } catch (error) {
       console.error(`[UserContext] Error checking access for question set ${questionSetId}:`, error);
       return false;
     }
-  }, [user, userPurchases, refreshPurchases]);
+  }, [user]);
+
+  // 添加异步检查函数，分离权限检查的同步和异步部分
+  const checkAccessFromServer = useCallback(async (questionSetId: string): Promise<boolean> => {
+    if (!questionSetId || !user) return false;
+    
+    try {
+      // 如果userApi没有checkAccessToQuestionSet方法，使用通用请求
+      const response = await axios.get(`${API_BASE_URL}/purchases/check-access/${questionSetId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const hasAccess = response.data && response.data.success && response.data.data?.hasAccess;
+      
+      // 如果有权限，更新本地缓存
+      if (hasAccess) {
+        const cacheKey = `quiz_access_${questionSetId}`;
+        localStorage.setItem(cacheKey, 'true');
+      }
+      
+      return !!hasAccess;
+    } catch (error) {
+      console.error(`[UserContext] Error checking server access for set ${questionSetId}:`, error);
+      return false;
+    }
+  }, [user]);
 
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
@@ -1052,7 +1116,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user, socket]);
 
   // 刷新购买记录
-  const refreshPurchases = useCallback(async () => {
+  const refreshPurchases = useCallback(async (): Promise<Purchase[]> => {
     if (!user) {
       console.log('[用户] 用户未登录，无法刷新购买记录');
       return [];
