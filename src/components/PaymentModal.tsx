@@ -43,92 +43,101 @@ interface StripePaymentFormProps {
 const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit, onCancel, isProcessing }) => {
   const stripe = useStripe();
   const elements = useElements();
+  const { user } = useUser();
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string>('');
   const [paymentIntentId, setPaymentIntentId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Create a payment intent when the form loads
-    const createPaymentIntent = async () => {
+    const initializePayment = async () => {
+      if (!amount || amount <= 0) {
+        console.error('[StripePaymentForm] Invalid amount:', amount);
+        setError('Invalid payment amount');
+        return;
+      }
+
+      setIsLoading(true);
       try {
-        // Convert amount to cents for Stripe
-        const amountInCents = Math.round(amount * 100);
-        console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount} (${amountInCents} cents)`);
+        console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount}`);
         
-        const response = await axios.post(
-          `${API_BASE_URL}/payments/create-intent`, 
-          { 
-            amount: amountInCents, // Send amount in cents
-            currency: 'cny'
-          },
+        const intentData = await processPayment(
+          amount,
+          'cny',
           {
-            headers: { 
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'Content-Type': 'application/json' 
-            }
+            userId: user?.id || 'anonymous',
+            description: '题库购买'
           }
         );
-        
-        if (response.data && response.data.clientSecret) {
-          setClientSecret(response.data.clientSecret);
-          if (response.data.paymentIntentId) {
-            setPaymentIntentId(response.data.paymentIntentId);
-          }
+
+        if (intentData && intentData.clientSecret) {
+          console.log('[StripePaymentForm] Payment intent created successfully');
+          setClientSecret(intentData.clientSecret);
+          setPaymentIntentId(intentData.id);
+          setError(null);
         } else {
+          console.error('[StripePaymentForm] No client secret in response');
           setError('Could not initialize payment. Please try again.');
         }
       } catch (err) {
-        console.error('Error creating payment intent:', err);
+        console.error('[StripePaymentForm] Error creating payment intent:', err);
         setError('Failed to connect to payment service.');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    if (amount > 0) {
-      createPaymentIntent();
-    }
-  }, [amount]);
+    initializePayment();
+  }, [amount, user?.id]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
     if (!stripe || !elements) {
+      setError('Payment system is not ready yet. Please try again.');
       return;
     }
-    
-    setError(null);
     
     if (!clientSecret) {
       setError('Payment system is not ready yet. Please try again.');
       return;
     }
 
-    // Confirm the card payment
-    const result = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: {
-        card: elements.getElement(CardElement)!,
-        billing_details: {
-          name: 'Anonymous Customer',
-        },
-      }
-    });
+    setIsLoading(true);
+    try {
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+          billing_details: {
+            name: user?.username || 'Anonymous Customer',
+            email: user?.email
+          },
+        }
+      });
 
-    if (result.error) {
-      setError(result.error.message || 'Payment failed');
-    } else {
-      if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
-        const paymentMethodId = typeof result.paymentIntent.payment_method === 'string' 
-          ? result.paymentIntent.payment_method 
-          : result.paymentIntent.payment_method?.id || null;
-
-        onSubmit({
-          paymentIntentId: paymentIntentId || result.paymentIntent.id,
-          paymentMethodId,
-          amount: amount,
-          status: 'succeeded'
-        });
+      if (result.error) {
+        setError(result.error.message || 'Payment failed');
       } else {
-        setError(`Payment status: ${result.paymentIntent?.status || 'unknown'}. Please try again.`);
+        if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+          const paymentMethodId = typeof result.paymentIntent.payment_method === 'string' 
+            ? result.paymentIntent.payment_method 
+            : result.paymentIntent.payment_method?.id || null;
+
+          onSubmit({
+            paymentIntentId: paymentIntentId || result.paymentIntent.id,
+            paymentMethodId,
+            amount: amount,
+            status: 'succeeded'
+          });
+        } else {
+          setError(`Payment status: ${result.paymentIntent?.status || 'unknown'}. Please try again.`);
+        }
       }
+    } catch (err) {
+      console.error('[StripePaymentForm] Payment confirmation error:', err);
+      setError('An error occurred while processing your payment. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -139,7 +148,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         <button
           onClick={onCancel}
           className="text-gray-400 hover:text-gray-600"
-          disabled={isProcessing}
+          disabled={isProcessing || isLoading}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -175,6 +184,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
               }}
             />
           </div>
+          <p className="mt-2 text-xs text-gray-500">
+            测试卡号：4242 4242 4242 4242，有效期：任意未来日期，CVV：任意3位数
+          </p>
         </div>
         
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -189,18 +201,28 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             type="button"
             onClick={onCancel}
             className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-            disabled={isProcessing}
+            disabled={isProcessing || isLoading}
           >
             取消
           </button>
           <button
             type="submit"
-            disabled={!stripe || isProcessing || !clientSecret}
+            disabled={!stripe || isProcessing || isLoading || !clientSecret}
             className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
-              (!stripe || isProcessing || !clientSecret) ? 'opacity-50 cursor-not-allowed' : ''
+              (!stripe || isProcessing || isLoading || !clientSecret) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
-            {isProcessing ? '处理中...' : `确认支付 ¥${amount.toFixed(2)}`}
+            {isProcessing || isLoading ? (
+              <div className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                处理中...
+              </div>
+            ) : (
+              `确认支付 ¥${amount.toFixed(2)}`
+            )}
           </button>
         </div>
       </form>

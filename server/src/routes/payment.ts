@@ -95,95 +95,52 @@ router.get('/verify/:paymentIntentId', authenticateJwt, async (req, res) => {
     
     // 如果支付成功且尚未记录，创建购买记录
     if (verification.isSuccessful && verification.metadata?.questionSetId) {
-      // 检查是否已经存在此支付的购买记录
-      const existingPurchase = await db.Purchase.findOne({
-        where: {
-          transactionId: paymentIntentId,
-          userId: req.user?.id
-        }
-      });
-      
-      if (existingPurchase) {
-        // 如果记录已存在但状态不是active，更新为active
-        if (existingPurchase.status !== 'active') {
-          console.log(`[支付路由] 更新购买记录状态: ${existingPurchase.id}`);
-          await existingPurchase.update({
-            status: 'active',
-            updatedAt: new Date()
-          });
-          
-          // 发送购买成功事件
-          if (req.app.get('io')) {
-            const io = req.app.get('io');
-            
-            io.emit('purchase:success', {
-              userId: req.user?.id,
-              questionSetId: verification.metadata.questionSetId,
-              purchaseId: existingPurchase.id,
-              expiryDate: existingPurchase.expiryDate.toISOString()
-            });
-            
-            // 更新访问权限
-            io.emit('questionSet:accessUpdate', {
-              userId: req.user?.id,
-              questionSetId: verification.metadata.questionSetId,
-              hasAccess: true
-            });
+      try {
+        // 检查是否已存在购买记录
+        const existingPurchase = await db.Purchase.findOne({
+          where: {
+            transactionId: paymentIntentId,
+            userId: req.user?.id
           }
-        }
-      } else {
-        // 计算过期时间（6个月后）
-        const now = new Date();
-        const expiryDate = new Date(now);
-        expiryDate.setMonth(expiryDate.getMonth() + 6);
-        
-        console.log(`[支付路由] 创建新购买记录，用户: ${req.user?.id}, 题库: ${verification.metadata.questionSetId}`);
-        
-        // 创建购买记录
-        await db.Purchase.create({
-          id: uuidv4(),
-          userId: req.user?.id,
-          questionSetId: verification.metadata.questionSetId,
-          purchaseDate: now,
-          expiryDate,
-          amount: verification.amount / 100, // 转换回元
-          transactionId: paymentIntentId,
-          paymentMethod: 'card',
-          status: 'active'
         });
-        
-        // 发送购买成功事件
-        if (req.app.get('io')) {
-          const io = req.app.get('io');
-          
-          io.emit('purchase:success', {
+
+        if (!existingPurchase) {
+          // 计算过期时间（6个月后）
+          const now = new Date();
+          const expiryDate = new Date(now);
+          expiryDate.setMonth(expiryDate.getMonth() + 6);
+
+          // 创建购买记录
+          await db.Purchase.create({
+            id: uuidv4(),
             userId: req.user?.id,
             questionSetId: verification.metadata.questionSetId,
-            purchaseId: uuidv4(),
-            expiryDate: expiryDate.toISOString()
+            purchaseDate: now,
+            expiryDate,
+            amount: verification.amount / 100, // 转换回元
+            transactionId: paymentIntentId,
+            paymentMethod: 'card',
+            status: 'active'
           });
-          
-          // 更新访问权限
-          io.emit('questionSet:accessUpdate', {
-            userId: req.user?.id,
-            questionSetId: verification.metadata.questionSetId,
-            hasAccess: true
-          });
+
+          console.log(`[支付路由] 创建购买记录成功: ${paymentIntentId}`);
         }
+      } catch (dbError) {
+        console.error('创建购买记录失败:', dbError);
+        // 不中断验证流程，继续返回支付状态
       }
     }
     
     res.json({
       success: true,
       status: verification.status,
-      isSuccessful: verification.isSuccessful,
-      questionSetId: verification.metadata?.questionSetId
+      isSuccessful: verification.isSuccessful
     });
   } catch (error) {
     console.error('验证支付状态失败:', error);
     res.status(500).json({
       success: false,
-      message: '验证支付失败',
+      message: '验证支付状态失败',
       error: error instanceof Error ? error.message : '未知错误'
     });
   }
@@ -212,72 +169,47 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         
         // 如果有元数据，创建购买记录
         if (paymentIntent.metadata?.userId && paymentIntent.metadata?.questionSetId) {
-          const userId = paymentIntent.metadata.userId;
-          const questionSetId = paymentIntent.metadata.questionSetId;
-          
-          // 检查是否已经存在此支付的购买记录
-          const existingPurchase = await db.Purchase.findOne({
-            where: {
-              transactionId: paymentIntent.id,
-              userId
-            }
-          });
-          
-          if (!existingPurchase) {
-            // 计算过期时间（6个月后）
-            const now = new Date();
-            const expiryDate = new Date(now);
-            expiryDate.setMonth(expiryDate.getMonth() + 6);
-            
-            // 创建购买记录
-            await db.Purchase.create({
-              id: uuidv4(),
-              userId,
-              questionSetId,
-              purchaseDate: now,
-              expiryDate,
-              amount: paymentIntent.amount / 100, // 转换回元
-              transactionId: paymentIntent.id,
-              paymentMethod: 'card',
-              status: 'active'
+          try {
+            // 检查是否已存在购买记录
+            const existingPurchase = await db.Purchase.findOne({
+              where: {
+                transactionId: paymentIntent.id,
+                userId: paymentIntent.metadata.userId
+              }
             });
-            
-            // 发送购买成功事件
-            if (req.app.get('io')) {
-              const io = req.app.get('io');
-              
-              io.emit('purchase:success', {
-                userId,
-                questionSetId,
-                purchaseId: uuidv4(),
-                expiryDate: expiryDate.toISOString()
+
+            if (!existingPurchase) {
+              // 计算过期时间（6个月后）
+              const now = new Date();
+              const expiryDate = new Date(now);
+              expiryDate.setMonth(expiryDate.getMonth() + 6);
+
+              // 创建购买记录
+              await db.Purchase.create({
+                id: uuidv4(),
+                userId: paymentIntent.metadata.userId,
+                questionSetId: paymentIntent.metadata.questionSetId,
+                purchaseDate: now,
+                expiryDate,
+                amount: paymentIntent.amount / 100, // 转换回元
+                transactionId: paymentIntent.id,
+                paymentMethod: 'card',
+                status: 'active'
               });
-              
-              // 更新访问权限
-              io.emit('questionSet:accessUpdate', {
-                userId,
-                questionSetId,
-                hasAccess: true
-              });
+
+              console.log(`[Webhook] 创建购买记录成功: ${paymentIntent.id}`);
             }
+          } catch (dbError) {
+            console.error('[Webhook] 创建购买记录失败:', dbError);
           }
         }
         break;
-        
-      // 其他事件类型可以在这里处理
-      case 'payment_intent.payment_failed':
-        console.log('支付失败:', event.data.object);
-        break;
-        
-      default:
-        console.log(`未处理的事件类型: ${event.type}`);
     }
     
-    // 向Stripe返回成功响应
-    res.status(200).send('Event received');
+    res.json({ received: true });
   } catch (error) {
-    console.error('处理Stripe Webhook错误:', error);
-    res.status(400).send('Webhook Error');
+    console.error('Webhook处理失败:', error);
+    res.status(400).send('Webhook处理失败');
   }
 });
 
