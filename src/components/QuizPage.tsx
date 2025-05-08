@@ -149,14 +149,66 @@ interface ProgressData {
 }
 
 // 添加通用的isPaidQuiz工具函数，确保全应用一致性
-const isPaidQuiz = (quizData: any): boolean => {
-  if (!quizData) return false;
+const isPaidQuiz = (quizData: any, debug = false): boolean => {
+  if (!quizData) {
+    console.log('[isPaidQuiz] quizData is null or undefined');
+    return false;
+  }
+  
+  if (debug) {
+    console.log('[isPaidQuiz] DEBUGGING DATA:', {
+      quizData: quizData,
+      id: quizData.id,
+      isPaid: quizData.isPaid,
+      isPaidType: typeof quizData.isPaid,
+      price: quizData.price,
+      priceType: typeof quizData.price,
+      stringifiedIsPaid: String(quizData.isPaid),
+      booleanCheck: quizData.isPaid === true,
+      numberCheck: typeof quizData.isPaid === 'number' && quizData.isPaid === 1,
+      stringCheck: String(quizData.isPaid) === '1',
+      priceCheck: quizData.price && quizData.price > 0
+    });
+  }
   
   // 处理所有可能的情况
-  if (quizData.isPaid === true) return true;
-  if (typeof quizData.isPaid === 'number' && quizData.isPaid === 1) return true;
-  if (String(quizData.isPaid) === '1') return true;
-  if (quizData.price && quizData.price > 0) return true;
+  if (quizData.isPaid === true) {
+    if (debug) console.log('[isPaidQuiz] true because isPaid === true');
+    return true;
+  }
+  
+  if (typeof quizData.isPaid === 'number' && quizData.isPaid === 1) {
+    if (debug) console.log('[isPaidQuiz] true because isPaid === 1 (number)');
+    return true;
+  }
+  
+  if (String(quizData.isPaid) === '1') {
+    if (debug) console.log('[isPaidQuiz] true because String(isPaid) === "1"');
+    return true;
+  }
+  
+  // 检查JSON字符串，有时数据可能被序列化
+  if (typeof quizData.isPaid === 'string' && quizData.isPaid.toLowerCase() === 'true') {
+    if (debug) console.log('[isPaidQuiz] true because isPaid string is "true"');
+    return true;
+  }
+  
+  // 仅在API的意外行为时才依赖价格：如果价格是正数，很可能是付费题库
+  if (quizData.price && quizData.price > 0) {
+    if (debug) console.log('[isPaidQuiz] true because price > 0');
+    return true;
+  }
+  
+  // 如果所有检查都失败，日志所有值以便调试
+  if (debug) {
+    console.log('[isPaidQuiz] Quiz is NOT paid. Raw data:', {
+      id: quizData.id || 'undefined',
+      isPaid: quizData.isPaid,
+      isPaidType: typeof quizData.isPaid,
+      price: quizData.price,
+      isPaidString: String(quizData.isPaid)
+    });
+  }
   
   // 默认认为非付费
   return false;
@@ -547,24 +599,65 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       return;
     }
     
-    // 增强日志，添加更多调试信息
-    console.log(`[PaymentModal] 购买操作开始，题库信息:`, {
-      id: questionSet.id,
-      title: questionSet.title,
-      isPaid: questionSet.isPaid,
-      type: typeof questionSet.isPaid,
-      price: questionSet.price
-    });
+    // 增强日志，添加完整的调试信息
+    console.log(`[PaymentModal] 购买操作开始，使用isPaidQuiz详细调试题库信息:`);
+    
+    // 启用调试模式检查题库状态，打印更多信息
+    const isPaid = isPaidQuiz(questionSet, true);
     
     // 使用通用的isPaidQuiz函数检查题库付费状态
-    if (!isPaidQuiz(questionSet)) {
-      console.error(`[PaymentModal] 题库${questionSet.id} 检测为免费题库，无法进行购买:`, 
-        { isPaid: questionSet.isPaid, type: typeof questionSet.isPaid, price: questionSet.price });
-      setError("该题库为免费题库，无需购买");
-      toast.error("该题库为免费题库，无需购买");
-      setIsProcessing(false);
-      setBtnClicked(false);
-      return;
+    if (!isPaid) {
+      console.error(`[PaymentModal] 题库${questionSet.id} 检测为免费题库，无法进行购买，进行数据修复尝试...`);
+      
+      // 尝试直接从API重新获取题库信息来修复可能的数据不一致
+      try {
+        console.log(`[PaymentModal] 尝试绕过缓存，直接从API重新获取题库状态...`);
+        
+        // 添加防缓存参数
+        const timestamp = new Date().getTime();
+        const refreshedResponse = await axios.get(
+          `${API_BASE_URL}/question-sets/${questionSet.id}?t=${timestamp}`, 
+          { 
+            headers: { 
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Cache-Control': 'no-cache, no-store'
+            } 
+          }
+        );
+        
+        // 检查API直接返回的数据
+        console.log('[PaymentModal] 直接API返回数据:', refreshedResponse.data);
+        
+        if (refreshedResponse.data && refreshedResponse.data.data) {
+          const freshData = refreshedResponse.data.data;
+          
+          // 使用调试模式检查API返回的数据
+          const isActuallyPaid = isPaidQuiz(freshData, true);
+          
+          if (isActuallyPaid) {
+            console.log('[PaymentModal] API直接调用验证此题库确实是付费题库，但本地数据有误。继续购买流程...');
+            
+            // 显示警告但允许继续
+            toast.warning("检测到题库数据不一致，已修复。继续购买流程...", { autoClose: 3000 });
+            
+            // 继续购买流程
+          } else {
+            console.error('[PaymentModal] API直接调用也确认这是免费题库');
+            setError("服务器确认该题库为免费题库，无需购买");
+            toast.error("服务器确认该题库为免费题库，无需购买");
+            
+            // 强制刷新页面以获取正确数据
+            setTimeout(() => window.location.reload(), 2000);
+            
+            setIsProcessing(false);
+            setBtnClicked(false);
+            return;
+          }
+        }
+      } catch (apiError) {
+        console.error('[PaymentModal] 直接API调用失败:', apiError);
+        // 继续原流程，因为错误可能是网络或权限问题
+      }
     }
     
     // Don't proceed if already processing
@@ -784,13 +877,62 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             response.message.includes('not paid')
           )) {
             // 题库状态不一致的特定错误处理
-            toast.info("题库状态与服务器不一致，正在刷新页面获取最新信息", {
-              autoClose: 3000,
-              onClose: () => window.location.reload()
+            setError("服务器显示该题库为免费，正在重新确认题库状态...");
+            toast.info("题库状态与服务器不一致，正在重新检查题库信息", {
+              autoClose: 3000
             });
-            setError("服务器显示该题库为免费，页面将在3秒后刷新以更新");
-            // 3秒后自动刷新页面获取最新状态
-            setTimeout(() => window.location.reload(), 3000);
+            
+            // 直接从API重新获取题库信息
+            try {
+              const timestamp = new Date().getTime();
+              const freshCheckResponse = await axios.get(
+                `${API_BASE_URL}/question-sets/${questionSet.id}?t=${timestamp}`, 
+                { 
+                  headers: { 
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Cache-Control': 'no-cache, no-store'
+                  } 
+                }
+              );
+              
+              console.log('[PaymentModal] 直接检查题库返回:', freshCheckResponse.data);
+              
+              if (freshCheckResponse.data && freshCheckResponse.data.data) {
+                const freshData = freshCheckResponse.data.data;
+                
+                // 调试日志
+                isPaidQuiz(freshData, true);
+                
+                // 检测是否真的是免费题库
+                if (!isPaidQuiz(freshData)) {
+                  console.log('[PaymentModal] 确认此题库确实是免费题库，刷新页面');
+                  
+                  toast.info("确认该题库为免费题库，页面将在3秒后刷新以更新", {
+                    autoClose: 3000
+                  });
+                  
+                  // 3秒后自动刷新页面获取最新状态
+                  setTimeout(() => window.location.reload(), 3000);
+                } else {
+                  console.error('[PaymentModal] 题库检查结果有冲突：数据显示为付费，但API拒绝购买');
+                  
+                  // 询问用户是否继续尝试
+                  if (confirm(`系统状态不一致：题库数据显示这是付费题库，但购买API拒绝了请求。
+
+您可以选择：
+- 点击"确定"刷新页面并重试
+- 点击"取消"关闭此窗口`)) {
+                    window.location.reload();
+                  }
+                }
+              }
+            } catch (apiCheckError) {
+              console.error('[PaymentModal] 直接检查题库失败:', apiCheckError);
+              
+              toast.error("无法确认题库状态，请刷新页面后重试", {
+                autoClose: 3000
+              });
+            }
           } else if (response.message && response.message.includes('已购买')) {
             // 已购买的特定错误处理 - 给用户二次确认选择
             if (confirm("服务器显示您已购买过此题库。\n\n是否仍然尝试重新购买？点击确定将尝试忽略此错误继续购买。")) {
@@ -1689,15 +1831,81 @@ function QuizPage(): JSX.Element {
           rawParams: Array.from(urlParams.entries())
         });
         
-        // 获取题库详情
+        // 获取题库详情 - 先从API缓存获取
         const response = await questionSetApi.getQuestionSetById(questionSetId);
         
+        // 检查是否有疑似数据问题
+        let questionSetData: IQuestionSet | null = null;
+        let directApiData = null;
+        
         if (response.success && response.data) {
+          // 初步处理题库数据
+          questionSetData = {
+            id: response.data.id,
+            title: response.data.title,
+            description: response.data.description,
+            category: response.data.category,
+            icon: response.data.icon,
+            questions: getQuestions(response.data),
+            isPaid: response.data.isPaid || false,
+            price: response.data.price || 0,
+            isFeatured: response.data.isFeatured || false,
+            featuredCategory: response.data.featuredCategory,
+            hasAccess: false,
+            trialQuestions: 0, // 先初始化为0，后面再设置
+            questionCount: getQuestions(response.data).length,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          // 使用调试模式检查题库付费状态
+          const cachedIsPaid = isPaidQuiz(questionSetData, true);
+          
+          // 如果缓存API返回的是付费题库，但缓存isPaid标识可能存在问题，直接从API获取
+          if (!cachedIsPaid && questionSetData.price > 0) {
+            console.log('[QuizPage] 检测到潜在的题库数据不一致：价格 > 0 但 isPaid 不为真，尝试直接调用 API');
+            
+            try {
+              // 直接从API获取最新数据，绕过可能的缓存
+              const timestamp = new Date().getTime();
+              const directResponse = await axios.get(
+                `${API_BASE_URL}/question-sets/${questionSetId}?t=${timestamp}`, 
+                { 
+                  headers: { 
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Cache-Control': 'no-cache, no-store'
+                  } 
+                }
+              );
+              
+              if (directResponse.data && directResponse.data.data) {
+                directApiData = directResponse.data.data;
+                
+                // 验证直接API返回的付费状态
+                const directIsPaid = isPaidQuiz(directApiData, true);
+                
+                // 如果直接API显示这是付费题库，更新本地数据
+                if (directIsPaid) {
+                  console.log('[QuizPage] 直接API调用显示此题库为付费题库，更新本地数据');
+                  
+                  // 更新questionSetData
+                  questionSetData.isPaid = true;
+                  
+                  // 显示警告
+                  toast.warning('检测到题库数据不一致，已自动修复', { autoClose: 3000 });
+                }
+              }
+            } catch (directApiError) {
+              console.error('[QuizPage] 直接API调用失败:', directApiError);
+              // 继续使用缓存数据，这只是额外验证
+            }
+          }
+          
           // 更新明确的试用模式状态
           setQuizStatus({ ...quizStatus, isInTrialMode: isExplicitTrialMode });
           
           // 改进对试用题目数量的确定逻辑
-          const trialQuestionsFromApi = response.data.trialQuestions;
+          const trialQuestionsFromApi = directApiData?.trialQuestions || response.data.trialQuestions;
           let determinedTrialCount: number;
           
           if (isExplicitTrialMode) {
@@ -1717,38 +1925,30 @@ function QuizPage(): JSX.Element {
               determinedTrialCount = trialQuestionsFromApi;
             } else {
               // API未定义试用题数: 付费题库默认给1题隐式试用，免费题库0题
-              determinedTrialCount = response.data.isPaid ? 1 : 0;
+              const useDirectApi = directApiData && isPaidQuiz(directApiData, false);
+              const useCachedApi = isPaidQuiz(questionSetData, false);
+              const finalIsPaid = useDirectApi || useCachedApi;
+              
+              determinedTrialCount = finalIsPaid ? 1 : 0;
             }
-            console.log(`[QuizPage] 非显式试用模式 (isPaid: ${response.data.isPaid})，试用题数: ${determinedTrialCount}`);
+            console.log(`[QuizPage] 非显式试用模式，试用题数: ${determinedTrialCount}`);
           }
           
           // 确保 determinedTrialCount 不为负
           if (determinedTrialCount < 0) determinedTrialCount = 0;
           
-          const questionSetData: IQuestionSet = {
-            id: response.data.id,
-            title: response.data.title,
-            description: response.data.description,
-            category: response.data.category,
-            icon: response.data.icon,
-            questions: getQuestions(response.data),
-            isPaid: response.data.isPaid || false,
-            price: response.data.price || 0,
-            isFeatured: response.data.isFeatured || false,
-            featuredCategory: response.data.featuredCategory,
-            hasAccess: false,
-            trialQuestions: determinedTrialCount,
-            questionCount: getQuestions(response.data).length,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
+          // 更新题库的试用题数
+          questionSetData.trialQuestions = determinedTrialCount;
           
-          console.log(`[QuizPage] 题库数据处理: isPaid=${questionSetData.isPaid}, trialQuestions=${questionSetData.trialQuestions}`);
+          // 最终确认付费状态
+          const finalIsPaid = directApiData ? isPaidQuiz(directApiData) : isPaidQuiz(questionSetData);
+          
+          console.log(`[QuizPage] 题库数据处理: isPaid=${finalIsPaid}, trialQuestions=${determinedTrialCount}`);
           
           setQuestionSet(questionSetData);
           
           // 免费题库直接授予访问权限，不显示购买页面
-          if (!isPaidQuiz(questionSetData)) {
+          if (!finalIsPaid) {
             console.log(`[QuizPage] 免费题库，授予访问权限`);
             setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
             setQuizStatus({ ...quizStatus, trialEnded: false });
@@ -1761,7 +1961,7 @@ function QuizPage(): JSX.Element {
             console.log(`[QuizPage] 初始化试用模式，限制题目数: ${determinedTrialCount}`);
             
             // 设置试用模式状态，但不触发购买提示
-            if (isPaidQuiz(questionSetData)) {
+            if (finalIsPaid) {
               setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
               setQuizStatus({ ...quizStatus, hasRedeemed: false });
               // 重要：确保刚进入时不会显示试用结束状态
