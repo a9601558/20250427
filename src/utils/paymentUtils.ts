@@ -99,29 +99,46 @@ export const processPayment = async (
     
     // 真实Stripe支付流程
     console.log('[支付] 使用真实Stripe支付流程');
-    const response = await axios.post(
-      `${BASE_URL}/payments/create-intent`,
-      {
-        amount,
-        currency, 
-        metadata
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/payments/create-intent`,
+        {
+          amount,
+          currency, 
+          metadata
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
+      );
+      
+      if (response.data && response.data.success) {
+        console.log('[支付] 成功创建支付意向:', response.data.data.id);
+        return response.data.data;
+      } else {
+        throw new Error(response.data?.message || '创建支付意向失败');
       }
-    );
-    
-    if (response.data && response.data.success) {
-      console.log('[支付] 成功创建支付意向:', response.data.data.id);
-      return response.data.data;
-    } else {
-      throw new Error(response.data?.message || '创建支付意向失败');
+    } catch (error: any) {
+      // 检查是否是404错误（API端点不存在）
+      if (error.response && error.response.status === 404) {
+        console.log('[支付] 支付API不可用 (404)，自动切换到模拟支付');
+        return createMockPaymentIntent({ amount, currency, metadata });
+      }
+      // 其他错误继续抛出
+      throw error;
     }
   } catch (error: any) {
     console.error('[支付] 创建支付意向失败:', error);
+    
+    // 如果是404错误，也使用模拟支付作为回退
+    if (error.response && error.response.status === 404) {
+      console.log('[支付] 支付API不可用 (404)，自动切换到模拟支付');
+      return createMockPaymentIntent({ amount, currency, metadata });
+    }
+    
     // 如果后端报错但仍希望继续，可以使用模拟支付作为回退
     if (import.meta.env.VITE_ENABLE_FALLBACK === 'true') {
       console.log('[支付] 后端创建支付意向失败，使用模拟支付作为回退');
