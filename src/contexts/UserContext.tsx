@@ -395,7 +395,50 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     setError(null);
     try {
+      // 检查是否包含购买记录更新
+      const hasPurchasesUpdate = userData.purchases !== undefined;
+      
+      console.log('[UserContext] 更新用户数据:', userData);
+      if (hasPurchasesUpdate) {
+        console.log('[UserContext] 包含购买记录更新，购买记录数量:', userData.purchases?.length);
+      }
+      
+      // 调用API更新用户数据
       const response = await userApi.updateUser(user.id, userData);
+      
+      // 如果包含购买记录且常规更新成功，进行额外确认
+      if (hasPurchasesUpdate && response.success) {
+        console.log('[UserContext] 购买记录更新成功，进行额外购买记录同步确认');
+        
+        try {
+          // 通过直接API调用确保购买记录被正确保存到数据库
+          // 直接调用API端点，绕过可能的缓存或状态问题
+          const apiEndpoint = '/api/users/update-purchases';
+          const token = localStorage.getItem('token');
+          
+          const directResponse = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              purchases: userData.purchases
+            })
+          });
+          
+          if (!directResponse.ok) {
+            console.error('[UserContext] 购买记录直接同步失败:', await directResponse.text());
+          } else {
+            console.log('[UserContext] 购买记录直接同步成功');
+          }
+        } catch (syncError) {
+          console.error('[UserContext] 购买记录额外同步出错:', syncError);
+          // 不抛出错误，让主流程继续
+        }
+      }
+      
       if (response.success && response.data) {
         setUser(response.data);
       } else {

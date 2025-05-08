@@ -326,6 +326,37 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       await addPurchase(purchase);
       console.log(`[支付] 购买记录已添加到用户状态`);
       
+      // 直接调用API确保购买记录保存到数据库
+      try {
+        console.log(`[支付] 直接调用API保存购买记录`);
+        
+        // 获取token
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('未找到认证信息');
+        }
+        
+        // 直接调用API保存购买记录
+        const directSaveResponse = await fetch('/api/purchases', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(purchase)
+        });
+        
+        if (!directSaveResponse.ok) {
+          console.error('[支付] 直接保存购买记录失败:', await directSaveResponse.text());
+        } else {
+          const result = await directSaveResponse.json();
+          console.log(`[支付] 直接保存购买记录成功:`, result);
+        }
+      } catch (directSaveError) {
+        console.error('[支付] 直接保存购买记录时出错:', directSaveError);
+        // 不抛出错误，让支付流程继续
+      }
+      
       // 通过socket发送实时通知
       if (socket) {
         console.log(`[支付] 通过socket发送购买成功通知`);
