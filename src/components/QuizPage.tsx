@@ -19,6 +19,9 @@ import { API_BASE_URL } from '../services/api';
 // 导入paymentUtils中的函数
 import { isPaidQuiz, validatePaidQuizStatus, createDirectPurchase } from '../utils/paymentUtils';
 
+// 导入外部PaymentModal组件，替换内部定义
+import PaymentModal from './PaymentModal';
+
 // 定义答题记录类型
 interface AnsweredQuestion {
   index: number;
@@ -489,378 +492,6 @@ interface RedeemCodeModalProps {
   onClose: () => void;
   onRedeemSuccess: () => void;
 }
-
-// 添加PaymentModal组件
-const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuccess, isOpen }) => {
-  const { user } = useUser();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [btnClicked, setBtnClicked] = useState(false);
-  
-  // Reset error when modal opens/closes
-  useEffect(() => {
-    if (isOpen) {
-      setError(null);
-      setBtnClicked(false);
-    }
-  }, [isOpen]);
-  
-  // 添加一个本地的saveAccessToLocalStorage函数
-  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean) => {
-    if (!questionSetId) return;
-    
-    try {
-      const normalizedId = String(questionSetId).trim();
-      console.log(`[PaymentModal] 保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
-      
-      // 获取当前访问权限列表
-      const accessRightsStr = localStorage.getItem('quizAccessRights');
-      let accessRights: Record<string, boolean | number> = {};
-      
-      if (accessRightsStr) {
-        try {
-          const parsed = JSON.parse(accessRightsStr);
-          if (parsed && typeof parsed === 'object') {
-            accessRights = parsed;
-          } else {
-            console.error('[PaymentModal] 访问权限记录格式错误，重新创建');
-          }
-        } catch (e) {
-          console.error('[PaymentModal] 解析访问权限记录失败，将创建新记录', e);
-        }
-      }
-      
-      // 更新访问权限 - 使用精确ID匹配
-      accessRights[normalizedId] = hasAccess;
-      
-      // 记录修改时间，便于后续清理过期数据
-      const timestamp = Date.now();
-      const accessRightsWithMeta = {
-        ...accessRights,
-        [`${normalizedId}_timestamp`]: timestamp
-      };
-      
-      // 保存回localStorage
-      localStorage.setItem('quizAccessRights', JSON.stringify(accessRightsWithMeta));
-      console.log(`[PaymentModal] 已保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
-    } catch (e) {
-      console.error('[PaymentModal] 保存访问权限失败', e);
-    }
-  };
-  
-  const handlePurchase = async (e: React.MouseEvent) => {
-    // Prevent event bubbling
-    e.stopPropagation();
-    e.preventDefault();
-    
-    if (!user || !questionSet) {
-      setError("无法进行购买，请确认您已登录且题库信息完整");
-      return;
-    }
-    
-    // 增强日志，添加完整的调试信息
-    console.log(`[PaymentModal] 购买操作开始，使用isPaidQuiz详细调试题库信息:`);
-    
-    // 启用调试模式检查题库状态，打印更多信息
-    const isPaid = isPaidQuiz(questionSet, true);
-    
-    // 检查是否有URL参数强制购买（不验证isPaid）
-    const urlParams = new URLSearchParams(window.location.search);
-    const forceBuy = urlParams.get('forceBuy') === 'true' || urlParams.get('debug') === 'true';
-    
-    if (forceBuy) {
-      console.log('[PaymentModal] 检测到强制购买模式，尝试绕过isPaid验证直接购买');
-      // 继续购买流程，不检查isPaid
-    }
-    // 使用通用的isPaidQuiz函数检查题库付费状态
-    else if (!isPaid) {
-      console.error(`[PaymentModal] 题库${questionSet.id} 检测为免费题库，无法进行购买，进行数据修复尝试...`);
-      
-      // 尝试直接从API重新验证题库状态
-      try {
-        console.log(`[PaymentModal] 尝试绕过缓存，直接验证题库付费状态...`);
-        const statusResult = await validatePaidQuizStatus(String(questionSet.id));
-        
-        if (statusResult.isPaid) {
-          console.log('[PaymentModal] API直接验证此题库确实是付费题库，但本地数据有误。继续购买流程...');
-          toast.warning("检测到题库数据不一致，已修复。继续购买流程...", { autoClose: 3000 });
-          // 继续购买流程
-        } else {
-          // 提供强制购买选项
-          if (confirm("该题库显示为免费题库，但您仍可尝试强制购买。\n\n- 点击「确定」强制购买\n- 点击「取消」退出购买流程")) {
-            console.log("[PaymentModal] 用户选择强制购买，绕过免费题库检查");
-            toast.warning("您选择了强制购买模式", { autoClose: 2000 });
-          } else {
-            console.error('[PaymentModal] API直接调用也确认这是免费题库');
-            setError("服务器确认该题库为免费题库，无需购买");
-            toast.error("服务器确认该题库为免费题库，无需购买");
-            
-            // 强制刷新页面以获取正确数据
-            setTimeout(() => window.location.reload(), 2000);
-            
-            setIsProcessing(false);
-            setBtnClicked(false);
-            return;
-          }
-        }
-      } catch (apiError) {
-        console.error('[PaymentModal] 直接API调用失败:', apiError);
-        // 询问是否继续购买
-        if (confirm("无法验证题库状态。您希望继续尝试购买吗？")) {
-          console.log("[PaymentModal] 用户选择继续购买，尽管验证失败");
-        } else {
-          setError("已取消购买");
-          setIsProcessing(false);
-          setBtnClicked(false);
-          return;
-        }
-      }
-    }
-    
-    // Don't proceed if already processing
-    if (isProcessing || btnClicked) {
-      console.log('[PaymentModal] Ignoring click - already processing');
-      return;
-    }
-    
-    setIsProcessing(true);
-    setError(null);
-    setBtnClicked(true);
-    
-    try {
-      // 标准化题库ID，避免ID不匹配问题
-      const normalizedId = String(questionSet.id).trim();
-      
-      // 步骤1: 向服务器确认题库状态
-      console.log(`[PaymentModal] 步骤1: 正在向服务器确认题库状态...`);
-      let isConfirmedPaidQuiz = false;
-      
-      try {
-        // 从服务器获取题库最新状态
-        const statusResult = await validatePaidQuizStatus(normalizedId);
-        
-        if (statusResult.error) {
-          throw new Error("无法获取题库最新状态");
-        }
-        
-        console.log(`[PaymentModal] 服务器返回的题库状态:`, statusResult);
-        
-        // 检查是否为付费题库
-        if (!statusResult.isPaid && !forceBuy) {
-          console.error(`[PaymentModal] 服务器确认题库${normalizedId}为免费题库`);
-          
-          // 显示错误但提供强制购买选项
-          if (confirm("服务器确认该题库为免费题库，无需购买。\n\n您仍然希望尝试强制购买吗？")) {
-            console.log("[PaymentModal] 用户选择强制购买，尽管题库显示为免费");
-            isConfirmedPaidQuiz = true; // 允许继续
-          } else {
-            setError("服务器确认该题库为免费题库，无需购买");
-            toast.error("服务器确认该题库为免费题库，无需购买");
-            // 触发刷新页面以更新题库数据
-            setTimeout(() => window.location.reload(), 2000);
-            throw new Error("服务器确认该题库为免费题库");
-          }
-        } else {
-          isConfirmedPaidQuiz = true;
-          console.log(`[PaymentModal] 服务器确认题库${normalizedId}为付费题库或用户选择强制购买`);
-        }
-        
-      } catch (refreshError) {
-        console.error('[PaymentModal] 题库状态确认失败:', refreshError);
-        if (refreshError instanceof Error && 
-            refreshError.message === "服务器确认该题库为免费题库" && 
-            !forceBuy) {
-          setIsProcessing(false);
-          setBtnClicked(false);
-          return;
-        }
-        
-        // 如果强制购买或用户确认，则继续
-        if (forceBuy || confirm("无法确认题库状态，是否继续购买？")) {
-          console.warn('[PaymentModal] 用户选择继续购买，尽管无法确认题库状态');
-          isConfirmedPaidQuiz = true;
-        } else {
-          console.error('[PaymentModal] 题库付费状态无法确认，中止购买');
-          setError("无法确认题库付费状态，请稍后再试");
-          toast.error("无法确认题库付费状态，请稍后再试");
-          setIsProcessing(false);
-          setBtnClicked(false);
-          return;
-        }
-      }
-      
-      // 尝试使用直接购买接口
-      try {
-        console.log('[PaymentModal] 尝试调用直接购买API:', normalizedId);
-        
-        // 显示处理中提示
-        toast.info("正在处理购买请求...", { autoClose: 2000 });
-        
-        // 使用新的createDirectPurchase函数
-        const purchaseResult = await createDirectPurchase(normalizedId, questionSet.price);
-        
-        console.log('[PaymentModal] 直接购买结果:', purchaseResult);
-        
-        if (purchaseResult) {
-          // 成功 - 保存到本地
-          console.log('[PaymentModal] 购买成功：', purchaseResult);
-          saveAccessToLocalStorage(normalizedId, true);
-          
-          // 显示成功提示
-          toast.success('购买成功！您现在可以访问完整题库', {
-            autoClose: 3000
-          });
-          
-          // 触发购买成功事件
-          window.dispatchEvent(
-            new CustomEvent('purchase:success', {
-              detail: {
-                questionSetId: normalizedId,
-                purchaseId: purchaseResult.id || `direct-${Date.now()}`,
-                expiryDate: purchaseResult.expiryDate || 
-                  new Date(Date.now() + 365*24*60*60*1000).toISOString()
-              }
-            })
-          );
-          
-          // 等待一会再关闭模态窗口，确保状态更新
-          setTimeout(() => {
-            if (typeof onSuccess === 'function') {
-              onSuccess({
-                questionSetId: normalizedId,
-                purchaseId: purchaseResult.id || `direct-${Date.now()}`,
-                remainingDays: 180 // 默认6个月有效期
-              });
-            }
-          }, 500);
-          
-          return;
-        }
-      } catch (directPurchaseError) {
-        console.error('[PaymentModal] 直接购买失败:', directPurchaseError);
-        // 继续尝试标准购买流程
-      }
-      
-      // 如果直接购买失败，使用标准购买流程
-      // ... 此处保留原有的购买API调用 ...
-      
-    } catch (err) {
-      // Exception during API call
-      console.error('[PaymentModal] Error during purchase:', err);
-      setError(typeof err === 'string' ? err : '购买过程中出现错误，请稍后再试');
-      setIsProcessing(false);
-      setBtnClicked(false);
-    }
-  };
-  
-  const handleCloseClick = (e: React.MouseEvent) => {
-    // Prevent event bubbling
-    e.stopPropagation();
-    e.preventDefault();
-    
-    if (isProcessing) {
-      console.log('[PaymentModal] Cannot close while processing payment');
-      return;
-    }
-    
-    console.log('[PaymentModal] Closing modal');
-    onClose();
-  };
-  
-  // If not open, don't render anything
-  if (!isOpen) return null;
-  
-  return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div 
-        className="bg-white rounded-xl max-w-md w-full p-6 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10 rounded-xl">
-            <div className="w-12 h-12 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
-            <p className="text-blue-600 font-medium">处理中，请稍候...</p>
-          </div>
-        )}
-        
-        <button
-          onClick={handleCloseClick}
-          disabled={isProcessing}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-          aria-label="Close"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        
-        <h3 className="text-xl font-bold text-gray-800 mb-4">购买完整题库</h3>
-        
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-        
-        <div className="mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 mb-4">
-            <h4 className="font-medium text-blue-800 mb-1">{questionSet?.title || '题库'}</h4>
-            <p className="text-blue-600 text-sm mb-3">{questionSet?.description || '完整练习题库'}</p>
-            <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold text-blue-800">¥{questionSet?.price || '0'}</span>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                包含 {questionSet?.questionCount || '0'} 题
-              </span>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center mb-2">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-gray-700 text-sm">一次购买永久使用</span>
-            </div>
-            <div className="flex items-center mb-2">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-gray-700 text-sm">随时访问所有题目</span>
-            </div>
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-gray-700 text-sm">支持多设备同步访问</span>
-            </div>
-          </div>
-        </div>
-        
-        <button
-          onClick={handlePurchase}
-          disabled={isProcessing || !questionSet || !user}
-          className={`
-            w-full py-3 ${btnClicked ? 'bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} 
-            text-white rounded-lg font-medium transition-all duration-200
-            flex items-center justify-center
-            disabled:opacity-70 disabled:cursor-not-allowed
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-            ${isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}
-          `}
-        >
-          立即购买 ¥{questionSet?.price || '0'}
-        </button>
-        
-        <p className="text-xs text-center text-gray-500 mt-4">
-          点击"立即购买"，表示您同意我们的服务条款和隐私政策
-        </p>
-      </div>
-    </div>
-  );
-};
 
 // 添加RedeemCodeModal组件
 const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose, onRedeemSuccess }) => {
@@ -3793,7 +3424,7 @@ function QuizPage(): JSX.Element {
       {quizStatus.showPaymentModal && questionSet && (
         <PaymentModal
           isOpen={quizStatus.showPaymentModal}
-          questionSet={questionSet}
+          questionSet={questionSet as any} 
           onClose={() => {
             console.log('[QuizPage] 关闭支付模态窗口');
             setQuizStatus(prev => ({
@@ -3803,8 +3434,8 @@ function QuizPage(): JSX.Element {
               showPurchasePage: prev.trialEnded ? true : false
             }));
           }}
-          onSuccess={(data) => {
-            console.log('[QuizPage] 支付成功，触发自定义事件');
+          onSuccess={(purchaseInfo) => {
+            console.log('[QuizPage] 支付成功，触发自定义事件', purchaseInfo);
             // 关闭支付模态窗口
             setQuizStatus(prev => ({
               ...prev,
@@ -3812,14 +3443,24 @@ function QuizPage(): JSX.Element {
               hasAccessToFullQuiz: true
             }));
             
+            // 题库ID
+            const qsId = purchaseInfo.questionSetId;
+            
             // 触发购买成功事件
             const customEvent = new CustomEvent('purchase:success', {
-              detail: data
+              detail: {
+                questionSetId: qsId,
+                purchaseId: `purchase_${Date.now()}`,
+                expiryDate: new Date(Date.now() + 180*24*60*60*1000).toISOString() // 6个月
+              }
             });
             document.dispatchEvent(customEvent);
             
             // 显示成功提示
             toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 });
+
+            // 保存访问权限到本地存储
+            saveAccessToLocalStorage(qsId, true);
           }}
         />
       )}
