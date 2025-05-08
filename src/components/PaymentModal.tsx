@@ -362,6 +362,24 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
         } 
       }));
       
+      // 通知系统刷新用户数据 - 强制刷新用户信息及购买记录
+      try {
+        const userApi = window.require ? window.require('../utils/api').userApi : null;
+        if (userApi && userApi.getCurrentUser) {
+          console.log('[支付] 刷新用户数据以确保购买记录同步');
+          const refreshedUserData = await userApi.getCurrentUser();
+          if (refreshedUserData.success && refreshedUserData.data) {
+            // 触发用户数据更新事件，通知系统用户数据已更新
+            window.dispatchEvent(new CustomEvent('user:data:updated', { 
+              detail: { userId: user.id, timestamp: Date.now() }
+            }));
+          }
+        }
+      } catch (refreshError) {
+        console.error('[支付] 刷新用户数据失败，但购买流程已完成', refreshError);
+        // 购买已成功，即使刷新失败也不影响主流程
+      }
+      
       // 如果提供了成功回调，延迟调用确保状态已更新
       if (onSuccess) {
         console.log(`[支付] 调用onSuccess回调`);

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
-import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';
+import { userProgressService, questionSetService, purchaseService, wrongAnswerService, userService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { formatTime, formatDate } from '../utils/timeUtils';
@@ -893,7 +893,9 @@ const ProfilePage: React.FC = () => {
   const [purchasesLoading, setPurchasesLoading] = useState(true);
   const [redeemCodesLoading, setRedeemCodesLoading] = useState(true);
   const [wrongAnswersLoading, setWrongAnswersLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'progress' | 'purchases' | 'redeemed' | 'wrong-answers'>('progress');
+  // Define the tab type that includes all possible values
+  type TabType = 'progress' | 'purchases' | 'redeemed' | 'wrong-answers' | 'memo' | 'settings';
+  const [activeTab, setActiveTab] = useState<TabType>('progress');
   const navigate = useNavigate();
   
   // 添加一个ref来标记初始数据是否已加载
@@ -1587,103 +1589,193 @@ const ProfilePage: React.FC = () => {
     return () => clearInterval(timer);
   }, [user?.id, checkAndCleanExpiredCache]);
 
-  // 切换标签页
-  const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed' | 'wrong-answers') => {
+  // 添加刷新购买数据的函数
+  const refreshPurchasesData = async () => {
+    try {
+      setPurchasesLoading(true);
+      console.log('[ProfilePage] 正在刷新购买数据...');
+
+      // 尝试通过API重新获取用户数据，确保购买记录是最新的
+      const response = await userService.getCurrentUser();
+      if (response.success && response.data) {
+        // 更新购买数据
+        const userPurchases = response.data.purchases || [];
+        console.log(`[ProfilePage] 获取到 ${userPurchases.length} 条购买记录`);
+        
+        // 确保格式符合本地 Purchase 接口格式
+        const formattedPurchases = userPurchases.map((p: any) => ({
+          id: p.id || '',
+          userId: p.userId || '',
+          questionSetId: p.questionSetId || '',
+          purchaseDate: p.purchaseDate || new Date().toISOString(),
+          expiryDate: p.expiryDate || '',
+          amount: Number(p.amount || 0),
+          status: p.status || 'active',
+          paymentMethod: p.paymentMethod || '',
+          transactionId: p.transactionId || '',
+          purchaseQuestionSet: p.purchaseQuestionSet || p.questionSet || undefined
+        }));
+        
+        setPurchases(formattedPurchases);
+        
+        // 对于每个没有详细题库信息的购买记录，获取题库详情
+        for (const purchase of formattedPurchases) {
+          if (purchase.questionSetId && (!purchase.purchaseQuestionSet || !purchase.purchaseQuestionSet.title)) {
+            try {
+              console.log(`[ProfilePage] 获取题库详情: ${purchase.questionSetId}`);
+              const qsResponse = await questionSetService.getQuestionSetById(purchase.questionSetId);
+              
+              if (qsResponse.success && qsResponse.data) {
+                // 找到并更新这个购买记录
+                const questionSetData = qsResponse.data;
+                setPurchases(prevPurchases => 
+                  prevPurchases.map(p => 
+                    p.id === purchase.id 
+                      ? {
+                          ...p, 
+                          purchaseQuestionSet: {
+                            id: questionSetData.id ?? purchase.questionSetId,
+                            title: questionSetData.title ?? 'Unknown Title',
+                            description: questionSetData.description ?? ''
+                          }
+                        }
+                      : p
+                  )
+                );
+                console.log(`[ProfilePage] 更新题库详情成功: ${questionSetData.title ?? 'Unknown'}`);
+              }
+            } catch (err) {
+              console.error(`[ProfilePage] 获取题库详情失败: ${purchase.questionSetId}`, err);
+            }
+          }
+        }
+      } else {
+        console.error('[ProfilePage] 获取用户数据失败:', response.message);
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 刷新购买数据时出错:', error);
+    } finally {
+      setPurchasesLoading(false);
+    }
+  };
+
+  // 删除在useEffect内重复定义的refreshPurchasesData函数
+  useEffect(() => {
+    // 监听购买成功事件
+    const handlePurchaseSuccess = () => {
+      console.log('[ProfilePage] 监听到购买成功事件，刷新购买数据');
+      refreshPurchasesData();
+    };
+    
+    // 监听用户数据更新事件
+    const handleUserDataUpdated = () => {
+      console.log('[ProfilePage] 监听到用户数据更新事件，刷新购买数据');
+      refreshPurchasesData();
+    };
+    
+    // 添加事件监听
+    window.addEventListener('purchase:success', handlePurchaseSuccess);
+    window.addEventListener('user:data:updated', handleUserDataUpdated);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('purchase:success', handlePurchaseSuccess);
+      window.removeEventListener('user:data:updated', handleUserDataUpdated);
+    };
+  }, []);
+
+  // 添加一个useEffect来初始化数据
+  useEffect(() => {
+    // 当activeTab为'purchases'时，刷新购买数据
+    if (activeTab === 'purchases') {
+      console.log('[ProfilePage] 初始化已购题库数据');
+      refreshPurchasesData();
+    }
+  }, [activeTab]);
+
+  // 处理标签切换
+  const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    
+    // 当切换到购买标签时，刷新购买数据
+    if (tab === 'purchases') {
+      refreshPurchasesData();
+    }
   };
 
   // 渲染标签页
   const renderTabs = () => {
+    type TabType = 'progress' | 'purchases' | 'redeemed' | 'wrong-answers' | 'memo' | 'settings';
+    
+    // 定义标签数据
+    const tabs: {id: TabType; label: string; icon: JSX.Element}[] = [
+      {
+        id: 'progress',
+        label: '学习进度',
+        icon: (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        )
+      },
+      {
+        id: 'purchases',
+        label: '已购题库',
+        icon: (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      },
+      {
+        id: 'redeemed',
+        label: '兑换记录',
+        icon: (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+        )
+      },
+      {
+        id: 'wrong-answers',
+        label: '错题本',
+        icon: (
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      }
+    ];
+    
     return (
       <div className="mb-6 bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <nav className="flex relative">
             {/* 标签页选项 */}
-            <button
-              onClick={() => handleTabChange('progress')}
-              className={`
-                py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'progress'
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'}
-              `}
-            >
-              <svg className={`w-4 h-4 mr-2 ${activeTab === 'progress' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              学习进度
-            </button>
-            
-            <button
-              onClick={() => handleTabChange('wrong-answers')}
-              className={`
-                py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'wrong-answers'
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'}
-              `}
-            >
-              <svg className={`w-4 h-4 mr-2 ${activeTab === 'wrong-answers' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              错题集
-              {wrongAnswers.length > 0 && (
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'wrong-answers' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
-                  {wrongAnswers.length}
-                </span>
-              )}
-            </button>
-            
-            <button
-              onClick={() => handleTabChange('purchases')}
-              className={`
-                py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'purchases'
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'}
-              `}
-            >
-              <svg className={`w-4 h-4 mr-2 ${activeTab === 'purchases' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              已购题库
-              {purchases.length > 0 && (
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'purchases' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
-                  {purchases.length}
-                </span>
-              )}
-            </button>
-            
-            <button
-              onClick={() => handleTabChange('redeemed')}
-              className={`
-                py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
-                ${activeTab === 'redeemed'
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'}
-              `}
-            >
-              <svg className={`w-4 h-4 mr-2 ${activeTab === 'redeemed' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-              </svg>
-              已兑换的
-              {redeemCodes.length > 0 && (
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'redeemed' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
-                  {redeemCodes.length}
-                </span>
-              )}
-            </button>
-            
-            {/* 活动标签指示器 */}
-            <div 
-              className="absolute bottom-0 h-0.5 bg-blue-500 transition-all duration-300 ease-in-out"
-              style={{
-                left: activeTab === 'progress' ? '0%' : 
-                      activeTab === 'wrong-answers' ? '25%' : 
-                      activeTab === 'purchases' ? '50%' : '75%',
-                width: '25%'
-              }}
-            />
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`
+                  py-4 px-6 font-medium text-sm whitespace-nowrap flex items-center transition-all duration-200
+                  ${activeTab === tab.id
+                    ? 'text-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'}
+                `}
+              >
+                {tab.icon}
+                {tab.label}
+                {activeTab === tab.id && (
+                  <div 
+                    className="absolute bottom-0 h-0.5 bg-blue-500 transition-all duration-300 ease-in-out"
+                    style={{
+                      left: '0%',
+                      width: '100%'
+                    }}
+                  />
+                )}
+              </button>
+            ))}
           </nav>
         </div>
       </div>
@@ -1814,49 +1906,41 @@ const ProfilePage: React.FC = () => {
   const renderPurchasesContent = () => {
     if (purchasesLoading) {
       return (
-        <div className="flex flex-col justify-center items-center h-64">
-          <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 text-sm">加载购买数据中...</p>
+        <div className="py-10 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-500">加载已购题库数据...</p>
         </div>
       );
     }
-
+    
     if (purchases.length === 0) {
       return (
-        <div className="bg-white p-8 rounded-lg text-center flex flex-col items-center">
-          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="py-16 flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-gray-200 px-4">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+            <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">暂无购买记录</h3>
-          <p className="text-gray-600 mb-6 max-w-md">你还没有购买任何题库，浏览题库并选择感兴趣的内容吧！</p>
-          <button
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">暂无已购题库</h3>
+          <p className="text-gray-500 mb-6 text-center">您还没有购买任何题库，浏览题库并购买以解锁完整内容</p>
+          <button 
             onClick={() => navigate('/')}
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"
+            className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
-            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
             </svg>
             浏览题库
           </button>
         </div>
       );
     }
-
+    
     return (
-      <div>
-        <h2 className="text-xl font-semibold mb-6 flex items-center text-gray-800">
-          <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          已购买的题库
-        </h2>
-        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {purchases.map((purchase) => (
-            <PurchaseCard key={purchase.id} purchase={purchase} />
-          ))}
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {purchases.map(purchase => (
+          <PurchaseCard key={purchase.id} purchase={purchase} />
+        ))}
       </div>
     );
   };

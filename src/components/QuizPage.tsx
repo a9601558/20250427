@@ -1826,7 +1826,8 @@ function QuizPage(): JSX.Element {
           hasAccessToFullQuiz: true,
           trialEnded: false,
           showPaymentModal: false,
-          isProcessingPayment: false
+          isProcessingPayment: false,
+          showPurchasePage: false // 确保购买页面被关闭
         }));
         
         // Save access to local storage
