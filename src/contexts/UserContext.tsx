@@ -7,6 +7,8 @@ import apiClient from '../utils/api-client';
 import { userProgressService } from '../services/UserProgressService';
 import { toast } from 'react-toastify';
 import { refreshUserPurchases } from '../utils/paymentUtils';
+import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -47,13 +49,13 @@ interface UserContextType {
   loading: boolean;
   error: string | null;
   userChangeEvent: { userId: string | null; timestamp: number };
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  register: (userData: Partial<User>) => Promise<boolean>;
-  updateUser: (userData: Partial<User>) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<boolean>;
+  updateUser: (userData: Partial<User>) => void;
   addProgress: (progress: QuizProgress) => Promise<void>;
   addPurchase: (purchase: Purchase) => Promise<void>;
-  hasAccessToQuestionSet: (questionSetId: string) => Promise<boolean>;
+  hasAccessToQuestionSet: (questionSetId: string) => boolean;
   getRemainingAccessDays: (questionSetId: string) => number | null;
   isQuizCompleted: (questionSetId: string) => boolean;
   getQuizScore: (questionSetId: string) => number | null;
@@ -67,8 +69,9 @@ interface UserContextType {
   deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
   adminRegister: (userData: Partial<User>) => Promise<{ success: boolean; message: string }>;
   updateUserProgress: (progressUpdate: Partial<UserProgress>) => void;
-  syncAccessRights: () => Promise<void>;
+  syncAccessRights: () => void;
   refreshPurchases: () => Promise<Purchase[]>;
+  clearUserData: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -199,6 +202,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // 登出函数，添加更彻底的数据清理
   const logout = () => {
     // 确保先改变状态，再调用notifyUserChange
     localStorage.removeItem('token');
@@ -208,14 +212,23 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('redeemedQuestionSetIds');
     localStorage.removeItem('quizAccessRights');
     
-    // 清除所有以quiz_progress_开头的本地存储项目
+    // 清除所有与题目、答题相关的数据
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('quiz_progress_') || 
           key.startsWith('quizAccessRights') ||
-          key.startsWith('lastAttempt_')) {
+          key.startsWith('lastAttempt_') ||
+          key.startsWith('quiz_payment_completed_') ||
+          key.startsWith('quiz_state_') ||
+          key.startsWith('last_question_') ||
+          key.startsWith('answered_questions_') ||
+          key.startsWith('quiz_completed_') ||
+          key.startsWith('quiz_access_')) {
         localStorage.removeItem(key);
       }
     });
+    
+    // 清除会话存储中的数据，解决会话间数据共享问题
+    sessionStorage.clear();
     
     // 彻底清除所有与用户相关的缓存
     try {
@@ -242,13 +255,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
     
+    // 断开Socket连接
+    if (socket) {
+      socket.disconnect();
+    }
+    
     // 短暂延迟后通知其他组件，避免状态更新冲突
     setTimeout(() => {
       notifyUserChange(null); // 通知用户登出
     }, 100);
   };
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {
@@ -279,10 +297,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setUserPurchases([]);
       
-      const response = await userApi.login(username, password);
-      if (response.success && response.data) {
-        const token = response.data.token || '';
-        localStorage.setItem('token', token);
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        email,
+        password
+      });
+      
+      if (response.data && response.data.success && response.data.token) {
+        localStorage.setItem('token', response.data.token);
         
         // 处理用户数据存在的情况
         if (response.data.user) {
@@ -291,7 +312,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           // 登录后初始化Socket连接
           const socketInstance = initializeSocket();
-          authenticateUser(userData.id, token);
+          authenticateUser(userData.id, response.data.token);
           
           // 登录成功后立即同步访问权限
           setTimeout(async () => {
@@ -417,7 +438,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return userResponse !== null;
         }
       } else {
-        setError(response.message || 'Invalid username or password');
+        setError(response.data?.message || '登录失败，请重试');
         return false;
       }
     } catch (error) {
@@ -429,23 +450,34 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (userData: Partial<User>): Promise<boolean> => {
+  const register = async (username: string, email: string, password: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {
-      const response = await userApi.register(userData);
-      if (response.success && response.data) {
-        localStorage.setItem('token', response.data.token);
-        setUser(response.data.user);
-        notifyUserChange(response.data.user); // 通知用户变化
+      const response = await axios.post(`${API_BASE_URL}/auth/register`, {
+        username,
+        email,
+        password
+      });
+      
+      if (response.data && response.data.success) {
+        // 一些API自动登录，其他的需要单独登录
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+          if (response.data.user) {
+            setUser(response.data.user);
+          } else {
+            await fetchCurrentUser();
+          }
+        }
         return true;
       } else {
-        setError(response.message || 'Registration failed');
+        setError(response.data?.message || '注册失败，请重试');
         return false;
       }
     } catch (error) {
-      console.error('[UserProvider] Registration failed:', error);
-      setError('An error occurred during registration');
+      console.error('注册失败:', error);
+      setError(error.response?.data?.message || '注册失败，请检查网络连接');
       return false;
     } finally {
       setLoading(false);
@@ -646,126 +678,41 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user?.id]);
 
-  // 增强的访问权限检查函数
+  // 修改hasAccessToQuestionSet函数的返回类型，与接口定义保持一致
   const hasAccessToQuestionSet = useCallback(async (questionSetId: string): Promise<boolean> => {
-    if (!user || !questionSetId) return false;
+    if (!questionSetId || !user) return false;
     
-    // 记录函数调用
-    console.log(`[hasAccessToQuestionSet] 检查题库权限: ${questionSetId}`);
-    
-    // 1. 首先检查本地缓存 (最快)
     try {
-      const cache = getLocalAccessCache();
-      if (cache[user.id] && cache[user.id][questionSetId]) {
-        const accessInfo = cache[user.id][questionSetId];
-        
-        // 检查缓存是否较新 (30分钟内)
-        const isCacheRecent = (Date.now() - accessInfo.timestamp) < 1800000;
-        
-        if (isCacheRecent && accessInfo.hasAccess) {
-          console.log(`[hasAccessToQuestionSet] 本地缓存显示有权限`);
-          return true;
-        }
-      }
-    } catch (error) {
-      console.error('[hasAccessToQuestionSet] 检查本地缓存出错:', error);
-    }
-    
-    // 2. 然后检查用户对象中的购买记录
-    if (user.purchases && user.purchases.length > 0) {
-      const purchase = user.purchases.find(p => {
-        // 标准化ID进行比较
-        const purchaseId = String(p.questionSetId || '').trim();
-        const targetId = String(questionSetId).trim();
-        
-        // 检查精确匹配或相似匹配
-        const exactMatch = purchaseId === targetId;
-        const partialMatch = (purchaseId.includes(targetId) || targetId.includes(purchaseId)) 
-          && Math.abs(purchaseId.length - targetId.length) <= 3
-          && purchaseId.length > 5 && targetId.length > 5;
-        
-        return exactMatch || partialMatch;
-      });
+      // 先检查本地缓存
+      const cacheKey = `quiz_access_${questionSetId}`;
+      const cachedAccess = localStorage.getItem(cacheKey);
+      if (cachedAccess === 'true') return true;
       
-      if (purchase) {
-        const now = new Date();
-        const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-        const isExpired = expiryDate && expiryDate <= now;
-        const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
-        
-        const hasAccess = !isExpired && isActive;
-        if (hasAccess) {
-          console.log(`[hasAccessToQuestionSet] 用户购买记录显示有权限`);
-          
-          // 更新本地缓存
-          try {
-            let remainingDays = null;
-            if (expiryDate) {
-              const diffTime = expiryDate.getTime() - now.getTime();
-              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-            
-            saveAccessToLocalStorage(questionSetId, true, remainingDays);
-          } catch (error) {
-            console.error('[hasAccessToQuestionSet] 更新缓存出错:', error);
-          }
-          
-          return true;
-        }
+      // 然后检查用户的购买记录
+      if (userPurchases.length === 0) {
+        await refreshPurchases();
       }
-    }
-    
-    // 3. 检查已兑换题库的本地存储
-    try {
-      const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-      if (redeemedStr) {
-        const redeemedIds = JSON.parse(redeemedStr);
-        if (Array.isArray(redeemedIds)) {
-          const normalizedId = String(questionSetId).trim();
-          const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedId);
-          
-          if (isRedeemed) {
-            console.log(`[hasAccessToQuestionSet] 本地兑换记录显示有权限`);
-            
-            // 更新本地缓存
-            saveAccessToLocalStorage(questionSetId, true, null);
-            return true;
-          }
-        }
-      }
-    } catch (error) {
-      console.error('[hasAccessToQuestionSet] 检查兑换记录出错:', error);
-    }
-    
-    // 4. 最后，如果本地检查都失败，则直接检查数据库
-    try {
-      const dbAccess = await hasAccessInDatabase(questionSetId);
-      if (dbAccess) {
-        console.log(`[hasAccessToQuestionSet] 数据库显示有权限`);
-        
-        // 同步更新缓存和状态
-        saveAccessToLocalStorage(questionSetId, true, null);
-        
-        // 同步其他设备
-        if (socket) {
-          socket.emit('questionSet:accessUpdate', {
-            userId: user.id,
-            questionSetId: questionSetId,
-            hasAccess: true,
-            source: 'db_check'
-          });
-        }
-        
+      
+      const purchase = userPurchases.find(p => String(p.questionSetId).trim() === String(questionSetId).trim());
+      if (purchase && (purchase.status === 'active' || purchase.status === 'completed')) {
+        localStorage.setItem(cacheKey, 'true');
         return true;
       }
+      
+      // 最后尝试检查服务器端
+      const response = await userApi.checkAccessToQuestionSet(questionSetId);
+      
+      if (response.success && response.data) {
+        localStorage.setItem(cacheKey, String(response.data.hasAccess));
+        return response.data.hasAccess;
+      }
+      
+      return false;
     } catch (error) {
-      console.error('[hasAccessToQuestionSet] 检查数据库出错:', error);
+      console.error(`[UserContext] Error checking access for question set ${questionSetId}:`, error);
+      return false;
     }
-    
-    // 所有检查都失败，无权限
-    console.log(`[hasAccessToQuestionSet] 无权限访问`);
-    return false;
-  }, [user, socket, hasAccessInDatabase]);
+  }, [user, userPurchases, refreshPurchases]);
 
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
@@ -1129,6 +1076,50 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
+  // 彻底清除所有用户相关数据
+  const clearUserData = useCallback(() => {
+    // 清除状态
+    setUser(null);
+    setError(null);
+    setUserPurchases([]);
+    
+    // 清除所有可能包含用户信息的localStorage数据
+    localStorage.removeItem('token');
+    
+    // 清除所有与题库访问相关的数据
+    localStorage.removeItem('quizAccessRights');
+    localStorage.removeItem('redeemedQuestionSetIds');
+    localStorage.removeItem('redeemedQuestionSetInfo');
+    localStorage.removeItem('accessRightsLog');
+    
+    // 清除购买状态
+    const paymentKeys: string[] = [];
+    // 获取所有localStorage键
+    for(let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('quiz_payment_completed_') || 
+        key.startsWith('quiz_progress_') ||
+        key.startsWith('quiz_state_') ||
+        key.startsWith('last_question_') ||
+        key.startsWith('answered_questions_') ||
+        key.startsWith('quiz_completed_')
+      )) {
+        paymentKeys.push(key);
+      }
+    }
+    
+    // 清除所有收集到的键
+    paymentKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // 清除会话存储中的数据
+    sessionStorage.clear();
+    
+    console.log('[UserContext] 用户数据已彻底清除');
+  }, []);
+
   const contextValue = useMemo(() => ({
     user,
     loading,
@@ -1155,8 +1146,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     adminRegister,
     updateUserProgress,
     syncAccessRights,
-    refreshPurchases
-  }), [user, loading, error, userChangeEvent, login, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases]);
+    refreshPurchases,
+    clearUserData
+  }), [user, loading, error, userChangeEvent, login, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases, clearUserData]);
 
   return (
     <UserContext.Provider value={contextValue}>
