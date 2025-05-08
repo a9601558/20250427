@@ -204,32 +204,39 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('token');
     
     // 清除所有相关的本地存储数据
-    localStorage.removeItem('questionSetAccessCache');
-    localStorage.removeItem('redeemedQuestionSetIds');
-    localStorage.removeItem('quizAccessRights');
-    
-    // 清除所有以quiz_progress_开头的本地存储项目
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('quiz_progress_') || 
-          key.startsWith('quizAccessRights') ||
-          key.startsWith('lastAttempt_')) {
-        localStorage.removeItem(key);
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('quiz_progress_') ||
+        key.startsWith('quiz_payment_completed_') ||
+        key.startsWith('quiz_state_') ||
+        key.startsWith('lastAttempt_') ||
+        key.startsWith('quizAccessRights') ||
+        key === 'redeemedQuestionSetIds' ||
+        key === 'questionSetAccessCache'
+      )) {
+        keysToRemove.push(key);
       }
-    });
-    
-    // 彻底清除所有与用户相关的缓存
-    try {
-      if (user && user.id) {
-        // 清除特定用户的缓存数据
-        const cache = getLocalAccessCache();
-        if (cache[user.id]) {
-          delete cache[user.id];
-          localStorage.setItem('questionSetAccessCache', JSON.stringify(cache));
-        }
-      }
-    } catch (e) {
-      console.error('[UserContext] 清除用户缓存失败:', e);
     }
+    
+    // 批量删除本地存储项
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // 清除sessionStorage中的数据
+    const sessionKeysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && (
+        key.startsWith('quiz_') ||
+        key.startsWith('user_')
+      )) {
+        sessionKeysToRemove.push(key);
+      }
+    }
+    
+    // 批量删除会话存储项
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
     
     // 清除API客户端缓存和状态
     apiClient.clearCache();
@@ -240,11 +247,19 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
     setUserPurchases([]);
     
+    // 通知Socket断开连接
+    if (socket) {
+      socket.disconnect();
+    }
+    
     console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
     
     // 短暂延迟后通知其他组件，避免状态更新冲突
     setTimeout(() => {
       notifyUserChange(null); // 通知用户登出
+      
+      // 刷新页面以确保完全清理状态
+      window.location.reload();
     }, 100);
   };
 
@@ -256,20 +271,40 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const oldToken = localStorage.getItem('token');
       if (oldToken) {
         console.log('[UserContext] 检测到之前的登录会话，清除旧数据...');
-        // 执行完整的清理，确保没有旧数据残留
-        localStorage.removeItem('token');
-        localStorage.removeItem('questionSetAccessCache');
-        localStorage.removeItem('redeemedQuestionSetIds');
-        localStorage.removeItem('quizAccessRights');
         
-        // 清除所有以quiz_progress_开头的本地存储项目
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('quiz_progress_') || 
-              key.startsWith('quizAccessRights') ||
-              key.startsWith('lastAttempt_')) {
-            localStorage.removeItem(key);
+        // 执行完整的清理
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            key.startsWith('quiz_') ||
+            key.startsWith('user_') ||
+            key === 'token' ||
+            key === 'questionSetAccessCache' ||
+            key === 'redeemedQuestionSetIds' ||
+            key === 'quizAccessRights'
+          )) {
+            keysToRemove.push(key);
           }
-        });
+        }
+        
+        // 批量删除本地存储项
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // 清除sessionStorage中的数据
+        const sessionKeysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (
+            key.startsWith('quiz_') ||
+            key.startsWith('user_')
+          )) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        
+        // 批量删除会话存储项
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
         
         // 清除API客户端缓存
         apiClient.clearCache();
@@ -287,6 +322,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // 处理用户数据存在的情况
         if (response.data.user) {
           const userData = response.data.user;
+          
+          // 使用用户ID作为前缀，隔离不同用户的数据
+          const userPrefix = `user_${userData.id}_`;
+          
+          // 设置用户状态
           setUser(userData);
           
           // 登录后初始化Socket连接
@@ -322,29 +362,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     
                     const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
                     const isExpired = expiryDate && expiryDate <= now;
-                    const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
+                    const isActive = purchase.status === 'active' || purchase.status === 'completed';
                     
                     if (!isExpired && isActive) {
-                      // 计算剩余天数
-                      let remainingDays = null;
-                      if (expiryDate) {
-                        const diffTime = expiryDate.getTime() - now.getTime();
-                        remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      }
-                      
-                      // 保存到本地存储
-                      saveAccessToLocalStorage(purchase.questionSetId, true, remainingDays);
-                      
-                      // 通知其他设备权限更新
-                      if (socketInstance) {
-                        socketInstance.emit('questionSet:accessUpdate', {
-                          userId: userData.id,
-                          questionSetId: purchase.questionSetId,
+                      // 使用用户ID前缀保存访问权限
+                      localStorage.setItem(
+                        `${userPrefix}access_${purchase.questionSetId}`,
+                        JSON.stringify({
                           hasAccess: true,
-                          remainingDays: remainingDays,
-                          source: 'login_sync'
-                        });
-                      }
+                          expiryDate: purchase.expiryDate,
+                          purchaseId: purchase.id
+                        })
+                      );
                     }
                   });
                 }
@@ -362,25 +391,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     // 添加到已兑换题库ID列表
                     redeemedQuestionSetIds.push(code.questionSetId);
                     
-                    // 保存到本地存储
-                    saveAccessToLocalStorage(code.questionSetId, true, null, 'redeem');
-                    
-                    // 通知其他设备权限更新
-                    if (socketInstance) {
-                      socketInstance.emit('questionSet:accessUpdate', {
-                        userId: userData.id,
-                        questionSetId: code.questionSetId,
-                        hasAccess: true,
-                        accessType: 'redeemed',
-                        paymentMethod: 'redeem',
-                        source: 'login_sync_redeem'
-                      });
-                    }
+                    // 使用用户ID前缀保存到本地存储
+                    localStorage.setItem(
+                      `${userPrefix}redeemed_${code.questionSetId}`,
+                      JSON.stringify({
+                        redeemedAt: code.usedAt,
+                        expiryDate: code.expiryDate
+                      })
+                    );
                   });
                   
                   // 将所有兑换码对应的题库ID保存到localStorage
                   try {
-                    localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(redeemedQuestionSetIds));
+                    localStorage.setItem(
+                      `${userPrefix}redeemedQuestionSetIds`,
+                      JSON.stringify(redeemedQuestionSetIds)
+                    );
                     console.log(`[UserContext] 已保存${redeemedQuestionSetIds.length}个已兑换题库ID到本地存储`);
                   } catch (error) {
                     console.error('[UserContext] 保存兑换记录到本地存储失败:', error);

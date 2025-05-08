@@ -117,13 +117,11 @@ export interface RedeemCode {
   code: string;
   questionSetId: string;
   validityDays: number;
+  isRedeemed: boolean;
+  redeemedAt?: string;
   expiryDate?: string;
-  isUsed: boolean;
-  usedBy?: string;
-  usedAt?: string;
-  createdBy?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
   redeemQuestionSet?: {
     id: string;
     title: string;

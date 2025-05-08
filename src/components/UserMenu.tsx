@@ -33,7 +33,7 @@ const UserMenu: React.FC = () => {
   if (!user) {
     return (
       <>
-        {/* <button
+        <button
           onClick={() => setIsLoginModalOpen(true)}
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
         >
@@ -41,7 +41,7 @@ const UserMenu: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
           登录
-        </button> */}
+        </button>
         
         <LoginModal 
           isOpen={isLoginModalOpen} 

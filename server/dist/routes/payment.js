@@ -191,4 +191,62 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
         res.status(400).send('Webhook处理失败');
     }
 });
+// 完成支付处理
+router.post('/complete-purchase', auth_1.authenticateJwt, async (req, res) => {
+    try {
+        const { questionSetId, paymentIntentId, amount } = req.body;
+        if (!questionSetId || !paymentIntentId) {
+            return res.status(400).json({
+                success: false,
+                message: '请提供题库ID和支付ID'
+            });
+        }
+        // 验证支付状态
+        const verification = await (0, stripe_1.verifyPaymentIntent)(paymentIntentId);
+        if (!verification.isSuccessful) {
+            return res.status(400).json({
+                success: false,
+                message: '支付未完成'
+            });
+        }
+        // 检查用户ID是否匹配
+        if (verification.metadata?.userId && verification.metadata.userId !== req.user?.id) {
+            return res.status(403).json({
+                success: false,
+                message: '无权访问此支付记录'
+            });
+        }
+        // 创建购买记录
+        const now = new Date();
+        const expiryDate = new Date(now);
+        expiryDate.setMonth(expiryDate.getMonth() + 6);
+        const purchase = await models_1.default.Purchase.create({
+            id: (0, uuid_1.v4)(),
+            userId: req.user?.id,
+            questionSetId,
+            purchaseDate: now,
+            expiryDate,
+            amount: verification.amount / 100, // 转换回元
+            transactionId: paymentIntentId,
+            paymentMethod: 'card',
+            status: 'active'
+        });
+        console.log(`[支付路由] 创建购买记录成功: ${purchase.id}`);
+        res.json({
+            success: true,
+            data: {
+                id: purchase.id,
+                expiryDate: purchase.expiryDate
+            }
+        });
+    }
+    catch (error) {
+        console.error('完成支付处理失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '完成支付处理失败',
+            error: error instanceof Error ? error.message : '未知错误'
+        });
+    }
+});
 exports.default = router;
