@@ -21,11 +21,14 @@ const AdminRedeemCodes: React.FC = () => {
   const [debuggingResults, setDebuggingResults] = useState<any>(null);
   const [isDebugging, setIsDebugging] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // 加载题库和兑换码数据
   useEffect(() => {
     const loadData = async () => {
       try {
+        setIsLoading(true);
+        
         // 加载题库数据
         const qsResponse = await questionSetApi.getAllQuestionSets();
         if (qsResponse.success && qsResponse.data) {
@@ -38,11 +41,41 @@ const AdminRedeemCodes: React.FC = () => {
         }
         
         // 加载兑换码数据
-        const codes = await getRedeemCodes();
-        setRedeemCodes(codes);
+        try {
+          const codes = await getRedeemCodes();
+          if (Array.isArray(codes)) {
+            setRedeemCodes(codes);
+          } else {
+            // 如果返回的数据格式不是数组，可能是API响应格式变化
+            console.error('兑换码数据不是数组格式:', codes);
+            setStatusMessage('兑换码数据格式错误，请刷新页面重试');
+            setRedeemCodes([]);
+          }
+        } catch (codeError) {
+          console.error('获取兑换码数据失败:', codeError);
+          setStatusMessage('获取兑换码数据失败，请刷新页面重试');
+          setRedeemCodes([]);
+          
+          // 尝试直接通过Axios获取兑换码
+          try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('/api/redeem-codes', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            if (response.data.success && response.data.data && response.data.data.list) {
+              setRedeemCodes(response.data.data.list);
+              setStatusMessage('数据已通过备用方式加载');
+            }
+          } catch (axiosError) {
+            console.error('备用方式获取兑换码失败:', axiosError);
+          }
+        }
       } catch (error) {
         console.error('加载数据失败:', error);
-        setStatusMessage('加载数据失败');
+        setStatusMessage('加载数据失败，请刷新页面重试');
+      } finally {
+        setIsLoading(false);
       }
     };
     

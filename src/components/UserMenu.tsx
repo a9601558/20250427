@@ -29,6 +29,21 @@ const UserMenu: React.FC = () => {
     navigate('/profile');
   };
 
+  // 处理登出动作
+  const handleLogout = (e: React.MouseEvent) => {
+    // 阻止事件冒泡，防止触发其他点击事件
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 关闭菜单
+    setIsOpen(false);
+    
+    // 执行登出操作
+    setTimeout(() => {
+      logout();
+    }, 50);
+  };
+
   // 如果用户未登录，显示登录按钮
   if (!user) {
     return (
@@ -100,10 +115,7 @@ const UserMenu: React.FC = () => {
             )}
             
             <button
-              onClick={() => {
-                logout();
-                setIsOpen(false);
-              }}
+              onClick={handleLogout}
               className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
             >
               <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

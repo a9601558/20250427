@@ -21,6 +21,13 @@ const ManageQuestionSets: React.FC = () => {
   const [isManagingQuestions, setIsManagingQuestions] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [isEditingQuestion, setIsEditingQuestion] = useState(false);
+  
+  // 分页和排序状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [questionsPerPage, setQuestionsPerPage] = useState(10);
+  const [sortField, setSortField] = useState('orderIndex');
+  const [sortDirection, setSortDirection] = useState('asc');
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
 
   // 加载题库数据
   useEffect(() => {
@@ -190,9 +197,46 @@ const ManageQuestionSets: React.FC = () => {
   };
 
   // 开始管理题目
-  const handleManageQuestions = (questionSet: QuestionSet) => {
+  const handleManageQuestions = async (questionSet: QuestionSet) => {
     setCurrentQuestionSet(questionSet);
     setIsManagingQuestions(true);
+    setLoadingQuestions(true);
+    
+    try {
+      // 如果题库没有题目或题目需要刷新，则从服务器获取完整题目
+      if (!questionSet.questions || questionSet.questions.length === 0 || !questionSet.questions[0]?.options) {
+        console.log('正在获取题库的详细题目数据...');
+        const response = await axios.get(`/api/question-sets/${questionSet.id}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.data && response.data.data) {
+          // 更新当前选中的题库，包含完整的题目数据
+          const updatedQuestionSet = {
+            ...questionSet,
+            questions: response.data.data.questionSetQuestions || [],
+            questionCount: response.data.data.questionSetQuestions?.length || 0
+          };
+          
+          setCurrentQuestionSet(updatedQuestionSet);
+          
+          // 同时更新题库列表中的对应题库
+          setQuestionSets(prev => 
+            prev.map(set => 
+              set.id === questionSet.id ? updatedQuestionSet : set
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error('获取题目详情失败:', error);
+      setError(`加载题目失败: ${error.message || '未知错误'}`);
+    } finally {
+      setLoadingQuestions(false);
+    }
   };
 
   // 取消管理题目
@@ -428,6 +472,60 @@ const ManageQuestionSets: React.FC = () => {
     );
   };
 
+  // 处理排序
+  const handleSort = (field) => {
+    if (sortField === field) {
+      // 如果已经按照这个字段排序，则切换排序方向
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // 如果是新字段，设置为升序
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+  
+  // 获取当前页的题目
+  const getCurrentPageQuestions = () => {
+    if (!currentQuestionSet?.questions) return [];
+    
+    // 复制并排序题目
+    let sortedQuestions = [...currentQuestionSet.questions];
+    
+    // 根据当前排序字段和方向排序
+    sortedQuestions.sort((a, b) => {
+      let valueA = a[sortField];
+      let valueB = b[sortField];
+      
+      // 处理字符串和数字排序
+      if (typeof valueA === 'string' && typeof valueB === 'string') {
+        return sortDirection === 'asc' 
+          ? valueA.localeCompare(valueB) 
+          : valueB.localeCompare(valueA);
+      }
+      
+      // 处理数字排序
+      return sortDirection === 'asc' 
+        ? (valueA - valueB) 
+        : (valueB - valueA);
+    });
+    
+    // 计算分页
+    const indexOfLastQuestion = currentPage * questionsPerPage;
+    const indexOfFirstQuestion = indexOfLastQuestion - questionsPerPage;
+    
+    return sortedQuestions.slice(indexOfFirstQuestion, indexOfLastQuestion);
+  };
+  
+  // 计算总页数
+  const totalPages = currentQuestionSet?.questions 
+    ? Math.ceil(currentQuestionSet.questions.length / questionsPerPage) 
+    : 0;
+  
+  // 页面导航
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-800 mb-4">管理题库</h2>
@@ -506,37 +604,117 @@ const ManageQuestionSets: React.FC = () => {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">
               管理题目: <span className="text-blue-600">{currentQuestionSet.title}</span>
+              <span className="ml-2 text-sm text-gray-500">
+                (共 {currentQuestionSet.questions?.length || 0} 题)
+              </span>
             </h3>
-            <button 
-              onClick={handleCancelManageQuestions}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              关闭
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => handleAddQuestion(currentQuestionSet)}
+                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              >
+                添加题目
+              </button>
+              <button
+                onClick={handleCancelManageQuestions}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                关闭
+              </button>
+            </div>
           </div>
           
+          {/* 排序控制 */}
+          {currentQuestionSet.questions?.length > 0 && (
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+              <div className="flex space-x-4">
+                <button 
+                  onClick={() => handleSort('orderIndex')} 
+                  className={`text-sm px-2 py-1 rounded ${sortField === 'orderIndex' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
+                >
+                  序号排序 
+                  {sortField === 'orderIndex' && (
+                    <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </button>
+                <button 
+                  onClick={() => handleSort('text')} 
+                  className={`text-sm px-2 py-1 rounded ${sortField === 'text' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
+                >
+                  按题目文本 
+                  {sortField === 'text' && (
+                    <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </button>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">每页显示:</span>
+                <select
+                  value={questionsPerPage}
+                  onChange={(e) => {
+                    setQuestionsPerPage(Number(e.target.value));
+                    setCurrentPage(1); // 重置到第一页
+                  }}
+                  className="border border-gray-300 rounded text-sm p-1"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+          )}
+          
+          {/* 题目列表 */}
           <div className="space-y-4">
-            {Array.isArray(currentQuestionSet.questions) && currentQuestionSet.questions.length > 0 ? (
-              currentQuestionSet.questions.map((question, index) => (
+            {loadingQuestions ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">加载题目中...</p>
+                <div className="mt-2 w-8 h-8 border-t-2 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
+              </div>
+            ) : Array.isArray(currentQuestionSet.questions) && currentQuestionSet.questions.length > 0 ? (
+              getCurrentPageQuestions().map((question, index) => (
                 <div key={question.id} className="p-4 bg-white rounded-lg border border-gray-200">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <p className="font-medium text-gray-800">#{index + 1}. {question.text}</p>
+                      <p className="font-medium text-gray-800">#{(currentPage - 1) * questionsPerPage + index + 1}. {question.text}</p>
                       <p className="text-sm text-gray-500 mt-1">类型: {question.questionType === 'single' ? '单选题' : '多选题'}</p>
+                      
+                      {/* 显示选项 */}
+                      {Array.isArray(question.options) && question.options.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-sm text-gray-700 font-medium">选项：</p>
+                          {question.options.map((option, optionIndex) => (
+                            <div key={option.id || optionIndex} className="flex items-center ml-4">
+                              <span className={`inline-block w-5 h-5 mr-2 rounded-full text-center text-xs leading-5 ${option.isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                                {option.optionIndex || String.fromCharCode(65 + optionIndex)}
+                              </span>
+                              <span className={`text-sm ${option.isCorrect ? 'font-medium text-green-700' : 'text-gray-600'}`}>
+                                {option.text}
+                                {option.isCorrect && ' (正确)'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
                       {question.explanation && (
-                        <p className="text-sm text-gray-600 mt-1">解析: {question.explanation}</p>
+                        <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded">
+                          <span className="font-medium">解析:</span> {question.explanation}
+                        </p>
                       )}
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 ml-4">
                       <button
                         onClick={() => handleEditQuestion(question)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
                       >
                         编辑
                       </button>
                       <button
                         onClick={() => handleDeleteQuestion(question)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
                       >
                         删除
                       </button>
@@ -547,9 +725,71 @@ const ManageQuestionSets: React.FC = () => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-500">该题库暂无题目</p>
+                <button 
+                  onClick={() => handleAddQuestion(currentQuestionSet)}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  添加题目
+                </button>
               </div>
             )}
           </div>
+          
+          {/* 分页控制 */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center mt-6 space-x-1">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className={`w-8 h-8 rounded ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100'}`}
+              >
+                &laquo;
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`w-8 h-8 rounded ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100'}`}
+              >
+                &lsaquo;
+              </button>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                // 显示当前页附近的5页
+                let start = Math.max(1, currentPage - 2);
+                let end = Math.min(totalPages, start + 4);
+                start = Math.max(1, end - 4);
+                
+                const pageNum = start + i;
+                if (pageNum <= totalPages) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`w-8 h-8 rounded ${pageNum === currentPage ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+                return null;
+              })}
+              
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`w-8 h-8 rounded ${currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100'}`}
+              >
+                &rsaquo;
+              </button>
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className={`w-8 h-8 rounded ${currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100'}`}
+              >
+                &raquo;
+              </button>
+            </div>
+          )}
         </div>
       )}
       

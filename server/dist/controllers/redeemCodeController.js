@@ -78,39 +78,104 @@ const getRedeemCodes = async (req, res) => {
         if (questionSetId) {
             whereClause.questionSetId = questionSetId;
         }
-        // 查询兑换码
-        const { count, rows } = await models_1.RedeemCode.findAndCountAll({
-            where: whereClause,
-            include: [
-                {
-                    model: models_1.QuestionSet,
-                    as: 'redeemQuestionSet',
-                    attributes: ['id', 'title', 'description']
-                },
-                {
-                    model: models_1.User,
-                    as: 'redeemUser',
-                    attributes: ['id', 'username', 'email']
-                },
-                {
-                    model: models_1.User,
-                    as: 'redeemCreator',
-                    attributes: ['id', 'username', 'email']
+        try {
+            // 尝试使用Sequelize关联查询
+            console.log('Attempting to fetch redeem codes with associations...');
+            const { count, rows } = await models_1.RedeemCode.findAndCountAll({
+                where: whereClause,
+                include: [
+                    {
+                        model: models_1.QuestionSet,
+                        as: 'redeemQuestionSet',
+                        attributes: ['id', 'title', 'description'],
+                        required: false
+                    },
+                    {
+                        model: models_1.User,
+                        as: 'redeemUser',
+                        attributes: ['id', 'username', 'email'],
+                        required: false
+                    },
+                    {
+                        model: models_1.User,
+                        as: 'redeemCreator',
+                        attributes: ['id', 'username', 'email'],
+                        required: false
+                    }
+                ],
+                offset,
+                limit,
+                order: [['createdAt', 'DESC']]
+            });
+            return res.json({
+                success: true,
+                data: {
+                    total: count,
+                    page,
+                    pageSize,
+                    list: rows
                 }
-            ],
-            offset,
-            limit,
-            order: [['createdAt', 'DESC']]
-        });
-        return res.json({
-            success: true,
-            data: {
-                total: count,
-                page,
-                pageSize,
-                list: rows
-            }
-        });
+            });
+        }
+        catch (associationError) {
+            // 如果关联查询失败，尝试直接查询兑换码
+            console.error('Association query failed:', associationError);
+            console.log('Falling back to direct query without associations...');
+            // 直接查询兑换码，不使用关联
+            const { count, rows } = await models_1.RedeemCode.findAndCountAll({
+                where: whereClause,
+                offset,
+                limit,
+                order: [['createdAt', 'DESC']]
+            });
+            // 手动查询关联的数据
+            const enhancedRows = await Promise.all(rows.map(async (code) => {
+                // 使用as any来绕过类型限制，因为我们需要添加关联属性
+                const codeData = code.toJSON();
+                try {
+                    // 查询关联的题库
+                    if (code.questionSetId) {
+                        const questionSet = await models_1.QuestionSet.findByPk(code.questionSetId, {
+                            attributes: ['id', 'title', 'description']
+                        });
+                        if (questionSet) {
+                            codeData.redeemQuestionSet = questionSet;
+                        }
+                    }
+                    // 查询使用者用户信息
+                    if (code.usedBy) {
+                        const user = await models_1.User.findByPk(code.usedBy, {
+                            attributes: ['id', 'username', 'email']
+                        });
+                        if (user) {
+                            codeData.redeemUser = user;
+                        }
+                    }
+                    // 查询创建者用户信息
+                    if (code.createdBy) {
+                        const creator = await models_1.User.findByPk(code.createdBy, {
+                            attributes: ['id', 'username', 'email']
+                        });
+                        if (creator) {
+                            codeData.redeemCreator = creator;
+                        }
+                    }
+                }
+                catch (error) {
+                    console.error('Error fetching related data:', error);
+                }
+                return codeData;
+            }));
+            return res.json({
+                success: true,
+                data: {
+                    total: count,
+                    page,
+                    pageSize,
+                    list: enhancedRows
+                }
+            });
+        }
     }
     catch (error) {
         console.error('获取兑换码列表出错:', error);

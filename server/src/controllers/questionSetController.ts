@@ -98,43 +98,27 @@ const sendError = (res: Response, status: number, message: string, error?: any) 
 // @access  Public
 export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const offset = (page - 1) * limit;
-
-    const questionSets = await QuestionSet.findAll({
-      ...withQuestionSetAttributes({
-        order: [['created_at', 'DESC']],
-        limit,
-        offset
-      }),
-      include: [{
-        model: Question,
-        as: 'questionSetQuestions',
-        attributes: ['id']  // 只拿 id 就够用
-      }]
-    });
-
-    const total = await QuestionSet.count();
-
-    // 添加 questionCount 字段
-    const result = questionSets.map(set => ({
-      ...set.toJSON(),
-      questionCount: set.questionSetQuestions?.length || 0
+    // 获取包含问题数量的题库列表
+    const questionSets = await QuestionSet.findAll();
+    
+    // 为每个题库获取准确的问题数量
+    const enhancedSets = await Promise.all(questionSets.map(async (set) => {
+      // 直接查询问题数量
+      const questionCount = await Question.count({ where: { questionSetId: set.id } });
+      
+      const setJSON = set.toJSON();
+      return {
+        ...setJSON,
+        questionCount  // 添加准确的问题数量
+      };
     }));
-
+    
     res.status(200).json({
       success: true,
-      data: result,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit)
-      }
+      data: enhancedSets
     });
   } catch (error: any) {
-    console.error('获取题集列表失败:', error);
+    console.error('获取题库列表失败:', error);
     res.status(500).json({
       success: false,
       message: '获取题库列表失败',

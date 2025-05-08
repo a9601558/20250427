@@ -257,8 +257,32 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 通知用户登出，但不强制刷新页面
     notifyUserChange(null);
     
-    // 返回到首页
-    window.location.href = '/';
+    // 改为使用回调方式，而不是直接执行导航
+    // 这样可以让调用logout的组件决定是否需要导航
+    try {
+      // 如果在React组件环境外调用，则回退到直接导航
+      if (typeof window !== 'undefined' && window.location) {
+        // 使用较温和的方式 - 使用pushState保持用户在当前页面
+        const currentLocation = window.location.pathname;
+        if (currentLocation !== '/' && currentLocation !== '/home') {
+          window.history.pushState({}, '', '/');
+          
+          // 触发一个自定义事件，让应用知道需要更新路由
+          const navigationEvent = new CustomEvent('app:navigation', { 
+            detail: { path: '/', reason: 'logout' } 
+          });
+          window.dispatchEvent(navigationEvent);
+        } else {
+          // 如果已经在首页，只需要触发页面刷新
+          const refreshEvent = new CustomEvent('app:refresh', { 
+            detail: { reason: 'logout' } 
+          });
+          window.dispatchEvent(refreshEvent);
+        }
+      }
+    } catch (error) {
+      console.error('[UserContext] 登出后导航错误:', error);
+    }
   };
 
   const login = async (username: string, password: string): Promise<boolean> => {

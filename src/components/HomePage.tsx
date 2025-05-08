@@ -1579,6 +1579,42 @@ const HomePage: React.FC = () => {
     };
   }, []);
 
+  // 增加事件监听，处理UserContext中的自定义事件
+  useEffect(() => {
+    // 处理导航事件
+    const handleNavigation = (event: CustomEvent<{path: string, reason: string}>) => {
+      console.log('[HomePage] 接收到导航事件:', event.detail);
+      
+      // 如果当前已在首页，则刷新数据
+      if (event.detail.reason === 'logout') {
+        setQuestionSets([]);
+        // 重新加载数据
+        fetchQuestionSets({ forceFresh: true });
+      }
+    };
+    
+    // 处理刷新事件
+    const handleRefresh = (event: CustomEvent<{reason: string}>) => {
+      console.log('[HomePage] 接收到刷新事件:', event.detail);
+      if (event.detail.reason === 'logout') {
+        // 强制刷新页面数据
+        setQuestionSets([]);
+        // 重新加载数据
+        fetchQuestionSets({ forceFresh: true });
+      }
+    };
+    
+    // 添加事件监听
+    window.addEventListener('app:navigation', handleNavigation as EventListener);
+    window.addEventListener('app:refresh', handleRefresh as EventListener);
+    
+    // 清理事件监听
+    return () => {
+      window.removeEventListener('app:navigation', handleNavigation as EventListener);
+      window.removeEventListener('app:refresh', handleRefresh as EventListener);
+    };
+  }, [fetchQuestionSets, setQuestionSets]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

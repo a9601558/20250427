@@ -379,13 +379,18 @@ export const questionService = {
   // 获取题库中的所有题目
   async getQuestionsByQuestionSetId(questionSetId: string): Promise<ApiResponse<Question[]>> {
     try {
-      const response = await api.get(`/questions?questionSetId=${questionSetId}&include=options`);
-      return handleResponse<Question[]>(response);
+      const response = await api.get(`/questions?questionSetId=${questionSetId}&include=options&limit=1000`);
+      
+      if (response.data.success) {
+        return { success: true, data: response.data.data };
+      } else {
+        return { success: false, message: response.data.message || '获取题目失败' };
+      }
     } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
+      console.error('API Error - getQuestionsByQuestionSetId:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.message || '获取题目列表失败，请检查网络连接'
       };
     }
   },

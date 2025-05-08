@@ -13,9 +13,9 @@ const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
 const socket_1 = require("./config/socket");
 const associations_1 = require("./models/associations");
+const RedeemCode_1 = require("./models/RedeemCode");
 const appstate_1 = require("./utils/appstate");
 const HomepageSettings_1 = __importDefault(require("./models/HomepageSettings"));
-const applyFieldMappings_1 = require("./utils/applyFieldMappings");
 // Load environment variables
 dotenv_1.default.config();
 // Import models to ensure they are initialized
@@ -73,37 +73,38 @@ app.use((err, req, res, next) => {
 });
 // Start server
 const server = (0, http_1.createServer)(app);
-// Initialize socket
-(0, socket_1.initializeSocket)(server);
-// 初始化模型关联
-console.log('正在初始化模型关联...');
-(0, associations_1.setupAssociations)();
-appstate_1.appState.associationsInitialized = true;
-console.log('模型关联初始化完成');
-// 应用字段映射修复
-(0, applyFieldMappings_1.applyGlobalFieldMappings)();
 // 同步数据库并启动服务器
-database_1.default.sync({ alter: true }).then(() => {
-    console.log('数据库同步完成');
+database_1.default.sync({ alter: false }).then(() => {
+    console.log('Database synced');
+    // 显式初始化所有关联
+    (0, associations_1.setupAssociations)();
+    // 确保 RedeemCode 的关联被正确设置
+    (0, RedeemCode_1.setupAssociations)();
+    console.log('All associations initialized');
+    appstate_1.appState.associationsInitialized = true;
     // 确保 HomepageSettings 表有初始数据
-    HomepageSettings_1.default.findByPk(1).then((homepageSettings) => {
-        if (!homepageSettings) {
-            console.log('创建 HomepageSettings 初始数据...');
-            return HomepageSettings_1.default.create({
-                id: 1,
-                welcome_title: "ExamTopics 模拟练习",
-                welcome_description: "选择以下任一题库开始练习，测试您的知识水平",
-                featured_categories: ["网络协议", "编程语言", "计算机基础"],
-                announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-                footer_text: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-                banner_image: "/images/banner.jpg",
-                theme: 'light'
-            });
-        }
-    }).then(() => {
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+    return HomepageSettings_1.default.findOne();
+}).then(settings => {
+    if (!settings) {
+        console.log('创建首页默认设置');
+        return HomepageSettings_1.default.create({
+            welcomeTitle: "ExamTopics 模拟练习",
+            welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
+            featuredCategories: ["网络协议", "编程语言", "计算机基础"],
+            announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
+            footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利"
         });
+    }
+    return settings;
+}).then(() => {
+    // 初始化 Socket.io
+    const io = (0, socket_1.initializeSocket)(server);
+    console.log('Socket.io 初始化完成');
+    // 启动 HTTP 服务器
+    server.listen(PORT, () => {
+        console.log(`服务器已启动, 端口: ${PORT}`);
     });
+}).catch(err => {
+    console.error('Error during server initialization:', err);
 });
 exports.default = app;
