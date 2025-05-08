@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
+import { formatTime, formatDate } from '../utils/timeUtils';
 
 // 原始进度记录类型
 interface ProgressRecord {
@@ -133,21 +134,6 @@ interface RedeemCode {
   createdAt: Date;
   updatedAt: Date;
 }
-
-const formatTime = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-};
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-};
 
 interface ProgressCardProps {
   stats: ProgressStats;
@@ -674,16 +660,6 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
   const handleSaveMemo = () => {
     onUpdateMemo(wrongAnswer.id, memo);
     setIsEditing(false);
-  };
-  
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('zh-CN', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
   
   return (

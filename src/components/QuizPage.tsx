@@ -12,15 +12,16 @@ import QuestionCard from './QuestionCard';
 import { toast } from 'react-toastify';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';
+import PaymentModal from './PaymentModal';
 
 // 从服务api中导入API_BASE_URL
 import { API_BASE_URL } from '../services/api';
 
-// 导入paymentUtils中的函数
-import { isPaidQuiz, validatePaidQuizStatus, createDirectPurchase } from '../utils/paymentUtils';
-
-// 导入外部PaymentModal组件，替换内部定义
-import PaymentModal from './PaymentModal';
+// 导入工具函数
+import { isPaidQuiz } from '../utils/paymentUtils'; 
+import { getOptionLabel, formatOptions } from '../utils/optionUtils';
+import { saveAccessToLocalStorage, getAccessFromLocalStorage, saveRedeemedQuestionSetId, checkFullAccessFromAllSources } from '../utils/accessUtils';
+import { formatTime, calculateRemainingDays, formatDate } from '../utils/timeUtils';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -29,11 +30,6 @@ interface AnsweredQuestion {
   isCorrect: boolean;
   selectedOption: string | string[];
 }
-
-// 获取选项标签（A, B, C, D...）
-const getOptionLabel = (index: number): string => {
-  return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
-};
 
 // 添加对两种字段命名的兼容处理
 const getQuestions = (data: any) => {
@@ -2308,18 +2304,6 @@ function QuizPage(): JSX.Element {
     setQuestionStartTime,
     setQuizStatus
   ]);
-
-  // 格式化时间显示函数
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
 
   // 添加页面导航返回主页功能
   const handleNavigateHome = useCallback(() => {

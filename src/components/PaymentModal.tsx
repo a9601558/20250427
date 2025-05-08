@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { QuestionSet } from '../types';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { createMockPaymentIntent, confirmMockPayment, processPayment } from '../utils/paymentUtils';
 import { questionSetApi } from '../utils/api';
+import { saveAccessToLocalStorage } from '../utils/accessUtils';
+import { formatDate, getFutureDate } from '../utils/timeUtils';
 
 interface PaymentModalProps {
   isOpen?: boolean;
@@ -203,14 +205,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     const transactionId = `tr_${Math.random().toString(36).substring(2, 12)}`;
     
     // 计算过期时间（6个月后）
-    const now = new Date();
-    const expiryDate = new Date(now);
-    expiryDate.setMonth(expiryDate.getMonth() + 6);
+    const expiryDate = getFutureDate(180); // 6个月约等于180天
     
     // 完成后续处理
     await finalizePurchase({
       transactionId,
-      expiryDate: expiryDate.toISOString(),
+      expiryDate,
       paymentMethod: 'mock'
     });
   };
@@ -272,13 +272,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       
       if (paymentResult.status === 'succeeded') {
         // 计算过期时间（6个月后）
-        const now = new Date();
-        const expiryDate = new Date(now);
-        expiryDate.setMonth(expiryDate.getMonth() + 6);
+        const expiryDate = getFutureDate(180); // 6个月约等于180天
         
         await finalizePurchase({
           transactionId: paymentResult.id || intentData.id,
-          expiryDate: expiryDate.toISOString(),
+          expiryDate,
           paymentMethod: 'card'
         });
       } else {
@@ -345,27 +343,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       }
       
       // 显示成功消息
-      setSuccessMessage(`支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${new Date(expiryDate).toLocaleDateString()}`);
+      setSuccessMessage(`支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${formatDate(expiryDate)}`);
       
       // 保存访问记录到localStorage
-      try {
-        // 获取现有的访问权限
-        const accessRightsStr = localStorage.getItem('quizAccessRights');
-        let accessRights: {[key: string]: boolean} = {};
-        
-        if (accessRightsStr) {
-          accessRights = JSON.parse(accessRightsStr);
-        }
-        
-        // 更新访问权限
-        accessRights[String(questionSet?.id).trim()] = true;
-        
-        // 保存回localStorage
-        localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
-        console.log(`[支付] 已保存题库访问权限到localStorage`);
-      } catch (e) {
-        console.error('[支付] 保存访问权限到localStorage失败', e);
-      }
+      saveAccessToLocalStorage(String(questionSet?.id).trim(), true);
       
       // 触发全局事件通知其他组件
       window.dispatchEvent(new CustomEvent('accessRights:updated', { 

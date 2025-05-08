@@ -1,10 +1,6 @@
 import React from 'react';
 import { Option } from '../types';
-
-// 获取选项标签（A, B, C, D...）
-const getOptionLabel = (index: number): string => {
-  return String.fromCharCode(65 + index); // 65 是 'A' 的 ASCII 码
-};
+import { getOptionLabel, getOptionStyleClass } from '../utils/optionUtils';
 
 interface QuestionOptionProps {
   option: Option;
@@ -25,25 +21,6 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
   onClick,
   index
 }) => {
-  // 根据当前状态确定背景颜色
-  const getBgColor = () => {
-    if (!isSubmitted) {
-      return isSelected ? 'bg-blue-100 border-blue-500' : 'bg-white hover:bg-gray-50';
-    }
-    
-    if (isSelected) {
-      return isCorrect === option.id
-        ? 'bg-green-100 border-green-500' 
-        : 'bg-red-100 border-red-500';
-    }
-    
-    if (option.id === isCorrect) {
-      return 'bg-green-100 border-green-500';
-    }
-    
-    return 'bg-white';
-  };
-
   // 多选题中确定选项是否正确
   const isOptionCorrect = isSubmitted && isMultiple 
     ? isCorrect === option.id
@@ -54,7 +31,7 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
 
   return (
     <div
-      className={`flex items-start p-4 mb-3 border rounded-lg cursor-pointer transition-all ${getBgColor()}`}
+      className={`flex items-start p-4 mb-3 border rounded-lg cursor-pointer transition-all ${getOptionStyleClass(isSelected, isSubmitted, isCorrect, option.id)}`}
       onClick={!isSubmitted ? onClick : undefined}
     >
       <div className={`flex-shrink-0 w-8 h-8 rounded-full mr-3 flex items-center justify-center 
