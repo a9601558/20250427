@@ -88,9 +88,27 @@ const setupAssociations = () => {
         as: 'redeemCodes',
         onDelete: 'CASCADE'
     });
+    // 修复User和RedeemCode的关联 - 确保双向关联都正确
+    // 用户使用了兑换码
     User_1.default.hasMany(RedeemCode_1.default, {
         foreignKey: 'usedBy',
         as: 'userRedeemCodes',
+        onDelete: 'SET NULL'
+    });
+    RedeemCode_1.default.belongsTo(User_1.default, {
+        foreignKey: 'usedBy',
+        as: 'redeemUser',
+        onDelete: 'SET NULL'
+    });
+    // 用户创建了兑换码
+    User_1.default.hasMany(RedeemCode_1.default, {
+        foreignKey: 'createdBy',
+        as: 'createdRedeemCodes',
+        onDelete: 'SET NULL'
+    });
+    RedeemCode_1.default.belongsTo(User_1.default, {
+        foreignKey: 'createdBy',
+        as: 'redeemCreator',
         onDelete: 'SET NULL'
     });
     // WrongAnswer 关联

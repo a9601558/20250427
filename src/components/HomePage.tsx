@@ -7,6 +7,7 @@ import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
 import PaymentModal from './PaymentModal';
 import ExamCountdownWidget from './ExamCountdownWidget';
+import { homepageService } from '../services/api';
 
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -585,6 +586,9 @@ const HomePage: React.FC = () => {
       filteredSets = filteredSets.filter(set => set.category === activeCategory);
     } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
       // 在全部模式，且有精选分类时，只显示精选分类或标记为精选的题库
+      console.log("[HomePage] 精选分类过滤前数量:", filteredSets.length);
+      console.log("[HomePage] 使用的精选分类:", homeContent.featuredCategories);
+      
       filteredSets = filteredSets.filter(set => 
         // 属于精选分类
         homeContent.featuredCategories.includes(set.category) || 
@@ -594,7 +598,7 @@ const HomePage: React.FC = () => {
         (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory))
       );
       
-      console.log(`[HomePage] 精选分类过滤: 共${filteredSets.length}个符合条件的题库`);
+      console.log(`[HomePage] 精选分类过滤后: ${filteredSets.length}个符合条件的题库`);
     }
     
     return filteredSets;
@@ -1615,6 +1619,26 @@ const HomePage: React.FC = () => {
       window.removeEventListener('app:refresh', handleRefresh as EventListener);
     };
   }, [fetchQuestionSets, setQuestionSets]);
+
+  // Add a new useEffect to load home content
+  useEffect(() => {
+    const loadHomeContent = async () => {
+      try {
+        console.log('[HomePage] 加载首页内容');
+        const response = await homepageService.getHomeContent();
+        if (response.success && response.data) {
+          console.log('[HomePage] 首页内容加载成功:', response.data);
+          setHomeContent(response.data);
+        } else {
+          console.error('[HomePage] 加载首页内容失败:', response.message);
+        }
+      } catch (error) {
+        console.error('[HomePage] 加载首页内容时发生错误:', error);
+      }
+    };
+
+    loadHomeContent();
+  }, []);
 
   if (loading) {
     return (

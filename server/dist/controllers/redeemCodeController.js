@@ -69,111 +69,98 @@ const getRedeemCodes = async (req, res) => {
         const pageSize = parseInt(req.query.pageSize) || 10;
         const offset = (page - 1) * pageSize;
         const limit = pageSize;
-        const { isUsed, questionSetId } = req.query;
-        // 构建查询条件
-        const whereClause = {};
-        if (isUsed !== undefined) {
-            whereClause.isUsed = isUsed === 'true';
-        }
-        if (questionSetId) {
-            whereClause.questionSetId = questionSetId;
-        }
+        const isUsedFilter = req.query.isUsed !== undefined ? `AND rc.is_used = ${req.query.isUsed === 'true' ? 1 : 0}` : '';
+        const questionSetFilter = req.query.questionSetId ? `AND rc.question_set_id = '${req.query.questionSetId}'` : '';
+        // 使用原生SQL查询，避免Sequelize关联问题
         try {
-            // 尝试使用Sequelize关联查询
-            console.log('Attempting to fetch redeem codes with associations...');
-            const { count, rows } = await models_1.RedeemCode.findAndCountAll({
-                where: whereClause,
-                include: [
-                    {
-                        model: models_1.QuestionSet,
-                        as: 'redeemQuestionSet',
-                        attributes: ['id', 'title', 'description'],
-                        required: false
-                    },
-                    {
-                        model: models_1.User,
-                        as: 'redeemUser',
-                        attributes: ['id', 'username', 'email'],
-                        required: false
-                    },
-                    {
-                        model: models_1.User,
-                        as: 'redeemCreator',
-                        attributes: ['id', 'username', 'email'],
-                        required: false
-                    }
-                ],
-                offset,
-                limit,
-                order: [['createdAt', 'DESC']]
+            console.log('[RedeemCodeController] 使用原生SQL查询获取兑换码列表');
+            // 计算总数的SQL
+            const countSql = `
+        SELECT COUNT(*) as total 
+        FROM redeem_codes rc 
+        WHERE 1=1 ${isUsedFilter} ${questionSetFilter}
+      `;
+            // 数据查询SQL
+            const dataSql = `
+        SELECT 
+          rc.code, 
+          rc.question_set_id as questionSetId,
+          rc.validity_days as validityDays,
+          rc.is_used as isUsed,
+          rc.used_by as usedBy,
+          rc.used_at as usedAt,
+          rc.created_by as createdBy,
+          rc.created_at as createdAt,
+          rc.updated_at as updatedAt,
+          qs.id as questionSetId,
+          qs.title as questionSetTitle,
+          qs.description as questionSetDescription,
+          u1.username as userUsername,
+          u1.email as userEmail,
+          u2.username as creatorUsername,
+          u2.email as creatorEmail
+        FROM redeem_codes rc
+        LEFT JOIN question_sets qs ON rc.question_set_id = qs.id
+        LEFT JOIN users u1 ON rc.used_by = u1.id
+        LEFT JOIN users u2 ON rc.created_by = u2.id
+        WHERE 1=1 ${isUsedFilter} ${questionSetFilter}
+        ORDER BY rc.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+            // 执行总数查询
+            const [countResult] = await models_1.sequelize.query(countSql, {
+                type: sequelize_1.QueryTypes.SELECT
+            });
+            // 执行数据查询
+            const rows = await models_1.sequelize.query(dataSql, {
+                replacements: [limit, offset],
+                type: sequelize_1.QueryTypes.SELECT
+            });
+            // 格式化结果
+            const formattedRows = rows.map(row => {
+                return {
+                    id: row.code, // 使用code作为id
+                    code: row.code,
+                    questionSetId: row.questionSetId,
+                    validityDays: row.validityDays,
+                    isUsed: !!row.isUsed,
+                    usedBy: row.usedBy,
+                    usedAt: row.usedAt,
+                    createdBy: row.createdBy,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt,
+                    redeemQuestionSet: row.questionSetTitle ? {
+                        id: row.questionSetId,
+                        title: row.questionSetTitle,
+                        description: row.questionSetDescription
+                    } : null,
+                    redeemUser: row.userUsername ? {
+                        id: row.usedBy,
+                        username: row.userUsername,
+                        email: row.userEmail
+                    } : null,
+                    redeemCreator: row.creatorUsername ? {
+                        id: row.createdBy,
+                        username: row.creatorUsername,
+                        email: row.creatorEmail
+                    } : null
+                };
             });
             return res.json({
                 success: true,
                 data: {
-                    total: count,
+                    total: countResult.total,
                     page,
                     pageSize,
-                    list: rows
+                    list: formattedRows
                 }
             });
         }
-        catch (associationError) {
-            // 如果关联查询失败，尝试直接查询兑换码
-            console.error('Association query failed:', associationError);
-            console.log('Falling back to direct query without associations...');
-            // 直接查询兑换码，不使用关联
-            const { count, rows } = await models_1.RedeemCode.findAndCountAll({
-                where: whereClause,
-                offset,
-                limit,
-                order: [['createdAt', 'DESC']]
-            });
-            // 手动查询关联的数据
-            const enhancedRows = await Promise.all(rows.map(async (code) => {
-                // 使用as any来绕过类型限制，因为我们需要添加关联属性
-                const codeData = code.toJSON();
-                try {
-                    // 查询关联的题库
-                    if (code.questionSetId) {
-                        const questionSet = await models_1.QuestionSet.findByPk(code.questionSetId, {
-                            attributes: ['id', 'title', 'description']
-                        });
-                        if (questionSet) {
-                            codeData.redeemQuestionSet = questionSet;
-                        }
-                    }
-                    // 查询使用者用户信息
-                    if (code.usedBy) {
-                        const user = await models_1.User.findByPk(code.usedBy, {
-                            attributes: ['id', 'username', 'email']
-                        });
-                        if (user) {
-                            codeData.redeemUser = user;
-                        }
-                    }
-                    // 查询创建者用户信息
-                    if (code.createdBy) {
-                        const creator = await models_1.User.findByPk(code.createdBy, {
-                            attributes: ['id', 'username', 'email']
-                        });
-                        if (creator) {
-                            codeData.redeemCreator = creator;
-                        }
-                    }
-                }
-                catch (error) {
-                    console.error('Error fetching related data:', error);
-                }
-                return codeData;
-            }));
-            return res.json({
-                success: true,
-                data: {
-                    total: count,
-                    page,
-                    pageSize,
-                    list: enhancedRows
-                }
+        catch (error) {
+            console.error('[RedeemCodeController] 使用原生SQL查询获取兑换码列表失败:', error);
+            return res.status(500).json({
+                success: false,
+                message: '服务器错误，获取兑换码列表失败'
             });
         }
     }
@@ -346,7 +333,7 @@ const getUserRedeemCodes = async (req, res) => {
     try {
         const userId = req.user.id;
         console.log(`[RedeemCodeController] Getting redeemed codes for user: ${userId}`);
-        // 使用原生SQL查询替代Sequelize的ORM操作，以避免列名不匹配问题
+        // 使用参数化查询来防止SQL注入
         const redeemCodesSql = `
       SELECT 
         rc.code, 
@@ -363,49 +350,56 @@ const getUserRedeemCodes = async (req, res) => {
         qs.category as questionSetCategory
       FROM redeem_codes rc
       LEFT JOIN question_sets qs ON rc.question_set_id = qs.id
-      WHERE rc.used_by = :userId AND rc.used_at IS NOT NULL
+      WHERE rc.used_by = ? AND rc.used_at IS NOT NULL
       ORDER BY rc.used_at DESC
     `;
-        const redeemCodesResult = await models_1.sequelize.query(redeemCodesSql, {
-            replacements: { userId },
-            type: sequelize_1.QueryTypes.SELECT
-        });
-        console.log(`[RedeemCodeController] Found ${redeemCodesResult.length} redeemed codes for user using SQL`);
-        // 转换结果格式为客户端期望的格式
-        const formattedResults = redeemCodesResult.map((code) => {
-            // 计算过期日期（基于使用日期+有效期天数）
-            const usedAtDate = code.usedAt ? new Date(code.usedAt) : new Date(code.createdAt);
-            const defaultExpiryDate = new Date(usedAtDate.getTime() + (code.validityDays || 180) * 24 * 60 * 60 * 1000);
-            return {
-                id: code.code, // 使用code作为id
-                code: code.code,
-                questionSetId: code.questionSetId,
-                validityDays: code.validityDays || 180,
-                usedBy: code.usedBy,
-                usedAt: code.usedAt,
-                expiryDate: defaultExpiryDate.toISOString(),
-                createdAt: code.createdAt,
-                updatedAt: code.updatedAt,
-                // 格式化题库信息
-                redeemQuestionSet: {
-                    id: code.questionSetId,
-                    title: code.questionSetTitle || '未知题库',
-                    description: code.questionSetDescription || '',
-                    icon: code.questionSetIcon,
-                    category: code.questionSetCategory
-                }
-            };
-        });
-        return res.json({
-            success: true,
-            data: formattedResults
-        });
+        try {
+            const redeemCodesResult = await models_1.sequelize.query(redeemCodesSql, {
+                replacements: [userId],
+                type: sequelize_1.QueryTypes.SELECT
+            });
+            console.log(`[RedeemCodeController] Found ${redeemCodesResult.length} redeemed codes for user using SQL`);
+            // 转换结果格式为客户端期望的格式
+            const formattedResults = redeemCodesResult.map((code) => {
+                // 计算过期日期（基于使用日期+有效期天数）
+                const usedAtDate = code.usedAt ? new Date(code.usedAt) : new Date(code.createdAt);
+                const defaultExpiryDate = new Date(usedAtDate.getTime() + (code.validityDays || 180) * 24 * 60 * 60 * 1000);
+                return {
+                    id: code.code, // 使用code作为id
+                    code: code.code,
+                    questionSetId: code.questionSetId,
+                    validityDays: code.validityDays || 180,
+                    usedBy: code.usedBy,
+                    usedAt: code.usedAt,
+                    expiryDate: defaultExpiryDate.toISOString(),
+                    createdAt: code.createdAt,
+                    updatedAt: code.updatedAt,
+                    // 格式化题库信息
+                    redeemQuestionSet: {
+                        id: code.questionSetId,
+                        title: code.questionSetTitle || '未知题库',
+                        description: code.questionSetDescription || '',
+                        icon: code.questionSetIcon,
+                        category: code.questionSetCategory
+                    }
+                };
+            });
+            return res.json({
+                success: true,
+                data: formattedResults
+            });
+        }
+        catch (sqlError) {
+            console.error('[RedeemCodeController] SQL error when getting redeem codes:', sqlError);
+            throw new Error('数据库查询错误: ' + sqlError.message);
+        }
     }
     catch (error) {
         console.error('[RedeemCodeController] Get user redeemed codes error:', error);
         res.status(500).json({
             success: false,
-            message: '服务器错误，获取兑换码列表失败'
+            message: '服务器错误，获取兑换码列表失败',
+            error: error.message || '未知错误'
         });
     }
 };

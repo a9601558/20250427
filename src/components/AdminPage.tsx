@@ -4,10 +4,9 @@ import { useUser } from '../contexts/UserContext';
 import AdminUserManagement from './admin/AdminUserManagement';
 import AdminHomeContent from './admin/AdminHomeContent';
 import AdminRedeemCodes from './admin/AdminRedeemCodes';
-import AdminFeaturedQuestionSets from './admin/AdminFeaturedQuestionSets';
 import AddQuestionSet from './AddQuestionSet';
 import ManageQuestionSets from './ManageQuestionSets';
-import AdminFeaturedCategories from './admin/AdminFeaturedCategories';
+import AdminFeaturedManagement from './admin/AdminFeaturedManagement';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -15,8 +14,7 @@ enum AdminTab {
   QUESTION_SETS = 'questionSets',
   ADD_QUESTION_SET = 'addQuestionSet',
   MANAGE_QUESTION_SETS = 'manageQuestionSets',
-  FEATURED_QUESTION_SETS = 'featuredQuestionSets',
-  FEATURED_CATEGORIES = 'featuredCategories',
+  FEATURED_MANAGEMENT = 'featuredManagement',
   HOME_CONTENT = 'homeContent',
 }
 
@@ -104,22 +102,13 @@ const AdminPage: React.FC = () => {
                   题库兑换码管理
                 </button>
                 <button
-                  onClick={() => setActiveTab(AdminTab.FEATURED_QUESTION_SETS)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.FEATURED_QUESTION_SETS ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  onClick={() => setActiveTab(AdminTab.FEATURED_MANAGEMENT)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.FEATURED_MANAGEMENT ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                   </svg>
-                  精选题库管理
-                </button>
-                <button
-                  onClick={() => setActiveTab(AdminTab.FEATURED_CATEGORIES)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.FEATURED_CATEGORIES ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
-                  精选分类管理
+                  精选内容管理
                 </button>
                 <button
                   onClick={() => setActiveTab(AdminTab.HOME_CONTENT)}
@@ -140,8 +129,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.ADD_QUESTION_SET && <AddQuestionSet />}
                 {activeTab === AdminTab.MANAGE_QUESTION_SETS && <ManageQuestionSets />}
                 {activeTab === AdminTab.REDEEM_CODES && <AdminRedeemCodes />}
-                {activeTab === AdminTab.FEATURED_QUESTION_SETS && <AdminFeaturedQuestionSets />}
-                {activeTab === AdminTab.FEATURED_CATEGORIES && <AdminFeaturedCategories />}
+                {activeTab === AdminTab.FEATURED_MANAGEMENT && <AdminFeaturedManagement />}
                 {activeTab === AdminTab.HOME_CONTENT && <AdminHomeContent />}
               </div>
             </div>

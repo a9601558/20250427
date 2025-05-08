@@ -97,9 +97,30 @@ export const setupAssociations = () => {
     onDelete: 'CASCADE'
   });
 
+  // 修复User和RedeemCode的关联 - 确保双向关联都正确
+  // 用户使用了兑换码
   User.hasMany(RedeemCode, {
     foreignKey: 'usedBy',
     as: 'userRedeemCodes',
+    onDelete: 'SET NULL'
+  });
+  
+  RedeemCode.belongsTo(User, {
+    foreignKey: 'usedBy',
+    as: 'redeemUser',
+    onDelete: 'SET NULL'
+  });
+  
+  // 用户创建了兑换码
+  User.hasMany(RedeemCode, {
+    foreignKey: 'createdBy',
+    as: 'createdRedeemCodes',
+    onDelete: 'SET NULL'
+  });
+  
+  RedeemCode.belongsTo(User, {
+    foreignKey: 'createdBy',
+    as: 'redeemCreator',
     onDelete: 'SET NULL'
   });
 
