@@ -361,72 +361,91 @@ const AdminHomeContent: React.FC = () => {
       setIsSaving(true);
       console.log('[AdminHomeContent] Saving home content with categories:', homeContent.featuredCategories);
       
-      // Add a timestamp to ensure the latest content is used
-      const contentWithTimestamp = {
+      // Always store content in client-side storage as fallback
+      const contentToSave = {
         ...homeContent,
-        _lastUpdated: Date.now()
+        _lastUpdated: Date.now(),
+        _savedByAdmin: true
       };
       
-      const response = await homepageService.updateHomeContent(contentWithTimestamp);
+      // Store in localStorage as fallback if server fails
+      localStorage.setItem('home_content_data', JSON.stringify(contentToSave));
+      console.log('[AdminHomeContent] Saved content to localStorage as fallback');
       
-      if (response.success) {
-        toast.success('首页内容已更新');
+      // Set stronger flags to force update on homepage
+      sessionStorage.setItem('adminTriggeredUpdate', 'true');
+      sessionStorage.setItem('forceFullContentRefresh', 'true');
+      sessionStorage.setItem('adminSavedContentTimestamp', Date.now().toString());
+      
+      // Use a very distinct timestamp to ensure it's recognized as new
+      const eventTimestamp = Date.now();
+      localStorage.setItem('home_content_force_reload', eventTimestamp.toString());
+      localStorage.setItem('home_content_updated', eventTimestamp.toString());
+      
+      // Try server update
+      let serverUpdateSuccess = false;
+      try {
+        const response = await homepageService.updateHomeContent(contentToSave);
+        serverUpdateSuccess = response.success;
         
-        // Set stronger flags to force update on homepage
-        sessionStorage.setItem('adminTriggeredUpdate', 'true');
-        sessionStorage.setItem('forceFullContentRefresh', 'true');
-        
-        // Use a very distinct timestamp to ensure it's recognized as new
-        const eventTimestamp = Date.now();
-        localStorage.setItem('home_content_force_reload', eventTimestamp.toString());
-        localStorage.setItem('home_content_updated', eventTimestamp.toString());
-        
-        // 1. 通过自定义事件通知其他组件
-        window.dispatchEvent(new CustomEvent('homeContent:updated', {
-          detail: {
+        if (response.success) {
+          console.log('[AdminHomeContent] Server update successful');
+        } else {
+          console.error('[AdminHomeContent] Server update failed:', response.message);
+        }
+      } catch (serverError) {
+        console.error('[AdminHomeContent] Server update error:', serverError);
+      }
+      
+      // Show appropriate message based on server response
+      if (serverUpdateSuccess) {
+        toast.success('首页内容已更新并保存到服务器');
+      } else {
+        toast.warning('服务器连接错误，内容已保存到本地（刷新后仍有效）');
+      }
+      
+      // 1. 通过自定义事件通知其他组件 - include full content
+      window.dispatchEvent(new CustomEvent('homeContent:updated', {
+        detail: {
+          timestamp: eventTimestamp,
+          source: 'admin_direct',
+          fullContent: contentToSave, // Pass full content in the event
+          categories: homeContent.featuredCategories,
+          changeType: 'full_content_reload',
+          forceRefresh: true,
+          serverUpdateSuccess
+        }
+      }));
+      
+      // 3. 通过socket通知所有打开的客户端
+      try {
+        if (socket) {
+          socket.emit('admin:homeContent:updated', {
             timestamp: eventTimestamp,
             source: 'admin_direct',
-            categories: homeContent.featuredCategories,
             changeType: 'full_content_reload',
-            forceRefresh: true
-          }
-        }));
-        
-        // 2. 使用localStorage设置一个更新标记和时间戳，帮助首页检测内容变更
-        localStorage.setItem('home_content_updated', eventTimestamp.toString());
-        
-        // 3. 通过socket通知所有打开的客户端
-        try {
-          if (socket) {
-            socket.emit('admin:homeContent:updated', {
-              timestamp: eventTimestamp,
-              source: 'admin_direct',
-              changeType: 'full_content_reload',
-              categories: homeContent.featuredCategories,
-              welcomeTitle: homeContent.welcomeTitle,
-              footerUpdated: true,
-              forceRefresh: true,
-              data: homeContent // Include full data in socket event
-            });
-          }
-        } catch (socketErr) {
-          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
+            categories: homeContent.featuredCategories,
+            welcomeTitle: homeContent.welcomeTitle,
+            footerUpdated: true,
+            forceRefresh: true,
+            data: contentToSave // Include full data in socket event
+          });
         }
-        
-        console.log('[AdminHomeContent] Successfully updated home content, dispatched update event');
-        
-        // Set a flag to indicate successful save for preview button
-        setHasUnsavedChanges(false);
-        setShowPreviewButton(true);
-        
-        // Clear the admin trigger flag after a delay
-        setTimeout(() => {
-          sessionStorage.removeItem('adminTriggeredUpdate');
-          sessionStorage.removeItem('forceFullContentRefresh');
-        }, 5000);
-      } else {
-        toast.error('更新失败: ' + response.message);
+      } catch (socketErr) {
+        console.error('[AdminHomeContent] Socket notification failed:', socketErr);
       }
+      
+      console.log('[AdminHomeContent] Successfully updated home content, dispatched update event');
+      
+      // Set a flag to indicate successful save for preview button
+      setHasUnsavedChanges(false);
+      setShowPreviewButton(true);
+      
+      // Clear the admin trigger flag after a delay
+      setTimeout(() => {
+        sessionStorage.removeItem('adminTriggeredUpdate');
+        sessionStorage.removeItem('forceFullContentRefresh');
+      }, 10000);
     } catch (error) {
       console.error('更新首页内容失败:', error);
       toast.error('更新失败，请重试');

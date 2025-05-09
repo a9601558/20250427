@@ -1639,11 +1639,19 @@ const HomePage: React.FC = () => {
     }
   }, [questionSets, homeContent.featuredCategories]);
 
+  // Add interface for the home content fetch options
+  interface HomeContentFetchOptions {
+    showNotification?: boolean;
+    source?: string;
+    fullContent?: HomeContentData;
+  }
+  
   // Clean up the fetchLatestHomeContent implementation
-  const fetchLatestHomeContent = useCallback(async (options: { showNotification?: boolean, source?: string } = {}) => {
+  const fetchLatestHomeContent = useCallback(async (options: HomeContentFetchOptions = {}) => {
     // Special handling for admin-triggered forced reloads
     const forceFullContentRefresh = sessionStorage.getItem('forceFullContentRefresh') === 'true';
     const forceReloadTimestamp = localStorage.getItem('home_content_force_reload');
+    const adminSavedTimestamp = sessionStorage.getItem('adminSavedContentTimestamp');
     
     // If the source is admin_direct or we have a forced reload flag, bypass all throttling
     const isAdminDirectUpdate = options.source === 'admin_direct' || options.source === 'admin_event' || 
@@ -1693,6 +1701,46 @@ const HomePage: React.FC = () => {
       }
     }
     
+    // Check for direct content from event before making a server request
+    if (options.source === 'custom_event' && options.fullContent) {
+      console.log('[HomePage] Using direct content from custom event');
+      setHomeContent(options.fullContent);
+      
+      if (options.fullContent.featuredCategories?.length > 0) {
+        setActiveCategory('all');
+      }
+      
+      fetchQuestionSets({ forceFresh: true });
+      
+      if (options.showNotification) {
+        toast.success('首页内容已从管理员更新直接加载', { position: 'bottom-center' });
+      }
+      
+      // Don't make a server request
+      return;
+    }
+    
+    // First check localStorage for admin-saved content
+    const localStorageContent = localStorage.getItem('home_content_data');
+    let localContent: any = null;
+    let useLocalContent = false;
+    
+    if (localStorageContent) {
+      try {
+        localContent = JSON.parse(localStorageContent);
+        // Check if local content is from admin and newer than our current content
+        const currentLastUpdated = (homeContent as any)._lastUpdated || 0;
+        const localLastUpdated = localContent._lastUpdated || 0;
+        
+        if (localContent._savedByAdmin && localLastUpdated > currentLastUpdated) {
+          console.log('[HomePage] Found newer admin-saved content in localStorage');
+          useLocalContent = true;
+        }
+      } catch (e) {
+        console.error('[HomePage] Error parsing localStorage content:', e);
+      }
+    }
+    
     try {
       pendingFetchRef.current = true;
       console.log(`[HomePage] Fetching latest home content (source: ${options.source || 'unknown'})`);
@@ -1700,6 +1748,39 @@ const HomePage: React.FC = () => {
       // Store timestamp of this fetch
       sessionStorage.setItem('lastHomeContentFetch', Date.now().toString());
       
+      // If we need to use local content - do that directly
+      if (isAdminDirectUpdate && useLocalContent) {
+        console.log('[HomePage] ADMIN UPDATE: Using content from localStorage instead of server');
+        
+        // Apply the content from localStorage
+        setHomeContent(localContent);
+        
+        // Default to "all" category if featuredCategories are available
+        if (localContent.featuredCategories?.length > 0) {
+          setActiveCategory('all');
+        }
+        
+        // Refresh question sets to apply new settings
+        setTimeout(() => {
+          console.log('[HomePage] Refreshing question sets with direct admin settings');
+          fetchQuestionSets({ forceFresh: true });
+          
+          if (options.showNotification) {
+            toast.success('首页内容已从本地缓存加载（数据库连接失败）', { position: 'bottom-center' });
+          }
+          
+          // Clear the force reload flag
+          if (forceReloadTimestamp) {
+            localStorage.removeItem('home_content_force_reload');
+          }
+        }, 200);
+        
+        // We're done - don't try to fetch from server
+        pendingFetchRef.current = false;
+        return;
+      }
+      
+      // Regular server content fetch with cache-busting
       // Create params with cache-busting
       const params: Record<string, any> = { 
         _timestamp: Date.now(),
@@ -1716,13 +1797,28 @@ const HomePage: React.FC = () => {
       const response = await homepageService.getHomeContent(params);
       
       if (response.success && response.data) {
-        console.log('[HomePage] Home content loaded successfully:', response.data);
-        console.log('[HomePage] Loaded featured categories:', response.data.featuredCategories);
+        console.log('[HomePage] Home content loaded successfully from server:', response.data);
+        
+        // Check if server content is actually newer than our local content
+        if (localContent && localContent._lastUpdated) {
+          const serverLastUpdated = (response.data as any)._lastUpdated || 0;
+          
+          if (localContent._lastUpdated > serverLastUpdated) {
+            console.log('[HomePage] Local content is newer than server content, using local content');
+            setHomeContent(localContent);
+          } else {
+            // Server content is newer or there is no local content
+            console.log('[HomePage] Using server content');
+            setHomeContent(response.data);
+          }
+        } else {
+          // No local content or no timestamp, use server content
+          setHomeContent(response.data);
+        }
         
         // If this is an admin update, force the refresh regardless of content change
         if (isAdminDirectUpdate) {
           console.log('[HomePage] Admin update detected - forcing content refresh');
-          setHomeContent(response.data);
           
           // Default to "all" category when featured categories are available
           if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
@@ -1736,7 +1832,7 @@ const HomePage: React.FC = () => {
             
             // Show notification if requested
             if (options.showNotification) {
-              toast.success('Home page content updated by admin', { position: 'bottom-center' });
+              toast.success('首页内容已从服务器更新', { position: 'bottom-center' });
             }
             
             // Clear the force reload flag
@@ -1752,7 +1848,6 @@ const HomePage: React.FC = () => {
           
           if (hasChanged) {
             console.log('[HomePage] Home content has changed, updating state');
-            setHomeContent(response.data);
             
             // Default to "all" category when featured categories are available
             if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
@@ -1766,7 +1861,7 @@ const HomePage: React.FC = () => {
               
               // Show notification if requested
               if (options.showNotification) {
-                toast.success('Home page content updated', { position: 'bottom-center' });
+                toast.success('首页内容已更新', { position: 'bottom-center' });
               }
             }, 200);
           } else {
@@ -1774,10 +1869,50 @@ const HomePage: React.FC = () => {
           }
         }
       } else {
-        console.error('[HomePage] Failed to get home content:', response.message);
+        console.error('[HomePage] Failed to get home content from server:', response.message);
+        
+        // Use localStorage content as fallback if server fails
+        if (localContent) {
+          console.log('[HomePage] Using localStorage content as fallback');
+          setHomeContent(localContent);
+          
+          if (options.showNotification) {
+            toast.warning('服务器连接失败，使用本地缓存的内容', { position: 'bottom-center' });
+          }
+          
+          // Default to "all" category if featuredCategories are available
+          if (localContent.featuredCategories?.length > 0) {
+            setActiveCategory('all');
+          }
+          
+          // Refresh question sets to apply new settings
+          setTimeout(() => {
+            fetchQuestionSets({ forceFresh: true });
+          }, 200);
+        }
       }
     } catch (error) {
       console.error('[HomePage] Error fetching home content:', error);
+      
+      // Use localStorage content as fallback if server fetch throws an error
+      if (localContent) {
+        console.log('[HomePage] Server error - using localStorage content as fallback');
+        setHomeContent(localContent);
+        
+        if (options.showNotification) {
+          toast.warning('服务器错误，使用本地缓存的内容', { position: 'bottom-center' });
+        }
+        
+        // Default to "all" category if featuredCategories are available
+        if (localContent.featuredCategories?.length > 0) {
+          setActiveCategory('all');
+        }
+        
+        // Refresh question sets to apply new settings
+        setTimeout(() => {
+          fetchQuestionSets({ forceFresh: true });
+        }, 200);
+      }
     } finally {
       // Release lock
       pendingFetchRef.current = false;
@@ -1801,14 +1936,29 @@ const HomePage: React.FC = () => {
     // Update visit timestamp
     localStorage.setItem('home_last_visit', Date.now().toString());
     
-    // IMPORTANT: Listen for custom event for home content updates
-    const handleCustomContentUpdate = (event: Event) => {
+    // IMPORTANT: Listen for custom event for home content updates with direct content passing
+    const handleCustomContentUpdate = (event: CustomEvent) => {
       // Check if this was triggered by admin - if so, handle it differently
       const isAdminTriggered = sessionStorage.getItem('adminTriggeredUpdate') === 'true';
       console.log(`[HomePage] Received homeContent:updated custom event${isAdminTriggered ? ' (admin triggered)' : ''}`);
       
-      if (isAdminTriggered) {
-        // If admin triggered, use a longer debounce and clear the trigger indication
+      // Extract event details including potential direct content
+      const detail = event.detail || {};
+      const source = detail.source || 'custom_event';
+      const fullContent = detail.fullContent;
+      
+      console.log(`[HomePage] Custom event details: source=${source}, hasFullContent=${!!fullContent}`);
+      
+      // If we have full content directly from the event, use that
+      if (fullContent) {
+        console.log('[HomePage] Event contains full content, using directly');
+        fetchLatestHomeContent({ 
+          source, 
+          showNotification: true,
+          fullContent
+        });
+      } else if (isAdminTriggered) {
+        // If admin triggered but no content, use a longer debounce and clear the trigger indication
         setTimeout(() => {
           console.log('[HomePage] Processing delayed admin-triggered update');
           fetchLatestHomeContent({ source: 'admin_event', showNotification: true });
@@ -1819,10 +1969,11 @@ const HomePage: React.FC = () => {
       }
     };
     
-    window.addEventListener('homeContent:updated', handleCustomContentUpdate);
+    // Add event listener with type assertion
+    window.addEventListener('homeContent:updated', handleCustomContentUpdate as EventListener);
     
     return () => {
-      window.removeEventListener('homeContent:updated', handleCustomContentUpdate);
+      window.removeEventListener('homeContent:updated', handleCustomContentUpdate as EventListener);
     };
   }, [fetchLatestHomeContent]);
 
