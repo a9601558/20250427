@@ -1648,22 +1648,142 @@ const HomePage: React.FC = () => {
     loadHomeContent();
   }, []); // 移除依赖，使其只在组件挂载时执行一次
 
-  // 添加简化的可见性监听，仅在长时间不可见后恢复可见时刷新
+  // 添加setupRenderEffects逻辑
+  useEffect(() => {
+    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0 && questionSets.length > 0) {
+      console.log('[HomePage] 处理精选分类');
+      
+      // 将精选分类与题库分类进行比较
+      const categoriesInSets = Array.from(new Set(questionSets.map(s => s.category)));
+      
+      // 找出匹配的分类
+      const matchingCategories = homeContent.featuredCategories.filter(c => 
+        categoriesInSets.includes(c)
+      );
+      
+      if (matchingCategories.length > 0) {
+        console.log('[HomePage] 匹配的精选分类:', matchingCategories);
+        
+        // 如果有匹配的分类，确保题库列表已更新
+        const refreshTimer = setTimeout(() => {
+          if (!pendingFetchRef.current) {
+            fetchQuestionSets({ forceFresh: false });
+          }
+        }, 500);
+        
+        return () => clearTimeout(refreshTimer);
+      }
+    }
+  }, [homeContent.featuredCategories, questionSets, pendingFetchRef, fetchQuestionSets]);
+  
+  // 关键的 homeContent:updated 事件处理器 - 最重要的部分
+  useEffect(() => {
+    const handleHomeContentUpdate = (event: Event) => {
+      console.log('[HomePage] 接收到homeContent:updated事件', event);
+      
+      // 防止多个组件同时更新
+      if (pendingFetchRef.current) {
+        console.log('[HomePage] 已有请求正在处理，跳过此次更新');
+        return;
+      }
+      
+      // 直接获取最新内容
+      (async () => {
+        try {
+          pendingFetchRef.current = true;
+          console.log('[HomePage] 正在获取最新首页内容');
+          
+          const response = await homepageService.getHomeContent();
+          if (response.success && response.data) {
+            console.log('[HomePage] 成功获取最新首页内容:', response.data);
+            
+            // 更新首页内容状态
+            setHomeContent(response.data);
+            setActiveCategory('all');
+            
+            // 刷新题库列表以应用新的分类
+            setTimeout(() => {
+              console.log('[HomePage] 刷新题库列表以应用新分类设置');
+              fetchQuestionSets({ forceFresh: true });
+              
+              // 显示成功通知
+              if (typeof toast?.success === 'function') {
+                toast.success('首页内容已更新', { position: 'bottom-center' });
+              }
+              
+              pendingFetchRef.current = false;
+            }, 200);
+          } else {
+            console.error('[HomePage] 获取最新首页内容失败:', response.message);
+            pendingFetchRef.current = false;
+          }
+        } catch (error) {
+          console.error('[HomePage] 更新首页内容时出错:', error);
+          pendingFetchRef.current = false;
+        }
+      })();
+    };
+    
+    // 添加事件监听器
+    window.addEventListener('homeContent:updated', handleHomeContentUpdate);
+    
+    // 清理函数
+    return () => {
+      window.removeEventListener('homeContent:updated', handleHomeContentUpdate);
+    };
+  }, [fetchQuestionSets, pendingFetchRef, toast]);
+  
+  // 处理页面可见性变化
   useEffect(() => {
     let pageHiddenTime = 0;
+    let lastContentCheckTime = Date.now();
     
     const handleVisibilityChange = () => {
+      const now = Date.now();
+      
       if (document.visibilityState === 'hidden') {
-        pageHiddenTime = Date.now();
-      } else if (document.visibilityState === 'visible' && pageHiddenTime > 0) {
-        // 只有当页面隐藏超过5分钟后才刷新内容
-        const hiddenDuration = Date.now() - pageHiddenTime;
-        if (hiddenDuration > 5 * 60 * 1000) { // 5分钟
-          console.log('[HomePage] 页面恢复可见，隐藏时间超过5分钟，刷新内容');
+        pageHiddenTime = now;
+      } else if (document.visibilityState === 'visible') {
+        // 只有在页面隐藏至少1分钟后才检查更新
+        const hiddenDuration = now - pageHiddenTime;
+        const timeSinceLastCheck = now - lastContentCheckTime;
+        
+        if ((pageHiddenTime > 0 && hiddenDuration > 60000) || timeSinceLastCheck > 300000) {
+          console.log('[HomePage] 页面恢复可见，检查首页内容更新');
+          
           if (!pendingFetchRef.current) {
-            fetchQuestionSets({ forceFresh: true });
+            // 检查首页内容更新
+            (async () => {
+              try {
+                const response = await homepageService.getHomeContent();
+                if (response.success && response.data) {
+                  // 比较当前和最新的首页内容
+                  const currentContentJSON = JSON.stringify({
+                    featuredCategories: homeContent.featuredCategories,
+                    announcements: homeContent.announcements
+                  });
+                  
+                  const newContentJSON = JSON.stringify({
+                    featuredCategories: response.data.featuredCategories,
+                    announcements: response.data.announcements
+                  });
+                  
+                  if (currentContentJSON !== newContentJSON) {
+                    console.log('[HomePage] 检测到首页内容变更，应用更新');
+                    setHomeContent(response.data);
+                    fetchQuestionSets({ forceFresh: true });
+                  }
+                }
+              } catch (error) {
+                console.error('[HomePage] 检查首页内容更新失败:', error);
+              }
+              
+              // 更新最后检查时间
+              lastContentCheckTime = Date.now();
+            })();
           }
         }
+        
         pageHiddenTime = 0;
       }
     };
@@ -1673,64 +1793,7 @@ const HomePage: React.FC = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchQuestionSets, pendingFetchRef]);
-
-  // 添加到useEffect中
-  useEffect(() => {
-    setupRenderEffects();
-    
-    // 当精选分类变化时，重新获取题库列表 - 添加防抖和标记避免频繁刷新
-    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0 && questionSets.length > 0) {
-      console.log('[HomePage] 精选分类变化，重新应用分类到题库');
-      // 延迟执行避免连续多次刷新
-      const refreshTimer = setTimeout(() => {
-        // 添加标记以防止重复请求
-        if (!pendingFetchRef.current) {
-          fetchQuestionSets({ forceFresh: true });
-        }
-      }, 500); // 增加延迟时间
-      return () => clearTimeout(refreshTimer);
-    }
-  }, [setupRenderEffects, homeContent.featuredCategories, fetchQuestionSets, questionSets.length, pendingFetchRef]);
-  
-  // 简化的 homeContent:updated 事件处理器
-  useEffect(() => {
-    let isUpdating = false;
-    
-    const handleHomeContentUpdate = () => {
-      // 防止重复更新
-      if (isUpdating || pendingFetchRef.current) {
-        console.log('[HomePage] 已有更新正在进行，跳过');
-        return;
-      }
-      
-      isUpdating = true;
-      console.log('[HomePage] 接收到内容更新事件，刷新数据');
-      
-      // 重新加载首页内容
-      (async () => {
-        try {
-          const response = await homepageService.getHomeContent();
-          if (response.success && response.data) {
-            console.log('[HomePage] 首页内容已更新');
-            setHomeContent(response.data);
-            setActiveCategory('all'); // 重置分类过滤器
-          }
-        } catch (error) {
-          console.error('[HomePage] 更新内容失败:', error);
-        } finally {
-          isUpdating = false;
-        }
-      })();
-    };
-    
-    // 监听自定义事件
-    window.addEventListener('homeContent:updated', handleHomeContentUpdate);
-    
-    return () => {
-      window.removeEventListener('homeContent:updated', handleHomeContentUpdate);
-    };
-  }, [pendingFetchRef]);
+  }, [homeContent.featuredCategories, homeContent.announcements, fetchQuestionSets, pendingFetchRef]);
 
   if (loading) {
     return (
@@ -1820,36 +1883,48 @@ const HomePage: React.FC = () => {
                   </button>
                 )}
                 
-                <button
-                  onClick={() => {
-                    if (searchTerm.trim()) {
-                      document.getElementById('question-sets-section')?.scrollIntoView({ 
-                        behavior: 'smooth',
-                        block: 'start'
-                      });
-                    } else {
-                      handleStartQuiz(questionSets[0] || recommendedSets[0]);
-                    }
-                  }}
-                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors duration-300 flex items-center"
-                >
-                  {searchTerm.trim() ? (
-                    <>
-                      <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      搜索
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      开始学习
-                    </>
-                  )}
-                </button>
+                <div className="flex">
+                  <button
+                    onClick={() => {
+                      if (searchTerm.trim()) {
+                        document.getElementById('question-sets-section')?.scrollIntoView({ 
+                          behavior: 'smooth',
+                          block: 'start'
+                        });
+                      } else {
+                        handleStartQuiz(questionSets[0] || recommendedSets[0]);
+                      }
+                    }}
+                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors duration-300 flex items-center"
+                  >
+                    {searchTerm.trim() ? (
+                      <>
+                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        搜索
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        开始学习
+                      </>
+                    )}
+                  </button>
+                  
+                  <Link 
+                    to="/question-sets-search"
+                    className="ml-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-xl transition-colors duration-300 flex items-center"
+                  >
+                    <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                    所有题库
+                  </Link>
+                </div>
               </div>
             </div>
             

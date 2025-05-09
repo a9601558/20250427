@@ -15,6 +15,7 @@ import { ToastContainer } from 'react-toastify';
 import { UserProgressProvider } from './contexts/UserProgressContext';
 import { isTokenExpired, performAutoLogin } from './utils/authUtils';
 import { toast } from 'react-toastify';
+import QuestionSetSearchPage from './components/QuestionSetSearchPage';
 
 // 创建一个内部组件处理认证逻辑
 const AuthManager: React.FC = () => {
@@ -90,6 +91,7 @@ const App: React.FC = () => {
                 } />
                 <Route path="/quiz/:questionSetId" element={<QuizPage />} />
                 <Route path="/payment/:id" element={<Navigate to="/" replace />} />
+                <Route path="/question-sets-search" element={<QuestionSetSearchPage />} />
               </Routes>
             </Layout>
           </Router>
