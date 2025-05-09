@@ -1332,47 +1332,8 @@ const HomePage: React.FC = () => {
     socket.on('user:deviceSync', handleDeviceSync);
     socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
     
-    // 添加首页内容更新事件监听
-    socket.on('admin:homeContent:updated', (data) => {
-      console.log('[HomePage] 接收到管理员首页内容更新事件:', data);
-      
-      // 检查缓存状态，避免重复更新
-      if (pendingFetchRef.current) {
-        console.log('[HomePage] 已有请求正在处理，将在完成后检查更新');
-        return;
-      }
-      
-      // 获取最新首页内容
-      (async () => {
-        try {
-          console.log('[HomePage] 通过socket通知获取最新首页内容');
-          
-          // 添加时间戳以避免缓存
-          const response = await homepageService.getHomeContent({ 
-            _timestamp: Date.now() 
-          });
-          
-          if (response.success && response.data) {
-            console.log('[HomePage] 通过socket通知获取的最新首页内容:', response.data);
-            
-            // 更新首页内容状态
-            setHomeContent(response.data);
-            setActiveCategory('all');
-            
-            // 刷新题库列表以应用新的分类
-            fetchQuestionSets({ forceFresh: true });
-            
-            // 显示轻量级通知
-            toast.info('首页内容已更新', { 
-              position: 'bottom-right',
-              autoClose: 3000
-            });
-          }
-        } catch (error) {
-          console.error('[HomePage] 通过socket更新首页内容时出错:', error);
-        }
-      })();
-    });
+    // 修改首页内容更新事件监听
+    socket.on('admin:homeContent:updated', handleHomeContentUpdated);
     
     // 发送状态同步请求，确保服务器知道此连接是谁的
     socket.emit('user:identify', {
@@ -1671,7 +1632,7 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const loadHomeContent = async () => {
       try {
-        console.log('[HomePage] 加载首页内容');
+        console.log('[HomePage] 加载首页内容，添加时间戳防止缓存');
         // 添加时间戳参数防止缓存
         const response = await homepageService.getHomeContent({
           _t: Date.now()
@@ -1766,9 +1727,9 @@ const HomePage: React.FC = () => {
     return () => {
       window.removeEventListener('homeContent:updated', handleHomeContentUpdate);
     };
-  }, [fetchQuestionSets, pendingFetchRef, toast]);
+  }, [fetchQuestionSets, pendingFetchRef]);
 
-  // 检测首页内容是否有更新
+  // 检测首页内容是否有更新 - 页面加载时检查
   useEffect(() => {
     // 检查localStorage中是否有更新标记
     const lastUpdate = localStorage.getItem('home_content_updated');
@@ -1780,14 +1741,19 @@ const HomePage: React.FC = () => {
       // 直接获取最新内容
       (async () => {
         try {
+          // 强制跳过缓存
           const response = await homepageService.getHomeContent({ 
-            _timestamp: Date.now() 
+            _timestamp: Date.now(),
+            _nocache: true
           });
           
           if (response.success && response.data) {
             console.log('[HomePage] 成功获取最新首页内容:', response.data);
             setHomeContent(response.data);
             setActiveCategory('all'); // 确保切换到"全部"分类以显示内容
+            
+            // 强制刷新题库列表
+            fetchQuestionSets({ forceFresh: true });
           }
         } catch (error) {
           console.error('[HomePage] 检查首页内容更新失败:', error);
@@ -1797,26 +1763,132 @@ const HomePage: React.FC = () => {
     
     // 更新访问时间
     localStorage.setItem('home_last_visit', Date.now().toString());
-  }, []); // 仅在组件挂载时执行一次
+  }, [fetchQuestionSets]); // 添加fetchQuestionSets依赖
 
+  // 在组件顶部添加更新通知状态
+  const [showUpdateNotification, setShowUpdateNotification] = useState<boolean>(false);
+  const [notificationMessage, setNotificationMessage] = useState<string>('');
+  const notificationTimeoutRef = useRef<any>(null);
+
+  // 修改Socket事件处理程序以显示通知
+  const handleHomeContentUpdated = (data: any) => {
+    console.log('[HomePage] 接收到管理员首页内容更新事件:', data);
+    
+    // 根据更新类型设置通知消息
+    if (data.type === 'featuredCategories') {
+      if (data.action === 'added') {
+        setNotificationMessage(`新增分类: ${data.category}`);
+      } else if (data.action === 'deleted') {
+        setNotificationMessage(`分类已删除: ${data.category}`);
+      } else if (data.action === 'updated') {
+        setNotificationMessage(`分类已更新: ${data.oldCategory} → ${data.category}`);
+      } else {
+        setNotificationMessage('分类已更新');
+      }
+    } else if (data.type === 'featuredQuestionSet') {
+      setNotificationMessage(`题库 "${data.title}" 已更新`);
+    } else {
+      setNotificationMessage('首页内容已更新');
+    }
+    
+    // 显示通知
+    setShowUpdateNotification(true);
+    
+    // 清除之前的定时器
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    
+    // 设置5秒后自动关闭
+    notificationTimeoutRef.current = setTimeout(() => {
+      setShowUpdateNotification(false);
+    }, 5000);
+    
+    // 防止多个组件同时更新
+    if (pendingFetchRef.current) {
+      console.log('[HomePage] 已有请求正在处理，跳过此次更新');
+      return;
+    }
+    
+    // 直接获取最新内容
+    (async () => {
+      try {
+        pendingFetchRef.current = true;
+        console.log('[HomePage] 正在获取最新首页内容');
+        
+        // 添加时间戳参数以避免缓存
+        const response = await homepageService.getHomeContent({ 
+          _timestamp: Date.now() 
+        });
+        
+        if (response.success && response.data) {
+          console.log('[HomePage] 成功获取最新首页内容:', response.data);
+          
+          // 更新首页内容状态
+          setHomeContent(response.data);
+          setActiveCategory('all');
+          
+          // 刷新题库列表以应用新的分类
+          setTimeout(() => {
+            console.log('[HomePage] 刷新题库列表以应用新分类设置');
+            fetchQuestionSets({ forceFresh: true });
+            
+            // 显示成功通知
+            if (typeof toast?.success === 'function') {
+              toast.success('首页内容已更新', { position: 'bottom-center' });
+            }
+            
+            pendingFetchRef.current = false;
+          }, 200);
+        } else {
+          console.error('[HomePage] 获取最新首页内容失败:', response.message);
+          pendingFetchRef.current = false;
+        }
+      } catch (error) {
+        console.error('[HomePage] 更新首页内容时出错:', error);
+        pendingFetchRef.current = false;
+      }
+    })();
+  };
+
+  // 修复加载状态检查
   if (loading) {
     return (
-      <div className="flex items-center justify-center pt-32 pb-20"> {/* 移除min-h-screen，添加合适的padding */}
+      <div className="flex items-center justify-center pt-32 pb-20">
         <div className="text-xl">正在加载...</div>
       </div>
     );
   }
 
+  // 在页面内容的顶部添加一个条件渲染的通知栏
   return (
     <div className={bgClass}>
+      {/* 更新通知 */}
+      {showUpdateNotification && (
+        <div className="fixed top-20 right-4 z-50 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>{notificationMessage}</span>
+          <button 
+            onClick={() => setShowUpdateNotification(false)} 
+            className="ml-3 text-indigo-200 hover:text-white focus:outline-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* 错误信息展示 */}
       {errorMessage && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 mx-4 sm:mx-auto sm:max-w-4xl" role="alert">
           <strong className="font-bold mr-1">错误:</strong>
           <span className="block sm:inline">{errorMessage}</span>
           <button 
-            className="absolute top-0 bottom-0 right-0 px-4 py-3"
             onClick={() => setErrorMessage(null)}
+            className="absolute top-0 bottom-0 right-0 px-4 py-3"
           >
             <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
