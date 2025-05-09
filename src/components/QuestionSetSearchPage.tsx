@@ -4,6 +4,7 @@ import { useUser } from '../contexts/UserContext';
 import { homepageService, questionSetService } from '../services/api';
 import apiClient from '../utils/api-client';
 import { toast } from 'react-toastify';
+import { questionService } from '../services/api';
 
 // 复用HomePage.tsx中的类型定义
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -65,23 +66,54 @@ const QuestionSetSearchPage: React.FC = () => {
           // 确保createdAt和updatedAt是有效的日期格式
           createdAt: set.createdAt || new Date().toISOString(),
           updatedAt: set.updatedAt || new Date().toISOString(),
-          // 确保questionCount存在 - 此处questionSetService应已处理
-          questionCount: typeof set.questionCount === 'number' ? set.questionCount : 0
         }));
         
-        console.log('已获取题库列表，包含题目数量:', processedData.map(s => `${s.title}: ${s.questionCount}题`));
+        console.log('已获取题库列表，处理题目数量...');
         
-        setQuestionSets(processedData);
+        // 为每个题库获取题目数量
+        const setsWithQuestionCounts = await Promise.all(
+          processedData.map(async (set) => {
+            try {
+              // 直接调用问题计数API
+              const response = await fetch(`/api/questions/count/${set.id}`);
+              if (!response.ok) {
+                console.error(`获取题库 "${set.title}" 题目数量失败: 状态码 ${response.status}`);
+                return {
+                  ...set,
+                  questionCount: 0
+                };
+              }
+              
+              const data = await response.json();
+              const count = data.count || 0;
+              console.log(`题库 "${set.title}" 题目数量: ${count}`);
+              
+              return {
+                ...set,
+                questionCount: count
+              };
+            } catch (error) {
+              console.error(`获取题库 "${set.title}" 题目数量失败:`, error);
+              return {
+                ...set,
+                questionCount: 0
+              };
+            }
+          })
+        );
+        
+        console.log('所有题库题目数量加载完成');
+        setQuestionSets(setsWithQuestionCounts);
         
         // 提取所有唯一分类
         const uniqueCategories: string[] = Array.from(
-          new Set(processedData.map((item: QuestionSet) => item.category))
+          new Set(setsWithQuestionCounts.map((item: QuestionSet) => item.category))
         ).sort();
         
         setCategories(uniqueCategories);
         
         // 初始化过滤结果
-        setFilteredSets(processedData);
+        setFilteredSets(setsWithQuestionCounts);
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
@@ -89,7 +121,7 @@ const QuestionSetSearchPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, []);
 
   // 获取首页内容（用于获取精选分类）
   const fetchHomeContent = useCallback(async () => {
@@ -303,8 +335,7 @@ const QuestionSetSearchPage: React.FC = () => {
                 <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="font-medium">{getQuestionCount(set)}</span>
-                <span className="ml-1">题</span>
+                <QuestionCountDisplay count={getQuestionCount(set)} />
               </div>
               <div className="flex items-center">
                 <svg className="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -360,10 +391,7 @@ const QuestionSetSearchPage: React.FC = () => {
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{set.category}</td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex items-center">
-                  <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">{getQuestionCount(set)}</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">题</span>
-                </div>
+                <QuestionCountDisplay count={getQuestionCount(set)} />
               </td>
               <td className="px-6 py-4 whitespace-nowrap">{getAccessLabel(set)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -383,6 +411,27 @@ const QuestionSetSearchPage: React.FC = () => {
       </table>
     </div>
   );
+
+  // 修改题目数量显示组件
+  const QuestionCountDisplay = ({ count }: { count: number }) => {
+    if (count > 0) {
+      return (
+        <div className="flex items-center">
+          <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">{count}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">题</span>
+        </div>
+      );
+    }
+    
+    // 当题目数量为0时显示提示
+    return (
+      <div className="flex items-center">
+        <span className="text-sm font-medium text-red-500 dark:text-red-400">0</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">题</span>
+        <span className="ml-1 text-xs text-red-500 dark:text-red-400">(数据未同步)</span>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16 pb-12">
@@ -551,7 +600,18 @@ const QuestionSetSearchPage: React.FC = () => {
             {filteredSets.length > 0 ? `找到 ${filteredSets.length} 个题库` : '题库列表'}
           </h2>
           <div className="flex space-x-2">
-            {/* 视图切换按钮已在上面的搜索区域 */}
+            <button
+              onClick={() => {
+                toast.info('正在刷新题库数据...');
+                fetchQuestionSets();
+              }}
+              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新题库数据
+            </button>
           </div>
         </div>
 

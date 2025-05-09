@@ -9,10 +9,12 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
 // 题目相关路由
 router.get('/', questionController_1.getQuestions);
+// 特殊路由放在通用路由前面
 router.get('/count/:questionSetId', questionController_1.getQuestionCount);
+router.get('/random/:questionSetId', questionController_1.getRandomQuestion);
+// 通用路由放在特殊路由后面
 router.get('/:id', questionController_1.getQuestionById);
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionController_1.createQuestion);
 router.put('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionController_1.updateQuestion);
 router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionController_1.deleteQuestion);
-router.get('/random/:questionSetId', questionController_1.getRandomQuestion);
 exports.default = router;

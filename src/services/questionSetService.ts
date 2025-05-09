@@ -121,7 +121,14 @@ export const questionSetService = {
   async getQuestionCount(questionSetId: string): Promise<number> {
     try {
       const response = await fetch(`/api/questions/count/${questionSetId}`);
+      if (!response.ok) {
+        console.error(`Error fetching question count: API returned ${response.status}`);
+        return 0;
+      }
+      
       const data = await response.json();
+      console.log(`Question count response for ${questionSetId}:`, data);
+      
       return data.count || 0;
     } catch (error) {
       console.error('Error getting question count:', error);

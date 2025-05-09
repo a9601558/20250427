@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SocketStatus from './SocketStatus';
 import LoginModal from './LoginModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
+import { homepageService } from '../services/api';
+import { HomeContent } from '../types';
+import { useSocket } from '../contexts/SocketContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +15,48 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const { user } = useUser();
+  const [footerText, setFooterText] = useState<string>("");
+  const { socket } = useSocket();
+  
+  // 获取页脚文本
+  const fetchFooterText = async () => {
+    try {
+      console.log('[Layout] 获取页脚文本');
+      const response = await homepageService.getHomeContent();
+      if (response.success && response.data) {
+        console.log('[Layout] 页脚文本获取成功:', response.data.footerText);
+        setFooterText(response.data.footerText);
+      }
+    } catch (error) {
+      console.error('[Layout] 获取页脚文本失败:', error);
+      // 设置默认页脚文本作为备用
+      setFooterText(`© ${new Date().getFullYear()} ExamTopics 在线题库系统 保留所有权利`);
+    }
+  };
+  
+  useEffect(() => {
+    fetchFooterText();
+  }, []);
+  
+  // 监听Socket事件，当接收到管理员更新首页内容的事件时刷新页脚文本
+  useEffect(() => {
+    if (!socket) return;
+    
+    console.log('[Layout] 设置Socket事件监听，接收页脚文本更新');
+    
+    const handleHomeContentUpdated = () => {
+      console.log('[Layout] 接收到管理员首页内容更新事件，刷新页脚文本');
+      fetchFooterText();
+    };
+    
+    // 添加Socket监听
+    socket.on('admin:homeContent:updated', handleHomeContentUpdated);
+    
+    // 清理函数
+    return () => {
+      socket.off('admin:homeContent:updated', handleHomeContentUpdated);
+    };
+  }, [socket]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -45,9 +90,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <footer className="bg-white border-t border-gray-200 py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-gray-500 text-sm">
-            &copy; {new Date().getFullYear()} ExamTopics 模拟系统 | 使用 React 和 TailwindCSS 构建
-          </div>
+          <div className="text-center text-gray-500 text-sm" 
+               dangerouslySetInnerHTML={{ __html: footerText }} />
         </div>
       </footer>
 

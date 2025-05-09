@@ -7,6 +7,7 @@ import AdminRedeemCodes from './admin/AdminRedeemCodes';
 import AddQuestionSet from './AddQuestionSet';
 import ManageQuestionSets from './ManageQuestionSets';
 import AdminFeaturedManagement from './admin/AdminFeaturedManagement';
+import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -16,6 +17,7 @@ enum AdminTab {
   MANAGE_QUESTION_SETS = 'manageQuestionSets',
   FEATURED_MANAGEMENT = 'featuredManagement',
   HOME_CONTENT = 'homeContent',
+  QUESTION_SET_INFO = 'questionSetInfo',
 }
 
 const AdminPage: React.FC = () => {
@@ -93,6 +95,15 @@ const AdminPage: React.FC = () => {
                   管理题库
                 </button>
                 <button
+                  onClick={() => setActiveTab(AdminTab.QUESTION_SET_INFO)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.QUESTION_SET_INFO ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  题库信息管理
+                </button>
+                <button
                   onClick={() => setActiveTab(AdminTab.REDEEM_CODES)}
                   className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.REDEEM_CODES ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
@@ -131,6 +142,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.REDEEM_CODES && <AdminRedeemCodes />}
                 {activeTab === AdminTab.FEATURED_MANAGEMENT && <AdminFeaturedManagement />}
                 {activeTab === AdminTab.HOME_CONTENT && <AdminHomeContent />}
+                {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
               </div>
             </div>
           </div>
