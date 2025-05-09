@@ -31,6 +31,19 @@ const shouldUseFirebase = () => {
     console.log('[Firebase] Firebase disabled by local storage flag');
   }
   
+  // 检查是否在管理页面上
+  const isAdminPage = window.location.pathname.includes('/admin');
+  if (isAdminPage) {
+    console.log('[Firebase] Admin page detected - checking special settings');
+    
+    // 检查特定于管理页面的禁用标记
+    const adminDisableFirebase = localStorage.getItem('admin_disable_firebase') === 'true';
+    if (adminDisableFirebase) {
+      console.log('[Firebase] Firebase disabled specifically for admin pages');
+      return false;
+    }
+  }
+  
   return !disableFirebase;
 };
 
@@ -53,17 +66,55 @@ if (!shouldUseFirebase()) {
   
   const mockDb = {
     // 添加必要的模拟方法
-    collection: () => ({ get: () => Promise.resolve([]) }),
-    doc: () => ({ get: () => Promise.resolve({}) })
+    collection: () => ({ 
+      get: () => Promise.resolve([]),
+      add: () => Promise.resolve({ id: 'mock-id' }),
+      doc: () => ({
+        get: () => Promise.resolve({ exists: false, data: () => ({}) }),
+        set: () => Promise.resolve(),
+        update: () => Promise.resolve(),
+        delete: () => Promise.resolve()
+      })
+    }),
+    doc: () => ({ 
+      get: () => Promise.resolve({ exists: false, data: () => ({}) }),
+      set: () => Promise.resolve(),
+      update: () => Promise.resolve(),
+      delete: () => Promise.resolve(),
+      collection: () => ({
+        get: () => Promise.resolve([])
+      })
+    }),
+    runTransaction: (fn: any) => Promise.resolve(fn({ get: () => Promise.resolve({ exists: false, data: () => ({}) }) })),
+    batch: () => ({
+      set: () => ({}),
+      update: () => ({}),
+      delete: () => ({}),
+      commit: () => Promise.resolve()
+    })
   };
   
   const mockAuth = {
     currentUser: null,
-    onAuthStateChanged: (callback: any) => callback(null)
+    onAuthStateChanged: (callback: any) => {
+      callback(null);
+      return () => {};
+    },
+    signInWithEmailAndPassword: () => Promise.reject(new Error('Firebase is disabled')),
+    createUserWithEmailAndPassword: () => Promise.reject(new Error('Firebase is disabled')),
+    signOut: () => Promise.resolve()
   };
   
   const mockStorage = {
-    ref: () => ({})
+    ref: () => ({
+      put: () => Promise.resolve({
+        ref: {
+          getDownloadURL: () => Promise.resolve('https://mock-url.com/image.jpg')
+        }
+      }),
+      listAll: () => Promise.resolve({ items: [] }),
+      getDownloadURL: () => Promise.resolve('https://mock-url.com/image.jpg')
+    })
   };
   
   app = mockApp as any;
@@ -93,10 +144,80 @@ if (!shouldUseFirebase()) {
       auth = getAuth(app);
       storage = getStorage(app);
       
-      // 禁用 Firestore 持久化以减少不必要的网络请求
-      // enableIndexedDbPersistence(db).catch(err => {
-      //   console.log('[Firebase] Persistence could not be enabled:', err);
-      // });
+      // 特殊错误处理 - 监听网络错误
+      const isAdminPage = window.location.pathname.includes('/admin');
+      if (isAdminPage) {
+        console.log('[Firebase] Setting up enhanced error monitoring for admin page');
+        
+        // 设置网络请求拦截
+        const originalFetch = window.fetch;
+        window.fetch = async function(input, init) {
+          try {
+            if (typeof input === 'string' && (
+                input.includes('firestore.googleapis.com') || 
+                input.includes('examtopics-app') ||
+                input.includes('firebase')
+              )) {
+              console.log(`[Firebase] Admin fetch request to: ${input.substring(0, 100)}...`);
+            }
+            const response = await originalFetch(input, init);
+            
+            // 检查Firebase相关的请求是否失败
+            if (typeof input === 'string' && (
+                input.includes('firestore.googleapis.com') || 
+                input.includes('examtopics-app') ||
+                input.includes('firebase')
+              ) && !response.ok) {
+              console.error(`[Firebase] Admin fetch failed with status ${response.status}: ${input.substring(0, 100)}...`);
+              
+              // 记录错误到本地存储
+              try {
+                const errorCount = parseInt(localStorage.getItem('admin_firebase_error_count') || '0');
+                localStorage.setItem('admin_firebase_error_count', (errorCount + 1).toString());
+                
+                if (errorCount > 5) {
+                  console.error('[Firebase] Multiple Firebase errors detected in admin page, consider disabling');
+                  localStorage.setItem('admin_firebase_error', JSON.stringify({
+                    timestamp: Date.now(),
+                    url: input,
+                    status: response.status
+                  }));
+                }
+              } catch (e) {
+                // 忽略本地存储错误
+              }
+            }
+            return response;
+          } catch (error) {
+            console.error('[Firebase] Admin fetch interceptor caught error:', error);
+            
+            // 检查是否是Firebase相关请求
+            if (typeof input === 'string' && (
+                input.includes('firestore.googleapis.com') || 
+                input.includes('examtopics-app') ||
+                input.includes('firebase')
+              )) {
+              // 记录错误到本地存储
+              try {
+                const errorCount = parseInt(localStorage.getItem('admin_firebase_error_count') || '0');
+                localStorage.setItem('admin_firebase_error_count', (errorCount + 1).toString());
+                
+                if (errorCount > 5) {
+                  console.error('[Firebase] Multiple Firebase errors detected in admin page, consider disabling');
+                  localStorage.setItem('admin_firebase_error', JSON.stringify({
+                    timestamp: Date.now(),
+                    url: typeof input === 'string' ? input : 'unknown',
+                    error: error instanceof Error ? error.message : String(error)
+                  }));
+                }
+              } catch (e) {
+                // 忽略本地存储错误
+              }
+            }
+            throw error;
+          }
+        };
+      }
     } catch (serviceError) {
       console.error('[Firebase] Error initializing Firebase services:', serviceError);
     }
@@ -130,7 +251,16 @@ if (!shouldUseFirebase()) {
 export const disableFirebase = () => {
   try {
     localStorage.setItem('app_disable_firebase', 'true');
-    console.log('[Firebase] Firebase has been disabled for future sessions');
+    
+    // 检查是否在管理页面
+    const isAdminPage = window.location.pathname.includes('/admin');
+    if (isAdminPage) {
+      localStorage.setItem('admin_disable_firebase', 'true');
+      console.log('[Firebase] Firebase has been disabled for admin pages');
+    } else {
+      console.log('[Firebase] Firebase has been disabled for all pages');
+    }
+    
     return true;
   } catch (e) {
     console.error('[Firebase] Could not disable Firebase:', e);

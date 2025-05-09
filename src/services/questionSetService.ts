@@ -32,24 +32,61 @@ export const questionSetService = {
         const questionSetsWithCounts = await Promise.all(
           response.data.map(async (set) => {
             try {
-              // Directly use fetch to get the count to avoid circular imports
-              const countResponse = await fetch(`/api/questions/count/${set.id}`);
-              let count = 0;
+              // Use the dedicated method instead of direct fetch to ensure consistent handling
+              const count = await this.getQuestionCount(set.id);
               
-              if (countResponse.ok) {
-                const countData = await countResponse.json();
-                count = countData.count || 0;
-                console.log(`[QuestionSetService] Question count for ${set.id}: ${count}`);
+              // Log successful count fetching
+              if (count > 0) {
+                console.log(`[QuestionSetService] Successfully got count for "${set.title}": ${count}`);
+                return {
+                  ...set,
+                  questionCount: count
+                };
               } else {
-                console.error(`[QuestionSetService] Failed to get count for ${set.id}: ${countResponse.status}`);
+                console.warn(`[QuestionSetService] Zero count for "${set.title}", checking for embedded counts...`);
+                
+                // Check if the question set already has questions data that we can count
+                // Add more potential sources of question count data
+                const questionsCount = Array.isArray(set.questions) ? set.questions.length : 0;
+                const questionSetQuestionsCount = Array.isArray((set as any).questionSetQuestions) ? (set as any).questionSetQuestions.length : 0;
+                const existingCount = typeof set.questionCount === 'number' ? set.questionCount : 0;
+                
+                // Use the highest count value available
+                const bestCount = Math.max(questionsCount, questionSetQuestionsCount, existingCount);
+                
+                if (bestCount > 0) {
+                  console.log(`[QuestionSetService] Using embedded count for "${set.title}": ${bestCount}`);
+                  return {
+                    ...set,
+                    questionCount: bestCount
+                  };
+                }
+                
+                // If we still have no count, use 0 but log a warning
+                console.warn(`[QuestionSetService] Unable to determine count for "${set.title}", using 0`);
+                return {
+                  ...set,
+                  questionCount: 0
+                };
+              }
+            } catch (countError) {
+              console.error(`[QuestionSetService] Error getting count for "${set.title}" (${set.id}):`, countError);
+              
+              // On error, still try to use embedded counts if available
+              const questionsCount = Array.isArray(set.questions) ? set.questions.length : 0;
+              const questionSetQuestionsCount = Array.isArray((set as any).questionSetQuestions) ? (set as any).questionSetQuestions.length : 0;
+              const existingCount = typeof set.questionCount === 'number' ? set.questionCount : 0;
+              
+              const fallbackCount = Math.max(questionsCount, questionSetQuestionsCount, existingCount);
+              if (fallbackCount > 0) {
+                console.log(`[QuestionSetService] Using fallback count for "${set.title}": ${fallbackCount}`);
+                return {
+                  ...set,
+                  questionCount: fallbackCount
+                };
               }
               
-              return {
-                ...set,
-                questionCount: count
-              };
-            } catch (countError) {
-              console.error(`[QuestionSetService] Error getting count for ${set.id}:`, countError);
+              // Return the set with a count of 0 in case of error
               return {
                 ...set,
                 questionCount: 0
@@ -134,16 +171,26 @@ export const questionSetService = {
   // Update the question count for a question set
   async updateQuestionCount(questionSetId: string): Promise<ApiResponse<QuestionSet>> {
     try {
-      const response = await fetch(`/api/question-sets/${questionSetId}/count`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      // Using the existing GET endpoint instead of PUT to a non-existent endpoint
+      console.log(`[QuestionSetService] Updating question count for ${questionSetId}`);
       
-      const data = await response.json();
-      return data;
+      if (!questionSetId) {
+        console.error('[QuestionSetService] Invalid questionSetId provided to updateQuestionCount');
+        return { success: false, error: 'Invalid question set ID' };
+      }
+      
+      // Use the existing getQuestionCount method which calls the correct endpoint
+      const count = await this.getQuestionCount(questionSetId);
+      
+      console.log(`[QuestionSetService] Successfully retrieved count for ${questionSetId}: ${count}`);
+      
+      return {
+        success: true,
+        data: { questionCount: count } as any, // Cast as any for compatibility
+        message: `Updated question count: ${count}`
+      };
     } catch (error) {
+      console.error(`[QuestionSetService] Error updating question count for ${questionSetId}:`, error);
       return { success: false, error: (error as Error).message };
     }
   },
@@ -169,19 +216,20 @@ export const questionSetService = {
       const data = await response.json();
       console.log(`[QuestionSetService] Question count response for ${questionSetId}:`, data);
       
-      // Ensure we're handling all possible response formats
-      if (data.success && typeof data.count === 'number') {
+      // Handle different response formats to ensure we extract the count
+      if (data && typeof data.count === 'number') {
         return data.count;
-      } else if (typeof data.count === 'number') {
-        return data.count;
-      } else if (data.data && typeof data.data.count === 'number') {
+      } else if (data && data.data && typeof data.data.count === 'number') {
         return data.data.count;
+      } else if (data && typeof data.data === 'number') {
+        return data.data;
       }
       
-      console.warn(`[QuestionSetService] Could not find count in API response:`, data);
+      // Log if we couldn't find the count
+      console.warn(`[QuestionSetService] Could not find count in response for ${questionSetId}:`, data);
       return 0;
     } catch (error) {
-      console.error('[QuestionSetService] Error getting question count:', error);
+      console.error(`[QuestionSetService] Error getting question count for ${questionSetId}:`, error);
       return 0;
     }
   },
@@ -253,9 +301,15 @@ export const questionSetService = {
       }
       
       // Update the question count after adding questions
-      this.updateQuestionCount(questionSetId).catch(err => 
-        console.error(`Failed to update question count for ${questionSetId}:`, err)
-      );
+      try {
+        console.log(`[QuestionSetService] Refreshing question count for set ${questionSetId}`);
+        await this.updateQuestionCount(questionSetId);
+        console.log(`[QuestionSetService] Successfully refreshed question count for set ${questionSetId}`);
+      } catch (countError) {
+        // Log the error but don't fail the entire operation
+        console.error(`[QuestionSetService] Failed to update question count for ${questionSetId}:`, countError);
+        // We'll continue despite this error
+      }
       
       return {
         success: true,
@@ -271,6 +325,38 @@ export const questionSetService = {
       return { success: false, error: (error as Error).message };
     }
   }
+};
+
+// Add a specialized function for refreshing question counts
+export const refreshQuestionCounts = async (questionSets: QuestionSet[]): Promise<QuestionSet[]> => {
+  console.log(`[QuestionSetService] Refreshing counts for ${questionSets.length} question sets`);
+  
+  const results = await Promise.all(
+    questionSets.map(async (set) => {
+      try {
+        // Skip refresh for sets without an ID
+        if (!set.id) {
+          console.warn('[QuestionSetService] Skipping count refresh for question set with no ID');
+          return set;
+        }
+        
+        const count = await questionSetService.getQuestionCount(set.id);
+        console.log(`[QuestionSetService] Refreshed count for "${set.title}": ${count}`);
+        
+        return {
+          ...set,
+          questionCount: count
+        };
+      } catch (error) {
+        console.error(`[QuestionSetService] Error refreshing count for "${set.title}":`, error);
+        // Keep the existing count if there was an error
+        return set;
+      }
+    })
+  );
+  
+  console.log(`[QuestionSetService] Successfully refreshed ${results.length} question set counts`);
+  return results;
 };
 
 export default questionSetService; 

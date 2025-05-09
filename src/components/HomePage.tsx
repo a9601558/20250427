@@ -181,20 +181,26 @@ const HomePage: React.FC = () => {
         questionSetQuestions: set.questionSetQuestions?.length
       });
       
-      // Check for valid questionCount property
+      // Priority 1: Check for valid questionCount property - most reliable source
       if (typeof set.questionCount === 'number' && set.questionCount > 0) {
+        console.log(`[HomePage] Using questionCount property for ${set.title}: ${set.questionCount}`);
         return set.questionCount;
       }
       
-      // Check for questions array
+      // Priority 2: Check for questions array
       if (Array.isArray(set.questions) && set.questions.length > 0) {
+        console.log(`[HomePage] Using questions array length for ${set.title}: ${set.questions.length}`);
         return set.questions.length;
       }
       
-      // Check for questionSetQuestions array
+      // Priority 3: Check for questionSetQuestions array
       if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
+        console.log(`[HomePage] Using questionSetQuestions array length for ${set.title}: ${set.questionSetQuestions.length}`);
         return set.questionSetQuestions.length;
       }
+      
+      // Debug: If we get here, count is 0 - log more details for troubleshooting
+      console.warn(`[HomePage] No question count data available for ${set.title} (${set.id})`);
       
       // Default fallback
       return 0;
@@ -794,6 +800,21 @@ const HomePage: React.FC = () => {
           const setId = String(set.id).trim();
           const isPaid = set.isPaid === true;
           
+          // 处理问题数量，确保正确填充
+          let questionCount = set.questionCount || 0;
+          
+          // 如果后端没有提供问题数量，尝试从questions数组长度计算
+          if (questionCount === 0 && Array.isArray(set.questions) && set.questions.length > 0) {
+            questionCount = set.questions.length;
+            console.log(`[HomePage] Using questions array length for count: ${set.title} - ${questionCount}`);
+          }
+          
+          // 如果仍然为0，尝试从questionSetQuestions长度计算
+          if (questionCount === 0 && Array.isArray((set as any).questionSetQuestions) && (set as any).questionSetQuestions.length > 0) {
+            questionCount = (set as any).questionSetQuestions.length;
+            console.log(`[HomePage] Using questionSetQuestions array length for count: ${set.title} - ${questionCount}`);
+          }
+          
           // 默认为试用状态
           let accessType: AccessType = 'trial';
           let hasAccess = !isPaid; // 免费题库自动有访问权限
@@ -902,7 +923,8 @@ const HomePage: React.FC = () => {
             accessType,
             remainingDays,
             validityPeriod,
-            featuredCategory // 添加featuredCategory属性
+            featuredCategory, // 添加featuredCategory属性
+            questionCount // 确保问题数量被正确传递
           };
         });
         
@@ -2421,6 +2443,90 @@ const HomePage: React.FC = () => {
     };
   }, [fetchLatestHomeContent, setActiveCategory]);
 
+  // 添加一个专门用于刷新问题数量的函数
+  const refreshQuestionCounts = useCallback(async () => {
+    console.log('[HomePage] Refreshing question counts for all question sets...');
+    
+    if (questionSets.length === 0) {
+      console.log('[HomePage] No question sets to refresh counts for');
+      return;
+    }
+    
+    try {
+      // 创建一个新的题库集合的副本
+      const updatedSets = [...questionSets];
+      let updatedCount = 0;
+      
+      // 为每个题库获取最新的问题数量
+      for (let i = 0; i < updatedSets.length; i++) {
+        const set = updatedSets[i];
+        
+        // 检查是否已经有有效的问题数量
+        if (typeof set.questionCount === 'number' && set.questionCount > 0) {
+          continue; // 跳过已有有效数量的题库
+        }
+        
+        try {
+          // 从API获取最新数量
+          const countResponse = await fetch(`/api/questions/count/${set.id}`);
+          
+          if (countResponse.ok) {
+            const countData = await countResponse.json();
+            const count = countData.count || (countData.data && countData.data.count) || 0;
+            
+            if (count > 0) {
+              console.log(`[HomePage] Updated count for "${set.title}": ${count}`);
+              updatedSets[i] = { ...set, questionCount: count };
+              updatedCount++;
+            } else {
+              // 尝试从questions数组计算
+              const questionsCount = Array.isArray(set.questions) ? set.questions.length : 0;
+              const questionSetQuestionsCount = Array.isArray(set.questionSetQuestions) ? set.questionSetQuestions.length : 0;
+              
+              if (questionsCount > 0 || questionSetQuestionsCount > 0) {
+                const embeddedCount = Math.max(questionsCount, questionSetQuestionsCount);
+                console.log(`[HomePage] Using embedded count for "${set.title}": ${embeddedCount}`);
+                updatedSets[i] = { ...set, questionCount: embeddedCount };
+                updatedCount++;
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`[HomePage] Error refreshing count for ${set.title}:`, e);
+        }
+      }
+      
+      if (updatedCount > 0) {
+        console.log(`[HomePage] Updated question counts for ${updatedCount} question sets`);
+        setQuestionSets(updatedSets);
+      } else {
+        console.log('[HomePage] No question counts needed to be updated');
+      }
+    } catch (error) {
+      console.error('[HomePage] Error refreshing question counts:', error);
+    }
+  }, [questionSets]);
+
+  // 在组件挂载和题库列表更新后刷新问题数量
+  useEffect(() => {
+    if (questionSets.length > 0) {
+      const hasZeroCounts = questionSets.some(set => 
+        (typeof set.questionCount !== 'number' || set.questionCount === 0) && 
+        (!Array.isArray(set.questions) || set.questions.length === 0)
+      );
+      
+      if (hasZeroCounts) {
+        console.log('[HomePage] Detected question sets with zero counts, refreshing...');
+        // 设置一个短暂的延迟，避免与其他API请求冲突
+        const timeoutId = setTimeout(() => {
+          refreshQuestionCounts();
+        }, 1000);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [questionSets.length, refreshQuestionCounts]);
+
   // 修复加载状态检查
   if (loading) {
     return (
@@ -2699,6 +2805,18 @@ const HomePage: React.FC = () => {
                 </div>
             </button>
           ))}
+          
+          {/* 添加刷新题目数量按钮 */}
+          <button
+            onClick={refreshQuestionCounts}
+            className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 flex items-center"
+            title="刷新题目数量"
+          >
+            <svg className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            刷新题目数量
+          </button>
         </div>
 
         {/* 推荐题库区域 */}

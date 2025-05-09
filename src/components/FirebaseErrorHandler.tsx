@@ -8,6 +8,48 @@ const FirebaseErrorHandler: React.FC = () => {
   const [hasFirebaseError, setHasFirebaseError] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
   const [showBanner, setShowBanner] = useState(false);
+  const [isAdminPage, setIsAdminPage] = useState(false);
+
+  // 检查是否是管理页面
+  useEffect(() => {
+    const checkIfAdmin = () => {
+      const isAdmin = window.location.pathname.includes('/admin');
+      setIsAdminPage(isAdmin);
+      
+      // 如果是管理页面，检查特定的错误标记
+      if (isAdmin) {
+        try {
+          const adminErrorData = localStorage.getItem('admin_firebase_error');
+          if (adminErrorData) {
+            const errorInfo = JSON.parse(adminErrorData);
+            // 只显示最近6小时的错误
+            if (Date.now() - errorInfo.timestamp < 6 * 60 * 60 * 1000) {
+              console.log('[FirebaseErrorHandler] Admin page with recent Firebase error detected');
+              setHasFirebaseError(true);
+              
+              // 获取错误计数
+              const errorCount = parseInt(localStorage.getItem('admin_firebase_error_count') || '0');
+              setErrorCount(errorCount);
+            }
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+    };
+    
+    checkIfAdmin();
+    
+    // 添加路由变化监听
+    const handleRouteChange = () => {
+      checkIfAdmin();
+    };
+    
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, []);
 
   // 检查控制台错误
   useEffect(() => {
@@ -36,6 +78,25 @@ const FirebaseErrorHandler: React.FC = () => {
         }
       }
       
+      // Check for question count update errors on admin pages
+      if (isAdminPage && (
+        errorText.includes('question-sets') ||
+        errorText.includes('count') ||
+        errorText.includes('404')
+      )) {
+        console.log('[FirebaseErrorHandler] Detected question-set related error in admin page');
+        
+        // Record specific error type for admin page
+        try {
+          localStorage.setItem('admin_question_count_error', JSON.stringify({
+            timestamp: Date.now(),
+            error: errorText.substring(0, 200) // Keep error message reasonably sized
+          }));
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
+      
       // 调用原始的 console.error
       originalError.apply(console, args);
     };
@@ -45,7 +106,8 @@ const FirebaseErrorHandler: React.FC = () => {
       if (
         event.message.includes('firebase') || 
         event.filename?.includes('firestore') || 
-        event.message.includes('examtopics-app')
+        event.message.includes('examtopics-app') ||
+        event.message.includes('googleapis.com')
       ) {
         setErrorCount(prev => prev + 1);
         if (errorCount > 2) {
@@ -58,12 +120,22 @@ const FirebaseErrorHandler: React.FC = () => {
     
     // 如果已经在本地存储中有 Firebase 错误记录，直接显示横幅
     try {
-      const storedError = localStorage.getItem('app_firebase_error');
+      // 根据当前页面类型选择合适的存储键
+      const storageKey = isAdminPage ? 'admin_firebase_error' : 'app_firebase_error';
+      const storedError = localStorage.getItem(storageKey);
+      
       if (storedError) {
         const errorData = JSON.parse(storedError);
-        // 只显示最近24小时的错误
-        if (Date.now() - errorData.timestamp < 24 * 60 * 60 * 1000) {
+        // 管理页面使用更短的过期时间（6小时），普通页面使用24小时
+        const expiryTime = isAdminPage ? 6 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+        
+        if (Date.now() - errorData.timestamp < expiryTime) {
           setHasFirebaseError(true);
+          
+          // 获取错误计数
+          const countKey = isAdminPage ? 'admin_firebase_error_count' : 'app_firebase_error_count';
+          const count = parseInt(localStorage.getItem(countKey) || '0');
+          setErrorCount(count);
         }
       }
     } catch (e) {
@@ -75,7 +147,7 @@ const FirebaseErrorHandler: React.FC = () => {
       console.error = originalError;
       window.removeEventListener('error', errorListener);
     };
-  }, [errorCount]);
+  }, [errorCount, isAdminPage]);
   
   // 显示错误横幅的延迟效果
   useEffect(() => {
@@ -92,13 +164,29 @@ const FirebaseErrorHandler: React.FC = () => {
   const handleDisableFirebase = () => {
     if (disableFirebase()) {
       // 显示成功消息
-      alert('Firebase 服务已被禁用。请刷新页面以应用更改。');
+      alert(`Firebase 服务已被禁用${isAdminPage ? '（管理页面）' : ''}。请刷新页面以应用更改。`);
       // 3秒后刷新页面
       setTimeout(() => {
         window.location.reload();
       }, 3000);
     } else {
       alert('无法禁用 Firebase 服务。请尝试清除浏览器缓存并重试。');
+    }
+  };
+  
+  // 处理忽略错误
+  const handleIgnore = () => {
+    setShowBanner(false);
+    
+    // 减少本地存储中的错误计数器
+    try {
+      const countKey = isAdminPage ? 'admin_firebase_error_count' : 'app_firebase_error_count';
+      const currentCount = parseInt(localStorage.getItem(countKey) || '0');
+      if (currentCount > 0) {
+        localStorage.setItem(countKey, (currentCount - 1).toString());
+      }
+    } catch (e) {
+      // 忽略存储错误
     }
   };
   
@@ -114,9 +202,19 @@ const FirebaseErrorHandler: React.FC = () => {
             </svg>
           </div>
           <div className="ml-3 w-0 flex-1 pt-0.5">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Firebase 连接错误</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              Firebase 连接错误 {isAdminPage ? '(管理页面)' : ''}
+            </p>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              应用程序遇到了与 Firebase 服务的连接问题。这可能会影响某些功能，但不会影响主要使用。
+              {isAdminPage 
+                ? '管理页面与 Firebase 服务连接异常，这可能会影响某些管理功能。您可以禁用 Firebase 以减少错误消息。'
+                : '应用程序遇到了与 Firebase 服务的连接问题。这可能会影响某些功能，但不会影响主要使用。'
+              }
+              {errorCount > 5 && (
+                <span className="block mt-1 text-red-500 dark:text-red-400">
+                  检测到多个错误 ({errorCount}次)，建议禁用 Firebase。
+                </span>
+              )}
             </p>
             <div className="mt-3 flex space-x-3">
               <button
@@ -126,7 +224,7 @@ const FirebaseErrorHandler: React.FC = () => {
                 禁用 Firebase
               </button>
               <button
-                onClick={() => setShowBanner(false)}
+                onClick={handleIgnore}
                 className="rounded-md bg-gray-100 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 忽略

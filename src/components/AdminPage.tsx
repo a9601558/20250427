@@ -11,6 +11,7 @@ import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 import AdminPurchasedSets from './admin/AdminPurchasedSets';
 import AdminBatchUpload from './admin/AdminBatchUpload';
 import AdminBatchQuestionUpload from './admin/AdminBatchQuestionUpload';
+import FirebaseErrorHandler from './FirebaseErrorHandler';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -184,6 +185,9 @@ const AdminPage: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Firebase错误处理器 */}
+      <FirebaseErrorHandler />
     </div>
   );
 };

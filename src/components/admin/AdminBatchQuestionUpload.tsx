@@ -155,10 +155,15 @@ const AdminBatchQuestionUpload: React.FC = () => {
           <div className="ml-3">
             <p className="text-sm font-medium">文件格式说明</p>
             <div className="mt-2 text-sm">
-              <p>支持 CSV 和 TXT 格式文件，每行一个问题，格式为：</p>
+              <p>支持 CSV 和 TXT 格式文件，每行一个问题，格式如下：</p>
               <p className="mt-1 font-mono text-xs bg-white p-2 rounded">问题文本|选项A|选项B|选项C|选项D|正确选项(A,B,C,D)|解析(可选)</p>
-              <p className="mt-1">选项之间使用英文竖线 | 分隔，多选题的正确答案用逗号分隔，如：A,B</p>
-              <p className="mt-1">示例：这是一个测试问题?|选项A|选项B|选项C|选项D|A|这是解析</p>
+              <p className="mt-1">选项之间使用英文竖线 | 分隔，正确答案使用英文字母表示，多选题用逗号分隔（如：A,B）</p>
+              <div className="mt-2 p-2 bg-white rounded">
+                <p className="font-bold text-xs">例如：</p>
+                <p className="mt-1 font-mono text-xs text-gray-800">中国的首都是?|北京|上海|广州|深圳|A|北京是中国的首都</p>
+                <p className="mt-1 font-mono text-xs text-gray-800">以下哪些是水果?|苹果|西瓜|萝卜|白菜|A,B|苹果和西瓜是水果</p>
+              </div>
+              <p className="mt-2 text-xs text-blue-800 font-bold">注意：每行必须包含至少一个问题、两个选项和一个正确答案！</p>
             </div>
           </div>
         </div>

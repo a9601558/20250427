@@ -183,9 +183,11 @@ export const getQuestionCount = async (req: Request, res: Response) => {
     const count = await Question.count({ where: { questionSetId: String(questionSetId) } });
     console.log(`[API] Question count for set ${questionSetId}: ${count}`);
     
+    // Ensure consistent response format
     return res.status(200).json({ 
       success: true, 
-      count,
+      count: count,
+      data: { count: count },
       message: `题库 ${questionSetId} 包含 ${count} 个问题`
     });
   } catch (error) {
@@ -258,11 +260,34 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
           continue;
         }
         
-        // 解析字段
+        // 解析字段 - 修复格式解析
         const questionText = fields[0];
-        const options = fields.slice(1, fields.length - 2);
-        const correctAnswers = fields[fields.length - 2].split(',').map((a: string) => a.trim().toUpperCase());
-        const explanation = fields[fields.length - 1] || '';
+        
+        // For your template format: question|option1|option2|option3|option4|correctAnswer|explanation
+        // The options are all fields between the question and the correct answer
+        const optionsEnd = fields.length - 2; // Correct answer is 2nd to last, explanation is last
+        const options = fields.slice(1, optionsEnd + 1); // +1 because slice excludes end index
+        
+        // Correct answer is the second-to-last field
+        const correctAnswers = fields[optionsEnd + 1].split(',').map((a: string) => a.trim().toUpperCase());
+        
+        // Validate correct answers format - must be valid letters corresponding to options
+        const validAnswers = correctAnswers.filter((answer: string) => {
+          const index = answer.charCodeAt(0) - 'A'.charCodeAt(0);
+          return index >= 0 && index < options.length;
+        });
+        
+        if (validAnswers.length === 0) {
+          failedCount++;
+          errors.push(`无效的正确答案 "${fields[optionsEnd + 1]}": ${line.substring(0, 50)}...`);
+          console.log(`[API] Invalid correct answers: "${fields[optionsEnd + 1]}" for question "${questionText.substring(0, 30)}..."`);
+          continue;
+        }
+        
+        // Explanation is the last field
+        const explanation = fields.length > optionsEnd + 2 ? fields[optionsEnd + 2] : '';
+        
+        console.log(`[API] Parsed question: "${questionText.substring(0, 30)}...", ${options.length} options, answers: ${correctAnswers}, explanation: ${explanation.substring(0, 20)}...`);
         
         if (options.length < 2) {
           failedCount++;
