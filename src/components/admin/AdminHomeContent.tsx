@@ -3,6 +3,7 @@ import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { homepageService } from '../../services/api';
 import { toast } from 'react-toastify';
+import { useSocket } from '../../contexts/SocketContext';
 
 // 首页内容接口
 interface HomeContent {
@@ -28,6 +29,7 @@ const defaultHomeContent: HomeContent = {
 
 const AdminHomeContent: React.FC = () => {
   const { isAdmin } = useUser();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
   const [loading, setLoading] = useState<boolean>(true);
@@ -112,12 +114,41 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
-          ...prev,
+        // 更新本地状态
+        const updatedHomeContent = {
+          ...homeContent,
           featuredCategories: updatedCategories
-        }));
+        };
+        
+        setHomeContent(updatedHomeContent);
         setNewCategory('');
         setMessage({ type: 'success', text: '分类添加成功' });
+        setHasUnsavedChanges(true);
+        
+        // 触发主页内容更新事件，确保首页获取最新分类
+        window.dispatchEvent(new CustomEvent('homeContent:updated', {
+          detail: {
+            timestamp: Date.now(),
+            source: 'admin',
+            categories: updatedCategories
+          }
+        }));
+        
+        // 设置本地存储标记
+        localStorage.setItem('home_content_updated', Date.now().toString());
+        
+        // 通过socket通知其他客户端
+        try {
+          if (socket) {
+            socket.emit('admin:homeContent:updated', {
+              timestamp: Date.now(),
+              source: 'admin',
+              categories: updatedCategories
+            });
+          }
+        } catch (socketErr) {
+          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
+        }
       } else {
         console.error('添加分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '添加分类失败' });
@@ -141,11 +172,40 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
-          ...prev,
+        // 更新本地状态
+        const updatedHomeContent = {
+          ...homeContent,
           featuredCategories: updatedCategories
-        }));
+        };
+        
+        setHomeContent(updatedHomeContent);
         setMessage({ type: 'success', text: '分类删除成功' });
+        setHasUnsavedChanges(true);
+        
+        // 触发主页内容更新事件，确保首页获取最新分类
+        window.dispatchEvent(new CustomEvent('homeContent:updated', {
+          detail: {
+            timestamp: Date.now(),
+            source: 'admin',
+            categories: updatedCategories
+          }
+        }));
+        
+        // 设置本地存储标记
+        localStorage.setItem('home_content_updated', Date.now().toString());
+        
+        // 通过socket通知其他客户端
+        try {
+          if (socket) {
+            socket.emit('admin:homeContent:updated', {
+              timestamp: Date.now(),
+              source: 'admin',
+              categories: updatedCategories
+            });
+          }
+        } catch (socketErr) {
+          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
+        }
       } else {
         console.error('删除分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '删除分类失败' });
@@ -176,13 +236,42 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
-          ...prev,
+        // 更新本地状态
+        const updatedHomeContent = {
+          ...homeContent,
           featuredCategories: updatedCategories
-        }));
+        };
+        
+        setHomeContent(updatedHomeContent);
         setMessage({ type: 'success', text: '分类更新成功' });
         setEditingCategoryIndex(null);
         setEditingCategoryValue('');
+        setHasUnsavedChanges(true);
+        
+        // 触发主页内容更新事件，确保首页获取最新分类
+        window.dispatchEvent(new CustomEvent('homeContent:updated', {
+          detail: {
+            timestamp: Date.now(),
+            source: 'admin',
+            categories: updatedCategories
+          }
+        }));
+        
+        // 设置本地存储标记
+        localStorage.setItem('home_content_updated', Date.now().toString());
+        
+        // 通过socket通知其他客户端
+        try {
+          if (socket) {
+            socket.emit('admin:homeContent:updated', {
+              timestamp: Date.now(),
+              source: 'admin',
+              categories: updatedCategories
+            });
+          }
+        } catch (socketErr) {
+          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
+        }
       } else {
         console.error('更新分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '更新分类失败' });
@@ -217,11 +306,40 @@ const AdminHomeContent: React.FC = () => {
       const response = await homepageService.updateFeaturedCategories(updatedCategories);
 
       if (response.success) {
-        setHomeContent(prev => ({
-          ...prev,
+        // 更新本地状态
+        const updatedHomeContent = {
+          ...homeContent,
           featuredCategories: updatedCategories
-        }));
+        };
+        
+        setHomeContent(updatedHomeContent);
         setMessage({ type: 'success', text: '分类顺序更新成功' });
+        setHasUnsavedChanges(true);
+        
+        // 触发主页内容更新事件，确保首页获取最新分类
+        window.dispatchEvent(new CustomEvent('homeContent:updated', {
+          detail: {
+            timestamp: Date.now(),
+            source: 'admin',
+            categories: updatedCategories
+          }
+        }));
+        
+        // 设置本地存储标记
+        localStorage.setItem('home_content_updated', Date.now().toString());
+        
+        // 通过socket通知其他客户端
+        try {
+          if (socket) {
+            socket.emit('admin:homeContent:updated', {
+              timestamp: Date.now(),
+              source: 'admin',
+              categories: updatedCategories
+            });
+          }
+        } catch (socketErr) {
+          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
+        }
       } else {
         console.error('更新分类顺序失败:', response.message);
         setMessage({ type: 'error', text: response.message || '更新分类顺序失败' });
@@ -248,7 +366,9 @@ const AdminHomeContent: React.FC = () => {
       if (response.success) {
         toast.success('首页内容已更新');
         
-        // Dispatch a custom event to notify other components (specifically HomePage) that content has been updated
+        // 使用多种方式通知更新，确保首页内容得到更新
+        
+        // 1. 通过自定义事件通知其他组件
         window.dispatchEvent(new CustomEvent('homeContent:updated', {
           detail: {
             timestamp: Date.now(),
@@ -256,6 +376,21 @@ const AdminHomeContent: React.FC = () => {
             categories: homeContent.featuredCategories
           }
         }));
+        
+        // 2. 使用localStorage设置一个更新标记和时间戳，帮助首页检测内容变更
+        localStorage.setItem('home_content_updated', Date.now().toString());
+        
+        // 3. 如果可能，通过socket通知所有打开的客户端
+        try {
+          if (socket) {
+            socket.emit('admin:homeContent:updated', {
+              timestamp: Date.now(),
+              source: 'admin'
+            });
+          }
+        } catch (socketErr) {
+          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
+        }
         
         console.log('[AdminHomeContent] Successfully updated home content, dispatched update event');
         

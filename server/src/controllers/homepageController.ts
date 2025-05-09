@@ -19,6 +19,12 @@ interface HomeContent {
  */
 export const getHomepageContent = async (req: Request, res: Response) => {
   try {
+    // 设置禁用缓存的HTTP响应头
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    
     // 获取存储在数据库中的首页配置
     const settings = await HomepageSettings.findByPk(1);
 

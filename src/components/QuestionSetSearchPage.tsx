@@ -60,15 +60,28 @@ const QuestionSetSearchPage: React.FC = () => {
       );
       
       if (response && response.success && response.data) {
-        const data = response.data as QuestionSet[];
-        setQuestionSets(data);
+        // 处理返回的数据，确保日期格式正确
+        const processedData = (response.data as QuestionSet[]).map((set: QuestionSet) => ({
+          ...set,
+          // 确保createdAt和updatedAt是有效的日期格式
+          createdAt: set.createdAt || new Date().toISOString(),
+          updatedAt: set.updatedAt || new Date().toISOString(),
+          // 确保questionCount存在
+          questionCount: typeof set.questionCount === 'number' ? set.questionCount : 
+                         (set.questionSetQuestions?.length || set.questions?.length || 0)
+        }));
+        
+        setQuestionSets(processedData);
         
         // 提取所有唯一分类
-        const uniqueCategories = Array.from(new Set(data.map(item => item.category))).sort();
+        const uniqueCategories: string[] = Array.from(
+          new Set(processedData.map((item: QuestionSet) => item.category))
+        ).sort();
+        
         setCategories(uniqueCategories);
         
         // 初始化过滤结果
-        setFilteredSets(data);
+        setFilteredSets(processedData);
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
@@ -180,16 +193,44 @@ const QuestionSetSearchPage: React.FC = () => {
 
   // 获取题目数量
   const getQuestionCount = (set: QuestionSet): number => {
+    // 直接使用questionCount属性 (如果存在且为数字)
     if (typeof set.questionCount === 'number' && set.questionCount > 0) {
       return set.questionCount;
     }
-    if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
+    
+    // 从questionSetQuestions数组计算数量
+    if (set.questionSetQuestions && Array.isArray(set.questionSetQuestions)) {
       return set.questionSetQuestions.length;
     }
-    if (Array.isArray(set.questions) && set.questions.length > 0) {
+    
+    // 从questions数组计算数量
+    if (set.questions && Array.isArray(set.questions)) {
       return set.questions.length;
     }
+    
+    // 默认返回0
     return 0;
+  };
+
+  // 添加日期格式化函数
+  const formatDate = (dateString: string | Date | undefined): string => {
+    if (!dateString) return '未知日期';
+    
+    try {
+      const date = new Date(dateString);
+      // 检查是否为有效日期
+      if (isNaN(date.getTime())) {
+        return '未知日期';
+      }
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      console.error('日期格式化错误:', error);
+      return '未知日期';
+    }
   };
 
   // 获取访问状态标签
@@ -294,7 +335,7 @@ const QuestionSetSearchPage: React.FC = () => {
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{getQuestionCount(set)}</td>
               <td className="px-6 py-4 whitespace-nowrap">{getAccessLabel(set)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                {new Date(set.updatedAt).toLocaleDateString()}
+                {formatDate(set.updatedAt)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button

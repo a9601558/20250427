@@ -902,9 +902,9 @@ export const redeemCodeService = {
 // 首页内容API服务
 export const homepageService = {
   // 获取首页内容
-  async getHomeContent(): Promise<ApiResponse<any>> {
+  async getHomeContent(params?: Record<string, any>): Promise<ApiResponse<any>> {
     try {
-      const response = await api.get('/homepage/content');
+      const response = await api.get('/homepage/content', params);
       return handleResponse<any>(response);
     } catch (error: any) {
       return {
