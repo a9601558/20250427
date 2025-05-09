@@ -3515,12 +3515,12 @@ function QuizPage(): JSX.Element {
                   : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
                 } focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2`}
             >
-              <div className="flex items-center">
+                  <div className="flex items-center">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
+                      </svg>
               购买完整版 ¥{questionSet.price || 0}
-              </div>
+                    </div>
             </button>
             <button
               onClick={(e) => {
@@ -3557,8 +3557,8 @@ function QuizPage(): JSX.Element {
               </svg>
               使用兑换码
             </button>
-          </div>
-        </div>
+                    </div>
+                  </div>
       </div>
     );
   };
@@ -3638,8 +3638,8 @@ function QuizPage(): JSX.Element {
               </svg>
               返回首页
             </button>
-            
-            <div className="flex items-center">
+                  
+                  <div className="flex items-center">
               <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg text-sm">
                 {questionSet?.title || '完成练习'}
               </div>
@@ -3741,7 +3741,7 @@ function QuizPage(): JSX.Element {
                     return (
                       <div key={index} className={`p-3 rounded-lg border ${answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                         <div className="flex justify-between items-start">
-                          <div className="flex items-center">
+                      <div className="flex items-center">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-2 ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
                               {answer.questionIndex + 1}
                             </div>
@@ -4028,8 +4028,8 @@ function QuizPage(): JSX.Element {
             {quizStatus.isTimerActive && (
               <div className="bg-blue-50 text-blue-800 px-3 py-1 rounded-lg text-sm flex items-center mr-2">
                 <svg className="w-4 h-4 mr-1 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                 {formatTime(quizTotalTime)}
               </div>
             )}

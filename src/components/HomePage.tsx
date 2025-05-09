@@ -19,6 +19,33 @@ import {
   triggerHomeContentUpdateEvent
 } from '../utils/homeContentUtils';
 
+// 添加自定义样式
+const customStyles = `
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-fadeIn {
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  .scale-102:hover {
+    transform: scale(1.02);
+  }
+`;
+
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
 
@@ -1684,7 +1711,7 @@ const HomePage: React.FC = () => {
         return;
       }
       
-      // Track request count within a timeframe to detect loops
+      // Enhanced request count tracking with time window resetting
       const requestCount = parseInt(sessionStorage.getItem('homeContentRequestCount') || '0');
       const requestCountResetTime = parseInt(sessionStorage.getItem('requestCountResetTime') || '0');
       
@@ -1705,8 +1732,18 @@ const HomePage: React.FC = () => {
           sessionStorage.removeItem('forceFullContentRefresh');
           sessionStorage.removeItem('adminTriggeredUpdate');
           localStorage.removeItem('home_content_force_reload');
+          // Force a wait period before allowing more fetches
+          const blockUntil = now + 10000; // Block for 10 seconds
+          sessionStorage.setItem('contentFetchBlocked', blockUntil.toString());
           return;
         }
+      }
+      
+      // Check if we're in a blocked period
+      const blockUntil = parseInt(sessionStorage.getItem('contentFetchBlocked') || '0');
+      if (blockUntil > now) {
+        console.log(`[HomePage] Content fetching blocked for ${(blockUntil - now)/1000} more seconds`);
+        return;
       }
     }
     
@@ -2010,6 +2047,19 @@ const HomePage: React.FC = () => {
     
     // IMPORTANT: Listen for custom event for home content updates with direct content passing
     const handleCustomContentUpdate = (event: CustomEvent) => {
+      // Add stronger protection against rapid successive events
+      const now = Date.now();
+      const lastEventTime = parseInt(sessionStorage.getItem('lastContentEvent') || '0');
+      
+      // If another event was handled less than 2 seconds ago, ignore this one
+      if (now - lastEventTime < 2000) {
+        console.log('[HomePage] Ignoring duplicate/rapid custom event');
+        return;
+      }
+      
+      // Record this event time
+      sessionStorage.setItem('lastContentEvent', now.toString());
+      
       // Check if this was triggered by admin - if so, handle it differently
       const isAdminTriggered = sessionStorage.getItem('adminTriggeredUpdate') === 'true';
       console.log(`[HomePage] Received homeContent:updated custom event${isAdminTriggered ? ' (admin triggered)' : ''}`);
@@ -2030,25 +2080,37 @@ const HomePage: React.FC = () => {
         } else {
           fullContent = rawFullContent as HomeContentData;
         }
-      }
-      
-      // If we have full content directly from the event, use that
-      if (fullContent) {
-        console.log('[HomePage] Event contains full content, using directly');
-        fetchLatestHomeContent({ 
-          source, 
-          showNotification: true,
-          fullContent
-        });
+        
+        // 如果有完整内容，直接更新状态而不是发起网络请求
+        console.log('[HomePage] Directly updating state with event content');
+        setHomeContent(fullContent);
+        
+        // 如果有特色分类，设置活动分类为"all"
+        if (fullContent.featuredCategories?.length > 0) {
+          setActiveCategory('all');
+        }
+        
+        // 刷新题库列表
+        setTimeout(() => {
+          fetchQuestionSets({ forceFresh: true });
+        }, 200);
+        
+        return;
       } else if (isAdminTriggered) {
         // If admin triggered but no content, use a longer debounce and clear the trigger indication
         setTimeout(() => {
           console.log('[HomePage] Processing delayed admin-triggered update');
           fetchLatestHomeContent({ source: 'admin_event', showNotification: true });
+          sessionStorage.removeItem('adminTriggeredUpdate');
         }, 2000); // Give time for backend to process changes
       } else {
-        // For all other sources, process normally
-        fetchLatestHomeContent({ source: 'custom_event', showNotification: true });
+        // For all other sources, add enhanced debouncing
+        const lastFetchTime = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
+        if (now - lastFetchTime > 5000) {
+          fetchLatestHomeContent({ source: 'custom_event', showNotification: true });
+        } else {
+          console.log(`[HomePage] Skipping duplicate content fetch (${now - lastFetchTime}ms since last fetch)`);
+        }
       }
     };
     
@@ -2058,7 +2120,7 @@ const HomePage: React.FC = () => {
     return () => {
       window.removeEventListener('homeContent:updated', handleCustomContentUpdate as EventListener);
     };
-  }, [fetchLatestHomeContent]);
+  }, [fetchLatestHomeContent, setHomeContent, fetchQuestionSets, setActiveCategory]);
 
   // Replace the old socket event handler with a proper implementation
   useEffect(() => {
@@ -2122,22 +2184,38 @@ const HomePage: React.FC = () => {
           processedContent = contentData as HomeContentData;
         }
         
-        // 触发一个自定义事件，传递完整内容
-        const updateEvent = new CustomEvent('homeContent:updated', {
-          detail: { 
-            source: 'socket_event',
-            fullContent: processedContent
-          }
-        });
+        // 直接使用内容更新状态，避免触发额外的fetch请求
+        console.log('[HomePage] Direct state update with content from socket event');
+        setHomeContent(processedContent);
         
-        window.dispatchEvent(updateEvent);
+        // 如果有特色分类，设置活动分类为"all"
+        if (processedContent.featuredCategories?.length > 0) {
+          setActiveCategory('all');
+        }
+        
+        // 在内容更新后刷新题库列表，使用延迟确保状态已更新
+        setTimeout(() => {
+          fetchQuestionSets({ forceFresh: true });
+        }, 200);
       } else {
-        // 没有完整内容数据，正常获取最新内容
-        fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
+        // 使用更强的防抖动机制避免过多请求
+        const now = Date.now();
+        const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
+        const timeSinceLastFetch = now - lastFetchTimestamp;
+        
+        // 只有在上次请求超过5秒后或明确要求时才获取新内容
+        if (timeSinceLastFetch > 5000 || data.force === true) {
+          // 使用延迟避免并发请求
+          setTimeout(() => {
+            fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
+          }, 1000);
+        } else {
+          console.log(`[HomePage] Skipping content fetch - too recent (${timeSinceLastFetch}ms ago)`);
+        }
       }
     };
     
-    // Listen for admin content updates
+    // Listen for admin content updates - ONLY register this handler, not both
     socket.on('admin:homeContent:updated', handleAdminHomeContentUpdated);
     
     return () => {
@@ -2148,8 +2226,8 @@ const HomePage: React.FC = () => {
         clearTimeout(notificationTimeoutRef.current);
       }
     };
-  }, [socket, fetchLatestHomeContent]);
-  
+  }, [socket, fetchLatestHomeContent, fetchQuestionSets, setActiveCategory]);
+
   // Make sure setupRenderEffects is actually used and has the right dependencies
   useEffect(() => {
     if (questionSets.length > 0 && homeContent.featuredCategories?.length > 0) {
@@ -2228,9 +2306,12 @@ const HomePage: React.FC = () => {
   // 在页面内容的顶部添加一个条件渲染的通知栏
   return (
     <div className={bgClass}>
+      {/* 添加自定义样式 */}
+      <style dangerouslySetInnerHTML={{ __html: customStyles }} />
+      
       {/* 更新通知 */}
       {showUpdateNotification && (
-        <div className="fixed top-20 right-4 z-50 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in flex items-center">
+        <div className="fixed top-20 right-4 z-50 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
@@ -2263,7 +2344,7 @@ const HomePage: React.FC = () => {
       )}
 
       {/* 高科技英雄区域 */}
-      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-10 overflow-hidden mt-8"> {/* 添加mt-8顶部间距 */}
+      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-10 overflow-hidden mt-8 rounded-3xl shadow-2xl"> {/* 添加圆角和阴影 */}
         {/* 科技背景元素 */}
         <div className="absolute inset-0 z-0">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-700/20 via-transparent to-transparent"></div>
@@ -2272,26 +2353,33 @@ const HomePage: React.FC = () => {
           
           {/* 科技网格 */}
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIHN0cm9rZT0iIzMzMzMzMyIgc3Ryb2tlLXdpZHRoPSIwLjIiPjxwYXRoIGQ9Ik0zMCAzMGgzMHYzMGgtMzB6Ii8+PHBhdGggZD0iTTMwIDMwaC0zMHYzMGgzMHoiLz48cGF0aCBkPSJNMzAgMzB2LTMwaDMwdjMweiIvPjxwYXRoIGQ9Ik0zMCAzMHYtMzBoLTMwdjMweiIvPjwvZz48L2c+PC9zdmc+')] opacity-10"></div>
+
+          {/* 添加动态飘浮元素 */}
+          <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-blue-300 rounded-full opacity-20 animate-float"></div>
+          <div className="absolute top-1/3 right-1/3 w-4 h-4 bg-purple-300 rounded-full opacity-20 animate-float" style={{animationDelay: '1s'}}></div>
+          <div className="absolute bottom-1/4 right-1/4 w-8 h-8 bg-indigo-300 rounded-full opacity-20 animate-float" style={{animationDelay: '2s'}}></div>
         </div>
 
         <div className="container mx-auto px-6 pt-20 pb-16 relative z-10">
           <div className="max-w-5xl mx-auto text-center">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-800/30 backdrop-blur-sm text-blue-300 text-sm font-medium mb-6 border border-indigo-700/50">
+            <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-800/30 backdrop-blur-sm text-blue-300 text-sm font-medium mb-6 border border-indigo-700/50 shadow-lg hover:shadow-indigo-900/20 transition-all duration-300 transform hover:-translate-y-1">
               <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
-              在线学习平台
+              <span className="mr-2">在线学习平台</span>
+              <span className="text-xs opacity-70">|</span>
+              <span className="ml-2 text-xs">实时更新</span>
             </div>
             
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight tracking-tight drop-shadow-lg">
               {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
             </h1>
             
-            <p className="text-xl text-blue-200 mb-10 max-w-3xl mx-auto">
+            <p className="text-xl text-blue-200 mb-10 max-w-3xl mx-auto leading-relaxed">
               {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
             </p>
             
             {/* 搜索栏 */}
-            <div className="relative w-full max-w-2xl mx-auto backdrop-blur-sm">
-              <div className="relative flex bg-white/10 rounded-2xl shadow-lg overflow-hidden p-1.5 border border-white/20 transition-all duration-300 focus-within:bg-white/20">
+            <div className="relative w-full max-w-2xl mx-auto backdrop-blur-sm transform transition-all duration-500 hover:scale-102">
+              <div className="relative flex bg-white/10 rounded-2xl shadow-lg overflow-hidden p-1.5 border border-white/20 transition-all duration-300 focus-within:bg-white/20 focus-within:border-white/30 focus-within:shadow-xl">
                 <input
                   type="text"
                   placeholder="搜索题库名称或分类..."
@@ -2336,7 +2424,7 @@ const HomePage: React.FC = () => {
                         handleStartQuiz(questionSets[0] || recommendedSets[0]);
                       }
                     }}
-                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors duration-300 flex items-center"
+                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                   >
                     {searchTerm.trim() ? (
                       <>
@@ -2358,7 +2446,7 @@ const HomePage: React.FC = () => {
                   
                   <Link 
                     to="/question-sets-search"
-                    className="ml-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-xl transition-colors duration-300 flex items-center"
+                    className="ml-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-xl transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                   >
                     <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -2370,13 +2458,17 @@ const HomePage: React.FC = () => {
             </div>
             
             {/* 键盘快捷键提示 */}
-            <div className="mt-6 text-blue-300/70 text-sm flex justify-center">
+            <div className="mt-6 text-blue-300/70 text-sm flex justify-center gap-4">
               <span className="flex items-center">
-                <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1">/</span>
+                <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1 border border-white/10 shadow-sm">
+                  <span className="opacity-80">/</span>
+                </span>
                 <span className="mr-4">搜索</span>
               </span>
               <span className="flex items-center">
-                <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1">Esc</span>
+                <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1 border border-white/10 shadow-sm">
+                  <span className="opacity-80">Esc</span>
+                </span>
                 <span>清除</span>
               </span>
             </div>
@@ -2394,82 +2486,140 @@ const HomePage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
         {/* 公告信息 - 改为更现代的卡片式设计 */}
         {homeContent.announcements && (
-          <div className="relative bg-white rounded-2xl p-6 shadow-xl mb-10 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300">
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl mb-10 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300 group">
             <div className="absolute -left-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
               <svg className="h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
               </svg>
             </div>
-            <p className="text-gray-700">
-              <span className="font-bold text-blue-600 mr-2">📢 公告:</span>
-              {homeContent.announcements}
-            </p>
+            <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
+            <div className="flex items-start">
+              <div className="ml-3 flex-1">
+                <div className="flex items-center mb-1">
+                  <h3 className="font-bold text-blue-600 dark:text-blue-400 text-lg mr-2">公告</h3>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {homeContent.announcements}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
         {/* 考试倒计时组件 */}
         <div className="mt-6 mx-auto max-w-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={`text-xl font-semibold ${homeContent.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>考试倒计时</h2>
-            <span className="text-sm text-gray-500">与个人中心同步</span>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-blue-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">考试倒计时</h2>
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                <svg className="w-4 h-4 mr-1 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                与个人中心同步
+              </span>
+            </div>
+            <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
           </div>
-          <ExamCountdownWidget theme={homeContent.theme === 'auto' || homeContent.theme === undefined ? 'light' : homeContent.theme} />
         </div>
 
         {/* 分类选择器 - 改进成更科技感的样式 */}
-        <div className="my-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-md relative overflow-hidden">
+        <div className="my-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-8 rounded-2xl shadow-md relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200 dark:bg-blue-800 rounded-full opacity-20 -mr-6 -mt-6 blur-xl"></div>
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-200 dark:bg-indigo-800 rounded-full opacity-20 -ml-10 -mb-10 blur-xl"></div>
           
-          <h2 className="text-xl font-bold mb-6 text-gray-800 dark:text-white">选择题库分类</h2>
+          {/* 添加科技装饰 */}
+          <div className="absolute top-6 right-6 w-20 h-20">
+            <svg className="text-indigo-300 dark:text-indigo-600 opacity-50" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+              <path fill="currentColor" d="M47.1,-51.5C59.2,-39.2,66.1,-21.5,68.1,-3.1C70.1,15.3,67.2,34.3,55.8,45.9C44.4,57.5,24.5,61.7,4.5,58.8C-15.6,55.9,-35.7,45.9,-48.9,30.4C-62.1,14.9,-68.3,-6.1,-63.2,-23.1C-58.1,-40.1,-41.5,-53.1,-25,-59.1C-8.5,-65.1,8,-63.9,23.9,-57.8C39.8,-51.8,55,-63.8,47.1,-51.5Z" transform="translate(100 100)" />
+            </svg>
+          </div>
           
-          <div className="flex flex-wrap gap-3">
-            <button 
-              onClick={() => handleCategoryChange('all')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-                activeCategory === 'all' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md' 
-                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
-              }`}
-            >
-              全部题库
-            </button>
-            {homeContent.featuredCategories.map(category => (
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <svg className="w-6 h-6 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white tracking-wide">选择题库分类</h2>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
               <button 
-                key={category}
-                onClick={() => handleCategoryChange(category)}
+                onClick={() => handleCategoryChange('all')}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-                  activeCategory === category 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md' 
-                    : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  activeCategory === 'all' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                    : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
                 }`}
               >
-                {category}
+                <div className="flex items-center">
+                  <svg className={`w-4 h-4 ${activeCategory === 'all' ? 'text-white' : 'text-blue-500 dark:text-blue-400'} mr-1.5`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  全部题库
+                </div>
               </button>
-            ))}
+              {homeContent.featuredCategories.map(category => (
+                <button 
+                  key={category}
+                  onClick={() => handleCategoryChange(category)}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    activeCategory === category 
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                      : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <svg className={`w-4 h-4 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1.5`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    {category}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* 推荐题库区域 */}
         {recommendedSets.length > 0 && (
           <div className="mb-16">
-            <div className="flex items-center mb-8">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg mr-3">
-                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
+            <div className="flex items-center mb-8 relative">
+              <div className="relative">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                  <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </div>
+                <div className="absolute top-0 left-0 w-10 h-10 rounded-full bg-indigo-400 blur-md opacity-50 animate-pulse"></div>
               </div>
               <h2 className="text-2xl font-bold text-gray-800 dark:text-white">推荐题库</h2>
-              <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">精选</span>
+              <div className="flex items-center ml-3">
+                <span className="px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">精选</span>
+                <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {recommendedSets.map(set => (
-                <BaseCard 
-                  key={set.id} 
-                  set={{...set, accessType: set.accessType}} 
-                  onStartQuiz={handleStartQuiz} 
-                />
+              {recommendedSets.map((set, index) => (
+                <div 
+                  key={set.id}
+                  className="animate-fadeIn" 
+                  style={{ animationDelay: `${index * 150}ms` }}
+                >
+                  <BaseCard 
+                    key={set.id} 
+                    set={{...set, accessType: set.accessType}} 
+                    onStartQuiz={handleStartQuiz} 
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -2487,23 +2637,35 @@ const HomePage: React.FC = () => {
               sections.push(
                 <div key="purchased" className="mb-16">
                   <div className="flex items-center mb-8">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 flex items-center justify-center shadow-lg mr-3">
-                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </div>
+                      <div className="absolute top-0 left-0 w-10 h-10 rounded-full bg-green-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">我的题库</h2>
-                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
-                      {categorized.purchased.length}个已购买/兑换
-                    </span>
+                    <div className="flex items-center ml-3">
+                      <span className="px-2.5 py-1 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
+                        {categorized.purchased.length}个已购买/兑换
+                      </span>
+                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-green-600 to-transparent"></div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {categorized.purchased.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+                    {categorized.purchased.map((set: PreparedQuestionSet, index) => (
+                      <div 
+                        key={set.id} 
+                        className="animate-fadeIn" 
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -2515,23 +2677,35 @@ const HomePage: React.FC = () => {
               sections.push(
                 <div key="free" className="mb-16">
                   <div className="flex items-center mb-8">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg mr-3">
-                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
-                      </svg>
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                        </svg>
+                      </div>
+                      <div className="absolute top-0 left-0 w-10 h-10 rounded-full bg-blue-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">免费题库</h2>
-                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
-                      {categorized.free.length}个免费题库
-                    </span>
+                    <div className="flex items-center ml-3">
+                      <span className="px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
+                        {categorized.free.length}个免费题库
+                      </span>
+                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {categorized.free.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+                    {categorized.free.map((set: PreparedQuestionSet, index) => (
+                      <div 
+                        key={set.id} 
+                        className="animate-fadeIn" 
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -2543,23 +2717,35 @@ const HomePage: React.FC = () => {
               sections.push(
                 <div key="paid" className="mb-16">
                   <div className="flex items-center mb-8">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center shadow-lg mr-3">
-                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="absolute top-0 left-0 w-10 h-10 rounded-full bg-purple-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">付费题库</h2>
-                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
-                      {categorized.paid.length}个待购买
-                    </span>
+                    <div className="flex items-center ml-3">
+                      <span className="px-2.5 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
+                        {categorized.paid.length}个待购买
+                      </span>
+                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-purple-600 to-transparent"></div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {categorized.paid.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+                    {categorized.paid.map((set: PreparedQuestionSet, index) => (
+                      <div 
+                        key={set.id} 
+                        className="animate-fadeIn" 
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -2571,21 +2757,27 @@ const HomePage: React.FC = () => {
               sections.push(
                 <div key="expired" className="mb-16">
                   <div className="flex items-center mb-8">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-red-600 to-rose-600 flex items-center justify-center shadow-lg mr-3">
-                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-red-600 to-rose-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="absolute top-0 left-0 w-10 h-10 rounded-full bg-red-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">已过期题库</h2>
-                    <span className="ml-3 px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
-                      {categorized.expired.length}个已过期
-                    </span>
+                    <div className="flex items-center ml-3">
+                      <span className="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
+                        {categorized.expired.length}个已过期
+                      </span>
+                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-red-600 to-transparent"></div>
+                    </div>
                     <button 
                       onClick={() => {
                         const refreshEvent = new CustomEvent('questionSets:refresh');
                         window.dispatchEvent(refreshEvent);
                       }}
-                      className="ml-auto px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-colors"
+                      className="ml-auto px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-all duration-300 shadow-sm hover:shadow"
                     >
                       <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2594,12 +2786,18 @@ const HomePage: React.FC = () => {
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {categorized.expired.map((set: PreparedQuestionSet) => (
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+                    {categorized.expired.map((set: PreparedQuestionSet, index) => (
+                      <div 
+                        key={set.id} 
+                        className="animate-fadeIn" 
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -2609,12 +2807,15 @@ const HomePage: React.FC = () => {
             // 如果没有题库，显示提示
             if (sections.length === 0) {
               sections.push(
-                <div key="empty" className="flex flex-col items-center justify-center py-12 text-center">
-                  <svg className="h-24 w-24 text-gray-300 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
-                  </svg>
-                  <h3 className={`text-xl font-medium ${homeContent.theme === 'dark' ? 'text-gray-200' : 'text-gray-700'} mb-2`}>未找到题库</h3>
-                  <p className={`text-sm ${homeContent.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} max-w-md`}>
+                <div key="empty" className="flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8">
+                  <div className="relative w-24 h-24 mb-6">
+                    <svg className="h-24 w-24 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
+                    </svg>
+                    <div className="absolute inset-0 bg-gray-200 dark:bg-gray-700 rounded-full opacity-30 blur-xl animate-pulse"></div>
+                  </div>
+                  <h3 className="text-xl font-medium text-gray-700 dark:text-gray-200 mb-2">未找到题库</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-6">
                     没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
                   </p>
                   <button
@@ -2622,7 +2823,7 @@ const HomePage: React.FC = () => {
                       setActiveCategory('all');
                       setSearchTerm('');
                     }}
-                    className="mt-6 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center shadow-md"
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                   >
                     <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

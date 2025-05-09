@@ -8,6 +8,7 @@ import AddQuestionSet from './AddQuestionSet';
 import ManageQuestionSets from './ManageQuestionSets';
 import AdminFeaturedManagement from './admin/AdminFeaturedManagement';
 import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
+import AdminPurchasedSets from './admin/AdminPurchasedSets';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -18,6 +19,7 @@ enum AdminTab {
   FEATURED_MANAGEMENT = 'featuredManagement',
   HOME_CONTENT = 'homeContent',
   QUESTION_SET_INFO = 'questionSetInfo',
+  PURCHASED_SETS = 'purchasedSets',
 }
 
 const AdminPage: React.FC = () => {
@@ -95,6 +97,15 @@ const AdminPage: React.FC = () => {
                   管理题库
                 </button>
                 <button
+                  onClick={() => setActiveTab(AdminTab.PURCHASED_SETS)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.PURCHASED_SETS ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  已购题库管理
+                </button>
+                <button
                   onClick={() => setActiveTab(AdminTab.QUESTION_SET_INFO)}
                   className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.QUESTION_SET_INFO ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
@@ -143,6 +154,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.FEATURED_MANAGEMENT && <AdminFeaturedManagement />}
                 {activeTab === AdminTab.HOME_CONTENT && <AdminHomeContent />}
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
+                {activeTab === AdminTab.PURCHASED_SETS && <AdminPurchasedSets />}
               </div>
             </div>
           </div>

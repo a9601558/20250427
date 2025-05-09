@@ -7,6 +7,7 @@ import { useSocket } from '../../contexts/SocketContext';
 interface FeaturedQuestionSet extends QuestionSet {
   isFeatured: boolean;
   featuredCategory?: string;
+  questionSetQuestions?: { id: string }[];
 }
 
 const AdminFeaturedManagement: React.FC = () => {
@@ -38,6 +39,16 @@ const AdminFeaturedManagement: React.FC = () => {
     }
   }, [isAdmin]);
 
+  // 保存分类到localStorage
+  const saveCategoryToLocalStorage = (categories: string[]) => {
+    try {
+      localStorage.setItem('featuredCategories', JSON.stringify(categories));
+      console.log("精选分类已保存到localStorage:", categories);
+    } catch (e) {
+      console.error("保存分类到localStorage失败:", e);
+    }
+  };
+
   // Load all necessary data
   const loadData = async () => {
     setLoading(true);
@@ -50,25 +61,81 @@ const AdminFeaturedManagement: React.FC = () => {
       
       if (fcResponse.success && fcResponse.data) {
         setFeaturedCategories(fcResponse.data);
+        console.log("成功加载精选分类:", fcResponse.data);
+        // 保存到localStorage为后备数据
+        saveCategoryToLocalStorage(fcResponse.data);
       } else {
         console.error('获取精选分类失败:', fcResponse.message);
+        setError('获取精选分类失败: ' + fcResponse.message);
+        
+        // 尝试从localStorage中恢复数据作为后备
+        try {
+          const storedCategories = localStorage.getItem('featuredCategories');
+          if (storedCategories) {
+            const parsedCategories = JSON.parse(storedCategories);
+            if (Array.isArray(parsedCategories) && parsedCategories.length > 0) {
+              console.log("从localStorage恢复精选分类:", parsedCategories);
+              setFeaturedCategories(parsedCategories);
+            }
+          }
+        } catch (e) {
+          console.error("无法从localStorage恢复分类:", e);
+        }
       }
       
       if (qsResponse.success && qsResponse.data) {
-        setQuestionSets(qsResponse.data as FeaturedQuestionSet[]);
+        // 确保每个题库都有正确的问题计数
+        const questionSetsWithVerifiedCounts = await Promise.all(
+          (qsResponse.data as FeaturedQuestionSet[]).map(async (set) => {
+            // 如果questionCount为空或0，尝试从questions或questionSetQuestions数组中获取
+            let questionCount = set.questionCount || 0;
+            
+            if ((!questionCount || questionCount === 0) && 
+               ((set.questions && set.questions.length > 0) || 
+                (set.questionSetQuestions && set.questionSetQuestions.length > 0))) {
+              
+              questionCount = set.questions?.length || set.questionSetQuestions?.length || 0;
+              console.log(`从本地数据计算题库 "${set.title}" 的题目数: ${questionCount}`);
+            }
+            
+            // 如果本地计算的数量仍为0，尝试从API获取准确计数
+            if (questionCount === 0) {
+              try {
+                // 直接使用fetch调用API获取题目数
+                const response = await fetch(`/api/questions/count/${set.id}`);
+                if (response.ok) {
+                  const data = await response.json();
+                  questionCount = data.count || 0;
+                  console.log(`从API获取题库 "${set.title}" 的题目数: ${questionCount}`);
+                }
+              } catch (err) {
+                console.error(`获取题库 "${set.title}" 题目数失败:`, err);
+              }
+            }
+            
+            return {
+              ...set,
+              questionCount,
+              isFeatured: set.isFeatured || false
+            } as FeaturedQuestionSet;
+          })
+        );
+        
+        setQuestionSets(questionSetsWithVerifiedCounts);
         
         // Calculate which categories are in use
         if (fcResponse.success && fcResponse.data) {
           const categories = fcResponse.data; // Store in local variable
           const inUseCount: {[key: string]: number} = {};
           
-          qsResponse.data.forEach(qs => {
+          questionSetsWithVerifiedCounts.forEach(qs => {
             if (qs.featuredCategory && categories.includes(qs.featuredCategory)) {
               inUseCount[qs.featuredCategory] = (inUseCount[qs.featuredCategory] || 0) + 1;
             }
           });
           
           setInUseCategories(inUseCount);
+          console.log("分类使用情况:", inUseCount);
         }
       } else {
         const errorMsg = qsResponse.error || '加载题库失败';
@@ -113,6 +180,9 @@ const AdminFeaturedManagement: React.FC = () => {
         setFeaturedCategories(updatedCategories);
         setNewCategory('');
         showMessage('success', '分类添加成功');
+        
+        // 保存到localStorage
+        saveCategoryToLocalStorage(updatedCategories);
         
         // Initialize usage count for the new category
         setInUseCategories(prev => ({
@@ -174,6 +244,9 @@ const AdminFeaturedManagement: React.FC = () => {
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);
+        // 保存到localStorage
+        saveCategoryToLocalStorage(updatedCategories);
+        
         // Update usage counts
         const newInUseCategories = {...inUseCategories};
         delete newInUseCategories[category];
@@ -225,6 +298,8 @@ const AdminFeaturedManagement: React.FC = () => {
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);
+        // 保存到localStorage
+        saveCategoryToLocalStorage(updatedCategories);
         
         // Update category usage counts
         const useCount = inUseCategories[oldCategory] || 0;
@@ -355,6 +430,21 @@ const AdminFeaturedManagement: React.FC = () => {
         
         showMessage('success', `题库已${isFeatured ? '标记为' : '取消'}精选`);
         
+        // 同步本地题库数据，确保前端显示正确
+        if (response.data) {
+          // 确保响应数据包含正确的题目计数
+          const updatedSet = {
+            ...response.data,
+            questionCount: currentSet.questionCount || 0,
+            isFeatured
+          } as FeaturedQuestionSet;
+
+          // 更新本地状态，保留题目计数
+          setQuestionSets(prev => 
+            prev.map(qs => qs.id === id ? updatedSet : qs)
+          );
+        }
+        
         // 通知所有客户端更新
         notifyClientsOfQuestionSetChange(id, isFeatured, currentSet.featuredCategory);
       } else {
@@ -399,10 +489,18 @@ const AdminFeaturedManagement: React.FC = () => {
       );
 
       if (response.success) {
+        // 保存更新后的题库
+        const updatedSet = {
+          ...currentSet,
+          featuredCategory,
+          // 保留题目计数
+          questionCount: currentSet.questionCount || 0
+        };
+        
         // Update local state
         setQuestionSets(prev => 
           prev.map(qs => 
-            qs.id === id ? { ...qs, featuredCategory } : qs
+            qs.id === id ? updatedSet : qs
           )
         );
         
@@ -413,6 +511,21 @@ const AdminFeaturedManagement: React.FC = () => {
       } else {
         console.error('更新精选分类失败:', response.error);
         showMessage('error', response.error || '更新失败');
+        
+        // 恢复原始计数，因为更新失败
+        if (currentSet.featuredCategory) {
+          setInUseCategories(prev => ({
+            ...prev,
+            [currentSet.featuredCategory!]: (prev[currentSet.featuredCategory!] || 0) + 1
+          }));
+        }
+        
+        if (featuredCategory) {
+          setInUseCategories(prev => ({
+            ...prev,
+            [featuredCategory]: Math.max(0, (prev[featuredCategory] || 0) - 1)
+          }));
+        }
       }
     } catch (err) {
       console.error('更新精选分类时发生错误:', err);
@@ -485,26 +598,42 @@ const AdminFeaturedManagement: React.FC = () => {
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
-        <div className="flex -mb-px">
+        <div className="flex justify-between">
+          <div className="flex -mb-px">
+            <button
+              className={`py-4 px-6 font-medium text-sm ${
+                activeTab === 'categories'
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('categories')}
+            >
+              精选分类管理
+            </button>
+            <button
+              className={`py-4 px-6 font-medium text-sm ${
+                activeTab === 'questionSets'
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('questionSets')}
+            >
+              精选题库管理
+            </button>
+          </div>
           <button
-            className={`py-4 px-6 font-medium text-sm ${
-              activeTab === 'categories'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('categories')}
+            onClick={loadData}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center"
+            disabled={loading}
           >
-            精选分类管理
-          </button>
-          <button
-            className={`py-4 px-6 font-medium text-sm ${
-              activeTab === 'questionSets'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('questionSets')}
-          >
-            精选题库管理
+            {loading ? (
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-1"></div>
+            ) : (
+              <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+            {loading ? '加载中...' : '刷新数据'}
           </button>
         </div>
       </div>
@@ -694,7 +823,12 @@ const AdminFeaturedManagement: React.FC = () => {
                           <div className="text-2xl mr-3">{qs.icon || '📚'}</div>
                           <div>
                             <div className="text-sm font-medium text-gray-900">{qs.title}</div>
-                            <div className="text-sm text-gray-500">{qs.questionCount || qs.questions?.length || 0} 个问题</div>
+                            <div className="text-sm text-gray-500">
+                              {qs.questionCount || qs.questions?.length || qs.questionSetQuestions?.length || 0} 个问题
+                              {qs.questionCount === 0 && (
+                                <span className="text-red-500 ml-2">(需要更新题目计数)</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
