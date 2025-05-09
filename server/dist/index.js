@@ -46,12 +46,22 @@ app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.use((0, morgan_1.default)('dev'));
 app.use((0, helmet_1.default)());
-// Rate limiting
-const limiter = (0, express_rate_limit_1.default)({
+// General rate limiting - more restrictive
+const standardLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again later'
 });
-app.use(limiter);
+// Less restrictive rate limiting for homepage content - needed for admin updates
+const homepageLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 120, // much higher limit
+    message: 'Too many homepage requests, please try again later'
+});
+// Apply rate limiters to specific routes
+app.use('/api/homepage', homepageLimiter);
+app.use('/api/question-sets', homepageLimiter);
+app.use('/api', standardLimiter); // Apply standard limiter to all other API routes
 // API routes
 app.use('/api/users', userRoutes_1.default);
 app.use('/api/question-sets', questionSetRoutes_1.default);

@@ -1640,13 +1640,32 @@ const HomePage: React.FC = () => {
     const forceReloadTimestamp = localStorage.getItem('home_content_force_reload');
     const adminSavedTimestamp = sessionStorage.getItem('adminSavedContentTimestamp');
     
+    // STRONG INFINITE LOOP PREVENTION - Global cooldown tracking
+    const globalLastUpdate = parseInt(localStorage.getItem('global_home_content_last_update') || '0');
+    const now = Date.now();
+    const globalCooldown = 2000; // 2 seconds minimum between any content updates
+    
+    if (now - globalLastUpdate < globalCooldown && !options.source?.includes('initial')) {
+      console.log(`[HomePage] Global cooldown active (${now - globalLastUpdate}ms < ${globalCooldown}ms). Skipping update.`);
+      return;
+    }
+    
     // If the source is admin_direct or we have a forced reload flag, bypass all throttling
     const isAdminDirectUpdate = options.source === 'admin_direct' || options.source === 'admin_event' || 
                                forceFullContentRefresh;
     
     if (isAdminDirectUpdate) {
       console.log(`[HomePage] Processing FORCED content refresh from admin`);
-      // Skip all throttling checks for admin updates
+      // Clear all force flags to prevent loops
+      sessionStorage.removeItem('forceFullContentRefresh');
+      sessionStorage.removeItem('adminTriggeredUpdate');
+      localStorage.removeItem('home_content_force_reload');
+      
+      // Still respect global cooldown
+      if (now - globalLastUpdate < 1000 && pendingFetchRef.current) {
+        console.log(`[HomePage] Preventing duplicate admin update within 1s`);
+        return;
+      }
     } else {
       // Regular throttling for non-admin updates
       // Prevent concurrent requests
@@ -1657,7 +1676,6 @@ const HomePage: React.FC = () => {
       
       // ADD PREVENTION FOR INFINITE LOOPS
       const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
-      const now = Date.now();
       const timeSinceLastFetch = now - lastFetchTimestamp;
       
       // If we've fetched within the last 3 seconds (except initial load), debounce
@@ -1679,14 +1697,21 @@ const HomePage: React.FC = () => {
         const newCount = requestCount + 1;
         sessionStorage.setItem('homeContentRequestCount', newCount.toString());
         
-        // If more than 5 requests in 10 seconds, likely in a loop
-        if (newCount > 5) {
+        // If more than 3 requests in 10 seconds, likely in a loop
+        if (newCount > 3) {
           console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
+          // Reset all potential loop-causing flags
           sessionStorage.setItem('homeContentRequestCount', '0');
+          sessionStorage.removeItem('forceFullContentRefresh');
+          sessionStorage.removeItem('adminTriggeredUpdate');
+          localStorage.removeItem('home_content_force_reload');
           return;
         }
       }
     }
+    
+    // Update global cooldown timestamp
+    localStorage.setItem('global_home_content_last_update', now.toString());
     
     // Check for direct content from event before making a server request
     if (options.source === 'custom_event' && options.fullContent) {
@@ -1781,80 +1806,55 @@ const HomePage: React.FC = () => {
       if (isAdminDirectUpdate) {
         params._forceRefresh = Date.now();
         params._adminUpdate = 'true';
+        
+        // Avoid multiple parameters that do the same thing
+        params._preventCache = params._timestamp; // Use the same timestamp
       }
       
-      // Add timestamp to prevent caching
-      const response = await homepageService.getHomeContent(params);
-      
-      if (response.success && response.data) {
-        console.log('[HomePage] Home content loaded successfully from server:', response.data);
+      try {
+        // Add timestamp to prevent caching
+        const response = await homepageService.getHomeContent(params);
         
-        // 处理服务器返回的数据 - 可能是snake_case格式
-        let processedData: HomeContentData;
-        if ('welcome_title' in response.data) {
-          // 数据库格式，需要转换
-          processedData = convertDbToFrontend(response.data as HomeContentDataDB);
-        } else {
-          // 前端格式，直接使用
-          processedData = response.data as HomeContentData;
-        }
-        
-        // 如果收到的是空的featuredCategories数组字符串"[]"，确保正确解析
-        if (typeof response.data.featured_categories === 'string' && 
-            (response.data.featured_categories === '[]' || response.data.featured_categories === '')) {
-          processedData.featuredCategories = [];
-        }
-        
-        // Check if server content is actually newer than our local content
-        if (localContent) {
-          const serverLastUpdated = (response.data as any)._lastUpdated || 0;
-          const localLastUpdated = (localContent as any)._lastUpdated || 0;
+        if (response.success && response.data) {
+          console.log('[HomePage] Home content loaded successfully from server');
           
-          if (localLastUpdated > serverLastUpdated) {
-            console.log('[HomePage] Local content is newer than server content, using local content');
-            setHomeContent(localContent);
+          // 处理服务器返回的数据 - 可能是snake_case格式
+          let processedData: HomeContentData;
+          if ('welcome_title' in response.data) {
+            // 数据库格式，需要转换
+            processedData = convertDbToFrontend(response.data as HomeContentDataDB);
           } else {
-            // Server content is newer or there is no local content
-            console.log('[HomePage] Using server content');
+            // 前端格式，直接使用
+            processedData = response.data as HomeContentData;
+          }
+          
+          // 如果收到的是空的featuredCategories数组字符串"[]"，确保正确解析
+          if (typeof response.data.featured_categories === 'string' && 
+              (response.data.featured_categories === '[]' || response.data.featured_categories === '')) {
+            processedData.featuredCategories = [];
+          }
+          
+          // Check if server content is actually newer than our local content
+          if (localContent) {
+            const serverLastUpdated = (response.data as any)._lastUpdated || 0;
+            const localLastUpdated = (localContent as any)._lastUpdated || 0;
+            
+            if (localLastUpdated > serverLastUpdated) {
+              console.log('[HomePage] Local content is newer than server content, using local content');
+              setHomeContent(localContent);
+            } else {
+              // Server content is newer or there is no local content
+              console.log('[HomePage] Using server content');
+              setHomeContent(processedData);
+            }
+          } else {
+            // No local content or no timestamp, use server content
             setHomeContent(processedData);
           }
-        } else {
-          // No local content or no timestamp, use server content
-          setHomeContent(processedData);
-        }
-        
-        // If this is an admin update, force the refresh regardless of content change
-        if (isAdminDirectUpdate) {
-          console.log('[HomePage] Admin update detected - forcing content refresh');
           
-          // Default to "all" category when featured categories are available
-          if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
-            setActiveCategory('all');
-          }
-          
-          // Refresh question sets to apply new categories
-          setTimeout(() => {
-            console.log('[HomePage] Refreshing question sets with new admin settings');
-            fetchQuestionSets({ forceFresh: true });
-            
-            // Show notification if requested
-            if (options.showNotification) {
-              toast.success('首页内容已从服务器更新', { position: 'bottom-center' });
-            }
-            
-            // Clear the force reload flag
-            if (forceReloadTimestamp) {
-              localStorage.removeItem('home_content_force_reload');
-            }
-          }, 200);
-        } else {
-          // Regular content changes - check if there's a difference
-          const currentContent = JSON.stringify(homeContent);
-          const newContent = JSON.stringify(processedData);
-          const hasChanged = currentContent !== newContent;
-          
-          if (hasChanged) {
-            console.log('[HomePage] Home content has changed, updating state');
+          // If this is an admin update, force the refresh regardless of content change
+          if (isAdminDirectUpdate) {
+            console.log('[HomePage] Admin update detected - forcing content refresh');
             
             // Default to "all" category when featured categories are available
             if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
@@ -1863,28 +1863,83 @@ const HomePage: React.FC = () => {
             
             // Refresh question sets to apply new categories
             setTimeout(() => {
-              console.log('[HomePage] Refreshing question sets with new category settings');
+              console.log('[HomePage] Refreshing question sets with new admin settings');
               fetchQuestionSets({ forceFresh: true });
               
               // Show notification if requested
               if (options.showNotification) {
-                toast.success('首页内容已更新', { position: 'bottom-center' });
+                toast.success('首页内容已从服务器更新', { position: 'bottom-center' });
               }
+              
+              // Clear the force reload flag after processing
+              if (forceReloadTimestamp) {
+                localStorage.removeItem('home_content_force_reload');
+              }
+              // Clear all admin update flags after successful update
+              sessionStorage.removeItem('adminTriggeredUpdate');
+              sessionStorage.removeItem('forceFullContentRefresh');
             }, 200);
           } else {
-            console.log('[HomePage] Home content unchanged, skipping update');
+            // Regular content changes - check if there's a difference
+            const currentContent = JSON.stringify(homeContent);
+            const newContent = JSON.stringify(processedData);
+            const hasChanged = currentContent !== newContent;
+            
+            if (hasChanged) {
+              console.log('[HomePage] Home content has changed, updating state');
+              
+              // Default to "all" category when featured categories are available
+              if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
+                setActiveCategory('all');
+              }
+              
+              // Refresh question sets to apply new categories
+              setTimeout(() => {
+                console.log('[HomePage] Refreshing question sets with new category settings');
+                fetchQuestionSets({ forceFresh: true });
+                
+                // Show notification if requested
+                if (options.showNotification) {
+                  toast.success('首页内容已更新', { position: 'bottom-center' });
+                }
+              }, 200);
+            } else {
+              console.log('[HomePage] Home content unchanged, skipping update');
+            }
+          }
+        } else {
+          console.error('[HomePage] Failed to get home content from server:', response.message);
+          
+          // Use localStorage content as fallback if server fails
+          if (localContent) {
+            console.log('[HomePage] Using localStorage content as fallback');
+            setHomeContent(localContent);
+            
+            if (options.showNotification) {
+              toast.warning('服务器连接失败，使用本地缓存的内容', { position: 'bottom-center' });
+            }
+            
+            // Default to "all" category if featuredCategories are available
+            if (localContent.featuredCategories?.length > 0) {
+              setActiveCategory('all');
+            }
+            
+            // Refresh question sets to apply new settings
+            setTimeout(() => {
+              fetchQuestionSets({ forceFresh: true });
+            }, 200);
           }
         }
-      } else {
-        console.error('[HomePage] Failed to get home content from server:', response.message);
+      } catch (error) {
+        console.error('[HomePage] Error fetching home content:', error);
         
-        // Use localStorage content as fallback if server fails
+        // Use localStorage content as fallback if server fetch throws an error
         if (localContent) {
-          console.log('[HomePage] Using localStorage content as fallback');
+          console.log('[HomePage] Server error - using localStorage content as fallback');
           setHomeContent(localContent);
           
           if (options.showNotification) {
-            toast.warning('服务器连接失败，使用本地缓存的内容', { position: 'bottom-center' });
+            toast.warning('服务器错误，使用本地缓存的内容', { position: 'bottom-center' });
           }
           
           // Default to "all" category if featuredCategories are available
@@ -1897,6 +1952,14 @@ const HomePage: React.FC = () => {
             fetchQuestionSets({ forceFresh: true });
           }, 200);
         }
+        
+        // Clear any admin update flags on error to prevent infinite loops
+        sessionStorage.removeItem('adminTriggeredUpdate');
+        sessionStorage.removeItem('forceFullContentRefresh');
+        localStorage.removeItem('home_content_force_reload');
+      } finally {
+        // Release lock
+        pendingFetchRef.current = false;
       }
     } catch (error) {
       console.error('[HomePage] Error fetching home content:', error);
@@ -1920,9 +1983,11 @@ const HomePage: React.FC = () => {
           fetchQuestionSets({ forceFresh: true });
         }, 200);
       }
-    } finally {
-      // Release lock
-      pendingFetchRef.current = false;
+      
+      // Clear any admin update flags on error to prevent infinite loops
+      sessionStorage.removeItem('adminTriggeredUpdate');
+      sessionStorage.removeItem('forceFullContentRefresh');
+      localStorage.removeItem('home_content_force_reload');
     }
   }, [fetchQuestionSets, homeContent, setActiveCategory, toast]);
 

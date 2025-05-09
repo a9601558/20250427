@@ -408,7 +408,7 @@ const AdminHomeContent: React.FC = () => {
       saveHomeContentToLocalStorage(contentToSave, true);
       console.log('[AdminHomeContent] Saved content to localStorage as fallback');
       
-      // Set stronger flags to force update on homepage
+      // Set flags to force update on homepage - IMPORTANT: use temporary flags
       sessionStorage.setItem('adminTriggeredUpdate', 'true');
       sessionStorage.setItem('forceFullContentRefresh', 'true');
       sessionStorage.setItem('adminSavedContentTimestamp', Date.now().toString());
@@ -416,6 +416,12 @@ const AdminHomeContent: React.FC = () => {
       // Use a very distinct timestamp to ensure it's recognized as new
       const eventTimestamp = Date.now();
       localStorage.setItem('home_content_force_reload', eventTimestamp.toString());
+      
+      // Create a timer to clear flags in case update fails
+      setTimeout(() => {
+        sessionStorage.removeItem('adminTriggeredUpdate');
+        sessionStorage.removeItem('forceFullContentRefresh');
+      }, 10000); // Clear after 10 seconds regardless
       
       // Try server update
       let serverUpdateSuccess = false;
@@ -465,15 +471,14 @@ const AdminHomeContent: React.FC = () => {
       // Set a flag to indicate successful save for preview button
       setHasUnsavedChanges(false);
       setShowPreviewButton(true);
-      
-      // Clear the admin trigger flag after a delay
-      setTimeout(() => {
-        sessionStorage.removeItem('adminTriggeredUpdate');
-        sessionStorage.removeItem('forceFullContentRefresh');
-      }, 10000);
     } catch (error) {
       console.error('更新首页内容失败:', error);
       toast.error('更新失败，请重试');
+      
+      // Clear any flags on error to prevent infinite loops
+      sessionStorage.removeItem('adminTriggeredUpdate');
+      sessionStorage.removeItem('forceFullContentRefresh');
+      localStorage.removeItem('home_content_force_reload');
     } finally {
       setIsSaving(false);
     }
