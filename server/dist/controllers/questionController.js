@@ -7,6 +7,8 @@ exports.batchUploadQuestions = exports.getQuestionCount = exports.getRandomQuest
 const Question_1 = __importDefault(require("../models/Question"));
 const responseUtils_1 = require("../utils/responseUtils");
 const Option_1 = __importDefault(require("../models/Option"));
+const sequelize_1 = require("sequelize");
+const database_1 = __importDefault(require("../config/database"));
 /**
  * @route GET /api/v1/questions
  * @access Public
@@ -173,24 +175,32 @@ const getQuestionCount = async (req, res) => {
                 count: 0
             });
         }
-        // 查询该题库下的问题数量
-        const count = await Question_1.default.count({ where: { questionSetId: String(questionSetId) } });
-        console.log(`[API] Question count for set ${questionSetId}: ${count}`);
-        // Ensure consistent response format
+        // 使用原生SQL查询以确保准确性
+        const [result] = await database_1.default.query('SELECT COUNT(*) as count FROM questions WHERE questionSetId = :questionSetId', {
+            replacements: { questionSetId },
+            type: sequelize_1.QueryTypes.SELECT
+        });
+        // 解析结果，确保返回有效的数字
+        let count = 0;
+        if (result && typeof result.count !== 'undefined') {
+            count = parseInt(result.count, 10);
+        }
+        console.log(`[API] Question count for questionSetId=${questionSetId}: ${count}`);
+        // 返回标准格式的响应
         return res.status(200).json({
             success: true,
-            count: count,
-            data: { count: count },
-            message: `题库 ${questionSetId} 包含 ${count} 个问题`
+            count,
+            message: '获取题目数量成功'
         });
     }
     catch (error) {
         console.error('[API] Error getting question count:', error);
+        // 确保返回一个有效的响应，即使发生错误
         return res.status(500).json({
             success: false,
+            count: 0,
             message: '获取题目数量失败',
-            error: error.message,
-            count: 0
+            error: error.message
         });
     }
 };
@@ -303,29 +313,43 @@ const batchUploadQuestions = async (req, res) => {
                 const question = await Question_1.default.create({
                     questionSetId,
                     text: questionText,
-                    questionType: options.length > 1 ? 'multiple' : 'single',
+                    questionType: correctAnswers.length > 1 ? 'multiple' : 'single',
                     explanation,
                     orderIndex: successCount
                 });
                 // 创建选项
                 let hasCorrectOption = false;
+                let createdOptionsCount = 0;
+                // 添加详细日志来查找问题
+                console.log(`[API] Creating ${options.length} options for question ID ${question.id}`);
                 for (let i = 0; i < options.length; i++) {
                     const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
                     const isCorrect = correctAnswers.includes(optionLetter);
                     if (isCorrect) {
                         hasCorrectOption = true;
                     }
-                    await Option_1.default.create({
-                        questionId: question.id,
-                        text: options[i],
-                        isCorrect,
-                        optionIndex: optionLetter
-                    });
+                    try {
+                        // 使用 create 方法创建选项
+                        const option = await Option_1.default.create({
+                            questionId: question.id,
+                            text: options[i],
+                            isCorrect,
+                            optionIndex: optionLetter
+                        });
+                        createdOptionsCount++;
+                        console.log(`[API] Created option ${optionLetter} (isCorrect=${isCorrect}) for question ${question.id}: "${options[i].substring(0, 20)}..."`);
+                    }
+                    catch (optionError) {
+                        console.error(`[API] Error creating option ${optionLetter}: `, optionError);
+                        errors.push(`创建选项失败: ${optionLetter} - ${optionError.message}`);
+                    }
                 }
-                if (!hasCorrectOption) {
+                // 检查是否成功创建了所有选项
+                console.log(`[API] Created ${createdOptionsCount} options out of ${options.length} for question ${question.id}`);
+                if (!hasCorrectOption || createdOptionsCount === 0) {
                     await question.destroy();
                     failedCount++;
-                    errors.push(`没有正确选项: ${line.substring(0, 50)}...`);
+                    errors.push(`没有正确选项或无法创建选项: ${line.substring(0, 50)}...`);
                     continue;
                 }
                 successCount++;
@@ -333,10 +357,17 @@ const batchUploadQuestions = async (req, res) => {
             catch (error) {
                 failedCount++;
                 errors.push(`处理失败: ${line.substring(0, 50)}... - ${error.message}`);
+                console.error(`[API] Error processing line: `, error);
             }
         }
         // 清理上传的临时文件
-        fs.unlinkSync(req.file.path);
+        try {
+            fs.unlinkSync(req.file.path);
+            console.log(`[API] Cleaned up temporary file: ${req.file.path}`);
+        }
+        catch (cleanupError) {
+            console.error(`[API] Error cleaning up temporary file: `, cleanupError);
+        }
         // 导入完成后返回结果
         return res.status(200).json({
             success: true,

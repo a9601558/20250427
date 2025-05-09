@@ -101,35 +101,68 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
     // 获取包含问题数量的题库列表
     const questionSets = await QuestionSet.findAll();
     
-    // 为每个题库获取准确的问题数量
-    const enhancedSets = await Promise.all(questionSets.map(async (set) => {
-      let questionCount = 0;
-      
-      // 只有当 set.id 存在且有效时才查询问题数量
-      if (set && set.id) {
-        try {
-          questionCount = await Question.count({ 
-            where: { questionSetId: set.id }
-          });
-        } catch (countError) {
-          console.error(`获取题库 ${set.id} 的问题数量失败:`, countError);
-          // 如果查询失败，使用默认值 0
-        }
+    // 为每个题库获取准确的问题数量 - 使用更高效的批量查询
+    const questionSetIds = questionSets.map(set => set.id);
+    
+    console.log(`[QuestionSetController] 正在为 ${questionSetIds.length} 个题库获取问题数量...`);
+    
+    let questionCountMap = new Map();
+    
+    if (questionSetIds.length > 0) {
+      try {
+        const questionCountsQuery = await sequelize.query(`
+          SELECT questionSetId, COUNT(*) as count 
+          FROM questions 
+          WHERE questionSetId IN (:questionSetIds)
+          GROUP BY questionSetId
+        `, {
+          replacements: { 
+            questionSetIds: questionSetIds
+          },
+          type: QueryTypes.SELECT
+        });
+        
+        // 转换为Map以便快速查找
+        (questionCountsQuery as any[]).forEach(item => {
+          const qsId = item.questionSetId;
+          const count = parseInt(item.count) || 0;
+          questionCountMap.set(qsId, count);
+          console.log(`[QuestionSetController] 题库 ${qsId} 的问题数量: ${count}`);
+        });
+        
+        console.log(`[QuestionSetController] 成功获取 ${questionCountsQuery.length} 个题库的问题数量`);
+      } catch (countError) {
+        console.error('[QuestionSetController] 获取题库问题数量失败:', countError);
       }
-      
+    }
+    
+    // 为每个题库添加问题数量
+    const enhancedSets = questionSets.map(set => {
       const setJSON = set.toJSON();
+      const questionCount = questionCountMap.get(set.id) || 0;
+      
       return {
         ...setJSON,
-        questionCount  // 添加问题数量
+        questionCount  // 使用查询结果或默认为0
       };
-    }));
+    });
+    
+    console.log(`[QuestionSetController] 成功获取${enhancedSets.length}个题库，包含问题数量信息`);
+    
+    // 记录一些题库的问题数量，用于调试
+    if (enhancedSets.length > 0) {
+      console.log(`[QuestionSetController] 题库问题数量示例:`);
+      enhancedSets.slice(0, 5).forEach(set => {
+        console.log(`  - ${set.title}: ${set.questionCount}题`);
+      });
+    }
     
     res.status(200).json({
       success: true,
       data: enhancedSets
     });
   } catch (error: any) {
-    console.error('获取题库列表失败:', error);
+    console.error('[QuestionSetController] 获取题库列表失败:', error);
     res.status(500).json({
       success: false,
       message: '获取题库列表失败',

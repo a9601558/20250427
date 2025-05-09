@@ -174,36 +174,66 @@ const HomePage: React.FC = () => {
 
     // 获取题目数量
     const getQuestionCount = () => {
-      // Log original values for debugging
-      console.log(`[HomePage] Question count data for ${set.id}:`, {
-        id: set.id,
-        title: set.title,
-        questionCount: set.questionCount,
-        questions: set.questions?.length,
-        questionSetQuestions: set.questionSetQuestions?.length
+      // Debug original values
+      const originalCount = set.questionCount;
+      const questionsLength = Array.isArray(set.questions) ? set.questions.length : 0;
+      const questionSetQuestionsLength = Array.isArray(set.questionSetQuestions) ? set.questionSetQuestions.length : 0;
+      
+      console.log(`[HomePage] Question count data for ${set.id} (${set.title}):`, {
+        questionCount: originalCount,
+        questionsLength: questionsLength,
+        questionSetQuestionsLength: questionSetQuestionsLength
       });
       
-      // Priority 1: Check for valid questionCount property - most reliable source
-      if (typeof set.questionCount === 'number' && set.questionCount > 0) {
-        console.log(`[HomePage] Using questionCount property for ${set.title}: ${set.questionCount}`);
-        return set.questionCount;
+      // Check for valid questionCount property - most reliable source
+      if (typeof originalCount === 'number' && originalCount > 0) {
+        return originalCount;
       }
       
-      // Priority 2: Check for questions array
-      if (Array.isArray(set.questions) && set.questions.length > 0) {
-        console.log(`[HomePage] Using questions array length for ${set.title}: ${set.questions.length}`);
-        return set.questions.length;
+      // Fallback to questions array length if available
+      if (questionsLength > 0) {
+        return questionsLength;
       }
       
-      // Priority 3: Check for questionSetQuestions array
-      if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
-        console.log(`[HomePage] Using questionSetQuestions array length for ${set.title}: ${set.questionSetQuestions.length}`);
-        return set.questionSetQuestions.length;
+      // Last resort: check questionSetQuestions array length
+      if (questionSetQuestionsLength > 0) {
+        return questionSetQuestionsLength;
       }
       
-      // Debug: If we get here, count is 0 - log more details for troubleshooting
-      console.warn(`[HomePage] No question count data available for ${set.title} (${set.id})`);
-      return 0;
+      // If we have no data, request fresh data for this specific question set
+      // This will trigger only once per session to avoid loops
+      const cacheKey = `question_count_fetched_${set.id}`;
+      const lastFetchTime = parseInt(sessionStorage.getItem(cacheKey) || '0', 10);
+      const now = Date.now();
+      const shouldRefetch = now - lastFetchTime > 60000; // Refetch after 1 minute
+      
+      if (shouldRefetch || lastFetchTime === 0) {
+        console.log(`[HomePage] No question count available for ${set.title}, fetching from API...`);
+        sessionStorage.setItem(cacheKey, now.toString());
+        
+        // Fetch the question count for this specific set
+        apiClient.get(`/api/questions/count/${set.id}`)
+          .then(response => {
+            if (response && response.success && response.count !== undefined) {
+              console.log(`[HomePage] API returned count for ${set.title}: ${response.count}`);
+              
+              // Update the question count in the state
+              // We use a custom event to avoid touching React state directly
+              window.dispatchEvent(new CustomEvent('questionSet:countUpdate', {
+                detail: {
+                  questionSetId: set.id,
+                  count: response.count
+                }
+              }));
+            }
+          })
+          .catch(error => {
+            console.error(`[HomePage] Error fetching question count for ${set.title}:`, error);
+          });
+      }
+      
+      // Return 0 until we have better data
+      return originalCount || 0;
     };
 
     // 根据剩余时间计算进度条颜色和百分比
@@ -2565,6 +2595,68 @@ const HomePage: React.FC = () => {
     }
   }, [questionSets.length, refreshQuestionCounts]);
 
+  // 添加监听问题数量更新事件，用于实时更新题库卡片显示的问题数量
+  useEffect(() => {
+    const handleQuestionCountUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.questionSetId && customEvent.detail.count !== undefined) {
+        const { questionSetId, count } = customEvent.detail;
+        
+        console.log(`[HomePage] Received count update for question set ${questionSetId}: ${count}`);
+        
+        // 使用不可变方式更新questionSets状态，仅更新问题数量
+        setQuestionSets(prevSets => 
+          prevSets.map(set => 
+            set.id === questionSetId 
+              ? { ...set, questionCount: count } 
+              : set
+          )
+        );
+      }
+    };
+    
+    // 注册事件
+    window.addEventListener('questionSet:countUpdate', handleQuestionCountUpdate);
+    
+    // 清理事件
+    return () => {
+      window.removeEventListener('questionSet:countUpdate', handleQuestionCountUpdate);
+    };
+  }, []);
+
+  // 确保所有推荐题库都有正确的问题数量信息
+  useEffect(() => {
+    if (recommendedSets.length > 0) {
+      // 检查是否有推荐题库缺少问题数量信息
+      const setsWithoutCount = recommendedSets.filter(
+        set => typeof set.questionCount !== 'number' || set.questionCount === 0
+      );
+      
+      if (setsWithoutCount.length > 0) {
+        console.log(`[HomePage] Found ${setsWithoutCount.length} recommended sets without question count, requesting updates...`);
+        
+        // 批量请求问题数量
+        setsWithoutCount.forEach(set => {
+          apiClient.get(`/api/questions/count/${set.id}`)
+            .then(response => {
+              if (response && response.success && response.count !== undefined) {
+                // 触发更新事件
+                window.dispatchEvent(new CustomEvent('questionSet:countUpdate', {
+                  detail: {
+                    questionSetId: set.id,
+                    count: response.count
+                  }
+                }));
+              }
+            })
+            .catch(error => {
+              console.error(`[HomePage] Error fetching question count for ${set.title}:`, error);
+            });
+        });
+      }
+    }
+  }, [recommendedSets]);
+  
   // 修复加载状态检查
   if (loading) {
     return (
