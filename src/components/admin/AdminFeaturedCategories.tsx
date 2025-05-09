@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { homepageService, questionSetService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { useSocket } from '../../contexts/SocketContext';
 
 const AdminFeaturedCategories: React.FC = () => {
   const { isAdmin } = useUser();
+  const { socket } = useSocket();
   const [featuredCategories, setFeaturedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,24 @@ const AdminFeaturedCategories: React.FC = () => {
           ...prev,
           [newCategory.trim()]: 0
         }));
+        
+        // 通过Socket通知所有客户端更新首页内容
+        if (socket) {
+          socket.emit('admin:homeContent:updated', {
+            type: 'featuredCategories',
+            action: 'added',
+            category: newCategory.trim(),
+            timestamp: Date.now()
+          });
+          
+          // 触发全局事件让首页更新
+          window.dispatchEvent(new CustomEvent('homeContent:updated', {
+            detail: {
+              type: 'featuredCategories',
+              timestamp: Date.now()
+            }
+          }));
+        }
       } else {
         console.error('添加分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '添加分类失败' });
@@ -128,6 +148,24 @@ const AdminFeaturedCategories: React.FC = () => {
         setInUseCategories(newInUseCategories);
         
         setMessage({ type: 'success', text: '分类删除成功' });
+        
+        // 通过Socket通知所有客户端更新首页内容
+        if (socket) {
+          socket.emit('admin:homeContent:updated', {
+            type: 'featuredCategories',
+            action: 'deleted',
+            category: category,
+            timestamp: Date.now()
+          });
+          
+          // 触发全局事件让首页更新
+          window.dispatchEvent(new CustomEvent('homeContent:updated', {
+            detail: {
+              type: 'featuredCategories',
+              timestamp: Date.now()
+            }
+          }));
+        }
       } else {
         console.error('删除分类失败:', response.message);
         setMessage({ type: 'error', text: response.message || '删除分类失败' });
@@ -179,6 +217,28 @@ const AdminFeaturedCategories: React.FC = () => {
         setInUseCategories(newInUseCategories);
         
         setMessage({ type: 'success', text: '分类名称更新成功' });
+        
+        // 通过Socket通知所有客户端更新首页内容
+        if (socket) {
+          socket.emit('admin:homeContent:updated', {
+            type: 'featuredCategories',
+            action: 'updated',
+            oldCategory: oldCategory,
+            newCategory: newCategoryName.trim(),
+            timestamp: Date.now()
+          });
+          
+          // 触发全局事件让首页更新
+          window.dispatchEvent(new CustomEvent('homeContent:updated', {
+            detail: {
+              type: 'featuredCategories',
+              timestamp: Date.now()
+            }
+          }));
+          
+          // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
+          localStorage.setItem('home_content_updated', Date.now().toString());
+        }
       } else {
         console.error('更新分类名称失败:', response.message);
         setMessage({ type: 'error', text: response.message || '更新分类名称失败' });
@@ -235,6 +295,7 @@ const AdminFeaturedCategories: React.FC = () => {
           <li>需要先在此处添加分类，然后在<strong>精选题库管理</strong>中为题库分配分类</li>
           <li>删除分类不会删除题库，但会影响题库在首页的显示</li>
           <li>修改分类名称后，使用该分类的题库将自动更新</li>
+          <li>所有更改将通过服务器同步到所有用户的首页</li>
         </ul>
       </div>
 

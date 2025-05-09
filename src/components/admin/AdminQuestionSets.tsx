@@ -59,6 +59,8 @@ const AdminQuestionSets = () => {
     isPaid: false,
     price: 29.9,
     trialQuestions: 0,
+    isFeatured: false,
+    featuredCategory: '',
     questions: [] as Question[]
   });
   const [loading, setLoading] = useState(false);
@@ -242,6 +244,8 @@ const AdminQuestionSets = () => {
         isPaid: formData.isPaid,
         price: formData.isPaid ? parseFloat(formData.price) : undefined,
         trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions) : undefined,
+        isFeatured: formData.isFeatured,
+        featuredCategory: formData.featuredCategory,
         questions: []
       };
       
@@ -263,6 +267,8 @@ const AdminQuestionSets = () => {
           isPaid: false,
           price: 29.9,
           trialQuestions: 0,
+          isFeatured: false,
+          featuredCategory: '',
           questions: []
         });
       } else {
@@ -289,12 +295,33 @@ const AdminQuestionSets = () => {
       isPaid: questionSet.isPaid || false,
       price: questionSet.price || 29.9,
       trialQuestions: questionSet.trialQuestions || 0,
+      isFeatured: questionSet.isFeatured || false,
+      featuredCategory: questionSet.featuredCategory || '',
       questions: questionSet.questions || []
     });
     setShowEditForm(true);
   };
 
-  // 提交编辑题库
+  // 添加更新题目数量的函数
+  const updateQuestionCount = async (questionSetId) => {
+    try {
+      console.log(`正在更新题库 ${questionSetId} 的题目数量`);
+      const response = await questionSetApi.updateQuestionCount(questionSetId);
+      
+      if (response.success) {
+        console.log(`成功更新题库 ${questionSetId} 的题目数量`);
+        return true;
+      } else {
+        console.error(`更新题库 ${questionSetId} 题目数量失败:`, response.error);
+        return false;
+      }
+    } catch (error) {
+      console.error(`更新题库 ${questionSetId} 题目数量出错:`, error);
+      return false;
+    }
+  };
+
+  // 修改handleEditSubmit函数以包含题目数量更新
   const handleEditSubmit = async () => {
     setLoading(true);
     setLoadingAction('edit');
@@ -314,13 +341,18 @@ const AdminQuestionSets = () => {
         icon: formData.icon,
         isPaid: formData.isPaid,
         price: formData.isPaid ? parseFloat(formData.price) : undefined,
-        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions) : undefined
+        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions) : undefined,
+        isFeatured: formData.isFeatured,
+        featuredCategory: formData.featuredCategory
       };
       
       // 调用API更新题库
       const response = await questionSetApi.updateQuestionSet(formData.id, updatedQuestionSet);
       
       if (response.success && response.data) {
+        // 更新题目数量
+        await updateQuestionCount(formData.id);
+        
         showStatusMessage('success', '题库更新成功');
         setShowEditForm(false);
         await loadQuestionSets();  // 重新加载全部题库
@@ -582,6 +614,9 @@ const AdminQuestionSets = () => {
           questions: updatedQuestions
         });
         
+        // 更新题目数量
+        await updateQuestionCount(currentQuestionSet.id);
+        
         showStatusMessage('success', '问题添加成功');
         setIsAddingQuestion(false);
         setShowQuestionModal(false);
@@ -630,6 +665,9 @@ const AdminQuestionSets = () => {
       );
       
       if (response.success && response.data) {
+        // 更新题目数量
+        await updateQuestionCount(currentQuestionSet.id);
+        
         showStatusMessage('success', '问题列表更新成功');
         // 更新本地状态
         setCurrentQuestionSet(response.data);
@@ -698,6 +736,9 @@ const AdminQuestionSets = () => {
           questions: updatedQuestions
         });
         
+        // 更新题目数量
+        await updateQuestionCount(currentQuestionSet.id);
+        
         showStatusMessage('success', '问题更新成功');
         setCurrentQuestion(null);
         setShowQuestionModal(false);
@@ -713,12 +754,22 @@ const AdminQuestionSets = () => {
     }
   };
 
-  // 保存所有更改
+  // 修改handleSaveAllChanges函数，添加题目数量更新
   const handleSaveAllChanges = async () => {
     setLoading(true);
     setLoadingAction('saveAll');
     
     try {
+      // 更新所有题库的题目数量
+      if (questionSets.length > 0) {
+        setStatusMessage({ type: 'info', message: '正在更新题库数量信息...' });
+        
+        // 对每个题库进行题目数量更新
+        for (const set of questionSets) {
+          await updateQuestionCount(set.id);
+        }
+      }
+      
       await loadQuestionSets();
       showStatusMessage('success', '数据刷新成功');
     } catch (error) {
@@ -726,6 +777,21 @@ const AdminQuestionSets = () => {
       showStatusMessage('error', '刷新数据时发生错误');
     } finally {
       setLoading(false);
+      setLoadingAction('');
+    }
+  };
+
+  // 添加单个题库刷新题目数量的函数
+  const refreshQuestionSetCount = async (questionSet) => {
+    try {
+      setLoadingAction(`refresh-count-${questionSet.id}`);
+      await updateQuestionCount(questionSet.id);
+      await loadQuestionSets();
+      showStatusMessage('success', `题库"${questionSet.title}"题目数量更新成功`);
+    } catch (error) {
+      console.error(`刷新题库${questionSet.id}题目数量出错:`, error);
+      showStatusMessage('error', '刷新题目数量时发生错误');
+    } finally {
       setLoadingAction('');
     }
   };
@@ -740,6 +806,27 @@ const AdminQuestionSets = () => {
       );
     }
     
+    // 添加获取题目数量的辅助函数
+    const getQuestionCount = (set: QuestionSet): number => {
+      // 直接使用questionCount属性 (如果存在且为数字)
+      if (typeof set.questionCount === 'number' && set.questionCount > 0) {
+        return set.questionCount;
+      }
+      
+      // 从questionSetQuestions数组计算数量
+      if (set.questionSetQuestions && Array.isArray(set.questionSetQuestions)) {
+        return set.questionSetQuestions.length;
+      }
+      
+      // 从questions数组计算数量
+      if (set.questions && Array.isArray(set.questions)) {
+        return set.questions.length;
+      }
+      
+      // 默认返回0
+      return 0;
+    };
+    
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredQuestionSets.map(questionSet => (
@@ -752,10 +839,15 @@ const AdminQuestionSets = () => {
                 <span className="text-2xl mr-2">{questionSet.icon || '📝'}</span>
                 <h3 className="text-lg font-medium">{questionSet.title}</h3>
               </div>
-              <div>
+              <div className="flex flex-wrap gap-1">
                 {questionSet.isPaid && (
-                  <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded mr-1">
+                  <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
                     付费
+                  </span>
+                )}
+                {questionSet.isFeatured && (
+                  <span className="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+                    精选
                   </span>
                 )}
                 <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
@@ -769,42 +861,76 @@ const AdminQuestionSets = () => {
             </p>
             
             <div className="flex justify-between items-center text-sm text-gray-500 mb-4">
-              <span>题目数量: {questionSet.questions?.length || 0}</span>
+              <span className="flex items-center">
+                题目数量: {getQuestionCount(questionSet)}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    refreshQuestionSetCount(questionSet);
+                  }}
+                  className="ml-1 text-blue-500 hover:text-blue-700"
+                  disabled={loading && loadingAction === `refresh-count-${questionSet.id}`}
+                  title="刷新题目数量"
+                >
+                  {loading && loadingAction === `refresh-count-${questionSet.id}` ? (
+                    <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                </button>
+              </span>
               <span>ID: {questionSet.id}</span>
             </div>
             
-            <div className="flex justify-between pt-3 border-t border-gray-100">
-              <div>
-                <button 
-                  className="text-blue-600 hover:text-blue-800 mr-3"
-                  onClick={() => {
-                    setCurrentQuestionSet(questionSet);
-                    setShowQuestionModal(true);
-                  }}
-                >
-                  管理题目
-                </button>
-                <button 
-                  className="text-indigo-600 hover:text-indigo-800"
-                  onClick={() => handleShowGenerateCodeModal(questionSet)}
-                >
-                  生成兑换码
-                </button>
-              </div>
-              <div>
-                <button 
-                  className="text-green-600 hover:text-green-800 mr-3"
-                  onClick={() => handleEditClick(questionSet)}
-                >
-                  编辑
-                </button>
-                <button 
-                  className="text-red-600 hover:text-red-800"
-                  onClick={() => handleDeleteQuestionSet(questionSet.id)}
-                >
-                  删除
-                </button>
-              </div>
+            {/* 添加编辑按钮卡片 */}
+            <div className="bg-gray-50 p-3 -mx-5 -mb-5 mt-3 border-t border-gray-100 grid grid-cols-2 gap-2">
+              <button 
+                className="flex items-center justify-center py-2 px-3 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded"
+                onClick={() => {
+                  setCurrentQuestionSet(questionSet);
+                  setShowQuestionModal(true);
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                管理题目
+              </button>
+              
+              <button 
+                className="flex items-center justify-center py-2 px-3 bg-green-50 text-green-600 hover:bg-green-100 rounded"
+                onClick={() => handleEditClick(questionSet)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                编辑题库
+              </button>
+              
+              <button 
+                className="flex items-center justify-center py-2 px-3 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded"
+                onClick={() => handleShowGenerateCodeModal(questionSet)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                生成兑换码
+              </button>
+              
+              <button 
+                className="flex items-center justify-center py-2 px-3 bg-red-50 text-red-600 hover:bg-red-100 rounded"
+                onClick={() => handleDeleteQuestionSet(questionSet.id)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                删除题库
+              </button>
             </div>
           </div>
         ))}
@@ -1263,6 +1389,39 @@ const AdminQuestionSets = () => {
               )}
             </Form.Item>
             
+            <Form.Item 
+              label="精选设置" 
+              className="mb-3"
+            >
+              <div className="mb-2">
+                <input
+                  type="checkbox"
+                  name="isFeatured"
+                  checked={formData.isFeatured}
+                  onChange={handleFormChange}
+                  id="createIsFeatured"
+                  className="mr-2"
+                />
+                <label htmlFor="createIsFeatured">设为精选题库</label>
+              </div>
+              
+              {formData.isFeatured && (
+                <div className="ml-5">
+                  <label htmlFor="createFeaturedCategory" className="block mb-1">精选分类</label>
+                  <Input
+                    name="featuredCategory"
+                    value={formData.featuredCategory}
+                    onChange={handleFormChange}
+                    placeholder="请输入精选分类（可选）"
+                    id="createFeaturedCategory"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    精选分类用于前台分组展示，如果留空则使用题库原分类
+                  </p>
+                </div>
+              )}
+            </Form.Item>
+            
             <div className="flex justify-end mt-4">
               <Button 
                 onClick={() => setShowCreateForm(false)} 
@@ -1414,6 +1573,39 @@ const AdminQuestionSets = () => {
                     />
                   </div>
                 </>
+              )}
+            </Form.Item>
+
+            <Form.Item 
+              label="精选设置" 
+              className="mb-3"
+            >
+              <div className="mb-2">
+                <input
+                  type="checkbox"
+                  name="isFeatured"
+                  checked={formData.isFeatured}
+                  onChange={handleFormChange}
+                  id="editIsFeatured"
+                  className="mr-2"
+                />
+                <label htmlFor="editIsFeatured">设为精选题库</label>
+              </div>
+              
+              {formData.isFeatured && (
+                <div className="ml-5">
+                  <label htmlFor="editFeaturedCategory" className="block mb-1">精选分类</label>
+                  <Input
+                    name="featuredCategory"
+                    value={formData.featuredCategory}
+                    onChange={handleFormChange}
+                    placeholder="请输入精选分类（可选）"
+                    id="editFeaturedCategory"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    精选分类用于前台分组展示，如果留空则使用题库原分类
+                  </p>
+                </div>
               )}
             </Form.Item>
             

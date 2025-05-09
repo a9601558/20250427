@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { homepageService, questionSetService } from '../../services/api';
 import { QuestionSet } from '../../types';
+import { useSocket } from '../../contexts/SocketContext';
 
 interface FeaturedQuestionSet extends QuestionSet {
   isFeatured: boolean;
@@ -10,6 +11,7 @@ interface FeaturedQuestionSet extends QuestionSet {
 
 const AdminFeaturedManagement: React.FC = () => {
   const { isAdmin } = useUser();
+  const { socket } = useSocket();
   
   // Common states
   const [loading, setLoading] = useState<boolean>(true);
@@ -117,6 +119,9 @@ const AdminFeaturedManagement: React.FC = () => {
           ...prev,
           [newCategory.trim()]: 0
         }));
+        
+        // 通知所有客户端更新
+        notifyClientsOfCategoryChange('added', newCategory.trim());
       } else {
         console.error('添加分类失败:', response.message);
         showMessage('error', response.message || '添加分类失败');
@@ -175,6 +180,9 @@ const AdminFeaturedManagement: React.FC = () => {
         setInUseCategories(newInUseCategories);
         
         showMessage('success', '分类删除成功');
+        
+        // 通知所有客户端更新
+        notifyClientsOfCategoryChange('deleted', category);
       } else {
         console.error('删除分类失败:', response.message);
         showMessage('error', response.message || '删除分类失败');
@@ -253,6 +261,9 @@ const AdminFeaturedManagement: React.FC = () => {
         }
         
         showMessage('success', '分类更新成功');
+        
+        // 通知所有客户端更新
+        notifyClientsOfCategoryChange('updated', newCategoryName.trim(), oldCategory);
       } else {
         console.error('更新分类失败:', response.message);
         showMessage('error', response.message || '更新分类失败');
@@ -262,6 +273,58 @@ const AdminFeaturedManagement: React.FC = () => {
       showMessage('error', '更新分类时发生错误');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // 添加统一的客户端通知函数
+  const notifyClientsOfCategoryChange = (action: 'added' | 'deleted' | 'updated', category: string, oldCategory?: string) => {
+    if (socket) {
+      socket.emit('admin:homeContent:updated', {
+        type: 'featuredCategories',
+        action,
+        category,
+        oldCategory,
+        timestamp: Date.now()
+      });
+      
+      // 触发全局事件让首页更新
+      window.dispatchEvent(new CustomEvent('homeContent:updated', {
+        detail: {
+          type: 'featuredCategories',
+          timestamp: Date.now()
+        }
+      }));
+      
+      // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
+      localStorage.setItem('home_content_updated', Date.now().toString());
+    }
+  };
+
+  // 添加统一的客户端通知函数 - 题库更新
+  const notifyClientsOfQuestionSetChange = (id: string, isFeatured: boolean, featuredCategory?: string) => {
+    if (socket) {
+      const questionSet = questionSets.find(qs => qs.id === id);
+      
+      socket.emit('admin:homeContent:updated', {
+        type: 'featuredQuestionSet',
+        action: 'updated',
+        questionSetId: id,
+        title: questionSet?.title || '未知题库',
+        isFeatured,
+        featuredCategory,
+        timestamp: Date.now()
+      });
+      
+      // 触发全局事件让首页更新
+      window.dispatchEvent(new CustomEvent('homeContent:updated', {
+        detail: {
+          type: 'featuredQuestionSet',
+          timestamp: Date.now()
+        }
+      }));
+      
+      // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
+      localStorage.setItem('home_content_updated', Date.now().toString());
     }
   };
 
@@ -291,6 +354,9 @@ const AdminFeaturedManagement: React.FC = () => {
         );
         
         showMessage('success', `题库已${isFeatured ? '标记为' : '取消'}精选`);
+        
+        // 通知所有客户端更新
+        notifyClientsOfQuestionSetChange(id, isFeatured, currentSet.featuredCategory);
       } else {
         console.error(`更新精选状态失败:`, response.error);
         showMessage('error', response.error || '更新失败');
@@ -341,6 +407,9 @@ const AdminFeaturedManagement: React.FC = () => {
         );
         
         showMessage('success', '精选分类已更新');
+        
+        // 通知所有客户端更新
+        notifyClientsOfQuestionSetChange(id, currentSet.isFeatured, featuredCategory);
       } else {
         console.error('更新精选分类失败:', response.error);
         showMessage('error', response.error || '更新失败');
@@ -448,6 +517,7 @@ const AdminFeaturedManagement: React.FC = () => {
           <li>在"精选题库管理"中为题库分配分类并标记为精选</li>
           <li>被标记为精选的题库和分配了精选分类的题库会在首页推荐区域显示</li>
           <li>精选分类决定了题库在首页上的分组方式</li>
+          <li>所有更改都会通过服务器实时同步到所有用户的首页</li>
         </ul>
       </div>
 
