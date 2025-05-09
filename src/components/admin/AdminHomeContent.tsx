@@ -372,34 +372,41 @@ const AdminHomeContent: React.FC = () => {
       if (response.success) {
         toast.success('首页内容已更新');
         
-        // Set a flag to prevent event handling cycles
+        // Set stronger flags to force update on homepage
         sessionStorage.setItem('adminTriggeredUpdate', 'true');
+        sessionStorage.setItem('forceFullContentRefresh', 'true');
         
-        // 使用多种方式通知更新，确保首页内容得到更新
-        // 1. 通过自定义事件通知其他组件
+        // Use a very distinct timestamp to ensure it's recognized as new
         const eventTimestamp = Date.now();
+        localStorage.setItem('home_content_force_reload', eventTimestamp.toString());
+        localStorage.setItem('home_content_updated', eventTimestamp.toString());
+        
+        // 1. 通过自定义事件通知其他组件
         window.dispatchEvent(new CustomEvent('homeContent:updated', {
           detail: {
             timestamp: eventTimestamp,
-            source: 'admin',
+            source: 'admin_direct',
             categories: homeContent.featuredCategories,
-            changeType: 'full_content'
+            changeType: 'full_content_reload',
+            forceRefresh: true
           }
         }));
         
         // 2. 使用localStorage设置一个更新标记和时间戳，帮助首页检测内容变更
         localStorage.setItem('home_content_updated', eventTimestamp.toString());
         
-        // 3. 如果可能，通过socket通知所有打开的客户端
+        // 3. 通过socket通知所有打开的客户端
         try {
           if (socket) {
             socket.emit('admin:homeContent:updated', {
               timestamp: eventTimestamp,
-              source: 'admin',
-              changeType: 'full_content',
+              source: 'admin_direct',
+              changeType: 'full_content_reload',
               categories: homeContent.featuredCategories,
               welcomeTitle: homeContent.welcomeTitle,
-              footerUpdated: true
+              footerUpdated: true,
+              forceRefresh: true,
+              data: homeContent // Include full data in socket event
             });
           }
         } catch (socketErr) {
@@ -415,6 +422,7 @@ const AdminHomeContent: React.FC = () => {
         // Clear the admin trigger flag after a delay
         setTimeout(() => {
           sessionStorage.removeItem('adminTriggeredUpdate');
+          sessionStorage.removeItem('forceFullContentRefresh');
         }, 5000);
       } else {
         toast.error('更新失败: ' + response.message);

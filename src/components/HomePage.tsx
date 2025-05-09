@@ -1641,41 +1641,55 @@ const HomePage: React.FC = () => {
 
   // Clean up the fetchLatestHomeContent implementation
   const fetchLatestHomeContent = useCallback(async (options: { showNotification?: boolean, source?: string } = {}) => {
-    // Prevent concurrent requests
-    if (pendingFetchRef.current) {
-      console.log(`[HomePage] Already fetching content, skipping update (source: ${options.source || 'unknown'})`);
-      return;
-    }
+    // Special handling for admin-triggered forced reloads
+    const forceFullContentRefresh = sessionStorage.getItem('forceFullContentRefresh') === 'true';
+    const forceReloadTimestamp = localStorage.getItem('home_content_force_reload');
     
-    // ADD PREVENTION FOR INFINITE LOOPS
-    const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastFetchTimestamp;
+    // If the source is admin_direct or we have a forced reload flag, bypass all throttling
+    const isAdminDirectUpdate = options.source === 'admin_direct' || options.source === 'admin_event' || 
+                               forceFullContentRefresh;
     
-    // If we've fetched within the last 3 seconds (except initial load), debounce
-    if (options.source !== 'initial_load' && timeSinceLastFetch < 3000) {
-      console.log(`[HomePage] Too many requests (${timeSinceLastFetch}ms since last). Debouncing.`);
-      return;
-    }
-    
-    // Track request count within a timeframe to detect loops
-    const requestCount = parseInt(sessionStorage.getItem('homeContentRequestCount') || '0');
-    const requestCountResetTime = parseInt(sessionStorage.getItem('requestCountResetTime') || '0');
-    
-    // Reset count if it's been more than 10 seconds since last reset
-    if (now - requestCountResetTime > 10000) {
-      sessionStorage.setItem('homeContentRequestCount', '1');
-      sessionStorage.setItem('requestCountResetTime', now.toString());
+    if (isAdminDirectUpdate) {
+      console.log(`[HomePage] Processing FORCED content refresh from admin`);
+      // Skip all throttling checks for admin updates
     } else {
-      // Increment count
-      const newCount = requestCount + 1;
-      sessionStorage.setItem('homeContentRequestCount', newCount.toString());
-      
-      // If more than 5 requests in 10 seconds, likely in a loop
-      if (newCount > 5) {
-        console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
-        sessionStorage.setItem('homeContentRequestCount', '0');
+      // Regular throttling for non-admin updates
+      // Prevent concurrent requests
+      if (pendingFetchRef.current) {
+        console.log(`[HomePage] Already fetching content, skipping update (source: ${options.source || 'unknown'})`);
         return;
+      }
+      
+      // ADD PREVENTION FOR INFINITE LOOPS
+      const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
+      const now = Date.now();
+      const timeSinceLastFetch = now - lastFetchTimestamp;
+      
+      // If we've fetched within the last 3 seconds (except initial load), debounce
+      if (options.source !== 'initial_load' && timeSinceLastFetch < 3000) {
+        console.log(`[HomePage] Too many requests (${timeSinceLastFetch}ms since last). Debouncing.`);
+        return;
+      }
+      
+      // Track request count within a timeframe to detect loops
+      const requestCount = parseInt(sessionStorage.getItem('homeContentRequestCount') || '0');
+      const requestCountResetTime = parseInt(sessionStorage.getItem('requestCountResetTime') || '0');
+      
+      // Reset count if it's been more than 10 seconds since last reset
+      if (now - requestCountResetTime > 10000) {
+        sessionStorage.setItem('homeContentRequestCount', '1');
+        sessionStorage.setItem('requestCountResetTime', now.toString());
+      } else {
+        // Increment count
+        const newCount = requestCount + 1;
+        sessionStorage.setItem('homeContentRequestCount', newCount.toString());
+        
+        // If more than 5 requests in 10 seconds, likely in a loop
+        if (newCount > 5) {
+          console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
+          sessionStorage.setItem('homeContentRequestCount', '0');
+          return;
+        }
       }
     }
     
@@ -1684,25 +1698,30 @@ const HomePage: React.FC = () => {
       console.log(`[HomePage] Fetching latest home content (source: ${options.source || 'unknown'})`);
       
       // Store timestamp of this fetch
-      sessionStorage.setItem('lastHomeContentFetch', now.toString());
+      sessionStorage.setItem('lastHomeContentFetch', Date.now().toString());
+      
+      // Create params with cache-busting
+      const params: Record<string, any> = { 
+        _timestamp: Date.now(),
+        _nocache: true
+      };
+      
+      // For admin-triggered updates, add stronger cache-busting
+      if (isAdminDirectUpdate) {
+        params._forceRefresh = Date.now();
+        params._adminUpdate = 'true';
+      }
       
       // Add timestamp to prevent caching
-      const response = await homepageService.getHomeContent({ 
-        _timestamp: now,
-        _nocache: true
-      });
+      const response = await homepageService.getHomeContent(params);
       
       if (response.success && response.data) {
         console.log('[HomePage] Home content loaded successfully:', response.data);
         console.log('[HomePage] Loaded featured categories:', response.data.featuredCategories);
         
-        // Check if content has actually changed
-        const currentContent = JSON.stringify(homeContent);
-        const newContent = JSON.stringify(response.data);
-        const hasChanged = currentContent !== newContent;
-        
-        if (hasChanged) {
-          console.log('[HomePage] Home content has changed, updating state');
+        // If this is an admin update, force the refresh regardless of content change
+        if (isAdminDirectUpdate) {
+          console.log('[HomePage] Admin update detected - forcing content refresh');
           setHomeContent(response.data);
           
           // Default to "all" category when featured categories are available
@@ -1712,16 +1731,47 @@ const HomePage: React.FC = () => {
           
           // Refresh question sets to apply new categories
           setTimeout(() => {
-            console.log('[HomePage] Refreshing question sets with new category settings');
+            console.log('[HomePage] Refreshing question sets with new admin settings');
             fetchQuestionSets({ forceFresh: true });
             
             // Show notification if requested
-            if (options.showNotification && typeof toast?.success === 'function') {
-              toast.success('Home page content updated', { position: 'bottom-center' });
+            if (options.showNotification) {
+              toast.success('Home page content updated by admin', { position: 'bottom-center' });
+            }
+            
+            // Clear the force reload flag
+            if (forceReloadTimestamp) {
+              localStorage.removeItem('home_content_force_reload');
             }
           }, 200);
         } else {
-          console.log('[HomePage] Home content unchanged, skipping update');
+          // Regular content changes - check if there's a difference
+          const currentContent = JSON.stringify(homeContent);
+          const newContent = JSON.stringify(response.data);
+          const hasChanged = currentContent !== newContent;
+          
+          if (hasChanged) {
+            console.log('[HomePage] Home content has changed, updating state');
+            setHomeContent(response.data);
+            
+            // Default to "all" category when featured categories are available
+            if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
+              setActiveCategory('all');
+            }
+            
+            // Refresh question sets to apply new categories
+            setTimeout(() => {
+              console.log('[HomePage] Refreshing question sets with new category settings');
+              fetchQuestionSets({ forceFresh: true });
+              
+              // Show notification if requested
+              if (options.showNotification) {
+                toast.success('Home page content updated', { position: 'bottom-center' });
+              }
+            }, 200);
+          } else {
+            console.log('[HomePage] Home content unchanged, skipping update');
+          }
         }
       } else {
         console.error('[HomePage] Failed to get home content:', response.message);
@@ -1732,7 +1782,7 @@ const HomePage: React.FC = () => {
       // Release lock
       pendingFetchRef.current = false;
     }
-  }, [fetchQuestionSets, homeContent]);
+  }, [fetchQuestionSets, homeContent, setActiveCategory, toast]);
 
   // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {
@@ -1836,6 +1886,34 @@ const HomePage: React.FC = () => {
       setupRenderEffects();
     }
   }, [homeContent.featuredCategories, setupRenderEffects, questionSets.length]);
+
+  // Check for admin content updates specifically
+  useEffect(() => {
+    // Check for force reload flag set by admin content updates
+    const checkForAdminUpdates = () => {
+      const forceReload = localStorage.getItem('home_content_force_reload');
+      const adminTriggered = sessionStorage.getItem('adminTriggeredUpdate') === 'true';
+      const forceContentRefresh = sessionStorage.getItem('forceFullContentRefresh') === 'true';
+      
+      if (forceReload || adminTriggered || forceContentRefresh) {
+        console.log('[HomePage] Detected admin force reload flag, fetching latest content');
+        fetchLatestHomeContent({
+          source: 'admin_direct',
+          showNotification: true
+        });
+      }
+    };
+    
+    // Check immediately on component mount
+    checkForAdminUpdates();
+    
+    // Set up interval to periodically check for admin updates (much less frequently than our normal check)
+    const intervalId = setInterval(checkForAdminUpdates, 5000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [fetchLatestHomeContent]);
 
   // 修复加载状态检查
   if (loading) {
