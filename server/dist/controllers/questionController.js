@@ -162,13 +162,20 @@ exports.getRandomQuestion = getRandomQuestion;
 // @access  Public
 const getQuestionCount = async (req, res) => {
     try {
+        console.log('[API] Received request for question count:', req.params);
         const { questionSetId } = req.params;
         // 验证参数
         if (!questionSetId) {
-            return res.status(400).json({ success: false, message: '题库ID不能为空' });
+            console.log('[API] Missing questionSetId in request params');
+            return res.status(400).json({
+                success: false,
+                message: '题库ID不能为空',
+                count: 0
+            });
         }
         // 查询该题库下的问题数量
         const count = await Question_1.default.count({ where: { questionSetId: String(questionSetId) } });
+        console.log(`[API] Question count for set ${questionSetId}: ${count}`);
         return res.status(200).json({
             success: true,
             count,
@@ -176,11 +183,12 @@ const getQuestionCount = async (req, res) => {
         });
     }
     catch (error) {
-        console.error('获取题目数量失败:', error);
+        console.error('[API] Error getting question count:', error);
         return res.status(500).json({
             success: false,
             message: '获取题目数量失败',
-            error: error.message
+            error: error.message,
+            count: 0
         });
     }
 };
@@ -190,9 +198,13 @@ exports.getQuestionCount = getQuestionCount;
 // @access  Admin
 const batchUploadQuestions = async (req, res) => {
     try {
+        console.log(`[API] Received batch upload request for question set`);
+        console.log(`[API] Request params:`, req.params);
+        console.log(`[API] Request has file:`, !!req.file);
         const { questionSetId } = req.params;
         // 验证参数
         if (!questionSetId) {
+            console.log(`[API] Missing questionSetId in request params`);
             return res.status(400).json({
                 success: false,
                 message: '题库ID不能为空'
@@ -200,19 +212,20 @@ const batchUploadQuestions = async (req, res) => {
         }
         // 检查上传的文件 - 使用multer中间件处理后的req.file
         if (!req.file) {
+            console.log(`[API] No file uploaded in request`);
             return res.status(400).json({
                 success: false,
                 message: '没有上传文件'
             });
         }
-        console.log('Received file:', req.file.originalname, 'size:', req.file.size);
+        console.log('[API] Received file:', req.file.originalname, 'size:', req.file.size);
         // 读取文件内容
         const fs = require('fs');
         const path = require('path');
         const fileContent = fs.readFileSync(req.file.path, 'utf8');
         // 解析文件内容 - 假设是按行分隔的文本文件
         const lines = fileContent.split('\n').filter((line) => line.trim() !== '');
-        console.log(`解析到 ${lines.length} 行数据`);
+        console.log(`[API] 解析到 ${lines.length} 行数据`);
         // 导入成功的问题数量
         let successCount = 0;
         // 导入失败的问题数量

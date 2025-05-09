@@ -93,8 +93,16 @@ const AdminBatchQuestionUpload: React.FC = () => {
     try {
       // 创建 FormData 对象
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file); // Ensure file is first in the FormData
       formData.append('questionSetId', selectedQuestionSet);
+
+      // Log FormData values for debugging
+      console.log('[Upload] FormData questionSetId:', selectedQuestionSet);
+      console.log('[Upload] FormData file name:', file.name);
+      console.log('[Upload] FormData file size:', file.size);
+      
+      // Force a slight delay to ensure the form is properly built
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // 导入修改后的questionSetService而不是使用API
       const myQuestionSetService = await import('../../services/questionSetService');

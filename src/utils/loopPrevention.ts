@@ -53,9 +53,21 @@ export const detectLoop = (key: string = 'default', maxRequests: number = 3, tim
   const now = Date.now();
   const requestsKey = `loop_requests_${key}`;
   const requestsTimeKey = `loop_time_${key}`;
+  const counterKey = `loop_counter_${key}`; // Track total occurrences for debugging
   
   const requestCount = parseInt(sessionStorage.getItem(requestsKey) || '0');
   const requestsTime = parseInt(sessionStorage.getItem(requestsTimeKey) || '0');
+  const totalCount = parseInt(sessionStorage.getItem(counterKey) || '0');
+  
+  // Update total counter for debugging purposes
+  sessionStorage.setItem(counterKey, (totalCount + 1).toString());
+  
+  // Check if already blocked - double check for safety
+  const blockUntil = parseInt(sessionStorage.getItem(`loop_blocked_${key}`) || '0');
+  if (blockUntil > now) {
+    console.error(`[LOOP DETECTION] Requests for key '${key}' already blocked for ${(blockUntil - now)/1000} more seconds`);
+    return true;
+  }
   
   // Reset counter if it's been more than the time window since last reset
   if (now - requestsTime > timeWindow) {
@@ -68,16 +80,43 @@ export const detectLoop = (key: string = 'default', maxRequests: number = 3, tim
   const newCount = requestCount + 1;
   sessionStorage.setItem(requestsKey, newCount.toString());
   
+  // Log warning when approaching threshold
+  if (newCount === maxRequests) {
+    console.warn(`[LOOP DETECTION] Warning: approaching loop threshold for key '${key}'. ${newCount}/${maxRequests} requests in ${now - requestsTime}ms.`);
+  }
+  
   // If more than maxRequests in the time window, likely in a loop
   if (newCount > maxRequests) {
-    console.error(`[LOOP DETECTION] Detected potential infinite loop for key '${key}'. ${newCount} requests in ${timeWindow}ms.`);
+    console.error(`[LOOP DETECTION] Detected potential infinite loop for key '${key}'. ${newCount} requests in ${now - requestsTime}ms. Total occurrences: ${totalCount+1}`);
+    
+    // Capture stack trace for debugging
+    console.error(new Error('[LOOP DETECTION] Call stack').stack);
     
     // Reset counter to break the loop
     sessionStorage.setItem(requestsKey, '0');
     
-    // Block future requests for a cooldown period
-    const blockUntil = now + timeWindow;
+    // Block future requests for a longer cooldown period (60 seconds)
+    const blockUntil = now + 60000; // Increased from default timeWindow to 60 seconds
     sessionStorage.setItem(`loop_blocked_${key}`, blockUntil.toString());
+    
+    // Store loop detection event for analytics
+    try {
+      const loopEvents = JSON.parse(localStorage.getItem('loop_detection_events') || '[]');
+      loopEvents.push({
+        key,
+        timestamp: now,
+        count: newCount,
+        timeWindow: now - requestsTime,
+        totalCount: totalCount + 1
+      });
+      // Keep only last 10 events
+      if (loopEvents.length > 10) {
+        loopEvents.shift();
+      }
+      localStorage.setItem('loop_detection_events', JSON.stringify(loopEvents));
+    } catch (error) {
+      console.error('[LOOP DETECTION] Error storing loop event:', error);
+    }
     
     return true;
   }

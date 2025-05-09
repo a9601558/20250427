@@ -12,26 +12,34 @@ const uploadDir = path_1.default.join(__dirname, '../../uploads');
 if (!fs_1.default.existsSync(uploadDir)) {
     fs_1.default.mkdirSync(uploadDir, { recursive: true });
 }
+console.log('[FileUpload] Upload directory configured:', uploadDir);
 // Configure storage
 const storage = multer_1.default.diskStorage({
     destination: function (req, file, cb) {
+        console.log('[FileUpload] Processing file upload:', file.originalname);
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path_1.default.extname(file.originalname));
+        const filename = uniqueSuffix + path_1.default.extname(file.originalname);
+        console.log('[FileUpload] Generated filename:', filename);
+        cb(null, filename);
     }
 });
 // File filter
 const fileFilter = (req, file, cb) => {
-    // Accept only csv and txt files
+    // Accept multiple file formats
+    console.log('[FileUpload] File filter checking:', file.originalname, file.mimetype);
     if (file.mimetype === 'text/csv' ||
         file.mimetype === 'text/plain' ||
+        file.mimetype === 'application/octet-stream' ||
         file.originalname.endsWith('.csv') ||
         file.originalname.endsWith('.txt')) {
+        console.log('[FileUpload] File accepted:', file.originalname);
         cb(null, true);
     }
     else {
+        console.log('[FileUpload] File rejected:', file.originalname, file.mimetype);
         cb(new Error('只支持CSV和TXT文件'));
     }
 };

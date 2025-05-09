@@ -26,14 +26,35 @@ export const questionSetService = {
       const response = await questionSetService.getAllQuestionSets();
       
       if (response.success && response.data) {
+        console.log(`[QuestionSetService] Fetched ${response.data.length} question sets, adding question counts...`);
+        
         // Get question counts for each question set
         const questionSetsWithCounts = await Promise.all(
           response.data.map(async (set) => {
-            const count = await this.getQuestionCount(set.id);
-            return {
-              ...set,
-              questionCount: count
-            };
+            try {
+              // Directly use fetch to get the count to avoid circular imports
+              const countResponse = await fetch(`/api/questions/count/${set.id}`);
+              let count = 0;
+              
+              if (countResponse.ok) {
+                const countData = await countResponse.json();
+                count = countData.count || 0;
+                console.log(`[QuestionSetService] Question count for ${set.id}: ${count}`);
+              } else {
+                console.error(`[QuestionSetService] Failed to get count for ${set.id}: ${countResponse.status}`);
+              }
+              
+              return {
+                ...set,
+                questionCount: count
+              };
+            } catch (countError) {
+              console.error(`[QuestionSetService] Error getting count for ${set.id}:`, countError);
+              return {
+                ...set,
+                questionCount: 0
+              };
+            }
           })
         );
         
@@ -45,6 +66,7 @@ export const questionSetService = {
       
       return response;
     } catch (error) {
+      console.error('[QuestionSetService] Error in getAllQuestionSets:', error);
       return { success: false, error: (error as Error).message };
     }
   },
@@ -129,18 +151,37 @@ export const questionSetService = {
   // Get question count for a question set
   async getQuestionCount(questionSetId: string): Promise<number> {
     try {
+      console.log(`[QuestionSetService] Getting question count for ${questionSetId}`);
+      
+      // Make sure we have a valid ID
+      if (!questionSetId) {
+        console.error('[QuestionSetService] Invalid questionSetId provided to getQuestionCount');
+        return 0;
+      }
+      
       const response = await fetch(`/api/questions/count/${questionSetId}`);
+      
       if (!response.ok) {
-        console.error(`Error fetching question count: API returned ${response.status}`);
+        console.error(`[QuestionSetService] Error fetching question count: API returned ${response.status}`);
         return 0;
       }
       
       const data = await response.json();
-      console.log(`Question count response for ${questionSetId}:`, data);
+      console.log(`[QuestionSetService] Question count response for ${questionSetId}:`, data);
       
-      return data.count || 0;
+      // Ensure we're handling all possible response formats
+      if (data.success && typeof data.count === 'number') {
+        return data.count;
+      } else if (typeof data.count === 'number') {
+        return data.count;
+      } else if (data.data && typeof data.data.count === 'number') {
+        return data.data.count;
+      }
+      
+      console.warn(`[QuestionSetService] Could not find count in API response:`, data);
+      return 0;
     } catch (error) {
-      console.error('Error getting question count:', error);
+      console.error('[QuestionSetService] Error getting question count:', error);
       return 0;
     }
   },
@@ -177,11 +218,13 @@ export const questionSetService = {
         return { success: false, error: 'No questionSetId provided' };
       }
       
-      // Log the request details for debugging
-      console.log(`Sending batch upload request to: ${API_ENDPOINTS.BATCH_UPLOAD_QUESTIONS(questionSetId)}`);
+      // Properly construct the URL using relative paths
+      // This ensures it works regardless of the current domain
+      const endpoint = `/api/questions/batch-upload/${questionSetId}`;
+      console.log(`Sending batch upload request to: ${endpoint}`);
       
-      // Make the actual request - use the existing API endpoint for questions
-      const response = await fetch(API_ENDPOINTS.BATCH_UPLOAD_QUESTIONS(questionSetId), {
+      // Make the actual request with relative path
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -202,6 +245,7 @@ export const questionSetService = {
       const data = await response.json();
       
       if (!response.ok) {
+        console.error(`Batch upload failed: ${response.status} ${response.statusText}`, data);
         return { 
           success: false, 
           error: data.message || `Server returned ${response.status}` 
@@ -223,6 +267,7 @@ export const questionSetService = {
         message: data.message || 'Questions added successfully'
       };
     } catch (error) {
+      console.error('Batch upload error:', error);
       return { success: false, error: (error as Error).message };
     }
   }

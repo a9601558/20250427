@@ -19,7 +19,10 @@ router.get('/', getQuestions);
 // 特殊路由放在通用路由前面
 router.get('/count/:questionSetId', getQuestionCount);
 router.get('/random/:questionSetId', getRandomQuestion);
+
+// Batch upload route - ensure proper middleware and handling
 router.post('/batch-upload/:questionSetId', protect, admin, upload.single('file'), batchUploadQuestions);
+
 // 通用路由放在特殊路由后面
 router.get('/:id', getQuestionById);
 router.post('/', protect, admin, createQuestion);

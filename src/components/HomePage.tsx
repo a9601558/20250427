@@ -7,6 +7,7 @@ import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
+import { throttleContentFetch, detectLoop, isBlocked } from '../utils/loopPrevention';
 
 import { 
   HomeContentData, 
@@ -173,15 +174,29 @@ const HomePage: React.FC = () => {
 
     // 获取题目数量
     const getQuestionCount = () => {
+      // Log original values for debugging
+      console.log(`[HomePage] Question count data for ${set.id}:`, {
+        questionCount: set.questionCount,
+        questions: set.questions?.length,
+        questionSetQuestions: set.questionSetQuestions?.length
+      });
+      
+      // Check for valid questionCount property
       if (typeof set.questionCount === 'number' && set.questionCount > 0) {
         return set.questionCount;
       }
-      if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
-        return set.questionSetQuestions.length;
-      }
+      
+      // Check for questions array
       if (Array.isArray(set.questions) && set.questions.length > 0) {
         return set.questions.length;
       }
+      
+      // Check for questionSetQuestions array
+      if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
+        return set.questionSetQuestions.length;
+      }
+      
+      // Default fallback
       return 0;
     };
 
@@ -1722,6 +1737,13 @@ const HomePage: React.FC = () => {
   
   // Clean up the fetchLatestHomeContent implementation
   const fetchLatestHomeContent = useCallback(async (options: HomeContentFetchOptions = {}) => {
+    // Add enhanced loop detection at the beginning of the function
+    if (detectLoop('homeContent', 3, 8000) || isBlocked('homeContent')) {
+      console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
+      // Exit early to break the loop completely
+      return;
+    }
+
     // Special handling for admin-triggered forced reloads
     const forceFullContentRefresh = sessionStorage.getItem('forceFullContentRefresh') === 'true';
     const forceReloadTimestamp = localStorage.getItem('home_content_force_reload');
@@ -1730,14 +1752,16 @@ const HomePage: React.FC = () => {
     // STRONG INFINITE LOOP PREVENTION - Global cooldown tracking
     const globalLastUpdate = parseInt(localStorage.getItem('global_home_content_last_update') || '0');
     const now = Date.now();
-    const globalCooldown = 2000; // 2 seconds minimum between any content updates
+    
+    // Increased cooldown period for better prevention (3 seconds → 5 seconds)
+    const globalCooldown = 5000; // 5 seconds minimum between any content updates
     
     if (now - globalLastUpdate < globalCooldown && !options.source?.includes('initial')) {
       console.log(`[HomePage] Global cooldown active (${now - globalLastUpdate}ms < ${globalCooldown}ms). Skipping update.`);
       return;
     }
     
-    // If the source is admin_direct or we have a forced reload flag, bypass all throttling
+    // If the source is admin_direct or we have a forced reload flag, bypass throttling but not loop detection
     const isAdminDirectUpdate = options.source === 'admin_direct' || options.source === 'admin_event' || 
                                forceFullContentRefresh;
     
@@ -1964,7 +1988,12 @@ const HomePage: React.FC = () => {
             // Refresh question sets to apply new categories
             setTimeout(() => {
               console.log('[HomePage] Refreshing question sets with new admin settings');
-              fetchQuestionSets({ forceFresh: true });
+              // Only fetch if not in a skip refresh mode to prevent loops
+              if (!options.skipRefresh) {
+                fetchQuestionSets({ forceFresh: true });
+              } else {
+                console.log('[HomePage] Skipping question sets refresh as requested by options');
+              }
               
               // Show notification if requested
               if (options.showNotification) {
@@ -1996,7 +2025,12 @@ const HomePage: React.FC = () => {
               // Refresh question sets to apply new categories
               setTimeout(() => {
                 console.log('[HomePage] Refreshing question sets with new category settings');
-                fetchQuestionSets({ forceFresh: true });
+                // Only fetch if not in a skip refresh mode to prevent loops
+                if (!options.skipRefresh) {
+                  fetchQuestionSets({ forceFresh: true });
+                } else {
+                  console.log('[HomePage] Skipping question sets refresh as requested by options');
+                }
                 
                 // Show notification if requested
                 if (options.showNotification) {
@@ -2098,8 +2132,16 @@ const HomePage: React.FC = () => {
 
   // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {
-    // Initial load of home content
-    fetchLatestHomeContent({ source: 'initial_load' });
+    // Track initial loading to prevent potential loops
+    const alreadyLoaded = sessionStorage.getItem('initialHomeContentLoaded');
+    if (alreadyLoaded === 'true') {
+      console.log('[HomePage] Initial home content already loaded, skipping duplicate load');
+      return;
+    }
+    
+    // Initial load of home content - use skipRefresh to prevent cascading updates
+    fetchLatestHomeContent({ source: 'initial_load', skipRefresh: true });
+    sessionStorage.setItem('initialHomeContentLoaded', 'true');
     
     // Check localStorage for update flags
     const lastUpdate = localStorage.getItem('home_content_updated');
@@ -2107,7 +2149,7 @@ const HomePage: React.FC = () => {
     
     if (lastUpdate && (!lastVisit || parseInt(lastUpdate) > parseInt(lastVisit))) {
       console.log('[HomePage] Detected home content update flag in localStorage');
-      fetchLatestHomeContent({ source: 'local_storage_flag', showNotification: true });
+      fetchLatestHomeContent({ source: 'local_storage_flag', showNotification: true, skipRefresh: true });
     }
     
     // Update visit timestamp
@@ -2115,6 +2157,12 @@ const HomePage: React.FC = () => {
     
     // IMPORTANT: Listen for custom event for home content updates with direct content passing
     const handleCustomContentUpdate = (event: CustomEvent) => {
+      // Use throttling to prevent rapid successive events causing loops
+      if (!throttleContentFetch('customContentEvent', 3000)) {
+        console.log('[HomePage] Throttling custom content event to prevent potential loops');
+        return;
+      }
+      
       // Add stronger protection against rapid successive events
       const now = Date.now();
       const lastEventTime = parseInt(sessionStorage.getItem('lastContentEvent') || '0');
@@ -2139,6 +2187,9 @@ const HomePage: React.FC = () => {
       
       console.log(`[HomePage] Custom event details: source=${source}, hasFullContent=${!!rawFullContent}`);
       
+      // Add skipRefresh parameter to prevent refreshing question sets if we're at risk of looping
+      const shouldSkipRefresh = detectLoop('customEventRefresh', 2, 10000) || now - lastEventTime < 5000;
+      
       // 如果有内容，确保格式正确
       let fullContent: HomeContentData | undefined = undefined;
       if (rawFullContent) {
@@ -2158,7 +2209,7 @@ const HomePage: React.FC = () => {
           setActiveCategory('all');
         }
         
-        // 刷新题库列表
+        // 刷新题库列表 - with skipRefresh if needed
         setTimeout(() => {
           fetchQuestionSets({ forceFresh: true });
         }, 200);
@@ -2168,14 +2219,22 @@ const HomePage: React.FC = () => {
         // If admin triggered but no content, use a longer debounce and clear the trigger indication
         setTimeout(() => {
           console.log('[HomePage] Processing delayed admin-triggered update');
-          fetchLatestHomeContent({ source: 'admin_event', showNotification: true });
+          fetchLatestHomeContent({ 
+            source: 'admin_event', 
+            showNotification: true,
+            skipRefresh: shouldSkipRefresh
+          });
           sessionStorage.removeItem('adminTriggeredUpdate');
         }, 2000); // Give time for backend to process changes
       } else {
         // For all other sources, add enhanced debouncing
         const lastFetchTime = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
         if (now - lastFetchTime > 5000) {
-          fetchLatestHomeContent({ source: 'custom_event', showNotification: true });
+          fetchLatestHomeContent({ 
+            source: 'custom_event', 
+            showNotification: true,
+            skipRefresh: shouldSkipRefresh
+          });
         } else {
           console.log(`[HomePage] Skipping duplicate content fetch (${now - lastFetchTime}ms since last fetch)`);
         }
