@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getFirestore, collection, getDocs, query, where, orderBy, Timestamp, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, Timestamp, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { db } from '../../config/firebase'; // 导入已初始化的Firestore实例
 
 interface PurchaseRecord {
   id: string;
@@ -37,7 +38,6 @@ const AdminPurchasedSets: React.FC = () => {
   const fetchPurchaseRecords = async () => {
     try {
       setLoading(true);
-      const db = getFirestore();
       const purchasesRef = collection(db, 'purchases');
       const q = query(purchasesRef, orderBy('purchaseDate', 'desc'));
       const querySnapshot = await getDocs(q);

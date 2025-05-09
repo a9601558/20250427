@@ -9,6 +9,7 @@ import ManageQuestionSets from './ManageQuestionSets';
 import AdminFeaturedManagement from './admin/AdminFeaturedManagement';
 import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 import AdminPurchasedSets from './admin/AdminPurchasedSets';
+import AdminBatchUpload from './admin/AdminBatchUpload';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -20,6 +21,7 @@ enum AdminTab {
   HOME_CONTENT = 'homeContent',
   QUESTION_SET_INFO = 'questionSetInfo',
   PURCHASED_SETS = 'purchasedSets',
+  BATCH_UPLOAD = 'batchUpload',
 }
 
 const AdminPage: React.FC = () => {
@@ -86,6 +88,15 @@ const AdminPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                   </svg>
                   添加题库
+                </button>
+                <button
+                  onClick={() => setActiveTab(AdminTab.BATCH_UPLOAD)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.BATCH_UPLOAD ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  批量上传题库
                 </button>
                 <button
                   onClick={() => setActiveTab(AdminTab.MANAGE_QUESTION_SETS)}
@@ -155,6 +166,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.HOME_CONTENT && <AdminHomeContent />}
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
                 {activeTab === AdminTab.PURCHASED_SETS && <AdminPurchasedSets />}
+                {activeTab === AdminTab.BATCH_UPLOAD && <AdminBatchUpload />}
               </div>
             </div>
           </div>

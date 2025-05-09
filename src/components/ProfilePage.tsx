@@ -401,13 +401,45 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   const remainingDays = calculateRemainingDays();
   const hasExpired = remainingDays <= 0;
   
-  const getStatusColorClass = () => {
-    if (hasExpired) return 'bg-red-100 text-red-800';
-    if (purchase.status === 'active') return 'bg-green-100 text-green-800';
-    if (purchase.status === 'pending') return 'bg-yellow-100 text-yellow-800';
-    return 'bg-gray-100 text-gray-800';
+  // 根据有效期状态获取不同的颜色主题
+  const getThemeColors = () => {
+    if (hasExpired) {
+      return {
+        gradientFrom: 'from-red-100',
+        gradientTo: 'to-red-50',
+        textColor: 'text-red-600',
+        borderColor: 'border-red-200',
+        accentColor: 'bg-red-500',
+        statusBg: 'bg-red-100',
+        statusText: 'text-red-800',
+      };
+    }
+    
+    if (remainingDays < 7) {
+      return {
+        gradientFrom: 'from-orange-100',
+        gradientTo: 'to-orange-50',
+        textColor: 'text-orange-600',
+        borderColor: 'border-orange-200',
+        accentColor: 'bg-orange-500',
+        statusBg: 'bg-orange-100',
+        statusText: 'text-orange-800',
+      };
+    }
+    
+    return {
+      gradientFrom: 'from-blue-100',
+      gradientTo: 'to-blue-50',
+      textColor: 'text-blue-600',
+      borderColor: 'border-blue-200',
+      accentColor: 'bg-blue-500',
+      statusBg: 'bg-blue-100',
+      statusText: 'text-blue-800',
+    };
   };
-
+  
+  const theme = getThemeColors();
+  
   const getStatusText = () => {
     if (hasExpired) return '已过期';
     if (purchase.status === 'active') return '有效';
@@ -425,51 +457,105 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
     }
   };
 
+  // 计算有效期总天数（假设为30天）和剩余百分比
+  const totalValidityDays = 30;
+  const remainingPercentage = Math.min(100, Math.round((remainingDays / totalValidityDays) * 100));
+
   return (
-    <div 
-      className="bg-white rounded-lg shadow-md p-4 mb-4 hover:shadow-lg transition-shadow cursor-pointer"
-      onClick={handleClick}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <h3 className="text-lg font-semibold text-gray-800 truncate pr-2">
-          {questionSet?.title || `题库 (ID: ${purchase.questionSetId.substring(0, 8)}...)`}
-        </h3>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColorClass()}`}>
-          {getStatusText()}
-        </span>
-      </div>
+    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden transform hover:-translate-y-1 border border-gray-100 cursor-pointer"
+      onClick={handleClick}>
+      {/* 顶部状态条 */}
+      <div className={`h-2 ${hasExpired ? 'bg-red-500' : `bg-gradient-to-r from-blue-400 to-indigo-500`}`}></div>
       
-      <div className="text-sm text-gray-500 mb-3 max-h-12 overflow-hidden">
-        {questionSet?.description || '无描述'}
-      </div>
-      
-      <div className="flex flex-wrap gap-2 text-xs text-gray-600">
-        <div className="flex items-center">
-          <CalendarIcon className="w-4 h-4 mr-1" />
-          {new Date(purchase.purchaseDate).toLocaleDateString()} 购买
+      <div className="p-5">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-lg font-semibold text-gray-800 mr-3 line-clamp-1">
+            {questionSet?.title || `题库 (ID: ${purchase.questionSetId.substring(0, 8)}...)`}
+          </h3>
+          <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${theme.statusBg} ${theme.statusText}`}>
+            {getStatusText()}
+          </span>
         </div>
         
-        <div className="flex items-center">
-          <CreditCardIcon className="w-4 h-4 mr-1" />
-          {purchase.amount ? `¥${purchase.amount.toFixed(2)}` : '免费'}
+        <div className="text-sm text-gray-500 mb-5 max-h-12 overflow-hidden line-clamp-2">
+          {questionSet?.description || '无描述'}
         </div>
         
-        {!hasExpired && (
-          <div className="flex items-center">
-            <ClockIcon className="w-4 h-4 mr-1" />
-            剩余 {remainingDays} 天
+        <div className="space-y-4 mb-5">
+          <div className="flex justify-between items-center mb-1 text-sm">
+            <span className="text-gray-600 flex items-center">
+              <ClockIcon className="w-4 h-4 mr-1.5 text-gray-400" />
+              剩余有效期
+            </span>
+            <span className={`font-medium ${hasExpired ? 'text-red-500' : 'text-indigo-600'}`}>
+              {hasExpired ? '已过期' : `${remainingDays}天`}
+            </span>
           </div>
-        )}
+          
+          {!hasExpired && (
+            <>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    remainingDays < 7 ? 'bg-gradient-to-r from-orange-400 to-red-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'
+                  }`}
+                  style={{ width: `${remainingPercentage}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-end">
+                <span className="text-xs text-gray-500">{remainingPercentage}%</span>
+              </div>
+            </>
+          )}
+        </div>
         
-        {purchase.paymentMethod && (
-          <div className="flex items-center">
-            <CashIcon className="w-4 h-4 mr-1" />
-            {purchase.paymentMethod === 'wechat' ? '微信支付' : 
-              purchase.paymentMethod === 'alipay' ? '支付宝' : 
-              purchase.paymentMethod === 'direct' ? '直接购买' : 
-              purchase.paymentMethod}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="text-xs text-gray-500 mb-1">购买日期</div>
+            <div className="text-sm font-medium flex items-center">
+              <CalendarIcon className="w-3.5 h-3.5 mr-1 text-gray-400" />
+              {new Date(purchase.purchaseDate).toLocaleDateString()}
+            </div>
           </div>
-        )}
+          
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="text-xs text-gray-500 mb-1">支付方式</div>
+            <div className="text-sm font-medium flex items-center">
+              <CreditCardIcon className="w-3.5 h-3.5 mr-1 text-gray-400" />
+              {purchase.paymentMethod === 'wechat' ? '微信支付' : 
+               purchase.paymentMethod === 'alipay' ? '支付宝' : 
+               purchase.paymentMethod === 'direct' ? '直接购买' : 
+               purchase.paymentMethod || '未知'}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-between items-center">
+          <div className="flex items-center">
+            <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center mr-2 border border-blue-100">
+              <CashIcon className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">价格</div>
+              <div className="font-bold text-blue-600">{purchase.amount ? `¥${purchase.amount.toFixed(2)}` : '免费'}</div>
+            </div>
+          </div>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClick();
+            }}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
+              hasExpired 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-md'
+            }`}
+            disabled={hasExpired}
+          >
+            {hasExpired ? '已过期' : '开始学习'}
+          </button>
+        </div>
       </div>
     </div>
   );

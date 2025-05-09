@@ -5,6 +5,7 @@ import './index.css'
 import './App.css'
 import 'antd/dist/reset.css'
 import { initAutoRefresh } from './utils/autoRefresh'
+import './config/firebase' // 导入Firebase配置，确保应用启动时初始化
 
 // 初始化自动刷新功能，设置为2小时（7200000毫秒）
 initAutoRefresh(7200000)
