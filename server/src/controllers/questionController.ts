@@ -206,26 +206,24 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
       });
     }
     
-    // 处理文件上传
-    const files = req.files as any;
-    if (!files || Object.keys(files).length === 0) {
+    // 检查上传的文件 - 使用multer中间件处理后的req.file
+    if (!req.file) {
       return res.status(400).json({ 
         success: false, 
         message: '没有上传文件' 
       });
     }
     
-    // 获取上传的文件
-    const file = files.file;
-    if (!file) {
-      return res.status(400).json({
-        success: false,
-        message: '文件字段名应为 "file"'
-      });
-    }
+    console.log('Received file:', req.file.originalname, 'size:', req.file.size);
     
-    // 分析文件内容，处理文件格式，导入问题
-    // 这里应实现实际的处理逻辑，例如解析CSV、Excel等
+    // 读取文件内容
+    const fs = require('fs');
+    const path = require('path');
+    const fileContent = fs.readFileSync(req.file.path, 'utf8');
+    
+    // 解析文件内容 - 假设是按行分隔的文本文件
+    const lines = fileContent.split('\n').filter((line: string) => line.trim() !== '');
+    console.log(`解析到 ${lines.length} 行数据`);
     
     // 导入成功的问题数量
     let successCount = 0;
@@ -233,6 +231,74 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
     let failedCount = 0;
     // 错误信息数组
     const errors: string[] = [];
+    
+    // 处理每一行数据
+    for (const line of lines) {
+      try {
+        // 分割数据字段，使用|作为分隔符
+        const fields = line.split('|').map((field: string) => field.trim());
+        
+        if (fields.length < 3) {
+          failedCount++;
+          errors.push(`行格式不正确: ${line.substring(0, 50)}...`);
+          continue;
+        }
+        
+        // 解析字段
+        const questionText = fields[0];
+        const options = fields.slice(1, fields.length - 2);
+        const correctAnswers = fields[fields.length - 2].split(',').map((a: string) => a.trim().toUpperCase());
+        const explanation = fields[fields.length - 1] || '';
+        
+        if (options.length < 2) {
+          failedCount++;
+          errors.push(`选项不足: ${line.substring(0, 50)}...`);
+          continue;
+        }
+        
+        // 创建问题
+        const question = await Question.create({
+          questionSetId,
+          text: questionText,
+          questionType: options.length > 1 ? 'multiple' : 'single',
+          explanation,
+          orderIndex: successCount
+        });
+        
+        // 创建选项
+        let hasCorrectOption = false;
+        for (let i = 0; i < options.length; i++) {
+          const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
+          const isCorrect = correctAnswers.includes(optionLetter);
+          
+          if (isCorrect) {
+            hasCorrectOption = true;
+          }
+          
+          await Option.create({
+            questionId: question.id,
+            text: options[i],
+            isCorrect,
+            optionIndex: optionLetter
+          });
+        }
+        
+        if (!hasCorrectOption) {
+          await question.destroy();
+          failedCount++;
+          errors.push(`没有正确选项: ${line.substring(0, 50)}...`);
+          continue;
+        }
+        
+        successCount++;
+      } catch (error) {
+        failedCount++;
+        errors.push(`处理失败: ${line.substring(0, 50)}... - ${(error as Error).message}`);
+      }
+    }
+    
+    // 清理上传的临时文件
+    fs.unlinkSync(req.file.path);
     
     // 导入完成后返回结果
     return res.status(200).json({ 

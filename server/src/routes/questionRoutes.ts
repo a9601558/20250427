@@ -10,6 +10,7 @@ import {
   batchUploadQuestions
 } from '../controllers/questionController';
 import { protect, admin } from '../middleware/authMiddleware';
+import { upload } from '../middleware/fileUploadMiddleware';
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get('/', getQuestions);
 // 特殊路由放在通用路由前面
 router.get('/count/:questionSetId', getQuestionCount);
 router.get('/random/:questionSetId', getRandomQuestion);
-router.post('/batch-upload/:questionSetId', protect, admin, batchUploadQuestions);
+router.post('/batch-upload/:questionSetId', protect, admin, upload.single('file'), batchUploadQuestions);
 // 通用路由放在特殊路由后面
 router.get('/:id', getQuestionById);
 router.post('/', protect, admin, createQuestion);

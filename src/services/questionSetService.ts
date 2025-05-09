@@ -1,4 +1,6 @@
 import { QuestionSet } from '../types';
+import API_ENDPOINTS from '../config/apiConfig';
+import { uploadFile } from '../utils/apiUtils';
 
 // Using an interface that matches the ApiResponse in api.ts
 interface ApiResponse<T> {
@@ -175,8 +177,11 @@ export const questionSetService = {
         return { success: false, error: 'No questionSetId provided' };
       }
       
+      // Log the request details for debugging
+      console.log(`Sending batch upload request to: ${API_ENDPOINTS.BATCH_UPLOAD_QUESTIONS(questionSetId)}`);
+      
       // Make the actual request - use the existing API endpoint for questions
-      const response = await fetch(`/api/questions/batch-upload/${questionSetId}`, {
+      const response = await fetch(API_ENDPOINTS.BATCH_UPLOAD_QUESTIONS(questionSetId), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

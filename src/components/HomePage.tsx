@@ -7,7 +7,7 @@ import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
-// 导入工具函数
+
 import { 
   HomeContentData, 
   HomeContentDataDB, 
@@ -1717,6 +1717,7 @@ const HomePage: React.FC = () => {
     showNotification?: boolean;
     source?: string;
     fullContent?: HomeContentData;
+    skipRefresh?: boolean; // Add this parameter to prevent auto-refresh cycles
   }
   
   // Clean up the fetchLatestHomeContent implementation
@@ -1792,9 +1793,12 @@ const HomePage: React.FC = () => {
           sessionStorage.removeItem('adminTriggeredUpdate');
           localStorage.removeItem('home_content_force_reload');
           // Force a wait period before allowing more fetches
-          const blockUntil = now + 10000; // Block for 10 seconds
+          const blockUntil = now + 30000; // Block for 30 seconds instead of 10
           sessionStorage.setItem('contentFetchBlocked', blockUntil.toString());
-          return;
+          
+          // Skip refresh and prevent any additional fetches
+          options.skipRefresh = true;
+          return; // Exit the function early to break the loop
         }
       }
       
@@ -2022,7 +2026,12 @@ const HomePage: React.FC = () => {
             
             // Refresh question sets to apply new settings
             setTimeout(() => {
-              fetchQuestionSets({ forceFresh: true });
+              // Add check to avoid redundant calls if skipRefresh is set
+              if (!options.skipRefresh) {
+                fetchQuestionSets({ forceFresh: true });
+              } else {
+                console.log('[HomePage] Skipping question sets refresh as requested');
+              }
             }, 200);
           }
           }
