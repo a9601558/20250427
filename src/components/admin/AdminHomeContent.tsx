@@ -449,9 +449,9 @@ const AdminHomeContent: React.FC = () => {
       triggerHomeContentUpdateEvent(contentToSave, 'admin_direct');
       
       // 通过socket通知所有打开的客户端
-      try {
-        if (socket) {
-          socket.emit('admin:homeContent:updated', {
+        try {
+          if (socket) {
+            socket.emit('admin:homeContent:updated', {
             timestamp: eventTimestamp,
             source: 'admin_direct',
             changeType: 'full_content_reload',
@@ -460,17 +460,17 @@ const AdminHomeContent: React.FC = () => {
             footerUpdated: true,
             forceRefresh: true,
             data: contentToSave // Include full data in socket event
-          });
+            });
+          }
+        } catch (socketErr) {
+          console.error('[AdminHomeContent] Socket notification failed:', socketErr);
         }
-      } catch (socketErr) {
-        console.error('[AdminHomeContent] Socket notification failed:', socketErr);
-      }
-      
-      console.log('[AdminHomeContent] Successfully updated home content, dispatched update event');
-      
-      // Set a flag to indicate successful save for preview button
-      setHasUnsavedChanges(false);
-      setShowPreviewButton(true);
+        
+        console.log('[AdminHomeContent] Successfully updated home content, dispatched update event');
+        
+        // Set a flag to indicate successful save for preview button
+        setHasUnsavedChanges(false);
+        setShowPreviewButton(true);
     } catch (error) {
       console.error('更新首页内容失败:', error);
       toast.error('更新失败，请重试');

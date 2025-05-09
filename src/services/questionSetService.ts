@@ -8,6 +8,13 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+// Interface for batch upload results
+interface BatchUploadResult {
+  success: number;
+  failed: number;
+  errors?: string[];
+}
+
 // Question Set API service
 export const questionSetService = {
   // Get all question sets
@@ -133,6 +140,85 @@ export const questionSetService = {
     } catch (error) {
       console.error('Error getting question count:', error);
       return 0;
+    }
+  },
+  
+  // Batch add questions to an existing question set (admin only)
+  async batchAddQuestions(formData: FormData, onProgress?: (progress: number) => void): Promise<ApiResponse<BatchUploadResult>> {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'Authentication required' };
+      }
+      
+      // Create a mock progress simulation if real progress tracking isn't available
+      let progressInterval: number | null = null;
+      let mockProgress = 0;
+      
+      if (onProgress) {
+        // Start with a progress value of 10%
+        onProgress(10);
+        
+        // Simulate progress updates
+        progressInterval = window.setInterval(() => {
+          mockProgress += 5;
+          // Cap at 90% - we'll set it to 100% when the request completes
+          if (mockProgress < 90) {
+            onProgress(mockProgress);
+          }
+        }, 500) as unknown as number;
+      }
+      
+      // Extract the questionSetId from the formData
+      const questionSetId = formData.get('questionSetId') as string;
+      if (!questionSetId) {
+        return { success: false, error: 'No questionSetId provided' };
+      }
+      
+      // Make the actual request - use the existing API endpoint for questions
+      const response = await fetch(`/api/questions/batch-upload/${questionSetId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      // Clear the progress interval if it was set
+      if (progressInterval !== null) {
+        clearInterval(progressInterval);
+      }
+      
+      // Set progress to 100% on completion
+      if (onProgress) {
+        onProgress(100);
+      }
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { 
+          success: false, 
+          error: data.message || `Server returned ${response.status}` 
+        };
+      }
+      
+      // Update the question count after adding questions
+      this.updateQuestionCount(questionSetId).catch(err => 
+        console.error(`Failed to update question count for ${questionSetId}:`, err)
+      );
+      
+      return {
+        success: true,
+        data: {
+          success: data.successCount || 0,
+          failed: data.failedCount || 0,
+          errors: data.errors || []
+        },
+        message: data.message || 'Questions added successfully'
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
   }
 };

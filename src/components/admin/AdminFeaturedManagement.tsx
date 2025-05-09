@@ -52,11 +52,17 @@ const AdminFeaturedManagement: React.FC = () => {
   // Load all necessary data
   const loadData = async () => {
     setLoading(true);
+    setError(null); // Clear previous errors
+    
     try {
+      console.log("开始加载精选内容管理数据...");
+      
       // Get featured categories
+      console.log("正在获取精选分类...");
       const fcResponse = await homepageService.getFeaturedCategories();
       
       // Get all question sets
+      console.log("正在获取所有题库...");
       const qsResponse = await questionSetService.getAllQuestionSets();
       
       if (fcResponse.success && fcResponse.data) {
@@ -65,8 +71,8 @@ const AdminFeaturedManagement: React.FC = () => {
         // 保存到localStorage为后备数据
         saveCategoryToLocalStorage(fcResponse.data);
       } else {
-        console.error('获取精选分类失败:', fcResponse.message);
-        setError('获取精选分类失败: ' + fcResponse.message);
+        console.error('获取精选分类失败:', fcResponse.message || '未知错误');
+        setError('获取精选分类失败: ' + (fcResponse.message || '未知错误'));
         
         // 尝试从localStorage中恢复数据作为后备
         try {
@@ -84,6 +90,8 @@ const AdminFeaturedManagement: React.FC = () => {
       }
       
       if (qsResponse.success && qsResponse.data) {
+        console.log("成功获取题库数据，题库数量:", qsResponse.data.length);
+        
         // 确保每个题库都有正确的问题计数
         const questionSetsWithVerifiedCounts = await Promise.all(
           (qsResponse.data as FeaturedQuestionSet[]).map(async (set) => {
@@ -101,12 +109,15 @@ const AdminFeaturedManagement: React.FC = () => {
             // 如果本地计算的数量仍为0，尝试从API获取准确计数
             if (questionCount === 0) {
               try {
-                // 直接使用fetch调用API获取题目数
+                console.log(`尝试从API获取题库 "${set.title}" 的题目数...`);
+                // 使用fetch直接调用API获取题目数
                 const response = await fetch(`/api/questions/count/${set.id}`);
                 if (response.ok) {
                   const data = await response.json();
                   questionCount = data.count || 0;
                   console.log(`从API获取题库 "${set.title}" 的题目数: ${questionCount}`);
+                } else {
+                  console.warn(`无法从API获取题库 "${set.title}" 的题目数:`, await response.text());
                 }
               } catch (err) {
                 console.error(`获取题库 "${set.title}" 题目数失败:`, err);
@@ -116,11 +127,13 @@ const AdminFeaturedManagement: React.FC = () => {
             return {
               ...set,
               questionCount,
-              isFeatured: set.isFeatured || false
+              isFeatured: set.isFeatured || false,
+              featuredCategory: set.featuredCategory || ''
             } as FeaturedQuestionSet;
           })
         );
         
+        console.log("处理完毕的题库数据:", questionSetsWithVerifiedCounts.length);
         setQuestionSets(questionSetsWithVerifiedCounts);
         
         // Calculate which categories are in use
@@ -138,13 +151,13 @@ const AdminFeaturedManagement: React.FC = () => {
           console.log("分类使用情况:", inUseCount);
         }
       } else {
-        const errorMsg = qsResponse.error || '加载题库失败';
+        const errorMsg = qsResponse.error || qsResponse.message || '加载题库失败';
         console.error('获取题库失败:', errorMsg);
         setError(errorMsg);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '加载数据时发生错误';
-      console.error('加载数据时发生错误:', errorMsg);
+      console.error('加载数据时发生错误:', err);
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -351,55 +364,56 @@ const AdminFeaturedManagement: React.FC = () => {
     }
   };
 
-  // 添加统一的客户端通知函数
+  // 通知所有客户端分类变更
   const notifyClientsOfCategoryChange = (action: 'added' | 'deleted' | 'updated', category: string, oldCategory?: string) => {
     if (socket) {
-      socket.emit('admin:homeContent:updated', {
-        type: 'featuredCategories',
-        action,
-        category,
-        oldCategory,
-        timestamp: Date.now()
-      });
-      
-      // 触发全局事件让首页更新
-      window.dispatchEvent(new CustomEvent('homeContent:updated', {
-        detail: {
-          type: 'featuredCategories',
-          timestamp: Date.now()
-        }
-      }));
-      
-      // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
-      localStorage.setItem('home_content_updated', Date.now().toString());
+      try {
+        console.log(`正在通知所有客户端分类${action === 'added' ? '添加' : action === 'deleted' ? '删除' : '更新'}事件:`, category);
+        socket.emit('featuredCategoryChange', {
+          action,
+          category,
+          oldCategory
+        });
+      } catch (err) {
+        console.error('通知分类变更失败:', err);
+      }
+    } else {
+      console.warn('Socket未连接，无法通知客户端分类变更');
     }
   };
 
-  // 添加统一的客户端通知函数 - 题库更新
+  // 通知所有客户端题库精选状态变更
   const notifyClientsOfQuestionSetChange = (id: string, isFeatured: boolean, featuredCategory?: string) => {
     if (socket) {
-      const questionSet = questionSets.find(qs => qs.id === id);
-      
-      socket.emit('admin:homeContent:updated', {
-        type: 'featuredQuestionSet',
-        action: 'updated',
-        questionSetId: id,
-        title: questionSet?.title || '未知题库',
-        isFeatured,
-        featuredCategory,
-        timestamp: Date.now()
-      });
-      
-      // 触发全局事件让首页更新
-      window.dispatchEvent(new CustomEvent('homeContent:updated', {
-        detail: {
-          type: 'featuredQuestionSet',
+      try {
+        const questionSet = questionSets.find(qs => qs.id === id);
+        console.log(`正在通知所有客户端题库 "${questionSet?.title || id}" 精选状态变更:`, 
+          isFeatured ? '添加到精选' : '从精选移除', 
+          featuredCategory ? `分类: ${featuredCategory}` : '');
+          
+        socket.emit('featuredQuestionSetChange', {
+          id,
+          title: questionSet?.title || '未知题库',
+          isFeatured,
+          featuredCategory,
           timestamp: Date.now()
-        }
-      }));
-      
-      // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
-      localStorage.setItem('home_content_updated', Date.now().toString());
+        });
+        
+        // 触发全局事件让首页更新
+        window.dispatchEvent(new CustomEvent('homeContent:updated', {
+          detail: {
+            type: 'featuredQuestionSet',
+            timestamp: Date.now()
+          }
+        }));
+        
+        // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
+        localStorage.setItem('home_content_updated', Date.now().toString());
+      } catch (err) {
+        console.error('通知题库精选状态变更失败:', err);
+      }
+    } else {
+      console.warn('Socket未连接，无法通知客户端题库精选状态变更');
     }
   };
 

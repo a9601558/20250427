@@ -371,6 +371,20 @@ export const questionSetService = {
         error: error.error
       };
     }
+  },
+
+  // 获取题库的题目数量
+  async getQuestionCount(questionSetId: string): Promise<ApiResponse<{count: number}>> {
+    try {
+      const response = await api.get(`/questions/count/${questionSetId}`);
+      return handleResponse<{count: number}>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
   }
 };
 
