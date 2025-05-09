@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateQuestionSetFeaturedStatus = exports.getFeaturedQuestionSets = exports.updateFeaturedCategories = exports.getFeaturedCategories = exports.updateHomepageContent = exports.getHomepageContent = void 0;
 const HomepageSettings_1 = __importDefault(require("../models/HomepageSettings"));
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
+const defaultSettings_1 = require("../config/defaultSettings");
 /**
  * @desc    获取首页配置
  * @route   GET /api/homepage/content
@@ -23,13 +24,13 @@ const getHomepageContent = async (req, res) => {
         // 如果没有配置，返回默认配置
         if (!settings) {
             const defaultContent = {
-                welcomeTitle: "ExamTopics 模拟练习",
-                welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-                featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-                announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-                footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-                bannerImage: "/images/banner.jpg",
-                theme: 'light'
+                welcomeTitle: defaultSettings_1.defaultHomepageSettings.welcome_title,
+                welcomeDescription: defaultSettings_1.defaultHomepageSettings.welcome_description,
+                featuredCategories: defaultSettings_1.defaultHomepageSettings.featured_categories,
+                announcements: defaultSettings_1.defaultHomepageSettings.announcements,
+                footerText: defaultSettings_1.defaultHomepageSettings.footer_text,
+                bannerImage: defaultSettings_1.defaultHomepageSettings.banner_image,
+                theme: defaultSettings_1.defaultHomepageSettings.theme
             };
             return res.status(200).json({
                 success: true,
@@ -159,13 +160,13 @@ const updateFeaturedCategories = async (req, res) => {
             // 不存在，创建新配置
             settings = await HomepageSettings_1.default.create({
                 id: 1,
-                welcome_title: 'ExamTopics 模拟练习',
-                welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
+                welcome_title: defaultSettings_1.defaultHomepageSettings.welcome_title,
+                welcome_description: defaultSettings_1.defaultHomepageSettings.welcome_description,
                 featured_categories: featuredCategories,
-                announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-                footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-                banner_image: '/images/banner.jpg',
-                theme: 'light'
+                announcements: defaultSettings_1.defaultHomepageSettings.announcements,
+                footer_text: defaultSettings_1.defaultHomepageSettings.footer_text,
+                banner_image: defaultSettings_1.defaultHomepageSettings.banner_image,
+                theme: defaultSettings_1.defaultHomepageSettings.theme
             });
         }
         else {

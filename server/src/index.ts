@@ -15,6 +15,7 @@ import { appState } from './utils/appstate';
 import HomepageSettings from './models/HomepageSettings';
 import { questionSetAttributes, purchaseAttributes } from './utils/sequelizeHelpers';
 import { applyGlobalFieldMappings, testFieldMappings } from './utils/applyFieldMappings';
+import { defaultHomepageSettings } from './config/defaultSettings';
 
 // Load environment variables
 dotenv.config();
@@ -98,13 +99,7 @@ sequelize.sync({ alter: false }).then(() => {
 }).then(settings => {
   if (!settings) {
     console.log('创建首页默认设置');
-    return HomepageSettings.create({
-      welcomeTitle: "ExamTopics 模拟练习",
-      welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-      featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-      announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-      footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利"
-    });
+    return HomepageSettings.create(defaultHomepageSettings);
   }
   return settings;
 }).then(() => {

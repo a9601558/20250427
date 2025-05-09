@@ -13,27 +13,7 @@ import {
   triggerHomeContentUpdateEvent
 } from '../../utils/homeContentUtils';
 
-// 使用导入的类型代替本地定义
-// interface HomeContent {
-//   welcomeTitle: string;
-//   welcomeDescription: string;
-//   featuredCategories: string[];
-//   announcements: string;
-//   footerText: string;
-//   bannerImage?: string;
-//   theme?: 'light' | 'dark' | 'auto';
-// }
-
-// // 默认首页内容
-// const defaultHomeContent: HomeContent = {
-//   welcomeTitle: "ExamTopics 模拟练习",
-//   welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-//   featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-//   announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-//   footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-//   bannerImage: "/images/banner.jpg",
-//   theme: 'light'
-// };
+// 题库访问类型定义开始...
 
 const AdminHomeContent: React.FC = () => {
   const { isAdmin } = useUser();

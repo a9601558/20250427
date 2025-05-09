@@ -13,6 +13,7 @@ const RedeemCode_1 = __importDefault(require("../models/RedeemCode"));
 const Option_1 = __importDefault(require("../models/Option"));
 const HomepageSettings_1 = __importDefault(require("../models/HomepageSettings"));
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
+const defaultSettings_1 = require("../config/defaultSettings");
 // 确保所有模型都被导入和注册
 const models = [
     User_1.default,
@@ -39,15 +40,7 @@ async function syncAllModels() {
         try {
             const [homepageSettings, created] = await HomepageSettings_1.default.findOrCreate({
                 where: { id: 1 },
-                defaults: {
-                    welcome_title: 'ExamTopics 模拟练习',
-                    welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
-                    featured_categories: ['网络协议', '编程语言', '计算机基础'],
-                    announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-                    footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-                    banner_image: '/images/banner.jpg',
-                    theme: 'light'
-                }
+                defaults: defaultSettings_1.defaultHomepageSettings
             });
             if (created) {
                 console.log('✅ 默认首页设置已创建！');

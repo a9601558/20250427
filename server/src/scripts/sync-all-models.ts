@@ -8,6 +8,7 @@ import RedeemCode from '../models/RedeemCode';
 import Option from '../models/Option';
 import HomepageSettings from '../models/HomepageSettings';
 import UserProgress from '../models/UserProgress';
+import { defaultHomepageSettings } from '../config/defaultSettings';
 
 // 确保所有模型都被导入和注册
 const models = [
@@ -40,15 +41,7 @@ async function syncAllModels() {
     try {
       const [homepageSettings, created] = await HomepageSettings.findOrCreate({
         where: { id: 1 },
-        defaults: {
-          welcome_title: 'ExamTopics 模拟练习',
-          welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
-          featured_categories: ['网络协议', '编程语言', '计算机基础'],
-          announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-          footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-          banner_image: '/images/banner.jpg',
-          theme: 'light'
-        }
+        defaults: defaultHomepageSettings
       });
 
       if (created) {

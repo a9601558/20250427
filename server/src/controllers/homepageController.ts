@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import HomepageSettings from '../models/HomepageSettings';
 import QuestionSet from '../models/QuestionSet';
+import { defaultHomepageSettings } from '../config/defaultSettings';
 
 interface HomeContent {
   welcomeTitle: string;
@@ -31,13 +32,13 @@ export const getHomepageContent = async (req: Request, res: Response) => {
     // 如果没有配置，返回默认配置
     if (!settings) {
       const defaultContent: HomeContent = {
-        welcomeTitle: "ExamTopics 模拟练习",
-        welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-        featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-        announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-        footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-        bannerImage: "/images/banner.jpg",
-        theme: 'light'
+        welcomeTitle: defaultHomepageSettings.welcome_title,
+        welcomeDescription: defaultHomepageSettings.welcome_description,
+        featuredCategories: defaultHomepageSettings.featured_categories,
+        announcements: defaultHomepageSettings.announcements,
+        footerText: defaultHomepageSettings.footer_text,
+        bannerImage: defaultHomepageSettings.banner_image,
+        theme: defaultHomepageSettings.theme as 'light' | 'dark' | 'auto'
       };
       
       return res.status(200).json({
@@ -182,13 +183,13 @@ export const updateFeaturedCategories = async (req: Request, res: Response) => {
       // 不存在，创建新配置
       settings = await HomepageSettings.create({
         id: 1,
-        welcome_title: 'ExamTopics 模拟练习',
-        welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
+        welcome_title: defaultHomepageSettings.welcome_title,
+        welcome_description: defaultHomepageSettings.welcome_description,
         featured_categories: featuredCategories,
-        announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-        footer_text: '© 2023 ExamTopics 在线题库系统 保留所有权利',
-        banner_image: '/images/banner.jpg',
-        theme: 'light'
+        announcements: defaultHomepageSettings.announcements,
+        footer_text: defaultHomepageSettings.footer_text,
+        banner_image: defaultHomepageSettings.banner_image,
+        theme: defaultHomepageSettings.theme
       });
     } else {
       // 更新现有配置
