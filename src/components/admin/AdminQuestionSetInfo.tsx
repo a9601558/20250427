@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { questionSetService } from '../../services/api';
 import { toast } from 'react-toastify';
+import { QuestionSet } from '../../types';
 
-interface QuestionSet {
+// 定义本地使用的QuestionSet接口，与系统的QuestionSet接口保持兼容
+interface LocalQuestionSet {
   id: string;
   title: string;
   description: string;
@@ -14,18 +15,18 @@ interface QuestionSet {
   isFeatured: boolean;
   featuredCategory?: string;
   questionCount?: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 const AdminQuestionSetInfo: React.FC = () => {
-  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
-  const [filteredSets, setFilteredSets] = useState<QuestionSet[]>([]);
+  const [questionSets, setQuestionSets] = useState<LocalQuestionSet[]>([]);
+  const [filteredSets, setFilteredSets] = useState<LocalQuestionSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSet, setSelectedSet] = useState<QuestionSet | null>(null);
+  const [selectedSet, setSelectedSet] = useState<LocalQuestionSet | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editFormData, setEditFormData] = useState<QuestionSet | null>(null);
+  const [editFormData, setEditFormData] = useState<LocalQuestionSet | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
   
   // 可选的分类和图标
@@ -53,15 +54,60 @@ const AdminQuestionSetInfo: React.FC = () => {
     '🧪', '🔬', '📱', '🌐', '🤖', '🧠', '🔥', '💾', '⚡', '☁️'
   ];
 
+  // 获取题库真实的题目数量
+  const getActualQuestionCount = async (questionSetId: string): Promise<number> => {
+    try {
+      // 直接调用 API 获取题目数量
+      const response = await fetch(`/api/questions/count/${questionSetId}`);
+      if (!response.ok) {
+        console.error(`Error fetching question count: API returned ${response.status}`);
+        return 0;
+      }
+      
+      const data = await response.json();
+      console.log(`获取题库 ${questionSetId} 的题目数量:`, data.count);
+      return data.count || 0;
+    } catch (error) {
+      console.error(`获取题库 ${questionSetId} 的题目数量失败:`, error);
+      return 0;
+    }
+  };
+
   // 获取所有题库
   const fetchQuestionSets = async () => {
     setLoading(true);
     try {
+      console.log('开始获取题库列表...');
+      // 直接使用 API 服务获取题库列表
+      const { questionSetService } = await import('../../services/api');
       const response = await questionSetService.getAllQuestionSets();
+
       if (response.success && response.data) {
-        setQuestionSets(response.data);
-        setFilteredSets(response.data);
+        console.log('成功获取题库列表, 正在处理题目数量...');
+        
+        // 手动获取每个题库的题目数量
+        const enhancedData = await Promise.all(
+          response.data.map(async (set) => {
+            // 获取实际题目数量
+            const questionCount = await getActualQuestionCount(set.id);
+            
+            // 确保日期字段是字符串格式
+            return {
+              ...set,
+              questionCount,
+              price: set.price || null,
+              trialQuestions: set.trialQuestions || null,
+              createdAt: set.createdAt ? new Date(set.createdAt) : new Date(),
+              updatedAt: set.updatedAt ? new Date(set.updatedAt) : new Date()
+            } as LocalQuestionSet;
+          })
+        );
+        
+        console.log('题库数据处理完成:', enhancedData);
+        setQuestionSets(enhancedData);
+        setFilteredSets(enhancedData);
       } else {
+        console.error('获取题库列表失败:', response.message || response.error);
         toast.error('获取题库列表失败');
       }
     } catch (error) {
@@ -93,9 +139,13 @@ const AdminQuestionSetInfo: React.FC = () => {
   }, [searchTerm, questionSets]);
 
   // 处理题库选择
-  const handleSelectSet = (set: QuestionSet) => {
-    setSelectedSet(set);
-    setIsEditing(false);
+  const handleSelectSet = (set: LocalQuestionSet) => {
+    // 确保选择的题库有最新的题目数量
+    getActualQuestionCount(set.id).then(count => {
+      const updatedSet: LocalQuestionSet = { ...set, questionCount: count };
+      setSelectedSet(updatedSet);
+      setIsEditing(false);
+    });
   };
 
   // 切换到编辑模式
@@ -131,25 +181,64 @@ const AdminQuestionSetInfo: React.FC = () => {
     }
   };
 
+  // 准备用于发送到服务器的数据
+  const prepareDataForServer = (data: LocalQuestionSet): Partial<QuestionSet> => {
+    const { questionCount, createdAt, updatedAt, ...serverData } = data;
+    
+    // 确保数据格式正确
+    return {
+      ...serverData,
+      price: serverData.isPaid ? (serverData.price || 0) : undefined,
+      trialQuestions: serverData.isPaid ? (serverData.trialQuestions || 0) : undefined,
+      featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined
+    };
+  };
+
   // 保存编辑
   const handleSaveEdit = async () => {
     if (!editFormData) return;
     
     setUpdateLoading(true);
     try {
-      const response = await questionSetService.updateQuestionSet(editFormData.id, editFormData);
+      // 准备要发送的数据
+      const dataToSend = prepareDataForServer(editFormData);
+      console.log('正在保存题库信息，发送数据:', dataToSend);
+      
+      // 直接使用 API 服务更新题库
+      const { questionSetService } = await import('../../services/api');
+      const response = await questionSetService.updateQuestionSet(editFormData.id, dataToSend);
       
       if (response.success && response.data) {
+        console.log('题库信息更新成功:', response.data);
         toast.success('题库信息更新成功');
+        
+        // 获取更新后的题目数量
+        const count = await getActualQuestionCount(editFormData.id);
+        
+        // 构建更新后的题库对象
+        const updatedSet: LocalQuestionSet = {
+          ...response.data,
+          questionCount: count,
+          price: response.data.price === undefined ? null : response.data.price,
+          trialQuestions: response.data.trialQuestions === undefined ? null : response.data.trialQuestions,
+          isFeatured: response.data.isFeatured || false,
+          // 确保日期是 Date 对象
+          createdAt: new Date(response.data.createdAt || Date.now()),
+          updatedAt: new Date(response.data.updatedAt || Date.now())
+        };
         
         // 更新本地状态
         setQuestionSets(prev => 
-          prev.map(set => set.id === editFormData.id ? {...editFormData, updatedAt: new Date()} : set)
+          prev.map(set => set.id === editFormData.id ? updatedSet : set)
         );
-        setSelectedSet({...editFormData, updatedAt: new Date()});
+        setSelectedSet(updatedSet);
         setIsEditing(false);
+        
+        // 刷新题库列表以确保数据同步
+        fetchQuestionSets();
       } else {
-        toast.error(`更新失败: ${response.message || '未知错误'}`);
+        console.error('更新失败:', response.message || response.error);
+        toast.error(`更新失败: ${response.message || response.error || '未知错误'}`);
       }
     } catch (error) {
       console.error('更新题库信息出错:', error);
@@ -166,9 +255,12 @@ const AdminQuestionSetInfo: React.FC = () => {
     }
     
     try {
+      console.log('正在删除题库:', id);
+      const { questionSetService } = await import('../../services/api');
       const response = await questionSetService.deleteQuestionSet(id);
       
       if (response.success) {
+        console.log('题库删除成功');
         toast.success('题库已成功删除');
         
         // 更新本地状态
@@ -178,7 +270,8 @@ const AdminQuestionSetInfo: React.FC = () => {
           setIsEditing(false);
         }
       } else {
-        toast.error(`删除失败: ${response.message || '未知错误'}`);
+        console.error('删除失败:', response.message || response.error);
+        toast.error(`删除失败: ${response.message || response.error || '未知错误'}`);
       }
     } catch (error) {
       console.error('删除题库出错:', error);
@@ -189,15 +282,37 @@ const AdminQuestionSetInfo: React.FC = () => {
   // 刷新题目数量
   const handleRefreshQuestionCount = async (id: string) => {
     try {
-      const response = await questionSetService.updateQuestionCount(id);
+      console.log('正在更新题库题目数量:', id);
       
-      if (response.success) {
+      // 直接调用API而不是使用服务
+      const response = await fetch(`/api/question-sets/${id}/count`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('题目数量更新成功');
         toast.success('题目数量已更新');
         
-        // 重新获取题库列表以显示更新后的数量
-        fetchQuestionSets();
+        // 获取最新题目数量
+        const count = await getActualQuestionCount(id);
+        
+        // 如果当前正在查看这个题库，更新选中的题库
+        if (selectedSet && selectedSet.id === id) {
+          setSelectedSet({ ...selectedSet, questionCount: count });
+        }
+        
+        // 更新题库列表中的数量
+        setQuestionSets(prev => 
+          prev.map(set => set.id === id ? { ...set, questionCount: count } : set)
+        );
       } else {
-        toast.error(`更新题目数量失败: ${response.message || '未知错误'}`);
+        console.error('更新题目数量失败:', data.message || data.error);
+        toast.error(`更新题目数量失败: ${data.message || data.error || '未知错误'}`);
       }
     } catch (error) {
       console.error('更新题目数量出错:', error);
@@ -206,11 +321,26 @@ const AdminQuestionSetInfo: React.FC = () => {
   };
 
   // 格式化日期
-  const formatDate = (dateString: string | Date): string => {
+  const formatDate = (dateString: string | Date | undefined): string => {
+    if (!dateString) return '未知日期';
+    
     try {
       const date = new Date(dateString);
-      return date.toLocaleString();
+      if (isNaN(date.getTime())) {
+        return '无效日期';
+      }
+      
+      // 使用本地化格式
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
     } catch (error) {
+      console.error('日期格式化错误:', error);
       return '无效日期';
     }
   };
@@ -332,7 +462,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                       <button
                         onClick={handleSaveEdit}
                         disabled={updateLoading}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center"
+                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center disabled:bg-green-400 disabled:cursor-not-allowed"
                       >
                         {updateLoading ? (
                           <>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { QuestionSet } from '../../types';
 import { questionSetApi } from '../../utils/api';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const AdminRedeemCodes: React.FC = () => {
   const { generateRedeemCode, getRedeemCodes } = useUser();
@@ -40,39 +40,75 @@ const AdminRedeemCodes: React.FC = () => {
           }
         }
         
-        // 加载兑换码数据
+        // 加载兑换码数据 - 使用直接API调用替代上下文方法
         try {
-        const codes = await getRedeemCodes();
-          if (Array.isArray(codes)) {
-        setRedeemCodes(codes);
+          console.log("[AdminRedeemCodes] 开始加载兑换码数据");
+          const token = localStorage.getItem('token');
+          const response = await axios.get('/api/redeem-codes', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          console.log("[AdminRedeemCodes] 兑换码API响应:", response.data);
+          
+          if (response.data.success && response.data.data) {
+            // 检查数据类型和结构
+            const codesData = response.data.data;
+            console.log("[AdminRedeemCodes] 兑换码数据类型:", typeof codesData);
+            console.log("[AdminRedeemCodes] 是否为数组:", Array.isArray(codesData));
+            
+            // 规范化数据格式
+            let normalizedCodes = [];
+            if (Array.isArray(codesData)) {
+              normalizedCodes = codesData;
+            } else if (codesData.list && Array.isArray(codesData.list)) {
+              normalizedCodes = codesData.list;
+            } else if (typeof codesData === 'object') {
+              // 尝试将对象转换为数组
+              normalizedCodes = Object.values(codesData);
+            }
+            
+            console.log("[AdminRedeemCodes] 规范化后的兑换码:", normalizedCodes);
+            
+            if (normalizedCodes.length > 0) {
+              setRedeemCodes(normalizedCodes);
+              setStatusMessage("成功加载兑换码数据");
+            } else {
+              console.warn("[AdminRedeemCodes] 规范化后的兑换码数组为空");
+              setRedeemCodes([]);
+              setStatusMessage("没有可用的兑换码数据");
+            }
           } else {
-            // 如果返回的数据格式不是数组，可能是API响应格式变化
-            console.error('兑换码数据不是数组格式:', codes);
-            setStatusMessage('兑换码数据格式错误，请刷新页面重试');
+            console.error("[AdminRedeemCodes] API返回成功但无数据:", response.data);
             setRedeemCodes([]);
+            setStatusMessage(response.data.message || "获取兑换码数据失败");
           }
-        } catch (codeError) {
-          console.error('获取兑换码数据失败:', codeError);
+        } catch (codeError: any) {
+          console.error('[AdminRedeemCodes] 获取兑换码数据失败:', codeError);
+          
+          if (codeError.response) {
+            console.error('[AdminRedeemCodes] 错误响应状态:', codeError.response.status);
+            console.error('[AdminRedeemCodes] 错误响应数据:', codeError.response.data);
+          }
+          
           setStatusMessage('获取兑换码数据失败，请刷新页面重试');
           setRedeemCodes([]);
           
-          // 尝试直接通过Axios获取兑换码
+          // 尝试使用用户上下文的方法作为备用
           try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/redeem-codes', {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            console.log('[AdminRedeemCodes] 尝试使用备用方法获取兑换码');
+            const codes = await getRedeemCodes();
+            console.log('[AdminRedeemCodes] 备用方法返回数据:', codes);
             
-            if (response.data.success && response.data.data && response.data.data.list) {
-              setRedeemCodes(response.data.data.list);
+            if (Array.isArray(codes) && codes.length > 0) {
+              setRedeemCodes(codes);
               setStatusMessage('数据已通过备用方式加载');
             }
-          } catch (axiosError) {
-            console.error('备用方式获取兑换码失败:', axiosError);
+          } catch (backupError) {
+            console.error('[AdminRedeemCodes] 备用方法获取兑换码失败:', backupError);
           }
         }
-      } catch (error) {
-        console.error('加载数据失败:', error);
+      } catch (error: any) {
+        console.error('[AdminRedeemCodes] 加载数据失败:', error);
         setStatusMessage('加载数据失败，请刷新页面重试');
       } finally {
         setIsLoading(false);

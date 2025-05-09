@@ -92,6 +92,11 @@ const HomePage: React.FC = () => {
   // 修改bgClass的定义，确保不影响用户菜单的交互
   const bgClass = "bg-gray-50 dark:bg-gray-900 py-8 relative pt-20"; // 移除min-h-screen, 添加pt-20确保内容不被header覆盖
   
+  // Add notification state variables
+  const [showUpdateNotification, setShowUpdateNotification] = useState<boolean>(false);
+  const [notificationMessage, setNotificationMessage] = useState<string>('');
+  const notificationTimeoutRef = useRef<any>(null);
+  
   // 在这里添加BaseCard组件定义（组件内部）
   const BaseCard: React.FC<{
     key: string;
@@ -1332,8 +1337,14 @@ const HomePage: React.FC = () => {
     socket.on('user:deviceSync', handleDeviceSync);
     socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
     
-    // 修改首页内容更新事件监听
-    socket.on('admin:homeContent:updated', handleHomeContentUpdated);
+    // 首页内容更新处理 - 在这个useEffect中仅记录事件，实际处理放在专用useEffect中
+    socket.on('admin:homeContent:updated', (data) => {
+      console.log('[HomePage] Socket event: admin:homeContent:updated forwarding to custom event');
+      // 转发为自定义事件，由专门的处理器处理
+      window.dispatchEvent(new CustomEvent('homeContent:updated', {
+        detail: data
+      }));
+    });
     
     // 发送状态同步请求，确保服务器知道此连接是谁的
     socket.emit('user:identify', {
@@ -1628,293 +1639,156 @@ const HomePage: React.FC = () => {
     }
   }, [questionSets, homeContent.featuredCategories]);
 
-  // 改进原始loadHomeContent useEffect，增加缓存控制
-  // 删除此处的旧实现，使用上面添加的fetchLatestHomeContent替代
-  /*useEffect(() => {
-    const loadHomeContent = async () => {
-      try {
-        console.log('[HomePage] 加载首页内容，添加时间戳防止缓存');
-        // 添加时间戳参数防止缓存
-        const response = await homepageService.getHomeContent({
-          _t: Date.now()
-        });
-        
-        if (response.success && response.data) {
-          console.log('[HomePage] 首页内容加载成功:', response.data);
-          console.log('[HomePage] 加载的分类:', response.data.featuredCategories);
-          setHomeContent(response.data);
-          
-          // 确保有精选分类时，默认选中"全部"分类
-          if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
-            setActiveCategory('all');
-          }
-        } else {
-          console.error('[HomePage] 加载首页内容失败:', response.message);
-        }
-      } catch (error) {
-        console.error('[HomePage] 加载首页内容时发生错误:', error);
-      }
-    };
-
-    loadHomeContent();
-  }, []); // 移除依赖，使其只在组件挂载时执行一次*/
-
-  // 添加关于分类过滤的额外日志和确保分类显示
-  useEffect(() => {
-    if (homeContent.featuredCategories?.length > 0) {
-      console.log(`[HomePage] 检测到${homeContent.featuredCategories.length}个精选分类:`, homeContent.featuredCategories);
-      
-      // 首次加载后确保准备好分类UI
-      setupRenderEffects();
-    }
-  }, [homeContent.featuredCategories, setupRenderEffects]);
-
-  // 关键的 homeContent:updated 事件处理器 - 最重要的部分
-  // 删除此处的旧实现，使用上面添加的自定义事件监听替代
-  /*useEffect(() => {
-    const handleHomeContentUpdate = (event: Event) => {
-      console.log('[HomePage] 接收到homeContent:updated事件', event);
-      
-      // 防止多个组件同时更新
-      if (pendingFetchRef.current) {
-        console.log('[HomePage] 已有请求正在处理，跳过此次更新');
-        return;
-      }
-      
-      // 直接获取最新内容
-      (async () => {
-        try {
-          pendingFetchRef.current = true;
-          console.log('[HomePage] 正在获取最新首页内容');
-          
-          // 添加时间戳参数以避免缓存
-          const response = await homepageService.getHomeContent({ 
-            _timestamp: Date.now() 
-          });
-          
-          if (response.success && response.data) {
-            console.log('[HomePage] 成功获取最新首页内容:', response.data);
-            
-            // 更新首页内容状态
-            setHomeContent(response.data);
-            setActiveCategory('all');
-            
-            // 刷新题库列表以应用新的分类
-            setTimeout(() => {
-              console.log('[HomePage] 刷新题库列表以应用新分类设置');
-              fetchQuestionSets({ forceFresh: true });
-              
-              // 只在需要时显示通知
-              if (typeof toast?.success === 'function') {
-                toast.success('首页内容已更新', { position: 'bottom-center' });
-              }
-            }, 200);
-          } else {
-            console.error('[HomePage] 获取最新首页内容失败:', response.message);
-            pendingFetchRef.current = false;
-          }
-        } catch (error) {
-          console.error('[HomePage] 更新首页内容时出错:', error);
-          pendingFetchRef.current = false;
-        }
-      })();
-    };
-    
-    // 添加事件监听器
-    window.addEventListener('homeContent:updated', handleHomeContentUpdate);
-    
-    // 清理函数
-    return () => {
-      window.removeEventListener('homeContent:updated', handleHomeContentUpdate);
-    };
-  }, [fetchQuestionSets, pendingFetchRef]);*/
-
-  // 检测首页内容是否有更新 - 页面加载时检查
-  // 删除此处的旧实现，使用上面添加的fetchLatestHomeContent函数替代
-  /*useEffect(() => {
-    // 检查localStorage中是否有更新标记
-    const lastUpdate = localStorage.getItem('home_content_updated');
-    const lastVisit = localStorage.getItem('home_last_visit');
-    
-    if (lastUpdate && (!lastVisit || parseInt(lastUpdate) > parseInt(lastVisit))) {
-      console.log('[HomePage] 检测到首页内容更新，刷新数据');
-      
-      // 直接获取最新内容
-      (async () => {
-        try {
-          // 强制跳过缓存
-          const response = await homepageService.getHomeContent({ 
-            _timestamp: Date.now(),
-            _nocache: true
-          });
-          
-          if (response.success && response.data) {
-            console.log('[HomePage] 成功获取最新首页内容:', response.data);
-            setHomeContent(response.data);
-            setActiveCategory('all'); // 确保切换到"全部"分类以显示内容
-            
-            // 强制刷新题库列表
-            fetchQuestionSets({ forceFresh: true });
-          }
-        } catch (error) {
-          console.error('[HomePage] 检查首页内容更新失败:', error);
-        }
-      })();
-    }
-    
-    // 更新访问时间
-    localStorage.setItem('home_last_visit', Date.now().toString());
-  }, [fetchQuestionSets]); // 添加fetchQuestionSets依赖*/
-
-  // 在组件顶部添加更新通知状态
-  const [showUpdateNotification, setShowUpdateNotification] = useState<boolean>(false);
-  const [notificationMessage, setNotificationMessage] = useState<string>('');
-  const notificationTimeoutRef = useRef<any>(null);
-
-  // 将两个处理函数合并为一个通用的更新处理函数
+  // Clean up the fetchLatestHomeContent implementation
   const fetchLatestHomeContent = useCallback(async (options: { showNotification?: boolean, source?: string } = {}) => {
-    // 防止多个组件同时更新
+    // Prevent concurrent requests
     if (pendingFetchRef.current) {
-      console.log(`[HomePage] 已有请求正在处理，跳过更新 (来源: ${options.source || 'unknown'})`);
+      console.log(`[HomePage] Already fetching content, skipping update (source: ${options.source || 'unknown'})`);
       return;
     }
     
     try {
       pendingFetchRef.current = true;
-      console.log(`[HomePage] 获取最新首页内容 (来源: ${options.source || 'unknown'})`);
+      console.log(`[HomePage] Fetching latest home content (source: ${options.source || 'unknown'})`);
       
-      // 添加时间戳参数防止缓存
+      // Add timestamp to prevent caching
       const response = await homepageService.getHomeContent({ 
         _timestamp: Date.now(),
         _nocache: true
       });
       
       if (response.success && response.data) {
-        console.log('[HomePage] 首页内容加载成功:', response.data);
+        console.log('[HomePage] Home content loaded successfully:', response.data);
+        console.log('[HomePage] Loaded featured categories:', response.data.featuredCategories);
         
-        // 检查是否有实际变化
-        const hasChanged = JSON.stringify(response.data) !== JSON.stringify(homeContent);
+        // Check if content has actually changed
+        const currentContent = JSON.stringify(homeContent);
+        const newContent = JSON.stringify(response.data);
+        const hasChanged = currentContent !== newContent;
         
         if (hasChanged) {
-          console.log('[HomePage] 检测到首页内容变化，更新状态');
+          console.log('[HomePage] Home content has changed, updating state');
           setHomeContent(response.data);
           
-          // 确保有精选分类时，默认选中"全部"分类
+          // Default to "all" category when featured categories are available
           if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
             setActiveCategory('all');
           }
           
-          // 刷新题库列表以应用新的分类
+          // Refresh question sets to apply new categories
           setTimeout(() => {
-            console.log('[HomePage] 刷新题库列表以应用新分类设置');
+            console.log('[HomePage] Refreshing question sets with new category settings');
             fetchQuestionSets({ forceFresh: true });
             
-            // 只在需要时显示通知
+            // Show notification if requested
             if (options.showNotification && typeof toast?.success === 'function') {
-              toast.success('首页内容已更新', { position: 'bottom-center' });
+              toast.success('Home page content updated', { position: 'bottom-center' });
             }
           }, 200);
         } else {
-          console.log('[HomePage] 首页内容无变化，跳过更新');
+          console.log('[HomePage] Home content unchanged, skipping update');
         }
       } else {
-        console.error('[HomePage] 获取首页内容失败:', response.message);
+        console.error('[HomePage] Failed to get home content:', response.message);
       }
     } catch (error) {
-      console.error('[HomePage] 获取首页内容时发生错误:', error);
+      console.error('[HomePage] Error fetching home content:', error);
     } finally {
-      // 释放锁定状态
+      // Release lock
       pendingFetchRef.current = false;
     }
-  }, [fetchQuestionSets, homeContent]);
+  }, [fetchQuestionSets, homeContent]); // Add proper dependencies
 
-  // 替换原来的loadHomeContent实现
+  // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {
-    // 初始化加载首页内容
+    // Initial load of home content
     fetchLatestHomeContent({ source: 'initial_load' });
     
-    // 检查localStorage中是否有更新标记
+    // Check localStorage for update flags
     const lastUpdate = localStorage.getItem('home_content_updated');
     const lastVisit = localStorage.getItem('home_last_visit');
     
     if (lastUpdate && (!lastVisit || parseInt(lastUpdate) > parseInt(lastVisit))) {
-      console.log('[HomePage] 检测到首页内容本地更新标记，刷新数据');
+      console.log('[HomePage] Detected home content update flag in localStorage');
       fetchLatestHomeContent({ source: 'local_storage_flag', showNotification: true });
     }
     
-    // 更新访问时间
+    // Update visit timestamp
     localStorage.setItem('home_last_visit', Date.now().toString());
-  }, [fetchLatestHomeContent]); // 依赖fetchLatestHomeContent
-
-  // 简化Socket事件处理程序
-  const handleHomeContentUpdated = useCallback((data: any) => {
-    console.log('[HomePage] 接收到管理员首页内容更新事件:', data);
     
-    // 根据更新类型设置通知消息
-    if (data.type === 'featuredCategories') {
-      if (data.action === 'added') {
-        setNotificationMessage(`新增分类: ${data.category}`);
-      } else if (data.action === 'deleted') {
-        setNotificationMessage(`分类已删除: ${data.category}`);
-      } else if (data.action === 'updated') {
-        setNotificationMessage(`分类已更新: ${data.oldCategory} → ${data.category}`);
-      } else {
-        setNotificationMessage('分类已更新');
-      }
-    } else if (data.type === 'featuredQuestionSet') {
-      setNotificationMessage(`题库 "${data.title}" 已更新`);
-    } else {
-      setNotificationMessage('首页内容已更新');
-    }
-    
-    // 显示通知
-    setShowUpdateNotification(true);
-    
-    // 清除之前的定时器
-    if (notificationTimeoutRef.current) {
-      clearTimeout(notificationTimeoutRef.current);
-    }
-    
-    // 设置5秒后自动关闭
-    notificationTimeoutRef.current = setTimeout(() => {
-      setShowUpdateNotification(false);
-    }, 5000);
-    
-    // 获取最新首页内容
-    fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
-  }, [fetchLatestHomeContent]);
-
-  // 合并和简化自定义事件监听
-  useEffect(() => {
-    // 监听自定义事件
+    // IMPORTANT: Listen for custom event for home content updates
     const handleCustomContentUpdate = () => {
-      console.log('[HomePage] 接收到homeContent:updated自定义事件');
+      console.log('[HomePage] Received homeContent:updated custom event');
       fetchLatestHomeContent({ source: 'custom_event', showNotification: true });
     };
     
-    // 添加自定义事件监听器
     window.addEventListener('homeContent:updated', handleCustomContentUpdate);
     
-    // 清理函数
     return () => {
       window.removeEventListener('homeContent:updated', handleCustomContentUpdate);
     };
-  }, [fetchLatestHomeContent]);
+  }, [fetchLatestHomeContent]); // Only depend on fetchLatestHomeContent
 
-  // 优化Socket事件监听
+  // Replace the old socket event handler with a proper implementation
   useEffect(() => {
     if (!socket) return;
     
-    console.log('[HomePage] 设置Socket事件监听，接收首页内容更新');
+    console.log('[HomePage] Setting up Socket listener for admin content updates');
     
-    // 添加Socket监听
-    socket.on('admin:homeContent:updated', handleHomeContentUpdated);
-    
-    // 清理函数
-    return () => {
-      socket.off('admin:homeContent:updated', handleHomeContentUpdated);
+    const handleAdminHomeContentUpdated = (data: any) => {
+      console.log('[HomePage] Received admin home content update event:', data);
+      
+      // Set notification message based on update type
+      let message = 'Home page content updated';
+      if (data.type === 'featuredCategories') {
+        if (data.action === 'added') {
+          message = `New category added: ${data.category}`;
+        } else if (data.action === 'deleted') {
+          message = `Category removed: ${data.category}`;
+        } else if (data.action === 'updated') {
+          message = `Category updated: ${data.oldCategory} → ${data.category}`;
+        }
+      } else if (data.type === 'featuredQuestionSet') {
+        message = `Question set "${data.title}" updated`;
+      }
+      
+      setNotificationMessage(message);
+      setShowUpdateNotification(true);
+      
+      // Clear previous timeout
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+      
+      // Auto-close after 5 seconds
+      notificationTimeoutRef.current = setTimeout(() => {
+        setShowUpdateNotification(false);
+      }, 5000);
+      
+      // Fetch latest content immediately
+      fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
     };
-  }, [socket, handleHomeContentUpdated]); // 添加正确的依赖
+    
+    // Listen for admin content updates
+    socket.on('admin:homeContent:updated', handleAdminHomeContentUpdated);
+    
+    return () => {
+      socket.off('admin:homeContent:updated', handleAdminHomeContentUpdated);
+      
+      // Clear timeout on cleanup
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, [socket, fetchLatestHomeContent]);
+  
+  // Make sure setupRenderEffects is actually used and has the right dependencies
+  useEffect(() => {
+    if (questionSets.length > 0 && homeContent.featuredCategories?.length > 0) {
+      console.log(`[HomePage] Detected ${homeContent.featuredCategories.length} featured categories:`, homeContent.featuredCategories);
+      setupRenderEffects();
+    }
+  }, [homeContent.featuredCategories, setupRenderEffects, questionSets.length]);
 
   // 修复加载状态检查
   if (loading) {

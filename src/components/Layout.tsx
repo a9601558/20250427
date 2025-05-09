@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import SocketStatus from './SocketStatus';
 import LoginModal from './LoginModal';
@@ -18,45 +18,73 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [footerText, setFooterText] = useState<string>("");
   const { socket } = useSocket();
   
-  // 获取页脚文本
-  const fetchFooterText = async () => {
+  // Improved footer text fetching with caching control
+  const fetchFooterText = useCallback(async (forceRefresh = false) => {
     try {
-      console.log('[Layout] 获取页脚文本');
-      const response = await homepageService.getHomeContent();
+      console.log('[Layout] Fetching footer text' + (forceRefresh ? ' (forced refresh)' : ''));
+      
+      // Add cache-busting params when force refreshing
+      const params: Record<string, any> = forceRefresh ? 
+        { _timestamp: Date.now(), _nocache: true } : 
+        {};
+        
+      const response = await homepageService.getHomeContent(params);
+      
       if (response.success && response.data) {
-        console.log('[Layout] 页脚文本获取成功:', response.data.footerText);
-        setFooterText(response.data.footerText);
+        console.log('[Layout] Footer text fetched successfully:', response.data.footerText);
+        
+        // Only update if changed to avoid unnecessary renders
+        if (response.data.footerText !== footerText) {
+          setFooterText(response.data.footerText);
+        }
+        
+        // Dispatch global event to notify other components about the update
+        if (forceRefresh) {
+          window.dispatchEvent(new CustomEvent('homeContent:updated'));
+        }
       }
     } catch (error) {
-      console.error('[Layout] 获取页脚文本失败:', error);
-      // 设置默认页脚文本作为备用
-      setFooterText(`© ${new Date().getFullYear()} ExamTopics 在线题库系统 保留所有权利`);
+      console.error('[Layout] Failed to fetch footer text:', error);
+      // Set default footer text as fallback
+      setFooterText(`© ${new Date().getFullYear()} ExamTopics Online Quiz System. All Rights Reserved.`);
     }
-  };
+  }, [footerText]);
   
+  // Initial fetch on mount
   useEffect(() => {
     fetchFooterText();
-  }, []);
+  }, [fetchFooterText]);
   
-  // 监听Socket事件，当接收到管理员更新首页内容的事件时刷新页脚文本
+  // Listen for Socket events for admin updates
   useEffect(() => {
     if (!socket) return;
     
-    console.log('[Layout] 设置Socket事件监听，接收页脚文本更新');
+    console.log('[Layout] Setting up Socket listener for admin content updates');
     
-    const handleHomeContentUpdated = () => {
-      console.log('[Layout] 接收到管理员首页内容更新事件，刷新页脚文本');
-      fetchFooterText();
+    const handleHomeContentUpdated = (data: any) => {
+      console.log('[Layout] Received admin home content update event:', data);
+      
+      // Force refresh footer text
+      fetchFooterText(true);
     };
     
-    // 添加Socket监听
+    // Add Socket listener
     socket.on('admin:homeContent:updated', handleHomeContentUpdated);
     
-    // 清理函数
+    // Listen for custom events too (for non-Socket updates)
+    const handleCustomUpdate = () => {
+      console.log('[Layout] Received custom homeContent:updated event');
+      fetchFooterText(true);
+    };
+    
+    window.addEventListener('homeContent:updated', handleCustomUpdate);
+    
+    // Cleanup function
     return () => {
       socket.off('admin:homeContent:updated', handleHomeContentUpdated);
+      window.removeEventListener('homeContent:updated', handleCustomUpdate);
     };
-  }, [socket]);
+  }, [socket, fetchFooterText]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
