@@ -7,6 +7,17 @@ import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
+// 导入工具函数
+import { 
+  HomeContentData, 
+  HomeContentDataDB, 
+  defaultHomeContent, 
+  convertDbToFrontend, 
+  convertFrontendToDb,
+  getHomeContentFromLocalStorage,
+  saveHomeContentToLocalStorage,
+  triggerHomeContentUpdateEvent
+} from '../utils/homeContentUtils';
 
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -41,30 +52,6 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   validityPeriod: number;
   featuredCategory?: string; // 添加精选分类字段
 }
-
-// 使用本地接口替代
-interface HomeContentData {
-  welcomeTitle: string;
-  welcomeDescription: string;
-  featuredCategories: string[];
-  announcements: string;
-  footerText: string;
-  bannerImage?: string;
-  theme?: 'light' | 'dark' | 'auto';
-}
-
-// 默认首页内容
-const defaultHomeContent: HomeContentData = {
-  welcomeTitle: "ExamTopics 模拟练习",
-  welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-  featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-  announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-  footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-  bannerImage: "https://via.placeholder.com/1500x500/4F46E5/FFFFFF?text=考试练习系统",
-  theme: 'light'
-};
-
-// 删除这里的BaseCard和handleStartQuiz定义，移到组件内部
 
 const HomePage: React.FC = () => {
   const { user, isAdmin, syncAccessRights } = useUser();
@@ -1721,23 +1708,26 @@ const HomePage: React.FC = () => {
     }
     
     // First check localStorage for admin-saved content
-    const localStorageContent = localStorage.getItem('home_content_data');
-    let localContent: any = null;
+    let localContent: HomeContentData | null = getHomeContentFromLocalStorage('frontend') as HomeContentData | null;
     let useLocalContent = false;
     
-    if (localStorageContent) {
+    if (localContent) {
       try {
-        localContent = JSON.parse(localStorageContent);
-        // Check if local content is from admin and newer than our current content
-        const currentLastUpdated = (homeContent as any)._lastUpdated || 0;
-        const localLastUpdated = localContent._lastUpdated || 0;
-        
-        if (localContent._savedByAdmin && localLastUpdated > currentLastUpdated) {
-          console.log('[HomePage] Found newer admin-saved content in localStorage');
-          useLocalContent = true;
+        // Get the raw data to check metadata
+        const storedContent = localStorage.getItem('home_content_data');
+        if (storedContent) {
+          const parsedContent = JSON.parse(storedContent);
+          // Check if local content is from admin and newer than our current content
+          const currentLastUpdated = (homeContent as any)._lastUpdated || 0;
+          const localLastUpdated = parsedContent._lastUpdated || 0;
+          
+          if (parsedContent._savedByAdmin && localLastUpdated > currentLastUpdated) {
+            console.log('[HomePage] Found newer admin-saved content in localStorage');
+            useLocalContent = true;
+          }
         }
       } catch (e) {
-        console.error('[HomePage] Error parsing localStorage content:', e);
+        console.error('[HomePage] Error checking localStorage content metadata:', e);
       }
     }
     
@@ -1749,7 +1739,7 @@ const HomePage: React.FC = () => {
       sessionStorage.setItem('lastHomeContentFetch', Date.now().toString());
       
       // If we need to use local content - do that directly
-      if (isAdminDirectUpdate && useLocalContent) {
+      if (isAdminDirectUpdate && useLocalContent && localContent) {
         console.log('[HomePage] ADMIN UPDATE: Using content from localStorage instead of server');
         
         // Apply the content from localStorage
@@ -1799,21 +1789,38 @@ const HomePage: React.FC = () => {
       if (response.success && response.data) {
         console.log('[HomePage] Home content loaded successfully from server:', response.data);
         
+        // 处理服务器返回的数据 - 可能是snake_case格式
+        let processedData: HomeContentData;
+        if ('welcome_title' in response.data) {
+          // 数据库格式，需要转换
+          processedData = convertDbToFrontend(response.data as HomeContentDataDB);
+        } else {
+          // 前端格式，直接使用
+          processedData = response.data as HomeContentData;
+        }
+        
+        // 如果收到的是空的featuredCategories数组字符串"[]"，确保正确解析
+        if (typeof response.data.featured_categories === 'string' && 
+            (response.data.featured_categories === '[]' || response.data.featured_categories === '')) {
+          processedData.featuredCategories = [];
+        }
+        
         // Check if server content is actually newer than our local content
-        if (localContent && localContent._lastUpdated) {
+        if (localContent) {
           const serverLastUpdated = (response.data as any)._lastUpdated || 0;
+          const localLastUpdated = (localContent as any)._lastUpdated || 0;
           
-          if (localContent._lastUpdated > serverLastUpdated) {
+          if (localLastUpdated > serverLastUpdated) {
             console.log('[HomePage] Local content is newer than server content, using local content');
             setHomeContent(localContent);
           } else {
             // Server content is newer or there is no local content
             console.log('[HomePage] Using server content');
-            setHomeContent(response.data);
+            setHomeContent(processedData);
           }
         } else {
           // No local content or no timestamp, use server content
-          setHomeContent(response.data);
+          setHomeContent(processedData);
         }
         
         // If this is an admin update, force the refresh regardless of content change
@@ -1821,7 +1828,7 @@ const HomePage: React.FC = () => {
           console.log('[HomePage] Admin update detected - forcing content refresh');
           
           // Default to "all" category when featured categories are available
-          if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
+          if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
             setActiveCategory('all');
           }
           
@@ -1843,14 +1850,14 @@ const HomePage: React.FC = () => {
         } else {
           // Regular content changes - check if there's a difference
           const currentContent = JSON.stringify(homeContent);
-          const newContent = JSON.stringify(response.data);
+          const newContent = JSON.stringify(processedData);
           const hasChanged = currentContent !== newContent;
           
           if (hasChanged) {
             console.log('[HomePage] Home content has changed, updating state');
             
             // Default to "all" category when featured categories are available
-            if (response.data.featuredCategories && response.data.featuredCategories.length > 0) {
+            if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
               setActiveCategory('all');
             }
             
@@ -1945,9 +1952,20 @@ const HomePage: React.FC = () => {
       // Extract event details including potential direct content
       const detail = event.detail || {};
       const source = detail.source || 'custom_event';
-      const fullContent = detail.fullContent;
+      const rawFullContent = detail.fullContent;
       
-      console.log(`[HomePage] Custom event details: source=${source}, hasFullContent=${!!fullContent}`);
+      console.log(`[HomePage] Custom event details: source=${source}, hasFullContent=${!!rawFullContent}`);
+      
+      // 如果有内容，确保格式正确
+      let fullContent: HomeContentData | undefined = undefined;
+      if (rawFullContent) {
+        // 检查是否是数据库格式（snake_case）
+        if ('welcome_title' in rawFullContent) {
+          fullContent = convertDbToFrontend(rawFullContent as HomeContentDataDB);
+        } else {
+          fullContent = rawFullContent as HomeContentData;
+        }
+      }
       
       // If we have full content directly from the event, use that
       if (fullContent) {
@@ -1986,18 +2004,33 @@ const HomePage: React.FC = () => {
     const handleAdminHomeContentUpdated = (data: any) => {
       console.log('[HomePage] Received admin home content update event:', data);
       
+      // 检查数据格式并标准化
+      let contentData: any = data.content || data;
+      let contentType = data.type || 'general';
+      let action = data.action || 'updated';
+      
+      // 检查是否有category字段，可能在snake_case或camelCase格式
+      const category = data.category || contentData.category || '';
+      const oldCategory = data.oldCategory || contentData.old_category || '';
+      
+      // 处理title字段
+      const title = data.title || 
+                   contentData.title || 
+                   contentData.welcomeTitle || 
+                   contentData.welcome_title || '';
+      
       // Set notification message based on update type
-      let message = 'Home page content updated';
-      if (data.type === 'featuredCategories') {
-        if (data.action === 'added') {
-          message = `New category added: ${data.category}`;
-        } else if (data.action === 'deleted') {
-          message = `Category removed: ${data.category}`;
-        } else if (data.action === 'updated') {
-          message = `Category updated: ${data.oldCategory} → ${data.category}`;
+      let message = '首页内容已更新';
+      if (contentType === 'featuredCategories' || contentType === 'featured_categories') {
+        if (action === 'added') {
+          message = `新增分类: ${category}`;
+        } else if (action === 'deleted' || action === 'removed') {
+          message = `删除分类: ${category}`;
+        } else if (action === 'updated') {
+          message = `分类更新: ${oldCategory} → ${category}`;
         }
-      } else if (data.type === 'featuredQuestionSet') {
-        message = `Question set "${data.title}" updated`;
+      } else if (contentType === 'featuredQuestionSet' || contentType === 'featured_question_set') {
+        message = `题库 "${title}" 已更新`;
       }
       
       setNotificationMessage(message);
@@ -2013,8 +2046,30 @@ const HomePage: React.FC = () => {
         setShowUpdateNotification(false);
       }, 5000);
       
-      // Fetch latest content immediately
-      fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
+      // 如果事件包含完整内容数据，尝试直接使用
+      if (contentData && (contentData.welcomeTitle || contentData.welcome_title)) {
+        let processedContent: HomeContentData;
+        
+        // 检查是否是数据库格式
+        if ('welcome_title' in contentData) {
+          processedContent = convertDbToFrontend(contentData as HomeContentDataDB);
+        } else {
+          processedContent = contentData as HomeContentData;
+        }
+        
+        // 触发一个自定义事件，传递完整内容
+        const updateEvent = new CustomEvent('homeContent:updated', {
+          detail: { 
+            source: 'socket_event',
+            fullContent: processedContent
+          }
+        });
+        
+        window.dispatchEvent(updateEvent);
+      } else {
+        // 没有完整内容数据，正常获取最新内容
+        fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
+      }
     };
     
     // Listen for admin content updates
@@ -2048,10 +2103,40 @@ const HomePage: React.FC = () => {
       
       if (forceReload || adminTriggered || forceContentRefresh) {
         console.log('[HomePage] Detected admin force reload flag, fetching latest content');
+        
+        // 首先尝试从本地存储获取内容
+        const localContent = getHomeContentFromLocalStorage('frontend') as HomeContentData | null;
+        
+        // 如果存在本地内容，立即使用，然后再发起服务器请求
+        if (localContent) {
+          // 立即应用本地内容
+          setHomeContent(localContent);
+          
+          // 如果有特色分类，设置活动分类为"all"
+          if (localContent.featuredCategories?.length > 0) {
+            setActiveCategory('all');
+          }
+          
+          // 显示通知
+          toast.info('已从本地缓存加载最新内容', { position: 'bottom-center' });
+        }
+        
+        // 无论是否有本地内容，都发起网络请求确保内容最新
         fetchLatestHomeContent({
           source: 'admin_direct',
           showNotification: true
         });
+        
+        // 清除标记
+        if (forceReload) {
+          localStorage.removeItem('home_content_force_reload');
+        }
+        if (adminTriggered) {
+          sessionStorage.removeItem('adminTriggeredUpdate');
+        }
+        if (forceContentRefresh) {
+          sessionStorage.removeItem('forceFullContentRefresh');
+        }
       }
     };
     
@@ -2064,7 +2149,7 @@ const HomePage: React.FC = () => {
     return () => {
       clearInterval(intervalId);
     };
-  }, [fetchLatestHomeContent]);
+  }, [fetchLatestHomeContent, setActiveCategory]);
 
   // 修复加载状态检查
   if (loading) {

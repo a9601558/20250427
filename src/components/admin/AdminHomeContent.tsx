@@ -4,34 +4,42 @@ import { useNavigate } from 'react-router-dom';
 import { homepageService } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useSocket } from '../../contexts/SocketContext';
+// 导入工具函数
+import { 
+  HomeContentData, 
+  defaultHomeContent, 
+  convertDbToFrontend, 
+  saveHomeContentToLocalStorage,
+  triggerHomeContentUpdateEvent
+} from '../../utils/homeContentUtils';
 
-// 首页内容接口
-interface HomeContent {
-  welcomeTitle: string;
-  welcomeDescription: string;
-  featuredCategories: string[];
-  announcements: string;
-  footerText: string;
-  bannerImage?: string;
-  theme?: 'light' | 'dark' | 'auto';
-}
+// 使用导入的类型代替本地定义
+// interface HomeContent {
+//   welcomeTitle: string;
+//   welcomeDescription: string;
+//   featuredCategories: string[];
+//   announcements: string;
+//   footerText: string;
+//   bannerImage?: string;
+//   theme?: 'light' | 'dark' | 'auto';
+// }
 
-// 默认首页内容
-const defaultHomeContent: HomeContent = {
-  welcomeTitle: "ExamTopics 模拟练习",
-  welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-  featuredCategories: ["网络协议", "编程语言", "计算机基础"],
-  announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-  footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
-  bannerImage: "/images/banner.jpg",
-  theme: 'light'
-};
+// // 默认首页内容
+// const defaultHomeContent: HomeContent = {
+//   welcomeTitle: "ExamTopics 模拟练习",
+//   welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
+//   featuredCategories: ["网络协议", "编程语言", "计算机基础"],
+//   announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
+//   footerText: "© 2023 ExamTopics 在线题库系统 保留所有权利",
+//   bannerImage: "/images/banner.jpg",
+//   theme: 'light'
+// };
 
 const AdminHomeContent: React.FC = () => {
   const { isAdmin } = useUser();
   const { socket } = useSocket();
   const navigate = useNavigate();
-  const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
+  const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -56,15 +64,63 @@ const AdminHomeContent: React.FC = () => {
       try {
         const response = await homepageService.getHomeContent();
         if (response.success && response.data) {
-          console.log('加载首页内容成功:', response.data);
-          setHomeContent(response.data);
+          console.log('[AdminHomeContent] 加载首页内容成功:', response.data);
+          
+          // 检查服务器返回数据格式，转换为前端格式
+          let processedData;
+          if ('welcome_title' in response.data) {
+            // 数据库格式，转换为前端格式
+            processedData = convertDbToFrontend(response.data);
+            console.log('[AdminHomeContent] 已将数据库格式转换为前端格式');
+          } else {
+            // 已经是前端格式
+            processedData = response.data;
+          }
+          
+          setHomeContent(processedData);
         } else {
-          console.error('加载首页内容失败:', response.message);
+          console.error('[AdminHomeContent] 加载首页内容失败:', response.message);
           setError(response.message || '加载首页内容失败');
+          
+          // 尝试从localStorage加载作为备用
+          try {
+            const localContent = localStorage.getItem('home_content_data');
+            if (localContent) {
+              const parsedContent = JSON.parse(localContent);
+              // 检查格式并转换
+              if ('welcome_title' in parsedContent) {
+                setHomeContent(convertDbToFrontend(parsedContent));
+              } else {
+                setHomeContent(parsedContent);
+              }
+              console.log('[AdminHomeContent] 从本地存储加载了首页内容');
+              toast.warning('服务器连接失败，已加载缓存内容');
+            }
+          } catch (localErr) {
+            console.error('[AdminHomeContent] 无法从本地存储加载:', localErr);
+          }
         }
       } catch (err) {
-        console.error('加载首页内容时发生错误:', err);
+        console.error('[AdminHomeContent] 加载首页内容时发生错误:', err);
         setError('加载首页内容时发生错误');
+        
+        // 尝试从localStorage加载作为备用
+        try {
+          const localContent = localStorage.getItem('home_content_data');
+          if (localContent) {
+            const parsedContent = JSON.parse(localContent);
+            // 检查格式并转换
+            if ('welcome_title' in parsedContent) {
+              setHomeContent(convertDbToFrontend(parsedContent));
+            } else {
+              setHomeContent(parsedContent);
+            }
+            console.log('[AdminHomeContent] 从本地存储加载了首页内容');
+            toast.warning('服务器连接失败，已加载缓存内容');
+          }
+        } catch (localErr) {
+          console.error('[AdminHomeContent] 无法从本地存储加载:', localErr);
+        }
       } finally {
         setLoading(false);
       }
@@ -368,8 +424,8 @@ const AdminHomeContent: React.FC = () => {
         _savedByAdmin: true
       };
       
-      // Store in localStorage as fallback if server fails
-      localStorage.setItem('home_content_data', JSON.stringify(contentToSave));
+      // 使用工具函数保存到localStorage
+      saveHomeContentToLocalStorage(contentToSave, true);
       console.log('[AdminHomeContent] Saved content to localStorage as fallback');
       
       // Set stronger flags to force update on homepage
@@ -380,7 +436,6 @@ const AdminHomeContent: React.FC = () => {
       // Use a very distinct timestamp to ensure it's recognized as new
       const eventTimestamp = Date.now();
       localStorage.setItem('home_content_force_reload', eventTimestamp.toString());
-      localStorage.setItem('home_content_updated', eventTimestamp.toString());
       
       // Try server update
       let serverUpdateSuccess = false;
@@ -404,20 +459,10 @@ const AdminHomeContent: React.FC = () => {
         toast.warning('服务器连接错误，内容已保存到本地（刷新后仍有效）');
       }
       
-      // 1. 通过自定义事件通知其他组件 - include full content
-      window.dispatchEvent(new CustomEvent('homeContent:updated', {
-        detail: {
-          timestamp: eventTimestamp,
-          source: 'admin_direct',
-          fullContent: contentToSave, // Pass full content in the event
-          categories: homeContent.featuredCategories,
-          changeType: 'full_content_reload',
-          forceRefresh: true,
-          serverUpdateSuccess
-        }
-      }));
+      // 使用工具函数触发更新事件，传递完整内容
+      triggerHomeContentUpdateEvent(contentToSave, 'admin_direct');
       
-      // 3. 通过socket通知所有打开的客户端
+      // 通过socket通知所有打开的客户端
       try {
         if (socket) {
           socket.emit('admin:homeContent:updated', {
