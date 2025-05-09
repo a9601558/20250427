@@ -328,8 +328,8 @@ export const questionSetService = {
 };
 
 // Add a specialized function for refreshing question counts
-export const refreshQuestionCounts = async (questionSets: QuestionSet[]): Promise<QuestionSet[]> => {
-  console.log(`[QuestionSetService] Refreshing counts for ${questionSets.length} question sets`);
+export const refreshQuestionCounts = async (questionSets: QuestionSet[], forceAll = false): Promise<QuestionSet[]> => {
+  console.log(`[QuestionSetService] Refreshing counts for ${questionSets.length} question sets (forceAll: ${forceAll})`);
   
   const results = await Promise.all(
     questionSets.map(async (set) => {
@@ -337,6 +337,13 @@ export const refreshQuestionCounts = async (questionSets: QuestionSet[]): Promis
         // Skip refresh for sets without an ID
         if (!set.id) {
           console.warn('[QuestionSetService] Skipping count refresh for question set with no ID');
+          return set;
+        }
+        
+        // Skip sets that already have a count, unless forceAll is true
+        const hasValidCount = typeof set.questionCount === 'number' && set.questionCount > 0;
+        if (hasValidCount && !forceAll) {
+          console.log(`[QuestionSetService] Skipping refresh for "${set.title}", already has count: ${set.questionCount}`);
           return set;
         }
         

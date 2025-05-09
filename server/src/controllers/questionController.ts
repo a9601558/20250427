@@ -260,18 +260,45 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
           continue;
         }
         
-        // 解析字段 - 修复格式解析
+        // 解析字段 - 正确解析我们的模板格式
         const questionText = fields[0];
         
-        // For your template format: question|option1|option2|option3|option4|correctAnswer|explanation
-        // The options are all fields between the question and the correct answer
-        const optionsEnd = fields.length - 2; // Correct answer is 2nd to last, explanation is last
-        const options = fields.slice(1, optionsEnd + 1); // +1 because slice excludes end index
+        // 处理不同的字段数量情况
+        let options: string[] = [];
+        let correctAnswer: string = '';
+        let explanation: string = '';
         
-        // Correct answer is the second-to-last field
-        const correctAnswers = fields[optionsEnd + 1].split(',').map((a: string) => a.trim().toUpperCase());
+        if (fields.length >= 7) {
+          // 标准格式: 问题|选项A|选项B|选项C|选项D|正确答案|解析
+          options = fields.slice(1, 5);  // 四个选项A,B,C,D
+          correctAnswer = fields[5];     // 第6个元素是正确答案
+          explanation = fields[6];       // 第7个元素是解析
+        } else if (fields.length === 6) {
+          // 少一个字段: 问题|选项A|选项B|选项C|选项D|正确答案
+          options = fields.slice(1, 5);
+          correctAnswer = fields[5];
+          explanation = '';
+        } else if (fields.length === 5) {
+          // 三个选项: 问题|选项A|选项B|选项C|正确答案
+          options = fields.slice(1, 4);
+          correctAnswer = fields[4];
+          explanation = '';
+        } else if (fields.length === 4) {
+          // 两个选项: 问题|选项A|选项B|正确答案
+          options = fields.slice(1, 3);
+          correctAnswer = fields[3];
+          explanation = '';
+        } else {
+          // 不支持的格式
+          failedCount++;
+          errors.push(`字段数量不足: ${line.substring(0, 50)}...`);
+          continue;
+        }
         
-        // Validate correct answers format - must be valid letters corresponding to options
+        // 分割正确答案, 支持多选(如 "A,B")
+        const correctAnswers = correctAnswer.split(',').map((a: string) => a.trim().toUpperCase());
+        
+        // 验证正确答案格式 - 必须是有效的选项字母 (A, B, C, D...)
         const validAnswers = correctAnswers.filter((answer: string) => {
           const index = answer.charCodeAt(0) - 'A'.charCodeAt(0);
           return index >= 0 && index < options.length;
@@ -279,13 +306,10 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
         
         if (validAnswers.length === 0) {
           failedCount++;
-          errors.push(`无效的正确答案 "${fields[optionsEnd + 1]}": ${line.substring(0, 50)}...`);
-          console.log(`[API] Invalid correct answers: "${fields[optionsEnd + 1]}" for question "${questionText.substring(0, 30)}..."`);
+          errors.push(`无效的正确答案 "${correctAnswer}": ${line.substring(0, 50)}...`);
+          console.log(`[API] Invalid correct answers: "${correctAnswer}" for question "${questionText.substring(0, 30)}..."`);
           continue;
         }
-        
-        // Explanation is the last field
-        const explanation = fields.length > optionsEnd + 2 ? fields[optionsEnd + 2] : '';
         
         console.log(`[API] Parsed question: "${questionText.substring(0, 30)}...", ${options.length} options, answers: ${correctAnswers}, explanation: ${explanation.substring(0, 20)}...`);
         

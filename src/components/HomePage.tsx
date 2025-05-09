@@ -176,6 +176,8 @@ const HomePage: React.FC = () => {
     const getQuestionCount = () => {
       // Log original values for debugging
       console.log(`[HomePage] Question count data for ${set.id}:`, {
+        id: set.id,
+        title: set.title,
         questionCount: set.questionCount,
         questions: set.questions?.length,
         questionSetQuestions: set.questionSetQuestions?.length
@@ -201,8 +203,6 @@ const HomePage: React.FC = () => {
       
       // Debug: If we get here, count is 0 - log more details for troubleshooting
       console.warn(`[HomePage] No question count data available for ${set.title} (${set.id})`);
-      
-      // Default fallback
       return 0;
     };
 
@@ -279,7 +279,16 @@ const HomePage: React.FC = () => {
               <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>{getQuestionCount()}题</span>
+              {getQuestionCount() > 0 ? (
+                <span>{getQuestionCount()}题</span>
+              ) : (
+                <span className="text-red-500 dark:text-red-400 flex items-center">
+                  <span>0题</span>
+                  <svg className="w-3 h-3 ml-1 animate-pulse text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </span>
+              )}
             </div>
             <div className="flex items-center">
               <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2444,13 +2453,21 @@ const HomePage: React.FC = () => {
   }, [fetchLatestHomeContent, setActiveCategory]);
 
   // 添加一个专门用于刷新问题数量的函数
-  const refreshQuestionCounts = useCallback(async () => {
-    console.log('[HomePage] Refreshing question counts for all question sets...');
+  const refreshQuestionCounts = useCallback(async (forceAll = false) => {
+    console.log(`[HomePage] Refreshing question counts for all question sets... Force All: ${forceAll}`);
     
     if (questionSets.length === 0) {
       console.log('[HomePage] No question sets to refresh counts for');
+      toast.info('没有可刷新的题库');
       return;
     }
+    
+    // 显示加载中通知
+    const toastId = toast.info('正在刷新题目数量...', { 
+      autoClose: false,
+      closeButton: false,
+      closeOnClick: false
+    });
     
     try {
       // 创建一个新的题库集合的副本
@@ -2461,8 +2478,8 @@ const HomePage: React.FC = () => {
       for (let i = 0; i < updatedSets.length; i++) {
         const set = updatedSets[i];
         
-        // 检查是否已经有有效的问题数量
-        if (typeof set.questionCount === 'number' && set.questionCount > 0) {
+        // 如果不是强制刷新，则跳过已有有效数量的题库
+        if (!forceAll && typeof set.questionCount === 'number' && set.questionCount > 0) {
           continue; // 跳过已有有效数量的题库
         }
         
@@ -2499,11 +2516,32 @@ const HomePage: React.FC = () => {
       if (updatedCount > 0) {
         console.log(`[HomePage] Updated question counts for ${updatedCount} question sets`);
         setQuestionSets(updatedSets);
+        toast.update(toastId, { 
+          render: `成功更新${updatedCount}个题库的题目数量`, 
+          type: toast.TYPE.SUCCESS,
+          autoClose: 3000,
+          closeButton: true,
+          closeOnClick: true
+        });
       } else {
         console.log('[HomePage] No question counts needed to be updated');
+        toast.update(toastId, { 
+          render: '所有题库数量已是最新', 
+          type: toast.TYPE.INFO,
+          autoClose: 2000,
+          closeButton: true,
+          closeOnClick: true
+        });
       }
     } catch (error) {
       console.error('[HomePage] Error refreshing question counts:', error);
+      toast.update(toastId, { 
+        render: '刷新题目数量失败', 
+        type: toast.TYPE.ERROR,
+        autoClose: 3000,
+        closeButton: true,
+        closeOnClick: true
+      });
     }
   }, [questionSets]);
 
@@ -2808,7 +2846,10 @@ const HomePage: React.FC = () => {
           
           {/* 添加刷新题目数量按钮 */}
           <button
-            onClick={refreshQuestionCounts}
+            onClick={(e) => {
+              e.preventDefault();
+              refreshQuestionCounts(true);
+            }}
             className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 flex items-center"
             title="刷新题目数量"
           >
