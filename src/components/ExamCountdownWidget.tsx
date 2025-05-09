@@ -321,10 +321,10 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
   // 显示加载指示器
   if (isLoading) {
     return (
-      <div className={`mb-8 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-        <div className="text-center py-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-2 text-sm">正在加载倒计时数据...</p>
+      <div className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        <div className="text-center py-2">
+          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-1 text-xs">正在加载数据...</p>
         </div>
       </div>
     );
@@ -333,13 +333,13 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
   // 检查是否有倒计时数据
   if (countdowns.length === 0 && !showAddForm) {
     return (
-      <div className={`mb-8 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+      <div className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
         <div className="text-center">
           <button
             onClick={() => setShowAddForm(true)}
-            className={`px-4 py-2 rounded-md ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-sm flex items-center mx-auto`}
+            className={`px-3 py-1.5 rounded-md ${theme === 'dark' ? 'bg-indigo-800 hover:bg-indigo-700' : 'bg-gray-200 hover:bg-gray-300'} text-xs flex items-center mx-auto`}
           >
-            <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             添加考试倒计时
@@ -350,9 +350,9 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
   }
 
   return (
-    <div className={`mb-8 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+    <div className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
       {/* 倒计时列表 */}
-      <div className="space-y-2 mb-4">
+      <div className="space-y-2 mb-2">
         {countdowns.map((countdown, index) => {
           const remainingDays = getRemainingDays(countdown.examDate);
           const isFirst = index === 0;
@@ -360,35 +360,53 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
           return (
             <div 
               key={countdown.id}
-              className={`rounded-lg p-3 ${
+              className={`rounded-lg p-2 ${
                 isFirst 
-                  ? `${theme === 'dark' ? 'bg-indigo-900' : 'bg-indigo-50'} border ${theme === 'dark' ? 'border-indigo-800' : 'border-indigo-100'}`
-                  : `${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`
-              } flex justify-between items-center`}
+                  ? `${theme === 'dark' ? 'bg-indigo-900/50 backdrop-blur-sm' : 'bg-indigo-50'} border ${theme === 'dark' ? 'border-indigo-800/50' : 'border-indigo-100'}`
+                  : `${theme === 'dark' ? 'bg-gray-800/50 backdrop-blur-sm' : 'bg-gray-50'} border ${theme === 'dark' ? 'border-gray-700/50' : 'border-gray-200'}`
+              } flex justify-between items-center group relative overflow-hidden`}
             >
-              <div className={isFirst ? 'font-medium' : ''}>
-                <div className={`flex items-center ${isFirst ? 'text-lg' : 'text-base'}`}>
-                  <span className="mr-2">📅</span>
+              {/* 背景效果 */}
+              {isFirst && (
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/5 to-transparent"></div>
+              )}
+              
+              <div className={isFirst ? 'font-medium relative z-10' : 'relative z-10'}>
+                <div className={`flex items-center ${isFirst ? 'text-md' : 'text-sm'}`}>
+                  <svg className={`h-3.5 w-3.5 mr-1.5 ${isFirst ? 'text-indigo-400' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                   <span>
-                    距离 <span className={`${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-600'} font-semibold`}>
-                      {countdown.examType} - {countdown.examCode}
-                    </span> 还有 <span className={`${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-600'} font-bold`}>
-                      {remainingDays}
-                    </span> 天
+                    <span className={`${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-600'} font-semibold`}>
+                      {countdown.examType} {countdown.examCode}
+                    </span>
+                    {isFirst ? (
+                      <span className="ml-1.5">
+                        还有 <span className={`${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-600'} font-bold`}>
+                          {remainingDays}
+                        </span> 天
+                      </span>
+                    ) : (
+                      <span className="ml-1.5 text-xs">
+                        还有 <span className={`${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-600'} font-medium`}>
+                          {remainingDays}
+                        </span> 天
+                      </span>
+                    )}
                   </span>
                 </div>
-                <div className="text-xs mt-1 ml-6 text-gray-500">
+                <div className="text-xs mt-0.5 ml-5 text-gray-500">
                   考试日期: {new Date(countdown.examDate).toLocaleDateString('zh-CN')}
                 </div>
               </div>
               <button 
                 onClick={() => handleDeleteExam(countdown.id)}
-                className={`p-1 rounded-full ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                className={`p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
                 title="删除"
                 aria-label="删除考试倒计时"
                 disabled={isSaving}
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -399,18 +417,18 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
       
       {/* 添加考试表单 */}
       {showAddForm ? (
-        <div className={`rounded-lg p-4 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border mb-4`}>
-          <h3 className={`text-lg font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>添加考试倒计时</h3>
-          <div className="space-y-3">
+        <div className={`rounded-lg p-3 ${theme === 'dark' ? 'bg-gray-800/70 backdrop-blur-sm border-gray-700/50' : 'bg-white border-gray-200'} border mb-2`}>
+          <h3 className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>添加考试倒计时</h3>
+          <div className="space-y-2">
             <div>
-              <label className="block text-sm font-medium mb-1">考试类型</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {examTypes.map(type => (
+              <label className="block text-xs font-medium mb-1">考试类型</label>
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {examTypes.slice(0, 3).map(type => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setNewExam({...newExam, examType: type})}
-                    className={`px-3 py-1 text-sm rounded-full ${
+                    className={`px-2 py-0.5 text-xs rounded-full ${
                       newExam.examType === type
                         ? 'bg-blue-600 text-white'
                         : `${theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
@@ -425,7 +443,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
                 value={newExam.examType}
                 onChange={(e) => setNewExam({...newExam, examType: e.target.value})}
                 placeholder="输入考试类型"
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-2 py-1 text-xs border rounded-md ${
                   theme === 'dark' 
                     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
@@ -433,13 +451,13 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">考试编号</label>
+              <label className="block text-xs font-medium mb-1">考试编号</label>
               <input
                 type="text"
                 value={newExam.examCode}
                 onChange={(e) => setNewExam({...newExam, examCode: e.target.value})}
                 placeholder="如：2025年第1回"
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-2 py-1 text-xs border rounded-md ${
                   theme === 'dark' 
                     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
@@ -447,23 +465,23 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">考试日期</label>
+              <label className="block text-xs font-medium mb-1">考试日期</label>
               <input
                 type="date"
                 value={newExam.examDate}
                 onChange={(e) => setNewExam({...newExam, examDate: e.target.value})}
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-2 py-1 text-xs border rounded-md ${
                   theme === 'dark' 
                     ? 'bg-gray-700 border-gray-600 text-white' 
                     : 'bg-white border-gray-300 text-gray-900'
                 }`}
               />
             </div>
-            <div className="flex justify-end space-x-2 pt-2">
+            <div className="flex justify-end space-x-2 pt-1.5">
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className={`px-4 py-2 text-sm rounded-md ${
+                className={`px-2 py-1 text-xs rounded-md ${
                   theme === 'dark' 
                     ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                     : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
@@ -475,11 +493,11 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
               <button
                 type="button"
                 onClick={handleAddExam}
-                className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                className={`px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md flex items-center ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
                 disabled={isSaving}
               >
                 {isSaving && (
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -494,10 +512,10 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
           {countdowns.length < 3 && (
             <button
               onClick={() => setShowAddForm(true)}
-              className={`px-4 py-2 rounded-md ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-sm flex items-center mx-auto`}
+              className={`px-2 py-1 rounded-md ${theme === 'dark' ? 'bg-indigo-800/50 hover:bg-indigo-700/60' : 'bg-gray-200 hover:bg-gray-300'} text-xs flex items-center mx-auto`}
               disabled={isSaving}
             >
-              <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               添加考试倒计时
@@ -506,17 +524,10 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         </div>
       )}
       
-      {/* 添加同步状态提示 */}
-      {(isLoading || isSaving) && (
-        <div className={`text-center text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-          {isLoading ? '正在同步数据...' : '正在保存到云端...'}
-        </div>
-      )}
-      
-      {/* 显示设备同步提示 */}
-      {user && user.id && (
-        <div className={`text-center text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-          已同步到云端，可在其他设备查看
+      {/* 设备同步提示 - 简化显示 */}
+      {(isLoading || isSaving || (user && user.id)) && (
+        <div className={`text-center text-xs mt-1 ${theme === 'dark' ? 'text-indigo-400/60' : 'text-indigo-500/60'}`}>
+          {isLoading ? '同步中...' : isSaving ? '保存中...' : '已同步'}
         </div>
       )}
     </div>

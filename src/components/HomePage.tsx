@@ -148,7 +148,7 @@ const HomePage: React.FC = () => {
   
   const socketDataRef = useRef<{[key: string]: {hasAccess: boolean, remainingDays: number | null, accessType?: string}}>({}); 
   // 修改bgClass的定义，确保不影响用户菜单的交互
-  const bgClass = "bg-gray-50 dark:bg-gray-900 py-8 relative pt-20"; // 移除min-h-screen, 添加pt-20确保内容不被header覆盖
+  const bgClass = "bg-gray-50 dark:bg-gray-900 py-0 relative"; // 移除min-h-screen和pt-20, 设置py-0完全移除上下间距
   
   // Add notification state variables
   const [showUpdateNotification, setShowUpdateNotification] = useState<boolean>(false);
@@ -224,18 +224,18 @@ const HomePage: React.FC = () => {
     };
 
     return (
-      <div className="relative overflow-hidden group bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+      <div className="relative overflow-hidden group bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 h-[180px] flex flex-col">
         {/* 背景装饰 - 增加科技感 */}
         <div className="absolute -right-4 -top-4 w-20 h-20 bg-blue-500 opacity-10 rounded-full blur-lg group-hover:bg-indigo-600 group-hover:opacity-20 transition-all"></div>
         <div className="absolute -left-6 -bottom-6 w-28 h-28 bg-purple-500 opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-all"></div>
         
         {/* 卡片内容 - 更紧凑的布局 */}
-        <div className="p-4 relative z-10">
+        <div className="p-4 relative z-10 flex-1 flex flex-col">
           {/* 标题和分类 */}
           <div className="flex justify-between items-start mb-2">
-            <h3 className="text-base font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">{set.title}</h3>
+            <h3 className="text-base font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 pr-2">{set.title}</h3>
             {isFree ? (
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${getAccessTypeBadgeClass()} animate-pulse`}>
                   {getAccessTypeLabel()}
                   <span className="absolute inset-0 rounded-full bg-blue-400 mix-blend-screen filter blur-sm opacity-75 animate-pulse"></span>
@@ -243,7 +243,7 @@ const HomePage: React.FC = () => {
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping"></span>
               </div>
             ) : (
-              <span className={`text-xs px-2 py-1 rounded-full ${getAccessTypeBadgeClass()}`}>
+              <span className={`text-xs px-2 py-1 rounded-full ${getAccessTypeBadgeClass()} flex-shrink-0`}>
                 {getAccessTypeLabel()}
               </span>
             )}
@@ -253,7 +253,7 @@ const HomePage: React.FC = () => {
           <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-1">{set.description}</p>
           
           {/* 题库信息 */}
-          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-3 space-x-3">
+          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-auto space-x-3">
             <div className="flex items-center">
               <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -268,42 +268,46 @@ const HomePage: React.FC = () => {
             </div>
           </div>
           
-          {/* 剩余有效期 - 仅对已购买或已兑换的题库显示 */}
-          {(isPaid || isRedeemed) && hasAccess && !isExpired && (
-            <div className="mb-3">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-xs">有效期</span>
-                <span className={`font-medium text-xs ${
-                  percent < 20 ? 'text-red-600' : 
-                  percent < 50 ? 'text-yellow-600' : 
-                  'text-green-600'
-                }`}>
-                  {formatRemainingDays(set.remainingDays)}
-                </span>
+          {/* 条件内容区域 - 确保统一高度 */}
+          <div className="h-[40px] flex items-center">
+            {/* 剩余有效期 - 仅对已购买或已兑换的题库显示 */}
+            {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
+              <div className="w-full">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-xs">有效期</span>
+                  <span className={`font-medium text-xs ${
+                    percent < 20 ? 'text-red-600' : 
+                    percent < 50 ? 'text-yellow-600' : 
+                    'text-green-600'
+                  }`}>
+                    {formatRemainingDays(set.remainingDays)}
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${color} transition-all duration-500`}
+                    style={{ width: `${percent}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full ${color} transition-all duration-500`}
-                  style={{ width: `${percent}%` }}
-                ></div>
+            ) : set.isPaid && !hasAccess ? (
+              /* 价格信息 - 仅对未购买的付费题库显示 */
+              <div className="flex items-baseline">
+                <span className="text-base font-bold text-blue-600">¥{set.price}</span>
+                {set.trialQuestions && (
+                  <span className="ml-2 text-xs text-gray-500">
+                    可试用{set.trialQuestions}题
+                  </span>
+                )}
               </div>
-            </div>
-          )}
+            ) : (
+              /* 空白占位 */
+              <div className="w-full h-[1px]"></div>
+            )}
+          </div>
           
-          {/* 价格信息 - 仅对未购买的付费题库显示 */}
-          {set.isPaid && !hasAccess && (
-            <div className="mb-3 flex items-baseline">
-              <span className="text-base font-bold text-blue-600">¥{set.price}</span>
-              {set.trialQuestions && (
-                <span className="ml-2 text-xs text-gray-500">
-                  可试用{set.trialQuestions}题
-                </span>
-              )}
-            </div>
-          )}
-          
-          {/* 操作按钮 */}
-          <div className="flex justify-end">
+          {/* 操作按钮 - 统一位置 */}
+          <div className="flex justify-end mt-2">
             <button
               onClick={() => onStartQuiz(set)}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-all duration-300 ${
@@ -2399,7 +2403,7 @@ const HomePage: React.FC = () => {
       )}
 
       {/* 高科技英雄区域 - 已整合倒计时组件 */}
-      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-6 overflow-hidden mt-8 rounded-3xl shadow-2xl"> {/* 修改了下边距 */}
+      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-6 overflow-hidden rounded-3xl shadow-2xl"> {/* 移除mt-8 */}
         {/* 科技背景元素 */}
         <div className="absolute inset-0 z-0">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-700/20 via-transparent to-transparent"></div>
@@ -2415,140 +2419,133 @@ const HomePage: React.FC = () => {
           <div className="absolute bottom-1/4 right-1/4 w-8 h-8 bg-indigo-300 rounded-full opacity-20 animate-float" style={{animationDelay: '2s'}}></div>
         </div>
 
-        <div className="container mx-auto px-6 pt-16 pb-12 relative z-10"> {/* 减少了内边距 */}
+        <div className="container mx-auto px-6 pt-6 pb-12 relative z-10"> {/* 进一步减少pt-10为pt-6 */}
           <div className="max-w-5xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* 左侧标题和搜索区域 */}
               <div className="lg:col-span-2 text-center lg:text-left">
                 <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-800/30 backdrop-blur-sm text-blue-300 text-sm font-medium mb-6 border border-indigo-700/50 shadow-lg hover:shadow-indigo-900/20 transition-all duration-300 transform hover:-translate-y-1">
-                  <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
+              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
                   <span className="mr-2">在线学习平台</span>
                   <span className="text-xs opacity-70">|</span>
                   <span className="ml-2 text-xs">实时更新</span>
-                </div>
-                
+            </div>
+            
                 <h1 className="text-4xl md:text-5xl lg:text-5xl font-bold text-white mb-6 leading-tight tracking-tight drop-shadow-lg">
-                  {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
-                </h1>
-                
+              {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
+            </h1>
+            
                 <p className="text-xl text-blue-200 mb-8 max-w-3xl lg:mx-0 mx-auto leading-relaxed">
-                  {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
-                </p>
-                
+              {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
+            </p>
+            
                 {/* 搜索栏 - 全新改进UI */}
                 <div className="relative w-full max-w-xl mx-auto lg:mx-0 backdrop-blur-sm transform transition-all duration-500 hover:scale-102 mb-4">
                   <div className="relative flex bg-white/10 rounded-xl shadow-lg overflow-hidden p-1 border border-white/20 transition-all duration-300 focus-within:bg-white/20 focus-within:border-white/30 focus-within:shadow-xl group">
-                    <input
-                      type="text"
-                      placeholder="搜索题库名称或分类..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                <input
+                  type="text"
+                  placeholder="搜索题库名称或分类..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full px-6 py-3 bg-transparent border-none focus:outline-none focus:ring-0 text-white placeholder-blue-300"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && searchTerm.trim()) {
-                          document.getElementById('question-sets-section')?.scrollIntoView({ 
-                            behavior: 'smooth',
-                            block: 'start'
-                          });
-                        }
-                      }}
-                    />
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <svg className="h-5 w-5 text-blue-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    
-                    {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm('')}
-                        className="absolute inset-y-0 right-16 pr-3 flex items-center text-blue-300 hover:text-white"
-                      >
-                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                    )}
-                    
-                    <div className="flex">
-                      <button
-                        onClick={() => {
-                          if (searchTerm.trim()) {
-                            document.getElementById('question-sets-section')?.scrollIntoView({ 
-                              behavior: 'smooth',
-                              block: 'start'
-                            });
-                          } else {
-                            handleStartQuiz(questionSets[0] || recommendedSets[0]);
-                          }
-                        }}
-                        className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                      >
-                        {searchTerm.trim() ? (
-                          <>
-                            <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            搜索
-                          </>
-                        ) : (
-                          <>
-                            <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            开始学习
-                          </>
-                        )}
-                      </button>
-                      
-                      <Link 
-                        to="/question-sets-search"
-                        className="ml-2 px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                      >
-                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                        </svg>
-                        浏览题库
-                      </Link>
-                    </div>
-                  </div>
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchTerm.trim()) {
+                      document.getElementById('question-sets-section')?.scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start'
+                      });
+                    }
+                  }}
+                />
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-blue-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
                 </div>
                 
-                {/* 键盘快捷键提示 */}
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-16 pr-3 flex items-center text-blue-300 hover:text-white"
+                  >
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+                
+                <div className="flex">
+                  <button
+                    onClick={() => {
+                      if (searchTerm.trim()) {
+                        document.getElementById('question-sets-section')?.scrollIntoView({ 
+                          behavior: 'smooth',
+                          block: 'start'
+                        });
+                      } else {
+                        handleStartQuiz(questionSets[0] || recommendedSets[0]);
+                      }
+                    }}
+                        className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    {searchTerm.trim() ? (
+                      <>
+                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        搜索
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        开始学习
+                      </>
+                    )}
+                  </button>
+                  
+                  <Link 
+                    to="/question-sets-search"
+                        className="ml-2 px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                        浏览题库
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            {/* 键盘快捷键提示 */}
                 <div className="text-blue-300/70 text-sm flex justify-center lg:justify-start gap-4 mb-6">
-                  <span className="flex items-center">
+              <span className="flex items-center">
                     <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1 border border-white/10 shadow-sm">
                       <span className="opacity-80">/</span>
                     </span>
-                    <span className="mr-4">搜索</span>
-                  </span>
-                  <span className="flex items-center">
+                <span className="mr-4">搜索</span>
+              </span>
+              <span className="flex items-center">
                     <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1 border border-white/10 shadow-sm">
                       <span className="opacity-80">Esc</span>
                     </span>
-                    <span>清除</span>
-                  </span>
+                <span>清除</span>
+              </span>
                 </div>
               </div>
               
-              {/* 右侧倒计时组件 */}
+              {/* 右侧倒计时组件 - 优化UI，移除图标 */}
               <div className="lg:col-span-1 relative">
                 <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
-                  <div className="p-6">
-                    <div className="flex items-center mb-4">
-                      <div className="h-8 w-8 rounded-full bg-blue-600/30 flex items-center justify-center mr-3">
-                        <svg className="h-5 w-5 text-blue-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-white">考试倒计时</h3>
-                    </div>
-                    <div className="text-sm text-blue-200 mb-2">距离下次考试还有</div>
+                  <div className="p-5">
+                    <h3 className="text-lg font-semibold text-white mb-2">考试倒计时</h3>
+                    <div className="text-sm text-blue-200 mb-1">距离下次考试还有</div>
                     {/* 倒计时组件 */}
                     <ExamCountdownWidget theme="dark" />
                     {/* 额外链接 */}
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-3 flex justify-end">
                       <Link 
                         to="/profile" 
                         className="text-xs text-blue-300 hover:text-white flex items-center transition-colors"
@@ -2577,19 +2574,14 @@ const HomePage: React.FC = () => {
           </svg>
         </div>
       </div>
-
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
-        {/* 公告信息 - 改为更现代的卡片式设计 */}
+        {/* 公告信息 - 优化UI，移除图标，简化设计 */}
         {homeContent.announcements && (
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-xl mb-8 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300 group">
-            <div className="absolute -left-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
-              <svg className="h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-              </svg>
-            </div>
+          <div className="relative bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-900/30 dark:to-gray-800 rounded-2xl p-4 shadow-xl mb-6 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300 group">
             <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
             <div className="flex items-start">
-              <div className="ml-3 flex-1">
+              <div className="flex-1">
                 <div className="flex items-center mb-1">
                   <h3 className="font-bold text-blue-600 dark:text-blue-400 text-lg mr-2">公告</h3>
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
@@ -2597,69 +2589,48 @@ const HomePage: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm">
-              {homeContent.announcements}
-            </p>
+                  {homeContent.announcements}
+                </p>
               </div>
             </div>
           </div>
         )}
-        
-        {/* 分类选择器 - 改进成更科技感的样式 */}
-        <div className="my-8 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200 dark:bg-blue-800 rounded-full opacity-20 -mr-6 -mt-6 blur-xl"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-200 dark:bg-indigo-800 rounded-full opacity-20 -ml-10 -mb-10 blur-xl"></div>
-          
-          {/* 添加科技装饰 */}
-          <div className="absolute top-6 right-6 w-20 h-20">
-            <svg className="text-indigo-300 dark:text-indigo-600 opacity-50" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-              <path fill="currentColor" d="M47.1,-51.5C59.2,-39.2,66.1,-21.5,68.1,-3.1C70.1,15.3,67.2,34.3,55.8,45.9C44.4,57.5,24.5,61.7,4.5,58.8C-15.6,55.9,-35.7,45.9,-48.9,30.4C-62.1,14.9,-68.3,-6.1,-63.2,-23.1C-58.1,-40.1,-41.5,-53.1,-25,-59.1C-8.5,-65.1,8,-63.9,23.9,-57.8C39.8,-51.8,55,-63.8,47.1,-51.5Z" transform="translate(100 100)" />
-            </svg>
-          </div>
-          
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-4">
-              <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-wide">选择题库分类</h2>
-            </div>
-          
-          <div className="flex flex-wrap gap-2">
+
+        {/* 分类选择器 - 简化UI，只保留按钮 */}
+        <div className="my-4 flex flex-wrap gap-2">
+          <button 
+            onClick={() => handleCategoryChange('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+              activeCategory === 'all' 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+            }`}
+          >
+              <div className="flex items-center">
+                <svg className={`w-3.5 h-3.5 ${activeCategory === 'all' ? 'text-white' : 'text-blue-500 dark:text-blue-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              全部题库
+              </div>
+          </button>
+          {homeContent.featuredCategories.map(category => (
             <button 
-              onClick={() => handleCategoryChange('all')}
+              key={category}
+              onClick={() => handleCategoryChange(category)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-                activeCategory === 'all' 
+                activeCategory === category 
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
                     : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
               }`}
             >
                 <div className="flex items-center">
-                  <svg className={`w-3.5 h-3.5 ${activeCategory === 'all' ? 'text-white' : 'text-blue-500 dark:text-blue-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                   </svg>
-              全部题库
+              {category}
                 </div>
             </button>
-            {homeContent.featuredCategories.map(category => (
-              <button 
-                key={category}
-                onClick={() => handleCategoryChange(category)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-                  activeCategory === category 
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
-                      : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
-                }`}
-              >
-                  <div className="flex items-center">
-                    <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                {category}
-                  </div>
-              </button>
-            ))}
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* 推荐题库区域 */}
@@ -2671,7 +2642,7 @@ const HomePage: React.FC = () => {
                 <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
-                </div>
+              </div>
                 <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-indigo-400 blur-md opacity-50 animate-pulse"></div>
               </div>
               <h2 className="text-xl font-bold text-gray-800 dark:text-white">推荐题库</h2>
@@ -2716,7 +2687,7 @@ const HomePage: React.FC = () => {
                       <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                       </svg>
-                      </div>
+                    </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-green-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">我的题库</h2>
@@ -2725,7 +2696,7 @@ const HomePage: React.FC = () => {
                       {categorized.purchased.length}个已购买/兑换
                     </span>
                       <div className="ml-3 h-px w-12 bg-gradient-to-r from-green-600 to-transparent"></div>
-                    </div>
+                  </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {categorized.purchased.map((set: PreparedQuestionSet, index) => (
@@ -2756,7 +2727,7 @@ const HomePage: React.FC = () => {
                       <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
                       </svg>
-                      </div>
+                    </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-blue-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">免费题库</h2>
@@ -2765,7 +2736,7 @@ const HomePage: React.FC = () => {
                       {categorized.free.length}个免费题库
                     </span>
                       <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
-                    </div>
+                  </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {categorized.free.map((set: PreparedQuestionSet, index) => (
@@ -2796,7 +2767,7 @@ const HomePage: React.FC = () => {
                       <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      </div>
+                    </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-purple-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">付费题库</h2>
@@ -2805,7 +2776,7 @@ const HomePage: React.FC = () => {
                       {categorized.paid.length}个待购买
                     </span>
                       <div className="ml-3 h-px w-12 bg-gradient-to-r from-purple-600 to-transparent"></div>
-                    </div>
+                  </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {categorized.paid.map((set: PreparedQuestionSet, index) => (
@@ -2836,7 +2807,7 @@ const HomePage: React.FC = () => {
                       <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      </div>
+                    </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-red-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">已过期题库</h2>
@@ -2890,7 +2861,7 @@ const HomePage: React.FC = () => {
                   <div className="relative w-20 h-20 mb-6 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
                     <svg className="h-10 w-10 text-blue-400 dark:text-blue-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
+                  </svg>
                     <div className="absolute inset-0 rounded-full animate-glow"></div>
                   </div>
                   

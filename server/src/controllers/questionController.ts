@@ -189,4 +189,66 @@ export const getQuestionCount = async (req: Request, res: Response) => {
       error: (error as Error).message
     });
   }
+};
+
+// @desc    Batch upload questions for a question set
+// @route   POST /api/questions/batch-upload/:questionSetId
+// @access  Admin
+export const batchUploadQuestions = async (req: Request, res: Response) => {
+  try {
+    const { questionSetId } = req.params;
+    
+    // 验证参数
+    if (!questionSetId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '题库ID不能为空' 
+      });
+    }
+    
+    // 处理文件上传
+    const files = req.files as any;
+    if (!files || Object.keys(files).length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '没有上传文件' 
+      });
+    }
+    
+    // 获取上传的文件
+    const file = files.file;
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: '文件字段名应为 "file"'
+      });
+    }
+    
+    // 分析文件内容，处理文件格式，导入问题
+    // 这里应实现实际的处理逻辑，例如解析CSV、Excel等
+    
+    // 导入成功的问题数量
+    let successCount = 0;
+    // 导入失败的问题数量
+    let failedCount = 0;
+    // 错误信息数组
+    const errors: string[] = [];
+    
+    // 导入完成后返回结果
+    return res.status(200).json({ 
+      success: true, 
+      successCount,
+      failedCount,
+      errors,
+      message: `成功导入 ${successCount} 个问题，失败 ${failedCount} 个` 
+    });
+    
+  } catch (error) {
+    console.error('批量导入题目失败:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: '批量导入题目失败',
+      error: (error as Error).message
+    });
+  }
 }; 
