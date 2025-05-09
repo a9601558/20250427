@@ -1334,6 +1334,14 @@ const ProfilePage: React.FC = () => {
     }
   }, [user]);
 
+  // 定义分页响应接口
+  interface PaginatedResponse<T> {
+    total: number;
+    page: number;
+    pageSize: number;
+    list: T[];
+  }
+
   // 获取兑换码数据
   const fetchRedeemCodes = useCallback(async () => {
     if (!user) return;
@@ -1350,8 +1358,32 @@ const ProfilePage: React.FC = () => {
         console.log('[ProfilePage] 兑换码数据获取成功, 原始数据:', response.data);
         
         try {
+          // 检查是否是分页结构 (有list属性)
+          let validRedeemCodes: any[] = [];
+          
+          // 判断响应是否为分页格式
+          const isPaginatedResponse = (data: any): data is PaginatedResponse<any> => {
+            return data && 
+              typeof data === 'object' && 
+              'list' in data && 
+              Array.isArray(data.list) &&
+              'total' in data &&
+              'page' in data;
+          };
+          
+          if (isPaginatedResponse(response.data)) {
+            console.log('[ProfilePage] 检测到分页结构，使用list属性中的数据，总数:', response.data.total);
+            validRedeemCodes = response.data.list;
+          } else if (Array.isArray(response.data)) {
+            console.log('[ProfilePage] 使用直接返回的数组数据');
+            validRedeemCodes = response.data;
+          } else {
+            console.error('[ProfilePage] 兑换码数据格式异常:', response.data);
+            throw new Error('兑换码数据不是数组格式');
+          }
+          
           // 验证并过滤数据，确保所有必需的字段都存在
-          const validRedeemCodes = (response.data || [])
+          const processedCodes = validRedeemCodes
             .filter((r: any) => r && (r.questionSetId || r.redeemQuestionSet?.id))
             .map((r: any) => {
               const questionSetId = r.questionSetId || r.redeemQuestionSet?.id;
@@ -1382,14 +1414,14 @@ const ProfilePage: React.FC = () => {
               
               return redeemRecord;
             });
+        
+          console.log('[ProfilePage] 处理后的有效兑换码数量:', processedCodes.length);
           
-          console.log('[ProfilePage] 处理后的有效兑换码数量:', validRedeemCodes.length);
-          
-          if (validRedeemCodes.length === 0 && response.data.length > 0) {
+          if (processedCodes.length === 0 && validRedeemCodes.length > 0) {
             console.warn('[ProfilePage] 警告: 所有兑换码数据处理后无有效记录');
           }
           
-          setRedeemCodes(validRedeemCodes);
+          setRedeemCodes(processedCodes);
         } catch (dataError) {
           console.error('[ProfilePage] 处理兑换码数据时出错:', dataError);
           toast.error('处理兑换码数据失败，请联系管理员');
@@ -1419,7 +1451,53 @@ const ProfilePage: React.FC = () => {
       const response = await wrongAnswerService.getWrongAnswers();
       
       if (response.success && response.data) {
-        setWrongAnswers(response.data);
+        // 收集所有题库ID
+        const questionSetIds = new Set<string>();
+        response.data.forEach((answer: WrongAnswer) => {
+          if (answer.questionSetId) {
+            questionSetIds.add(answer.questionSetId);
+          }
+        });
+        
+        // 如果存在题库ID，获取题库信息
+        if (questionSetIds.size > 0) {
+          try {
+            console.log('[ProfilePage] 获取错题关联的题库信息');
+            // 直接调用questionSetService而不是fetchQuestionSets
+            const questionsResponse = await questionSetService.getAllQuestionSets();
+            const questionSets = questionsResponse.success ? questionsResponse.data || [] : [];
+            
+            // 创建题库ID到题库名称的映射
+            const questionSetMap = new Map<string, string>();
+            questionSets.forEach(set => {
+              questionSetMap.set(set.id, set.title);
+            });
+            
+            // 增强错题数据，添加正确的题库信息
+            const enhancedWrongAnswers = response.data.map((answer: WrongAnswer) => {
+              // 如果题库信息缺失，从映射中获取
+              if (!answer.questionSet?.title && answer.questionSetId && questionSetMap.has(answer.questionSetId)) {
+                return {
+                  ...answer,
+                  questionSet: {
+                    ...answer.questionSet,
+                    id: answer.questionSetId,
+                    title: questionSetMap.get(answer.questionSetId) || '题库未找到'
+                  }
+                };
+              }
+              return answer;
+            });
+            
+            setWrongAnswers(enhancedWrongAnswers);
+            console.log('[ProfilePage] 错题集增强完成，数量:', enhancedWrongAnswers.length);
+          } catch (err) {
+            console.error('[ProfilePage] 获取题库信息失败:', err);
+            setWrongAnswers(response.data); // 失败时使用原始数据
+          }
+        } else {
+          setWrongAnswers(response.data);
+        }
       } else {
         throw new Error(response.message || '获取错题集失败');
       }
@@ -2084,7 +2162,16 @@ const ProfilePage: React.FC = () => {
     
     wrongAnswers.forEach(answer => {
       const setId = answer.questionSetId;
-      const setTitle = answer.questionSet?.title || '未知题库';
+      // 改进标题获取逻辑
+      let setTitle = '未知题库';
+      
+      // 尝试从不同来源获取题库名称
+      if (answer.questionSet?.title) {
+        setTitle = answer.questionSet.title;
+      } else if (typeof answer.questionSetId === 'string') {
+        // 如果没有标题但有ID，使用ID的一部分作为备选
+        setTitle = `题库 (ID: ${answer.questionSetId.substring(0, 8)}...)`;
+      }
       
       if (!groups[setId]) {
         groups[setId] = {
@@ -2092,6 +2179,9 @@ const ProfilePage: React.FC = () => {
           questionSetTitle: setTitle,
           wrongAnswers: []
         };
+      } else if (setTitle !== '未知题库' && groups[setId].questionSetTitle === '未知题库') {
+        // 如果已经有分组但使用的是默认标题，且当前答案有更好的标题，则更新分组标题
+        groups[setId].questionSetTitle = setTitle;
       }
       
       groups[setId].wrongAnswers.push(answer);
@@ -2221,29 +2311,6 @@ const ProfilePage: React.FC = () => {
           {activeTab === 'redeemed' && renderRedeemedContent()}
         </div>
       </div>
-      
-      {/* 添加账号管理入口按钮 */}
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">个人中心</h1>
-        <button
-          onClick={() => setShowAccountSwitcher(true)}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-          </svg>
-          账号管理
-        </button>
-      </div>
-      
-      {/* 账号切换器模态框 */}
-      {showAccountSwitcher && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <AccountSwitcher onClose={() => setShowAccountSwitcher(false)} />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

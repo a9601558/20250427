@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { homepageService } from '../../services/api';
+import { toast } from 'react-toastify';
 
 // 首页内容接口
 interface HomeContent {
@@ -36,6 +37,8 @@ const AdminHomeContent: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
   const [editingCategoryValue, setEditingCategoryValue] = useState<string>('');
+  const [showPreviewButton, setShowPreviewButton] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // 管理员检查
   useEffect(() => {
@@ -75,6 +78,8 @@ const AdminHomeContent: React.FC = () => {
       ...prev,
       [name]: value
     }));
+    setHasUnsavedChanges(true);
+    setShowPreviewButton(false);
   };
 
   // 开始编辑分类
@@ -233,26 +238,38 @@ const AdminHomeContent: React.FC = () => {
   };
 
   // 保存首页内容
-  const handleSave = async () => {
+  const handleSaveContent = async () => {
     try {
       setIsSaving(true);
+      console.log('[AdminHomeContent] Saving home content with categories:', homeContent.featuredCategories);
+      
       const response = await homepageService.updateHomeContent(homeContent);
-
+      
       if (response.success) {
-        setMessage({ type: 'success', text: '首页内容保存成功！' });
-        console.log('首页内容保存成功');
+        toast.success('首页内容已更新');
+        
+        // Dispatch a custom event to notify other components (specifically HomePage) that content has been updated
+        window.dispatchEvent(new CustomEvent('homeContent:updated', {
+          detail: {
+            timestamp: Date.now(),
+            source: 'admin',
+            categories: homeContent.featuredCategories
+          }
+        }));
+        
+        console.log('[AdminHomeContent] Successfully updated home content, dispatched update event');
+        
+        // Set a flag to indicate successful save for preview button
+        setHasUnsavedChanges(false);
+        setShowPreviewButton(true);
       } else {
-        console.error('保存首页内容失败:', response.message);
-        setMessage({ type: 'error', text: response.message || '保存失败' });
+        toast.error('更新失败: ' + response.message);
       }
-    } catch (err) {
-      console.error('保存过程中发生错误:', err);
-      setMessage({ type: 'error', text: '保存过程中发生错误' });
+    } catch (error) {
+      console.error('更新首页内容失败:', error);
+      toast.error('更新失败，请重试');
     } finally {
       setIsSaving(false);
-      
-      // 3秒后清除消息
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -261,6 +278,12 @@ const AdminHomeContent: React.FC = () => {
     if (window.confirm('确定要重置为默认内容吗？此操作不可撤销。')) {
       setHomeContent(defaultHomeContent);
     }
+  };
+
+  // Handle preview functionality
+  const handlePreview = () => {
+    // Open the homepage in a new tab
+    window.open('/', '_blank');
   };
 
   if (loading) {
@@ -299,23 +322,52 @@ const AdminHomeContent: React.FC = () => {
           >
             重置为默认
           </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition flex items-center"
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <div className="space-x-4 mt-6 flex items-center">
+            <button
+              onClick={handleSaveContent}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition flex items-center"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  保存首页内容
+                </>
+              )}
+            </button>
+            
+            {showPreviewButton && (
+              <button
+                onClick={handlePreview}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition flex items-center"
+              >
+                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                保存中...
-              </>
-            ) : (
-              '保存全部内容'
+                预览变更
+              </button>
             )}
-          </button>
+            
+            {hasUnsavedChanges && (
+              <span className="text-yellow-600 text-sm">
+                <svg className="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                有未保存的更改
+              </span>
+            )}
+          </div>
         </div>
       </div>
       

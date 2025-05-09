@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserProgress, QuestionSet } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
-import PaymentModal from './PaymentModal';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
+import { toast } from 'react-toastify';
 
 // 题库访问类型
 type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -65,44 +64,6 @@ const defaultHomeContent: HomeContentData = {
   theme: 'light'
 };
 
-// Add this helper function after the defaultHomeContent definition
-const calculateQuestionCount = (set: BaseQuestionSet): number => {
-  if (typeof set.questionCount === 'number' && set.questionCount > 0) {
-    return set.questionCount;
-  }
-  if (Array.isArray(set.questionSetQuestions) && set.questionSetQuestions.length > 0) {
-    return set.questionSetQuestions.length;
-  }
-  return 0; // 不再使用 trialQuestions 作为后备选项
-};
-
-// 删除重复的 QuestionSet 接口，统一使用 BaseQuestionSet
-
-// Add a new interface for purchase data
-interface PurchaseData {
-  id: string;
-  questionSetId: string;
-  purchaseDate: string;
-  expiryDate: string;
-  remainingDays: number;
-  hasAccess: boolean;
-  questionSet?: any;
-}
-
-// 新增购买记录接口用于类型检查
-interface DatabasePurchaseRecord {
-  id: string;
-  userId: string;
-  questionSetId: string;
-  purchaseDate: string;
-  expiryDate: string;
-  status?: string;
-  amount?: number;
-  transactionId?: string;
-  paymentMethod?: string;
-  remainingDays?: number;
-}
-
 // 删除这里的BaseCard和handleStartQuiz定义，移到组件内部
 
 const HomePage: React.FC = () => {
@@ -115,8 +76,6 @@ const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedQuestionSet, setSelectedQuestionSet] = useState<PreparedQuestionSet | null>(null);
   const navigate = useNavigate();
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -1647,7 +1606,45 @@ const HomePage: React.FC = () => {
     };
   }, [fetchQuestionSets, setQuestionSets]);
 
-  // Add a new useEffect to load home content
+  // Add a new useEffect to listen for home content updates
+  useEffect(() => {
+    const handleHomeContentUpdate = (event: Event) => {
+      console.log('[HomePage] Received homeContent:updated event, refreshing content');
+      
+      // Force reload home content
+      (async () => {
+        try {
+          const response = await homepageService.getHomeContent();
+          if (response.success && response.data) {
+            console.log('[HomePage] Home content refreshed from admin update:', response.data);
+            console.log('[HomePage] New categories:', response.data.featuredCategories);
+            setHomeContent(response.data);
+            
+            // Reset category filter to show all
+            setActiveCategory('all');
+            
+            // Force refresh question sets with new content
+            fetchQuestionSets({ forceFresh: true });
+            
+            // Show success notification to user
+            toast.success('内容已更新', { position: 'bottom-center' });
+          }
+        } catch (error) {
+          console.error('[HomePage] Failed to refresh home content after update:', error);
+        }
+      })();
+    };
+    
+    // Listen for the custom event
+    window.addEventListener('homeContent:updated', handleHomeContentUpdate);
+    
+    return () => {
+      // Clean up the event listener
+      window.removeEventListener('homeContent:updated', handleHomeContentUpdate);
+    };
+  }, [fetchQuestionSets, toast]);
+
+  // Original loadHomeContent useEffect
   useEffect(() => {
     const loadHomeContent = async () => {
       try {
@@ -1655,6 +1652,7 @@ const HomePage: React.FC = () => {
         const response = await homepageService.getHomeContent();
         if (response.success && response.data) {
           console.log('[HomePage] 首页内容加载成功:', response.data);
+          console.log('[HomePage] 加载的分类:', response.data.featuredCategories);
           setHomeContent(response.data);
           
           // 当首页内容更新后，重新处理题库列表，以便应用精选分类
@@ -1671,9 +1669,9 @@ const HomePage: React.FC = () => {
     };
 
     loadHomeContent();
-  }, []);
+  }, [questionSets.length, fetchQuestionSets]);
 
-  // 在setupRenderEffects函数中添加更多对精选分类的调试输出
+  // Restore the setupRenderEffects function and combine with our categories logic
   const setupRenderEffects = useCallback(() => {
     console.log('[HomePage] 设置渲染效果...');
     
@@ -1682,12 +1680,12 @@ const HomePage: React.FC = () => {
       console.log('[HomePage] 首页包含以下精选分类:', homeContent.featuredCategories);
       
       // 将精选分类与题库分类进行比较
-      const categoriesInQuestionSets = Array.from(new Set(questionSets.map(s => s.category)));
-      console.log('[HomePage] 题库中的分类:', categoriesInQuestionSets);
+      const categoriesInSets = Array.from(new Set(questionSets.map(s => s.category)));
+      console.log('[HomePage] 题库中的分类:', categoriesInSets);
       
       // 找出匹配的分类
       const matchingCategories = homeContent.featuredCategories.filter(c => 
-        categoriesInQuestionSets.includes(c)
+        categoriesInSets.includes(c)
       );
       console.log('[HomePage] 匹配的精选分类:', matchingCategories);
       
@@ -1695,8 +1693,6 @@ const HomePage: React.FC = () => {
       const featuredSets = questionSets.filter(s => s.isFeatured);
       console.log('[HomePage] 标记为精选的题库数量:', featuredSets.length);
     }
-    
-    // 已有的代码...
   }, [questionSets, homeContent.featuredCategories]);
 
   // 添加到useEffect中
@@ -1707,12 +1703,85 @@ const HomePage: React.FC = () => {
     if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0 && questionSets.length > 0) {
       console.log('[HomePage] 精选分类变化，重新应用分类到题库');
       // 延迟执行避免连续多次刷新
-      const timer = setTimeout(() => {
+      const refreshTimer = setTimeout(() => {
         fetchQuestionSets({ forceFresh: true });
       }, 300);
-      return () => clearTimeout(timer);
+      return () => clearTimeout(refreshTimer);
     }
-  }, [setupRenderEffects, homeContent.featuredCategories]);
+  }, [setupRenderEffects, homeContent.featuredCategories, fetchQuestionSets, questionSets.length]);
+
+  // Listen for updates from admin panel
+  useEffect(() => {
+    const handleHomeContentUpdate = (event: CustomEvent) => {
+      console.log('[HomePage] Received homeContent:updated event', event.detail);
+      
+      // Force reload home content
+      (async () => {
+        try {
+          const response = await homepageService.getHomeContent();
+          if (response.success && response.data) {
+            console.log('[HomePage] Home content refreshed from admin update:', response.data);
+            console.log('[HomePage] New categories:', response.data.featuredCategories);
+            
+            // Update home content state
+            setHomeContent(response.data);
+            
+            // Reset category filter to show all
+            setActiveCategory('all');
+            
+            // Force refresh question sets with new content
+            fetchQuestionSets({ forceFresh: true });
+            
+            // Show success toast
+            console.log('[HomePage] Content updated successfully');
+          }
+        } catch (error) {
+          console.error('[HomePage] Failed to refresh home content after update:', error);
+        }
+      })();
+    };
+    
+    // Listen for the custom event
+    window.addEventListener('homeContent:updated', handleHomeContentUpdate as EventListener);
+    
+    return () => {
+      // Clean up the event listener
+      window.removeEventListener('homeContent:updated', handleHomeContentUpdate as EventListener);
+    };
+  }, [fetchQuestionSets, setActiveCategory]);
+
+  // Force refresh when page becomes visible again (e.g., after admin changes)
+  useEffect(() => {
+    // Function to refresh content when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[HomePage] Page became visible, refreshing content');
+        
+        // Force reload home content
+        (async () => {
+          try {
+            const response = await homepageService.getHomeContent();
+            if (response.success && response.data) {
+              console.log('[HomePage] Home content refreshed on visibility change');
+              setHomeContent(response.data);
+              
+              // Force refresh question sets with new content
+              fetchQuestionSets({ forceFresh: true });
+            }
+          } catch (error) {
+            console.error('[HomePage] Failed to refresh content on visibility change:', error);
+          }
+        })();
+      }
+    };
+    
+    // Listen for visibility change
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchQuestionSets]);
 
   if (loading) {
     return (
