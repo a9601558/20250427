@@ -361,31 +361,45 @@ const AdminHomeContent: React.FC = () => {
       setIsSaving(true);
       console.log('[AdminHomeContent] Saving home content with categories:', homeContent.featuredCategories);
       
-      const response = await homepageService.updateHomeContent(homeContent);
+      // Add a timestamp to ensure the latest content is used
+      const contentWithTimestamp = {
+        ...homeContent,
+        _lastUpdated: Date.now()
+      };
+      
+      const response = await homepageService.updateHomeContent(contentWithTimestamp);
       
       if (response.success) {
         toast.success('首页内容已更新');
         
-        // 使用多种方式通知更新，确保首页内容得到更新
+        // Set a flag to prevent event handling cycles
+        sessionStorage.setItem('adminTriggeredUpdate', 'true');
         
+        // 使用多种方式通知更新，确保首页内容得到更新
         // 1. 通过自定义事件通知其他组件
+        const eventTimestamp = Date.now();
         window.dispatchEvent(new CustomEvent('homeContent:updated', {
           detail: {
-            timestamp: Date.now(),
+            timestamp: eventTimestamp,
             source: 'admin',
-            categories: homeContent.featuredCategories
+            categories: homeContent.featuredCategories,
+            changeType: 'full_content'
           }
         }));
         
         // 2. 使用localStorage设置一个更新标记和时间戳，帮助首页检测内容变更
-        localStorage.setItem('home_content_updated', Date.now().toString());
+        localStorage.setItem('home_content_updated', eventTimestamp.toString());
         
         // 3. 如果可能，通过socket通知所有打开的客户端
         try {
           if (socket) {
             socket.emit('admin:homeContent:updated', {
-              timestamp: Date.now(),
-              source: 'admin'
+              timestamp: eventTimestamp,
+              source: 'admin',
+              changeType: 'full_content',
+              categories: homeContent.featuredCategories,
+              welcomeTitle: homeContent.welcomeTitle,
+              footerUpdated: true
             });
           }
         } catch (socketErr) {
@@ -397,6 +411,11 @@ const AdminHomeContent: React.FC = () => {
         // Set a flag to indicate successful save for preview button
         setHasUnsavedChanges(false);
         setShowPreviewButton(true);
+        
+        // Clear the admin trigger flag after a delay
+        setTimeout(() => {
+          sessionStorage.removeItem('adminTriggeredUpdate');
+        }, 5000);
       } else {
         toast.error('更新失败: ' + response.message);
       }

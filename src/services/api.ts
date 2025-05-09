@@ -902,16 +902,28 @@ export const redeemCodeService = {
 // 首页内容API服务
 export const homepageService = {
   // 获取首页内容
-  async getHomeContent(params?: Record<string, any>): Promise<ApiResponse<any>> {
+  async getHomeContent(params = {}): Promise<ApiResponse<any>> {
     try {
-      const response = await api.get('/homepage/content', params);
+      // Add cache control parameters to force fresh content
+      const cacheParams = {
+        ...params,
+        _preventCache: Date.now()
+      };
+      
+      // Create config object with headers
+      const config = {
+        params: cacheParams,
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
+        }
+      };
+      
+      const response = await api.get('/homepage/content', config);
       return handleResponse<any>(response);
     } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
+      console.error('获取首页内容失败:', error);
+      return { success: false, message: error.message || '获取首页内容失败' };
     }
   },
   

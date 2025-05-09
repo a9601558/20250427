@@ -21,6 +21,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Improved footer text fetching with caching control
   const fetchFooterText = useCallback(async (forceRefresh = false) => {
     try {
+      // Prevent too frequent requests
+      if (forceRefresh) {
+        const lastFetchTime = parseInt(sessionStorage.getItem('lastLayoutContentFetch') || '0');
+        const now = Date.now();
+        
+        // If we've fetched within the last 3 seconds, debounce
+        if (now - lastFetchTime < 3000) {
+          console.log(`[Layout] Too many requests (${now - lastFetchTime}ms since last). Debouncing.`);
+          return;
+        }
+        
+        // Track this request
+        sessionStorage.setItem('lastLayoutContentFetch', now.toString());
+      }
+      
       console.log('[Layout] Fetching footer text' + (forceRefresh ? ' (forced refresh)' : ''));
       
       // Add cache-busting params when force refreshing
@@ -38,9 +53,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           setFooterText(response.data.footerText);
         }
         
-        // Dispatch global event to notify other components about the update
-        if (forceRefresh) {
+        // Prevent event cycles if this was triggered by an event already
+        // Only dispatch when explicitly refreshing and not already in an event cascade
+        if (forceRefresh && !sessionStorage.getItem('handlingHomeContentEvent')) {
+          // Set flag to prevent cycles
+          sessionStorage.setItem('handlingHomeContentEvent', 'true');
+          
+          // Dispatch event
           window.dispatchEvent(new CustomEvent('homeContent:updated'));
+          
+          // Clear flag after a short delay
+          setTimeout(() => {
+            sessionStorage.removeItem('handlingHomeContentEvent');
+          }, 1000);
         }
       }
     } catch (error) {

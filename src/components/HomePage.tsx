@@ -1647,13 +1647,48 @@ const HomePage: React.FC = () => {
       return;
     }
     
+    // ADD PREVENTION FOR INFINITE LOOPS
+    const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastFetchTimestamp;
+    
+    // If we've fetched within the last 3 seconds (except initial load), debounce
+    if (options.source !== 'initial_load' && timeSinceLastFetch < 3000) {
+      console.log(`[HomePage] Too many requests (${timeSinceLastFetch}ms since last). Debouncing.`);
+      return;
+    }
+    
+    // Track request count within a timeframe to detect loops
+    const requestCount = parseInt(sessionStorage.getItem('homeContentRequestCount') || '0');
+    const requestCountResetTime = parseInt(sessionStorage.getItem('requestCountResetTime') || '0');
+    
+    // Reset count if it's been more than 10 seconds since last reset
+    if (now - requestCountResetTime > 10000) {
+      sessionStorage.setItem('homeContentRequestCount', '1');
+      sessionStorage.setItem('requestCountResetTime', now.toString());
+    } else {
+      // Increment count
+      const newCount = requestCount + 1;
+      sessionStorage.setItem('homeContentRequestCount', newCount.toString());
+      
+      // If more than 5 requests in 10 seconds, likely in a loop
+      if (newCount > 5) {
+        console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
+        sessionStorage.setItem('homeContentRequestCount', '0');
+        return;
+      }
+    }
+    
     try {
       pendingFetchRef.current = true;
       console.log(`[HomePage] Fetching latest home content (source: ${options.source || 'unknown'})`);
       
+      // Store timestamp of this fetch
+      sessionStorage.setItem('lastHomeContentFetch', now.toString());
+      
       // Add timestamp to prevent caching
       const response = await homepageService.getHomeContent({ 
-        _timestamp: Date.now(),
+        _timestamp: now,
         _nocache: true
       });
       
@@ -1697,7 +1732,7 @@ const HomePage: React.FC = () => {
       // Release lock
       pendingFetchRef.current = false;
     }
-  }, [fetchQuestionSets, homeContent]); // Add proper dependencies
+  }, [fetchQuestionSets, homeContent]);
 
   // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {
@@ -1717,9 +1752,21 @@ const HomePage: React.FC = () => {
     localStorage.setItem('home_last_visit', Date.now().toString());
     
     // IMPORTANT: Listen for custom event for home content updates
-    const handleCustomContentUpdate = () => {
-      console.log('[HomePage] Received homeContent:updated custom event');
-      fetchLatestHomeContent({ source: 'custom_event', showNotification: true });
+    const handleCustomContentUpdate = (event: Event) => {
+      // Check if this was triggered by admin - if so, handle it differently
+      const isAdminTriggered = sessionStorage.getItem('adminTriggeredUpdate') === 'true';
+      console.log(`[HomePage] Received homeContent:updated custom event${isAdminTriggered ? ' (admin triggered)' : ''}`);
+      
+      if (isAdminTriggered) {
+        // If admin triggered, use a longer debounce and clear the trigger indication
+        setTimeout(() => {
+          console.log('[HomePage] Processing delayed admin-triggered update');
+          fetchLatestHomeContent({ source: 'admin_event', showNotification: true });
+        }, 2000); // Give time for backend to process changes
+      } else {
+        // For all other sources, process normally
+        fetchLatestHomeContent({ source: 'custom_event', showNotification: true });
+      }
     };
     
     window.addEventListener('homeContent:updated', handleCustomContentUpdate);
@@ -1727,7 +1774,7 @@ const HomePage: React.FC = () => {
     return () => {
       window.removeEventListener('homeContent:updated', handleCustomContentUpdate);
     };
-  }, [fetchLatestHomeContent]); // Only depend on fetchLatestHomeContent
+  }, [fetchLatestHomeContent]);
 
   // Replace the old socket event handler with a proper implementation
   useEffect(() => {
