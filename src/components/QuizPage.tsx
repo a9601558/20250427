@@ -7,7 +7,6 @@ import { useSocket } from '../contexts/SocketContext';
 import { userProgressService, wrongAnswerService } from '../services/api';
 import { purchaseService, redeemCodeService, userService } from '../services/api';
 import { useUserProgress } from '../contexts/UserProgressContext';
-import RedeemCodeForm from './RedeemCodeForm';
 import QuestionCard from './QuestionCard';
 import { toast } from 'react-toastify';
 import { Socket } from 'socket.io-client';

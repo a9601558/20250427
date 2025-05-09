@@ -13,7 +13,6 @@ import RedeemCodeAdmin from './components/RedeemCodeAdmin';
 import { SocketProvider } from './contexts/SocketContext';
 import { ToastContainer } from 'react-toastify';
 import { UserProgressProvider } from './contexts/UserProgressContext';
-import TestPayment from './pages/TestPayment';
 import { isTokenExpired, performAutoLogin } from './utils/authUtils';
 import { toast } from 'react-toastify';
 
@@ -91,7 +90,6 @@ const App: React.FC = () => {
                 } />
                 <Route path="/quiz/:questionSetId" element={<QuizPage />} />
                 <Route path="/payment/:id" element={<Navigate to="/" replace />} />
-                <Route path="/test-payment" element={<TestPayment />} />
               </Routes>
             </Layout>
           </Router>
