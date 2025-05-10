@@ -138,7 +138,7 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
+  // const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]); // 移除
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
@@ -667,54 +667,29 @@ const HomePage: React.FC = () => {
       ) : 
       questionSets;
     
+    // 排除推荐题库（只在推荐区域出现）
+    filteredSets = filteredSets.filter(set => !set.isFeatured);
+    
     // 再根据分类过滤
     if (activeCategory !== 'all') {
       // 直接按选中的分类筛选
       filteredSets = filteredSets.filter(set => set.category === activeCategory);
     } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-      // 在全部模式，且有精选分类时，只显示精选分类或标记为精选的题库
-      console.log("[HomePage] 精选分类过滤前数量:", filteredSets.length);
-      console.log("[HomePage] 使用的精选分类:", homeContent.featuredCategories);
-      
-      // 增加详细日志，帮助诊断问题
-      const categoriesInSets = Array.from(new Set(filteredSets.map(s => s.category)));
-      console.log("[HomePage] 题库中现有的分类:", categoriesInSets);
-      
-      // 统计每种分类情况的题库数量
-      const featuredCategorySets = filteredSets.filter(set => homeContent.featuredCategories.includes(set.category));
-      const isFeaturedSets = filteredSets.filter(set => set.isFeatured === true);
-      const featuredCategoryPropSets = filteredSets.filter(set => 
-        set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory)
-      );
-      
-      console.log(`[HomePage] 分类统计 - 分类匹配: ${featuredCategorySets.length}个, isFeatured=true: ${isFeaturedSets.length}个, featuredCategory匹配: ${featuredCategoryPropSets.length}个`);
-      
-      // 修复过滤逻辑，确保同时检查分类和featuredCategory属性
+      // 在全部模式，且有精选分类时，只显示精选分类或featuredCategory匹配的题库
       filteredSets = filteredSets.filter(set => {
         // 属于精选分类
         const categoryMatches = homeContent.featuredCategories.includes(set.category);
-        // 或者本身被标记为精选
-        const isFeatured = set.isFeatured === true;
         // 或者精选分类与题库精选分类匹配
         const featuredCategoryMatches = set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory);
-        
-        const shouldInclude = categoryMatches || isFeatured || featuredCategoryMatches;
-        if (shouldInclude && set.isFeatured) {
-          console.log(`[HomePage] 精选题库 "${set.title}" 包含在结果中，原因: ${categoryMatches ? '分类匹配' : ''}${isFeatured ? ' isFeatured=true' : ''}${featuredCategoryMatches ? ' featuredCategory匹配' : ''}`);
-        }
-        return shouldInclude;
+        return categoryMatches || featuredCategoryMatches;
       });
-      
-      console.log(`[HomePage] 精选分类过滤后: ${filteredSets.length}个符合条件的题库`);
     }
     
     return filteredSets;
   }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
 
-  // 获取推荐题库的函数
-  const getRecommendedSets = useCallback(() => {
-    return questionSets.filter(set => set.isFeatured).slice(0, 3);
-  }, [questionSets]);
+  // 推荐题库直接用 questionSets 过滤
+  const recommendedSets = questionSets.filter(set => set.isFeatured).slice(0, 3);
 
   // 添加API缓存和请求防抖
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
@@ -985,7 +960,7 @@ const HomePage: React.FC = () => {
           setQuestionSets(preparedSets);
           
           // 设置推荐题库
-          setRecommendedSets(preparedSets.filter(set => set.isFeatured).slice(0, 3));
+          // setRecommendedSets(preparedSets.filter(set => set.isFeatured).slice(0, 3));
         } else {
           console.log(`[HomePage] 题库数据及权限无变化，跳过更新`);
         }

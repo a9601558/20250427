@@ -265,14 +265,15 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
     const errors: string[] = [];
     
     // 处理每一行数据
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
       try {
         // 分割数据字段，使用|作为分隔符
         const fields = line.split('|').map((field: string) => field.trim());
         
         if (fields.length < 3) {
           failedCount++;
-          errors.push(`行格式不正确: ${line.substring(0, 50)}...`);
+          errors.push(`行 ${lineIndex + 1}: 格式不正确: ${line.substring(0, 50)}...`);
           continue;
         }
         
@@ -307,7 +308,7 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
         } else {
           // 不支持的格式
           failedCount++;
-          errors.push(`字段数量不足: ${line.substring(0, 50)}...`);
+          errors.push(`行 ${lineIndex + 1}: 字段数量不足: ${line.substring(0, 50)}...`);
           continue;
         }
         
@@ -322,75 +323,68 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
         
         if (validAnswers.length === 0) {
           failedCount++;
-          errors.push(`无效的正确答案 "${correctAnswer}": ${line.substring(0, 50)}...`);
+          errors.push(`行 ${lineIndex + 1}: 无效的正确答案 "${correctAnswer}": ${line.substring(0, 50)}...`);
           console.log(`[API] Invalid correct answers: "${correctAnswer}" for question "${questionText.substring(0, 30)}..."`);
           continue;
         }
         
-        console.log(`[API] Parsed question: "${questionText.substring(0, 30)}...", ${options.length} options, answers: ${correctAnswers}, explanation: ${explanation.substring(0, 20)}...`);
+        console.log(`[API] Parsed question: "${questionText.substring(0, 30)}...", ${options.length} options, answers: ${correctAnswers.join(',')}, explanation: ${explanation.substring(0, 20)}...`);
         
         if (options.length < 2) {
           failedCount++;
-          errors.push(`选项不足: ${line.substring(0, 50)}...`);
+          errors.push(`行 ${lineIndex + 1}: 选项不足: ${line.substring(0, 50)}...`);
           continue;
         }
         
-        // 创建问题
-        const question = await Question.create({
-          questionSetId,
-          text: questionText,
-          questionType: correctAnswers.length > 1 ? 'multiple' : 'single',
-          explanation,
-          orderIndex: successCount
-        });
-        
-        // 创建选项
-        let hasCorrectOption = false;
-        let createdOptionsCount = 0;
-        
-        // 添加详细日志来查找问题
-        console.log(`[API] Creating ${options.length} options for question ID ${question.id}`);
-        
-        for (let i = 0; i < options.length; i++) {
-          const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
-          const isCorrect = correctAnswers.includes(optionLetter);
+        // 在事务中创建问题和选项，确保数据一致性
+        const result = await sequelize.transaction(async (t) => {
+          // 1. 创建问题
+          const question = await Question.create({
+            questionSetId,
+            text: questionText,
+            questionType: correctAnswers.length > 1 ? 'multiple' : 'single',
+            explanation,
+            orderIndex: successCount
+          }, { transaction: t });
           
-          if (isCorrect) {
-            hasCorrectOption = true;
-          }
-          
-          try {
-            // 使用 create 方法创建选项
-            const option = await Option.create({
+          // 2. 批量创建选项
+          const optionsToCreate = options.map((optionText, index) => {
+            const optionLetter = String.fromCharCode(65 + index); // A, B, C, D...
+            const isCorrect = correctAnswers.includes(optionLetter);
+            return {
               questionId: question.id,
-              text: options[i],
+              text: optionText,
               isCorrect,
               optionIndex: optionLetter
-            });
-            
-            createdOptionsCount++;
-            console.log(`[API] Created option ${optionLetter} (isCorrect=${isCorrect}) for question ${question.id}: "${options[i].substring(0, 20)}..."`);
-          } catch (optionError) {
-            console.error(`[API] Error creating option ${optionLetter}: `, optionError);
-            errors.push(`创建选项失败: ${optionLetter} - ${(optionError as Error).message}`);
+            };
+          });
+          
+          console.log(`[API] Creating ${optionsToCreate.length} options for question ID ${question.id}`);
+          const createdOptions = await Option.bulkCreate(optionsToCreate, { transaction: t });
+          
+          // 3. 验证选项创建是否成功
+          if (createdOptions.length !== options.length) {
+            throw new Error(`只创建了 ${createdOptions.length} 个选项，应该有 ${options.length} 个选项`);
           }
-        }
+          
+          // 4. 验证是否有正确选项
+          const hasCorrectOption = createdOptions.some(option => option.isCorrect);
+          if (!hasCorrectOption) {
+            throw new Error(`没有正确选项被创建`);
+          }
+          
+          console.log(`[API] Successfully created question with ID ${question.id} and ${createdOptions.length} options`);
+          return { question, options: createdOptions };
+        });
         
-        // 检查是否成功创建了所有选项
-        console.log(`[API] Created ${createdOptionsCount} options out of ${options.length} for question ${question.id}`);
-        
-        if (!hasCorrectOption || createdOptionsCount === 0) {
-          await question.destroy();
-          failedCount++;
-          errors.push(`没有正确选项或无法创建选项: ${line.substring(0, 50)}...`);
-          continue;
-        }
-        
+        // 如果没有错误抛出，则计算导入成功
         successCount++;
       } catch (error) {
         failedCount++;
-        errors.push(`处理失败: ${line.substring(0, 50)}... - ${(error as Error).message}`);
-        console.error(`[API] Error processing line: `, error);
+        const errorLine = line.substring(0, 50);
+        const errorMessage = error instanceof Error ? error.message : '未知错误';
+        errors.push(`行 ${lineIndex + 1}: 处理失败: ${errorLine}... - ${errorMessage}`);
+        console.error(`[API] Error processing line ${lineIndex + 1}: `, error);
       }
     }
     

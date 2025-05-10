@@ -66,12 +66,20 @@ const AdminFeaturedManagement: React.FC = () => {
       const qsResponse = await questionSetService.getAllQuestionSets();
       
       if (fcResponse.success && fcResponse.data) {
-        setFeaturedCategories(fcResponse.data);
-        console.log("成功加载精选分类:", fcResponse.data);
+        console.log("成功加载精选分类，原始数据:", fcResponse.data);
+        
+        // 确保数据是数组格式
+        const categories = Array.isArray(fcResponse.data) 
+          ? fcResponse.data 
+          : (typeof fcResponse.data === 'string' ? JSON.parse(fcResponse.data) : []);
+        
+        setFeaturedCategories(categories);
+        console.log("分类数据已设置到state，分类数量:", categories.length);
+        
         // 保存到localStorage为后备数据
-        saveCategoryToLocalStorage(fcResponse.data);
+        saveCategoryToLocalStorage(categories);
       } else {
-        console.error('获取精选分类失败:', fcResponse.message || '未知错误');
+        console.error('获取精选分类失败:', fcResponse.message || '未知错误', '响应数据:', fcResponse);
         setError('获取精选分类失败: ' + (fcResponse.message || '未知错误'));
         
         // 尝试从localStorage中恢复数据作为后备
@@ -124,21 +132,35 @@ const AdminFeaturedManagement: React.FC = () => {
               }
             }
             
+            // 确保isFeatured和featuredCategory字段有正确的值
+            const isFeatured = set.isFeatured === true;
+            console.log(`题库 "${set.title}" 精选状态:`, isFeatured, ', 精选分类:', set.featuredCategory || '无');
+            
             return {
               ...set,
               questionCount,
-              isFeatured: set.isFeatured || false,
+              isFeatured: isFeatured,
               featuredCategory: set.featuredCategory || ''
             } as FeaturedQuestionSet;
           })
         );
         
         console.log("处理完毕的题库数据:", questionSetsWithVerifiedCounts.length);
+        
+        // 检查数据中的精选状态
+        const featuredSets = questionSetsWithVerifiedCounts.filter(set => set.isFeatured);
+        console.log(`其中精选题库数量: ${featuredSets.length}，分别是:`, 
+          featuredSets.map(set => ({ id: set.id, title: set.title, category: set.featuredCategory }))
+        );
+        
         setQuestionSets(questionSetsWithVerifiedCounts);
         
         // Calculate which categories are in use
         if (fcResponse.success && fcResponse.data) {
-          const categories = fcResponse.data; // Store in local variable
+          const categories = Array.isArray(fcResponse.data) 
+            ? fcResponse.data 
+            : (typeof fcResponse.data === 'string' ? JSON.parse(fcResponse.data) : []);
+            
           const inUseCount: {[key: string]: number} = {};
           
           questionSetsWithVerifiedCounts.forEach(qs => {
@@ -147,8 +169,8 @@ const AdminFeaturedManagement: React.FC = () => {
             }
           });
           
-          setInUseCategories(inUseCount);
           console.log("分类使用情况:", inUseCount);
+          setInUseCategories(inUseCount);
         }
       } else {
         const errorMsg = qsResponse.error || qsResponse.message || '加载题库失败';
@@ -205,6 +227,9 @@ const AdminFeaturedManagement: React.FC = () => {
         
         // 通知所有客户端更新
         notifyClientsOfCategoryChange('added', newCategory.trim());
+        
+        // 刷新所有数据，确保UI显示最新状态
+        await loadData();
       } else {
         console.error('添加分类失败:', response.message);
         showMessage('error', response.message || '添加分类失败');
@@ -269,6 +294,9 @@ const AdminFeaturedManagement: React.FC = () => {
         
         // 通知所有客户端更新
         notifyClientsOfCategoryChange('deleted', category);
+        
+        // 刷新所有数据，确保UI显示最新状态
+        await loadData();
       } else {
         console.error('删除分类失败:', response.message);
         showMessage('error', response.message || '删除分类失败');
@@ -352,6 +380,9 @@ const AdminFeaturedManagement: React.FC = () => {
         
         // 通知所有客户端更新
         notifyClientsOfCategoryChange('updated', newCategoryName.trim(), oldCategory);
+        
+        // 刷新所有数据，确保UI显示最新状态
+        await loadData();
       } else {
         console.error('更新分类失败:', response.message);
         showMessage('error', response.message || '更新分类失败');
@@ -366,54 +397,93 @@ const AdminFeaturedManagement: React.FC = () => {
 
   // 通知所有客户端分类变更
   const notifyClientsOfCategoryChange = (action: 'added' | 'deleted' | 'updated', category: string, oldCategory?: string) => {
-    if (socket) {
-      try {
-        console.log(`正在通知所有客户端分类${action === 'added' ? '添加' : action === 'deleted' ? '删除' : '更新'}事件:`, category);
-        socket.emit('featuredCategoryChange', {
+    if (!socket) {
+      console.log("Socket未连接，无法发送通知");
+      return;
+    }
+    
+    try {
+      console.log(`通知所有客户端分类变更: ${action} ${category}`);
+      
+      // 发送websocket事件
+      socket.emit('admin:homeContent:updated', {
+        type: 'featuredCategories',
+        action,
+        category,
+        oldCategory,
+        timestamp: Date.now()
+      });
+      
+      // 使用localStorage强制刷新
+      localStorage.setItem('home_content_updated', Date.now().toString());
+      localStorage.setItem('home_content_force_reload', Date.now().toString());
+      
+      // 使用自定义事件通知页面刷新
+      const customEvent = new CustomEvent('homeContent:updated', {
+        detail: {
+          type: 'featuredCategories',
           action,
           category,
-          oldCategory
-        });
-      } catch (err) {
-        console.error('通知分类变更失败:', err);
-      }
-    } else {
-      console.warn('Socket未连接，无法通知客户端分类变更');
+          oldCategory,
+          timestamp: Date.now()
+        }
+      });
+      
+      window.dispatchEvent(customEvent);
+      
+      // 显示额外确认消息
+      showMessage('success', `通知已发送，所有客户端将刷新分类（${action}: ${category}）`);
+    } catch (err) {
+      console.error("发送通知失败:", err);
     }
   };
 
   // 通知所有客户端题库精选状态变更
   const notifyClientsOfQuestionSetChange = (id: string, isFeatured: boolean, featuredCategory?: string) => {
-    if (socket) {
-      try {
-        const questionSet = questionSets.find(qs => qs.id === id);
-        console.log(`正在通知所有客户端题库 "${questionSet?.title || id}" 精选状态变更:`, 
-          isFeatured ? '添加到精选' : '从精选移除', 
-          featuredCategory ? `分类: ${featuredCategory}` : '');
-          
-        socket.emit('featuredQuestionSetChange', {
-          id,
-          title: questionSet?.title || '未知题库',
-          isFeatured,
+    if (!socket) {
+      console.log("Socket未连接，无法发送通知");
+      return;
+    }
+    
+    try {
+      console.log(`通知所有客户端题库精选状态变更: ${id}, isFeatured=${isFeatured}, category=${featuredCategory || 'none'}`);
+      
+      // 查找题库获取更多信息
+      const set = questionSets.find(qs => qs.id === id);
+      const title = set ? set.title : id;
+      
+      // 发送websocket事件
+      socket.emit('admin:homeContent:updated', {
+        type: 'featuredQuestionSet',
+        action: isFeatured ? 'featured' : 'unfeatured',
+        questionSetId: id,
+        title,
+        featuredCategory,
+        timestamp: Date.now()
+      });
+      
+      // 使用localStorage强制刷新
+      localStorage.setItem('home_content_updated', Date.now().toString());
+      localStorage.setItem('home_content_force_reload', Date.now().toString());
+      
+      // 使用自定义事件通知页面刷新
+      const customEvent = new CustomEvent('homeContent:updated', {
+        detail: {
+          type: 'featuredQuestionSet',
+          action: isFeatured ? 'featured' : 'unfeatured',
+          questionSetId: id,
+          title,
           featuredCategory,
           timestamp: Date.now()
-        });
-        
-        // 触发全局事件让首页更新
-        window.dispatchEvent(new CustomEvent('homeContent:updated', {
-          detail: {
-            type: 'featuredQuestionSet',
-            timestamp: Date.now()
-          }
-        }));
-        
-        // 存储最后更新时间到localStorage，用于检测页面刷新时的更新
-        localStorage.setItem('home_content_updated', Date.now().toString());
-      } catch (err) {
-        console.error('通知题库精选状态变更失败:', err);
-      }
-    } else {
-      console.warn('Socket未连接，无法通知客户端题库精选状态变更');
+        }
+      });
+      
+      window.dispatchEvent(customEvent);
+      
+      // 显示额外确认消息
+      showMessage('success', `通知已发送，所有客户端将刷新题库状态（${title}）`);
+    } catch (err) {
+      console.error("发送通知失败:", err);
     }
   };
 
@@ -461,6 +531,9 @@ const AdminFeaturedManagement: React.FC = () => {
         
         // 通知所有客户端更新
         notifyClientsOfQuestionSetChange(id, isFeatured, currentSet.featuredCategory);
+        
+        // 刷新所有数据，确保UI显示最新状态
+        await loadData();
       } else {
         console.error(`更新精选状态失败:`, response.error);
         showMessage('error', response.error || '更新失败');
@@ -522,6 +595,9 @@ const AdminFeaturedManagement: React.FC = () => {
         
         // 通知所有客户端更新
         notifyClientsOfQuestionSetChange(id, currentSet.isFeatured, featuredCategory);
+        
+        // 刷新所有数据，确保UI显示最新状态
+        await loadData();
       } else {
         console.error('更新精选分类失败:', response.error);
         showMessage('error', response.error || '更新失败');
