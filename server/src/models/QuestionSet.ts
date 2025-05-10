@@ -14,6 +14,7 @@ export interface QuestionSetAttributes {
   trialQuestions?: number;
   isFeatured?: boolean;
   featuredCategory?: string;
+  cardImage?: string;
   createdAt?: Date;
   updatedAt?: Date;
   questionSetQuestions?: Question[];
@@ -34,6 +35,7 @@ class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttrib
   public trialQuestions?: number;
   public isFeatured?: boolean;
   public featuredCategory?: string;
+  public cardImage?: string;
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -94,6 +96,11 @@ QuestionSet.init(
       type: DataTypes.STRING,
       allowNull: true,
       field: 'featured_category',
+    },
+    cardImage: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'card_image',
     },
   },
   {

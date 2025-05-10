@@ -17,6 +17,7 @@ class QuestionSet extends sequelize_1.Model {
     trialQuestions;
     isFeatured;
     featuredCategory;
+    cardImage;
     // 时间戳
     createdAt;
     updatedAt;
@@ -73,6 +74,11 @@ QuestionSet.init({
         type: sequelize_1.DataTypes.STRING,
         allowNull: true,
         field: 'featured_category',
+    },
+    cardImage: {
+        type: sequelize_1.DataTypes.STRING,
+        allowNull: true,
+        field: 'card_image',
     },
 }, {
     sequelize: database_1.default,

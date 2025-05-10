@@ -243,18 +243,53 @@ const AdminQuestionSetInfo: React.FC = () => {
       formData.append('image', file);
       formData.append('questionSetId', questionSetId);
       
-      const response = await fetch('/api/admin/upload/card-image', {
+      // 使用正确的API基础URL
+      // 解决因绝对URL https://exam7.jp 导致的404错误
+      const apiUrl = process.env.NODE_ENV === 'production' 
+        ? '/api/admin/upload/card-image'  // 生产环境使用相对路径
+        : '/api/admin/upload/card-image'; // 开发环境也使用相对路径
+      
+      console.log('正在上传图片...', { 
+        file: file.name, 
+        size: file.size, 
+        type: file.type, 
+        questionSetId,
+        apiUrl 
+      });
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      console.log('上传图片请求完成', { 
+        status: response.status, 
+        statusText: response.statusText,
+        ok: response.ok
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '上传失败');
+        const errorText = await response.text();
+        console.error('上传图片失败，服务器响应:', errorText);
+        
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || `上传失败 (${response.status})`;
+        } catch (e) {
+          // 如果响应不是有效的JSON，使用文本响应或状态码
+          errorMessage = errorText || `上传失败 (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
+      
+      console.log('上传图片成功，服务器响应:', data);
       
       if (!data.success) {
         throw new Error(data.message || '上传失败');

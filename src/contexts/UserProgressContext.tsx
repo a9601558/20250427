@@ -193,26 +193,30 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     // 处理用户登出情况
     if (!user) {
-      console.log("用户登出，清空进度");
-      setProgressStats({});
+      console.log("用户登出，保留进度缓存");
+      // 不要清空进度数据，保留它直到新用户登录
+      // setProgressStats({});  // 移除这一行
       setLastUserId(null);
       return;
     }
 
     // 处理用户切换情况
     if (user.id !== lastUserId) {
-      console.log(`用户切换: ${lastUserId || 'none'} -> ${user.id}，重置进度`);
+      console.log(`用户切换: ${lastUserId || 'none'} -> ${user.id}，加载用户进度`);
       
-      // 先清空旧数据
-      setProgressStats({});
+      // 只有当确实是切换到不同用户时，才清空旧数据
+      if (lastUserId && lastUserId !== user.id) {
+        setProgressStats({});
+      }
+      
       setLastUserId(user.id);
       
       // 用setTimeout延迟请求，避免组件渲染期间的过多请求
       const timer = setTimeout(() => {
         if (!isRequesting) {
-          console.log("拉取新用户进度:", user.id);
+          console.log("拉取用户进度:", user.id);
           fetchUserProgress().catch(err => {
-            console.error("拉取新用户进度失败:", err);
+            console.error("拉取用户进度失败:", err);
           });
         }
       }, 300);

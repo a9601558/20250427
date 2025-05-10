@@ -7,6 +7,7 @@ import redeemCodeRoutes from './redeemCodeRoutes';
 import homepageRoutes from './homepageRoutes';
 import userProgressRoutes from './userProgressRoutes';
 import paymentRoutes from './payment';
+import adminRoutes from './adminRoutes';
 
 const router = express.Router();
 
@@ -19,5 +20,6 @@ router.use('/redeem-codes', redeemCodeRoutes);
 router.use('/homepage', homepageRoutes);
 router.use('/user-progress', userProgressRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/admin', adminRoutes);
 
 export default router; 

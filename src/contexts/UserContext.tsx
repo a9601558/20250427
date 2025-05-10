@@ -349,106 +349,50 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
-    try {
-      // 保存当前活跃用户ID，以便保留其数据
-      const currentUserId = user?.id;
-      const currentToken = localStorage.getItem('token');
-      
-      // 如果有效的用户ID和令牌，保存用户专用令牌
-      if (currentUserId && currentToken) {
-        localStorage.setItem(`user_${currentUserId}_token`, currentToken);
-      }
-      
-      // 移除token和活跃用户标记，但保留用户数据
-      localStorage.removeItem('token');
-      localStorage.removeItem('activeUserId');
-      
-      // 清除用户状态
-      setUser(null);
-      notifyUserChange(null);
-      
-      console.log(`[UserContext] 用户登出，保留用户 ${currentUserId} 的数据`);
-      
-      // 清除所有非用户前缀特定的本地存储数据
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (
-          key.startsWith('quiz_progress_') ||
-          key.startsWith('quiz_payment_completed_') ||
-          key.startsWith('quiz_state_') ||
-          key.startsWith('lastAttempt_') ||
-          key.startsWith('quizAccessRights') ||
-          key === 'redeemedQuestionSetIds' ||
-          key === 'questionSetAccessCache' ||
-          // 清除当前用户的所有数据，但保留token以便将来可以切换回来
-          (currentUserId && key.startsWith(`user_${currentUserId}_`) && !key.endsWith('_token'))
-        )) {
-          keysToRemove.push(key);
-        }
-      }
-      
-      // 批量删除本地存储项
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      
-      // 清除sessionStorage中的数据
-      const sessionKeysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && (
-          key.startsWith('quiz_') ||
-          key.startsWith('user_')
-        )) {
-          sessionKeysToRemove.push(key);
-        }
-      }
-      
-      // 批量删除会话存储项
-      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-      
-      // 清除API客户端缓存和状态
-      apiClient.clearCache();
-      apiClient.setAuthHeader(null);
-      userProgressService.clearCachedUserId();
-
-      // 清空状态
-      setUserPurchases([]);
-      
-      // 通知Socket断开连接
-      if (socket) {
-        socket.disconnect();
-      }
-      
-      console.log('[UserContext] 用户已成功登出，已清理所有本地存储数据');
-      
-      // 通知用户登出，但不强制刷新页面
-      try {
-        // 如果在React组件环境外调用，则回退到直接导航
-        if (typeof window !== 'undefined' && window.location) {
-          // 使用较温和的方式 - 使用pushState保持用户在当前页面
-          const currentLocation = window.location.pathname;
-          if (currentLocation !== '/' && currentLocation !== '/home') {
-            window.history.pushState({}, '', '/');
-            
-            // 触发一个自定义事件，让应用知道需要更新路由
-            const navigationEvent = new CustomEvent('app:navigation', { 
-              detail: { path: '/', reason: 'logout' } 
-            });
-            window.dispatchEvent(navigationEvent);
-          } else {
-            // 如果已经在首页，只需要触发页面刷新
-            const refreshEvent = new CustomEvent('app:refresh', { 
-              detail: { reason: 'logout' } 
-            });
-            window.dispatchEvent(refreshEvent);
-          }
-        }
-      } catch (error) {
-        console.error('[UserContext] 登出后导航错误:', error);
-      }
-    } catch (error) {
-      console.error('[UserContext] 登出时发生错误:', error);
+    console.log('[UserContext] 用户登出');
+    
+    // 获取当前用户ID，用于保留某些数据
+    const currentUserId = user?.id;
+    
+    // 移除身份验证令牌
+    localStorage.removeItem('token');
+    
+    // 重置用户状态
+    setUser(null);
+    setUserPurchases([]);
+    
+    // 清除API客户端状态
+    apiClient.setAuthHeader(null);
+    
+    // 断开socket连接
+    if (socket) {
+      socket.disconnect();
     }
+    
+    // 保留学习进度和相关数据，只清理会话相关的数据
+    // 不要删除所有本地存储，而是有选择地清理
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key === 'token' || 
+        key === 'refreshToken' || 
+        key === 'authState' ||
+        (key.includes('_token') && !key.includes(`_${currentUserId}_`)) ||
+        key.includes('_auth_') ||
+        key.includes('_session_')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // 只清除会话存储中的数据
+    sessionStorage.clear();
+    
+    // 通知用户变更
+    notifyUserChange(null);
   };
 
   const login = async (username: string, password: string): Promise<boolean> => {

@@ -9,6 +9,8 @@ const morgan_1 = __importDefault(require("morgan"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const database_1 = __importDefault(require("./config/database"));
 const http_1 = require("http");
 const socket_1 = require("./config/socket");
@@ -36,6 +38,7 @@ const redeemCodeRoutes_1 = __importDefault(require("./routes/redeemCodeRoutes"))
 const homepageRoutes_1 = __importDefault(require("./routes/homepageRoutes"));
 const wrongAnswerRoutes_1 = __importDefault(require("./routes/wrongAnswerRoutes"));
 const payment_1 = __importDefault(require("./routes/payment"));
+const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
 // Initialize express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -49,18 +52,32 @@ app.use((0, helmet_1.default)());
 // General rate limiting - more restrictive
 const standardLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    max: 1000, // Increased from 100 to 500 requests per windowMs
     message: 'Too many requests from this IP, please try again later'
 });
 // Less restrictive rate limiting for homepage content - needed for admin updates
 const homepageLimiter = (0, express_rate_limit_1.default)({
     windowMs: 1 * 60 * 1000, // 1 minute
-    max: 120, // much higher limit
+    max: 600, // Increased from 120 to 300 requests
     message: 'Too many homepage requests, please try again later'
 });
+// Special rate limiter for admin operations - very lenient
+const adminLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 500, // Very high limit for admin operations
+    message: 'Too many admin requests, please try again later'
+});
+// 设置静态文件服务，用于提供上传的文件
+const uploadsDir = path_1.default.join(__dirname, '../uploads');
+// 确保上传目录存在
+if (!fs_1.default.existsSync(uploadsDir)) {
+    fs_1.default.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express_1.default.static(uploadsDir));
 // Apply rate limiters to specific routes
 app.use('/api/homepage', homepageLimiter);
 app.use('/api/question-sets', homepageLimiter);
+app.use('/api/admin', adminLimiter); // Apply admin limiter to admin routes
 app.use('/api', standardLimiter); // Apply standard limiter to all other API routes
 // API routes
 app.use('/api/users', userRoutes_1.default);
@@ -72,6 +89,7 @@ app.use('/api/redeem-codes', redeemCodeRoutes_1.default);
 app.use('/api/homepage', homepageRoutes_1.default);
 app.use('/api/wrong-answers', wrongAnswerRoutes_1.default);
 app.use('/api/payments', payment_1.default);
+app.use('/api/admin', adminRoutes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

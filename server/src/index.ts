@@ -39,6 +39,7 @@ import redeemCodeRoutes from './routes/redeemCodeRoutes';
 import homepageRoutes from './routes/homepageRoutes';
 import wrongAnswerRoutes from './routes/wrongAnswerRoutes';
 import paymentRoutes from './routes/payment';
+import adminRoutes from './routes/adminRoutes';
 
 // Initialize express app
 const app = express();
@@ -56,20 +57,36 @@ app.use(helmet());
 // General rate limiting - more restrictive
 const standardLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // Increased from 100 to 500 requests per windowMs
   message: 'Too many requests from this IP, please try again later'
 });
 
 // Less restrictive rate limiting for homepage content - needed for admin updates
 const homepageLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 120, // much higher limit
+  max: 600, // Increased from 120 to 300 requests
   message: 'Too many homepage requests, please try again later'
 });
+
+// Special rate limiter for admin operations - very lenient
+const adminLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 500, // Very high limit for admin operations
+  message: 'Too many admin requests, please try again later'
+});
+
+// 设置静态文件服务，用于提供上传的文件
+const uploadsDir = path.join(__dirname, '../uploads');
+// 确保上传目录存在
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Apply rate limiters to specific routes
 app.use('/api/homepage', homepageLimiter);
 app.use('/api/question-sets', homepageLimiter);
+app.use('/api/admin', adminLimiter); // Apply admin limiter to admin routes
 app.use('/api', standardLimiter); // Apply standard limiter to all other API routes
 
 // API routes
@@ -82,6 +99,7 @@ app.use('/api/redeem-codes', redeemCodeRoutes);
 app.use('/api/homepage', homepageRoutes);
 app.use('/api/wrong-answers', wrongAnswerRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

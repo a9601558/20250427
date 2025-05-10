@@ -2318,7 +2318,9 @@ function QuizPage(): JSX.Element {
             
             // 从本地存储加载上次的答题进度
             try {
-              const localProgressKey = `quiz_progress_${questionSetId}`;
+              // 使用更持久的key格式，包含用户ID以便在用户退出登录后仍能识别
+              const userIdStr = user?.id ? `_${user.id}` : '';
+              const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
               const savedProgressStr = localStorage.getItem(localProgressKey);
               
               if (savedProgressStr) {
@@ -2516,7 +2518,9 @@ function QuizPage(): JSX.Element {
         setQuizStartTime(Date.now());
         
         // 如果有本地存储，也清除
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        // 使用带用户ID的key查找本地进度
+        const userIdStr = user?.id ? `_${user.id}` : '';
+        const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
         localStorage.removeItem(localProgressKey);
         
         // 通知用户
@@ -2949,7 +2953,9 @@ function QuizPage(): JSX.Element {
       
       // 更新本地存储
       try {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        // 使用更持久的key格式，包含用户ID以便在用户退出登录后仍能识别
+        const userIdStr = user?.id ? `_${user.id}` : '';
+        const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
         const localProgressUpdate = {
           lastQuestionIndex: currentQuestionIndex,
           answeredQuestions,
