@@ -457,8 +457,8 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
     }
   };
 
-  // 计算有效期总天数（假设为30天）和剩余百分比
-  const totalValidityDays = 30;
+  // 计算有效期总天数（更新为180天）和剩余百分比
+  const totalValidityDays = 180; // 更新为与后端匹配的180天有效期
   const remainingPercentage = Math.min(100, Math.round((remainingDays / totalValidityDays) * 100));
 
   return (
@@ -525,6 +525,9 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
               {purchase.paymentMethod === 'wechat' ? '微信支付' : 
                purchase.paymentMethod === 'alipay' ? '支付宝' : 
                purchase.paymentMethod === 'direct' ? '直接购买' : 
+               purchase.paymentMethod === 'redeem' ? '兑换码' :
+               purchase.paymentMethod === 'system' ? '系统分配' :
+               purchase.amount <= 0 ? '免费获取' :
                purchase.paymentMethod || '未知'}
             </div>
           </div>
@@ -537,7 +540,15 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
             </div>
             <div>
               <div className="text-xs text-gray-500">价格</div>
-              <div className="font-bold text-blue-600">{purchase.amount ? `¥${purchase.amount.toFixed(2)}` : '免费'}</div>
+              <div className="font-bold text-blue-600">
+                {purchase.amount > 0 
+                  ? `¥${purchase.amount.toFixed(2)}` 
+                  : purchase.paymentMethod === 'redeem' 
+                    ? '兑换获取' 
+                    : purchase.paymentMethod === 'system' 
+                      ? '免费授权' 
+                      : '免费'}
+              </div>
             </div>
           </div>
           
@@ -575,8 +586,8 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   // 更精确地计算剩余天数
   const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   
-  // 计算总有效期 - 默认为30天
-  const totalValidityDays = 30;
+  // 计算总有效期 - 更新为180天
+  const totalValidityDays = 180; // 更新为与后端匹配的180天有效期
   
   // 获取题库标题
   const title = redeem.redeemQuestionSet?.title || (redeem as any).questionSet?.title || '未知题库';
@@ -1114,12 +1125,12 @@ const ProfilePage: React.FC = () => {
     return stats;
   };
 
-  // 获取本地存储中的所有进度数据
+  // 增强版本 - 从本地存储中获取所有进度数据，支持用户登出后仍保留数据
   const getLocalProgressData = () => {
     try {
       const progressData: Record<string, ProgressData> = {};
       
-      // 遍历localStorage中的所有键
+      // 方法1: 从用户关联的进度数据获取
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('quiz_progress_')) {
@@ -1136,6 +1147,33 @@ const ProfilePage: React.FC = () => {
             console.error(`[ProfilePage] 解析题库进度数据失败 ${key}:`, e);
           }
         }
+      }
+      
+      // 方法2: 从全局进度存储中获取额外数据
+      try {
+        const globalProgressStr = localStorage.getItem('global_quiz_progress');
+        if (globalProgressStr) {
+          const globalProgress = JSON.parse(globalProgressStr);
+          
+          // 合并全局存储的进度数据
+          if (globalProgress && typeof globalProgress === 'object') {
+            Object.entries(globalProgress).forEach(([questionSetId, data]) => {
+              // 如果该题库的进度尚未添加到结果中，或者全局进度更新更新，则使用全局进度
+              const existingProgress = progressData[questionSetId];
+              const globalProgressData = data as ProgressData;
+              
+              if (!existingProgress || 
+                  (globalProgressData.lastUpdated && 
+                   (!existingProgress.lastUpdated || 
+                    new Date(globalProgressData.lastUpdated) > new Date(existingProgress.lastUpdated)))) {
+                
+                progressData[questionSetId] = globalProgressData;
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.error('[ProfilePage] 解析全局进度数据失败:', e);
       }
       
       return Object.keys(progressData).length > 0 ? progressData : null;
@@ -1194,7 +1232,33 @@ const ProfilePage: React.FC = () => {
     }
   };
   
-  // 合并本地存储和服务器的进度数据
+  // 添加保存进度到全局存储的辅助函数
+  const saveProgressToGlobalStorage = (questionSetId: string, progressData: ProgressData) => {
+    try {
+      // 确保进度数据有效
+      if (!progressData || !progressData.answeredQuestions || progressData.answeredQuestions.length === 0) {
+        return;
+      }
+      
+      // 更新最后更新时间
+      progressData.lastUpdated = progressData.lastUpdated || new Date().toISOString();
+      
+      // 读取现有全局进度数据
+      const globalProgressStr = localStorage.getItem('global_quiz_progress');
+      const globalProgress = globalProgressStr ? JSON.parse(globalProgressStr) : {};
+      
+      // 更新指定题库的进度
+      globalProgress[questionSetId] = progressData;
+      
+      // 保存回全局存储
+      localStorage.setItem('global_quiz_progress', JSON.stringify(globalProgress));
+      console.log(`[ProfilePage] 题库 ${questionSetId} 进度已保存到全局存储`);
+    } catch (e) {
+      console.error('[ProfilePage] 保存进度到全局存储失败:', e);
+    }
+  };
+
+  // 将mergeLocalAndServerProgress改为使用saveProgressToGlobalStorage函数
   const mergeLocalAndServerProgress = (
     serverRecords: ProgressRecord[],
     localData: Record<string, ProgressData>,
@@ -1213,6 +1277,9 @@ const ProfilePage: React.FC = () => {
       // 处理本地数据，将新的或更新的记录添加到结果中
       Object.entries(localData).forEach(([questionSetId, data]) => {
         if (data.answeredQuestions && data.answeredQuestions.length > 0) {
+          // 同时保存到全局存储，确保数据持久性
+          saveProgressToGlobalStorage(questionSetId, data);
+          
           data.answeredQuestions.forEach((answer, index) => {
             const questionId = `question_${answer.index || index}`; // 使用问题索引作为ID
             const key = `${questionSetId}_${questionId}`;
@@ -1351,17 +1418,9 @@ const ProfilePage: React.FC = () => {
       console.log('[ProfilePage] 购买记录响应:', response.success, response.data?.length || 0);
       
       if (response.success && response.data) {
-        // 确保返回的数据格式正确，并过滤掉通过兑换码获得的记录
+        // 确保返回的数据格式正确，但不再过滤掉兑换码或系统分配的记录
         const validPurchases = response.data
-          .filter((p: any) => p && p.questionSetId) // 过滤掉无效记录
-          .filter((p: any) => {
-            // 只保留直接购买的题库，过滤掉通过兑换码获得的题库和金额为0的记录
-            const shouldInclude = p.amount > 0 && p.paymentMethod !== 'redeem' && p.paymentMethod !== 'system';
-            if (!shouldInclude) {
-              console.log('[ProfilePage] 过滤掉非直接购买记录:', p.questionSetId, p.paymentMethod, p.amount);
-            }
-            return shouldInclude;
-          })
+          .filter((p: any) => p && p.questionSetId) // 仅过滤掉无效记录
           .map((p: any) => {
             // 确保必需字段
             let questionSetData = null;
@@ -1945,7 +2004,22 @@ const ProfilePage: React.FC = () => {
       const localProgressKey = `quiz_progress_${questionSetId}`;
       localStorage.removeItem(localProgressKey);
       
-      // 2. 调用API删除服务器上的进度数据
+      // 2. 从全局进度存储中删除
+      try {
+        const globalProgressStr = localStorage.getItem('global_quiz_progress');
+        if (globalProgressStr) {
+          const globalProgress = JSON.parse(globalProgressStr);
+          if (globalProgress && globalProgress[questionSetId]) {
+            delete globalProgress[questionSetId];
+            localStorage.setItem('global_quiz_progress', JSON.stringify(globalProgress));
+            console.log(`[ProfilePage] 题库 ${questionSetId} 进度已从全局存储中删除`);
+          }
+        }
+      } catch (e) {
+        console.error('[ProfilePage] 从全局存储中删除进度失败:', e);
+      }
+      
+      // 3. 调用API删除服务器上的进度数据
       if (socket) {
         // 使用socket向服务器发送删除请求
         socket.emit('progress:delete', {
@@ -1953,7 +2027,7 @@ const ProfilePage: React.FC = () => {
           questionSetId: questionSetId
         });
         
-        // 3. 从UI中移除进度卡片
+        // 4. 从UI中移除进度卡片
         setProgressStats(prevStats => prevStats.filter(stat => stat.questionSetId !== questionSetId));
         toast.success('学习进度已删除');
         console.log(`[ProfilePage] 题库进度删除成功 ${questionSetId}`);

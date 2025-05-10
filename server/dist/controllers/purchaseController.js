@@ -77,7 +77,7 @@ const createPurchase = async (req, res) => {
             status: 'pending',
             paymentMethod,
             purchaseDate: new Date(),
-            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+            expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 180天有效期
             transactionId: paymentIntent.id, // 使用Stripe的paymentIntent ID作为交易ID
             createdAt: new Date(),
             updatedAt: new Date()
@@ -138,7 +138,7 @@ const getUserPurchases = async (req, res) => {
                 // 确保日期字段是有效的
                 const now = new Date();
                 const purchaseDate = rawPurchase.purchaseDate ? new Date(rawPurchase.purchaseDate) : now;
-                const expiryDate = rawPurchase.expiryDate ? new Date(rawPurchase.expiryDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                const expiryDate = rawPurchase.expiryDate ? new Date(rawPurchase.expiryDate) : new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
                 // 计算剩余天数
                 const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
                 // 标准化问题集信息
@@ -277,13 +277,13 @@ const getActivePurchases = async (req, res) => {
                 let purchaseDate, expiryDate, remainingDays;
                 try {
                     purchaseDate = record.purchase_date ? new Date(record.purchase_date) : now;
-                    expiryDate = record.expiry_date ? new Date(record.expiry_date) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                    expiryDate = record.expiry_date ? new Date(record.expiry_date) : new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
                     // 验证日期
                     if (isNaN(purchaseDate.getTime()) || isNaN(expiryDate.getTime())) {
                         console.warn(`[getActivePurchases] 无效日期:`, { purchaseDate, expiryDate });
                         // 使用默认值
                         purchaseDate = now;
-                        expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                        expiryDate = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
                     }
                     // 计算剩余天数
                     remainingDays = Math.max(1, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
@@ -291,8 +291,8 @@ const getActivePurchases = async (req, res) => {
                 catch (error) {
                     console.error(`[getActivePurchases] 日期处理错误:`, error);
                     purchaseDate = now;
-                    expiryDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-                    remainingDays = 30;
+                    expiryDate = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+                    remainingDays = 180;
                 }
                 return {
                     id: record.id,
@@ -333,7 +333,7 @@ const getActivePurchases = async (req, res) => {
                 const now = new Date();
                 // 确保日期字段是有效的
                 const purchaseDate = purchase.purchaseDate ? new Date(purchase.purchaseDate) : now;
-                const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
                 // 验证日期是否有效
                 if (isNaN(purchaseDate.getTime()) || isNaN(expiryDate.getTime())) {
                     console.error('[getActivePurchases] Invalid date found:', {
@@ -370,8 +370,8 @@ const getActivePurchases = async (req, res) => {
                     id: purchase.id,
                     questionSetId: purchase.questionSetId,
                     purchaseDate: now.toISOString(),
-                    expiryDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                    remainingDays: 30,
+                    expiryDate: new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+                    remainingDays: 180,
                     status: purchase.status || 'active',
                     questionSet: purchase.get('purchaseQuestionSet'),
                     hasAccess: true
@@ -462,7 +462,7 @@ const extendPurchase = async (req, res) => {
             return sendError(res, 404, '购买记录不存在');
         }
         // 计算新的有效期
-        const newExpiryDate = new Date(purchase.expiryDate.getTime() + months * 30 * 24 * 60 * 60 * 1000);
+        const newExpiryDate = new Date(purchase.expiryDate.getTime() + months * 180 * 24 * 60 * 60 * 1000 / 6);
         await purchase.update({ expiryDate: newExpiryDate });
         sendResponse(res, 200, purchase, '有效期延长成功');
     }
@@ -622,10 +622,10 @@ const updateAccess = async (req, res) => {
                 if (!questionSet) {
                     return sendError(res, 404, '题库不存在');
                 }
-                // 计算过期时间（1个月后）
+                // 计算过期时间（6个月后）
                 const now = new Date();
                 const expiryDate = new Date(now);
-                expiryDate.setMonth(expiryDate.getMonth() + 1);
+                expiryDate.setMonth(expiryDate.getMonth() + 6);
                 // 创建临时访问记录
                 const tempPurchase = await models_1.Purchase.create({
                     id: (0, uuid_1.v4)(),
@@ -646,7 +646,7 @@ const updateAccess = async (req, res) => {
                     questionSetId,
                     hasAccess: true,
                     expiryDate: expiryDate,
-                    remainingDays: 30
+                    remainingDays: 180
                 }, '临时访问记录创建成功');
             }
             catch (createError) {

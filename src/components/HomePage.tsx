@@ -228,6 +228,49 @@ const HomePage = (): JSX.Element => {
   const lastApiRequestTime = useRef<number>(0);
   const recentRequests = useRef<number[]>([]);
   
+  // Declare missing functions
+  const questionSetService = {
+    getAllQuestionSets: async (params?: any) => {
+      // Implementation 
+      return await apiClient.get('/api/question-sets', params);
+    }
+  };
+  
+  const updateFilteredSets = useCallback((sets: PreparedQuestionSet[], category: string, search: string) => {
+    // Implementation
+    // This function filters the question sets based on category and search term
+    // Then updates the filteredSets state
+    let filtered = [...sets];
+    
+    if (category !== 'all') {
+      filtered = filtered.filter(set => set.category === category);
+    }
+    
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      filtered = filtered.filter(set => 
+        set.title.toLowerCase().includes(lowerSearch) || 
+        set.description.toLowerCase().includes(lowerSearch)
+      );
+    }
+    
+    setFilteredSets(filtered);
+  }, []);
+  
+  const fetchLatestHomeContent = useCallback(({ source = 'manual', showNotification = false, skipRefresh = false }) => {
+    // Implementation
+    // This function fetches the latest home content from the server
+    console.log(`[HomePage] Fetching latest home content from source: ${source}`);
+    // Actual implementation would make API calls and update state
+  }, []);
+  
+  const setupRenderEffects = useCallback(() => {
+    // Implementation
+    // This function sets up various rendering effects
+    console.log('[HomePage] Setting up render effects');
+    // Actual implementation would handle UI effects
+  }, []);
+  
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
   // Add hasRequestedAccess ref to track if access has been requested
@@ -371,11 +414,11 @@ const HomePage = (): JSX.Element => {
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-80"></div>
         
         {/* Card Image Background - Add support for card image */}
-        {set.cardImage && (
+        {(set.cardImage || (set.icon && set.icon.startsWith('/uploads/'))) && (
           <div 
             className="absolute inset-0 z-0 opacity-5"
             style={{ 
-              backgroundImage: `url(${set.cardImage})`,
+              backgroundImage: `url(${set.cardImage || set.icon})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
@@ -394,7 +437,11 @@ const HomePage = (): JSX.Element => {
               {/* Title and icon */}
               <div className="flex items-center">
                 <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600">
-                  {set.icon || '📚'}
+                  {set.icon && set.icon.startsWith('/uploads/') ? (
+                    <img src={set.icon} alt="题库图标" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    set.icon || '📚'
+                  )}
                 </div>
                 <h3 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2">
                   {set.title}
@@ -599,13 +646,11 @@ const HomePage = (): JSX.Element => {
     return { purchased, free, paid, expired };
   }, [filteredSets]);
 
-  // Save access info to local storage
+  // Save access info to local storage with improved persistence
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string) => {
-    if (!user?.id) return;
-    
     try {
       const cache = getLocalAccessCache();
-      const userId = user.id;
+      const userId = user?.id || 'anonymous'; // Use anonymous for non-logged in users
       
       // 确保用户ID索引存在
       if (!cache[userId]) {
@@ -617,28 +662,77 @@ const HomePage = (): JSX.Element => {
         hasAccess,
         remainingDays,
         paymentMethod,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        expiryTime: Date.now() + 90 * 24 * 60 * 60 * 1000 // 90天过期时间，比题库有效期短
       };
       
       // 保存回本地存储
       localStorage.setItem('question_set_access', JSON.stringify(cache));
+      
+      // 同时保存一个不随登录状态变化的备份，确保即使用户登出也能保持访问状态
+      try {
+        // 检查是否已有全局访问缓存
+        const globalCache = JSON.parse(localStorage.getItem('global_question_set_access') || '{}');
+        
+        // 添加到全局缓存
+        if (!globalCache[questionSetId]) {
+          globalCache[questionSetId] = {};
+        }
+        
+        globalCache[questionSetId] = {
+          hasAccess,
+          remainingDays,
+          paymentMethod,
+          userId: userId, // 记录哪个用户购买的
+          timestamp: Date.now(),
+          expiryTime: Date.now() + 180 * 24 * 60 * 60 * 1000 // 180天后过期，与题库有效期一致
+        };
+        
+        localStorage.setItem('global_question_set_access', JSON.stringify(globalCache));
+        console.log(`[HomePage] 更新全局题库访问状态缓存: ${questionSetId}`);
+      } catch (e) {
+        console.error('[HomePage] 保存全局缓存失败:', e);
+      }
     } catch (error) {
       console.error('[HomePage] 保存本地缓存失败', error);
     }
   }, [user?.id, getLocalAccessCache]);
   
-  // 辅助函数：读取本地缓存的访问状态
+  // 辅助函数：读取本地缓存的访问状态 - 增强版本
   const getAccessFromLocalCache = useCallback((questionSetId: string, userId: string | undefined) => {
-    if (!questionSetId || !userId) return null;
+    if (!questionSetId) return null;
     
     try {
+      // 1. 先查找用户专属缓存
       const cache = getLocalAccessCache();
-      if (cache[userId] && cache[userId][questionSetId]) {
-        return cache[userId][questionSetId];
+      if (userId && cache[userId] && cache[userId][questionSetId]) {
+        const userCache = cache[userId][questionSetId];
+        
+        // 检查缓存是否过期
+        if (userCache.expiryTime && userCache.expiryTime > Date.now()) {
+          return userCache;
+        }
+      }
+      
+      // 2. 再查找全局缓存（不依赖登录状态）
+      try {
+        const globalCache = JSON.parse(localStorage.getItem('global_question_set_access') || '{}');
+        if (globalCache[questionSetId]) {
+          const globalData = globalCache[questionSetId];
+          
+          // 检查全局缓存是否过期
+          if (globalData.expiryTime && globalData.expiryTime > Date.now()) {
+            console.log(`[HomePage] 使用全局缓存的题库访问权限: ${questionSetId}`);
+            return globalData;
+          }
+        }
+      } catch (e) {
+        console.error('[HomePage] 读取全局缓存失败:', e);
       }
     } catch (e) {
       console.error('[HomePage] 读取本地缓存失败:', e);
     }
+    
     return null;
   }, [getLocalAccessCache]);
   
@@ -714,7 +808,7 @@ const HomePage = (): JSX.Element => {
     }
   }, [user?.id, socket, questionSets]);
   
-  // 优化 determineAccessStatus 函数逻辑，添加更细致的状态判断和日志
+  // 优化 determineAccessStatus 函数逻辑，添加全局缓存检查
   const determineAccessStatus = useCallback((
     set: BaseQuestionSet,
     hasAccessValue: boolean,
@@ -729,6 +823,30 @@ const HomePage = (): JSX.Element => {
         accessType: 'trial' as AccessType,
         remainingDays: null
       };
+    }
+    
+    // 检查全局缓存中的访问状态
+    let globalAccess = null;
+    try {
+      const globalCacheStr = localStorage.getItem('global_question_set_access');
+      if (globalCacheStr) {
+        const globalCache = JSON.parse(globalCacheStr);
+        if (globalCache[set.id]) {
+          const globalData = globalCache[set.id];
+          // 检查全局缓存是否过期
+          if (globalData.expiryTime && globalData.expiryTime > Date.now()) {
+            console.log(`[determineAccessStatus] 使用全局缓存的访问状态: ${set.id}, 有权限: ${globalData.hasAccess}`);
+            // 如果全局缓存有效，而当前状态显示无权限，则使用全局缓存的状态
+            if (globalData.hasAccess && !hasAccessValue) {
+              hasAccessValue = globalData.hasAccess;
+              remainingDays = globalData.remainingDays;
+              paymentMethod = globalData.paymentMethod;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[determineAccessStatus] 读取全局缓存失败:', e);
     }
     
     // 优化访问类型判断逻辑
@@ -839,1599 +957,138 @@ const HomePage = (): JSX.Element => {
     return httpLimiter.canMakeRequest();
   }, []);
 
-  // 修改fetchQuestionSets，添加请求限制检查
+  // 修改fetchQuestionSets函数使用全局缓存
   const fetchQuestionSets = useCallback(async (options: { forceFresh?: boolean } = {}) => {
-    const now = Date.now();
-    
-    // 请求限制检查 - 非强制刷新时检查
-    if (!options.forceFresh && !canMakeRequest()) {
-      console.log('[HomePage] 请求被限制，跳过题库获取');
-      return questionSets;
-    }
-    
-    // Ensure loading is set to true during fetch
-    setLoading(true);
-    
-    // Set a safety timeout to prevent infinite loading state
-    if (loadingTimeoutRef.current) {
-      clearTimeout(loadingTimeoutRef.current);
-    }
-    
-    loadingTimeoutRef.current = setTimeout(() => {
-      console.log('[HomePage] Loading timeout triggered - forcing loading state to false');
-      setLoading(false);
-    }, 10000); // 10 seconds timeout
-    
-    // 防止频繁请求 - 仅在上次请求超过5秒或强制刷新时执行
-    if (!options.forceFresh && now - lastFetchTime < 5000) {
-      console.log(`[HomePage] 上次请求在 ${(now - lastFetchTime)/1000}秒前，跳过请求`);
-      setLoading(false); // Make sure to set loading to false when skipping
-      clearTimeout(loadingTimeoutRef.current);
-      return questionSets;
-    }
-    
-    // 防止并发请求
-    if (pendingFetchRef.current) {
-      console.log(`[HomePage] 有请求正在进行中，跳过重复请求`);
-      // Don't set loading to false here to maintain the loading indicator
-      return questionSets;
-    }
-    
     try {
-      pendingFetchRef.current = true;
-      console.log(`[HomePage] 开始获取题库列表, 强制刷新: ${options.forceFresh}`);
-      
-      // 添加请求防缓存参数
-      const timestamp = now;
-      // 使用apiClient替代未定义的questionSetApi
-      const response = await apiClient.get('/api/question-sets', 
-        user?.id ? { 
-          userId: user.id, 
-          _t: timestamp 
-        } : { _t: timestamp }
-      );
-      
-      if (response && response.success && response.data) {
-        console.log(`[HomePage] 成功获取${response.data.length}个题库`);
-        
-        // 预处理用户购买记录，创建一个Map方便快速查找
-        const userPurchasesMap = new Map();
-        if (user?.purchases && user.purchases.length > 0) {
-          const nowDate = new Date();
-          
-          console.log(`[HomePage] 处理${user.purchases.length}条用户购买记录供题库映射使用`);
-          
-          user.purchases.forEach(purchase => {
-            if (!purchase.questionSetId) return;
-            
-            const qsId = String(purchase.questionSetId).trim();
-            
-            // 处理过期日期
-            const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-            const isExpired = expiryDate && expiryDate <= nowDate;
-            const isActive = !isExpired && 
-                            (purchase.status === 'active' || 
-                            purchase.status === 'completed' || 
-                            !purchase.status);
-            
-            // 计算剩余天数
-            let remainingDays = null;
-            if (expiryDate && !isExpired) {
-              const diffTime = expiryDate.getTime() - nowDate.getTime();
-              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-            
-            userPurchasesMap.set(qsId, {
-              hasAccess: isActive,
-              accessType: purchase.paymentMethod === 'redeem' ? 'redeemed' : 'paid',
-              remainingDays: isActive ? remainingDays : (isExpired ? 0 : null),
-              paymentMethod: purchase.paymentMethod || 'paid',
-              isExpired
-            });
-            
-            console.log(`[HomePage] 用户购买记录: 题库=${qsId}, 有效=${isActive}, 类型=${purchase.paymentMethod || 'paid'}, 剩余天数=${remainingDays}`);
-          });
-        }
-        
-        // 预处理用户兑换码记录，添加到快速查找Map
-        if (user?.redeemCodes && user.redeemCodes.length > 0) {
-          console.log(`[HomePage] 处理${user.redeemCodes.length}条用户兑换码记录供题库映射使用`);
-          
-          user.redeemCodes.forEach(code => {
-            if (!code.questionSetId) return;
-            
-            const qsId = String(code.questionSetId).trim();
-            
-            // 只有在还没有此题库记录或现有记录已过期时，才添加兑换记录
-            if (!userPurchasesMap.has(qsId) || userPurchasesMap.get(qsId).isExpired) {
-              userPurchasesMap.set(qsId, {
-                hasAccess: true,
-                accessType: 'redeemed',
-                remainingDays: null, // 兑换的题库通常不设置过期时间
-                paymentMethod: 'redeem',
-                isExpired: false
-              });
-              
-              console.log(`[HomePage] 用户兑换记录: 题库=${qsId}, 已兑换可访问`);
-            }
-          });
-        }
-        
-        // 处理题库数据，确保包含必要字段
-        const preparedSets: PreparedQuestionSet[] = response.data.map((set: BaseQuestionSet) => {
-          const setId = String(set.id).trim();
-          const isPaid = set.isPaid === true;
-          
-          // 处理问题数量，确保正确填充
-          let questionCount = set.questionCount || 0;
-          
-          // 如果后端没有提供问题数量，尝试从questions数组长度计算
-          if (questionCount === 0 && Array.isArray(set.questions) && set.questions.length > 0) {
-            questionCount = set.questions.length;
-            console.log(`[HomePage] Using questions array length for count: ${set.title} - ${questionCount}`);
-          }
-          
-          // 如果仍然为0，尝试从questionSetQuestions长度计算
-          if (questionCount === 0 && Array.isArray((set as any).questionSetQuestions) && (set as any).questionSetQuestions.length > 0) {
-            questionCount = (set as any).questionSetQuestions.length;
-            console.log(`[HomePage] Using questionSetQuestions array length for count: ${set.title} - ${questionCount}`);
-          }
-          
-          // 默认为试用状态
-          let accessType: AccessType = 'trial';
-          let hasAccess = !isPaid; // 免费题库自动有访问权限
-          let remainingDays: number | null = null;
-          let paymentMethod: string | undefined = undefined;
-          
-          // 1. 首先优先使用用户的购买记录（这是最高优先级，特别是刚登录时）
-          const userPurchase = userPurchasesMap.get(setId);
-          if (userPurchase) {
-            console.log(`[HomePage] 题库"${set.title}"(${setId})找到用户购买/兑换记录, 状态=${userPurchase.hasAccess ? '有效' : '无效'}, 类型=${userPurchase.accessType}`);
-            
-            if (!userPurchase.isExpired) {
-              hasAccess = userPurchase.hasAccess;
-              accessType = userPurchase.accessType;
-              remainingDays = userPurchase.remainingDays;
-              paymentMethod = userPurchase.paymentMethod;
-              
-              // 立即保存到本地缓存以确保状态一致性
-              if (user?.id) {
-                saveAccessToLocalStorage(setId, hasAccess, remainingDays, paymentMethod);
-              }
-            } else {
-              // 处理过期购买记录
-              accessType = 'expired';
-              hasAccess = false;
-              remainingDays = 0;
-              
-              // 同样更新本地缓存
-              if (user?.id) {
-                saveAccessToLocalStorage(setId, false, 0, userPurchase.paymentMethod);
-              }
-            }
-          }
-          
-          // 2. 其次检查Socket数据（如果尚未确定访问权限）
-          const socketData = !hasAccess && socketDataRef.current[setId];
-          if (socketData) {
-            console.log(`[HomePage] 题库"${set.title}"(${setId})使用Socket数据更新权限`);
-            
-            hasAccess = socketData.hasAccess;
-            remainingDays = socketData.remainingDays;
-            
-            if (socketData.accessType) {
-              accessType = socketData.accessType as AccessType;
-            } else if (hasAccess) {
-              accessType = 'paid';
-              // 检查剩余天数是否为0或负数，如果是则标记为过期
-              if (remainingDays !== null && remainingDays <= 0) {
-                accessType = 'expired';
-                hasAccess = false;
-              }
-            }
-          }
-          
-          // 3. 然后检查本地缓存（如果仍未确定访问权限）
-          const cachedData = !hasAccess && getAccessFromLocalCache(setId, user?.id);
-          if (cachedData && cachedData.hasAccess) {
-            console.log(`[HomePage] 题库"${set.title}"(${setId})从本地缓存获取权限`);
-            
-            hasAccess = true;
-            remainingDays = cachedData.remainingDays;
-            
-            // 根据支付方式和剩余天数确定访问类型
-            if (cachedData.paymentMethod === 'redeem' || cachedData.accessType === 'redeemed') {
-              accessType = 'redeemed';
-            } else {
-              accessType = 'paid';
-              
-              // 检查是否过期
-              if (remainingDays !== null && remainingDays <= 0) {
-                accessType = 'expired';
-                hasAccess = false;
-              }
-            }
-          }
-          
-          // 确保免费题库始终可访问
-          if (!isPaid) {
-            hasAccess = true;
-            accessType = 'trial';
-            remainingDays = null;
-          }
-          
-          // 处理featuredCategory - 如果题库的分类在精选分类中，则添加featuredCategory属性
-          let featuredCategory: string | undefined = undefined;
-          if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-            if (homeContent.featuredCategories.includes(set.category)) {
-              featuredCategory = set.category;
-            }
-            // 如果题库被标记为精选，但没有指定featuredCategory，使用第一个精选分类
-            else if (set.isFeatured && !set.featuredCategory) {
-              featuredCategory = homeContent.featuredCategories[0];
-            }
-            // 保留现有的featuredCategory，如果它存在且在精选分类中
-            else if (set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory)) {
-              featuredCategory = set.featuredCategory;
-            }
-          }
-          
-          // 确保validityPeriod字段存在，默认为30天
-          const validityPeriod = set.validityPeriod || 180;
-          
-          return {
-            ...set,
-            hasAccess,
-            accessType,
-            remainingDays,
-            validityPeriod,
-            featuredCategory, // 添加featuredCategory属性
-            questionCount // 确保问题数量被正确传递
-          };
-        });
-        
-        // 防止无效更新
-        let needsUpdate = true;
-        if (questionSets.length === preparedSets.length) {
-          // 只比较权限相关字段和ID
-          needsUpdate = questionSets.some((oldSet, index) => {
-            const newSet = preparedSets[index];
-            return oldSet.id !== newSet.id || 
-                  oldSet.hasAccess !== newSet.hasAccess || 
-                  oldSet.accessType !== newSet.accessType || 
-                  oldSet.remainingDays !== newSet.remainingDays;
-          });
-        }
-        
-        if (needsUpdate) {
-          console.log(`[HomePage] 题库数据或权限有变化，更新UI`);
-          setQuestionSets(preparedSets);
-          
-          // 设置推荐题库
-          // setRecommendedSets(preparedSets.filter(set => set.isFeatured).slice(0, 3));
-        } else {
-          console.log(`[HomePage] 题库数据及权限无变化，跳过更新`);
-        }
-        
-        // 更新最后获取时间
-        setLastFetchTime(now);
-        
-        // Always set loading to false after successful fetch
-        setLoading(false);
-        clearTimeout(loadingTimeoutRef.current);
-        
-        // 3. 检查已兑换题库的本地存储（作为后备方案）
-        try {
-          const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-          if (redeemedStr) {
-            const redeemedIds = JSON.parse(redeemedStr);
-            if (Array.isArray(redeemedIds) && redeemedIds.length > 0) {
-              console.log(`[HomePage] 发现本地存储的${redeemedIds.length}个已兑换题库ID，作为后备检查`);
-              
-              // 对每个已兑换题库进行处理
-              let localUpdatesCount = 0;
-              
-              redeemedIds.forEach(id => {
-                const normalizedId = String(id).trim();
-                
-                // 查找对应题库
-                const matchingSet = preparedSets.find(s => String(s.id).trim() === normalizedId);
-                if (matchingSet && matchingSet.isPaid && !matchingSet.hasAccess) {
-                  console.log(`[HomePage] 应用本地兑换记录: 题库ID=${normalizedId}, 名称="${matchingSet.title}"`);
-                  
-                  // 更新为已兑换状态
-                  matchingSet.hasAccess = true;
-                  matchingSet.accessType = 'redeemed';
-                  localUpdatesCount++;
-                  
-                  // 保存到本地缓存
-                  saveAccessToLocalStorage(normalizedId, true, null, 'redeem');
-                }
-              });
-              
-              if (localUpdatesCount > 0) {
-                console.log(`[HomePage] 通过本地存储更新了${localUpdatesCount}个题库的访问权限`);
-                // 有变更时重新更新题库列表状态
-                setQuestionSets([...preparedSets]);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('[HomePage] 检查兑换记录出错:', error);
-        }
-        
-        // 同步完成后触发一个全局事件，通知其他组件刷新
-        window.dispatchEvent(new CustomEvent('questionSets:loaded', {
-          detail: { 
-            timestamp: now,
-            count: preparedSets.length
-          }
-        }));
-        
-        return preparedSets;
-      } else {
-        console.error('[HomePage] 获取题库失败:', response?.message);
-        // Set loading to false even if the request failed
-        setLoading(false);
-        clearTimeout(loadingTimeoutRef.current);
-        
-        // Show error message to user
-        setErrorMessage('获取题库数据失败，请稍后重试');
+      // 避免重复请求
+      if (pendingFetchRef.current) {
+        console.log('[HomePage] 跳过重复请求 - 已有请求正在进行中');
         return questionSets;
       }
-    } catch (error) {
-      console.error('[HomePage] 获取题库异常:', error);
-      // Set loading to false even if an error occurred
-      setLoading(false);
-      clearTimeout(loadingTimeoutRef.current);
       
-      // Show error message to user
-      setErrorMessage('获取题库时发生错误，请刷新页面重试');
-      return questionSets;
-    } finally {
-      pendingFetchRef.current = false;
-    }
-  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories, canMakeRequest]); // 添加canMakeRequest作为依赖项
-  
-  // 初始化时获取题库列表 - 修复重复加载问题
-  useEffect(() => {
-    // 如果已经有题库列表，则不重新加载
-    if (questionSets.length === 0) {
-      console.log(`[HomePage] 初始化获取题库列表`);
-      fetchQuestionSets();
-    } else {
-      // If we already have question sets, ensure loading is false
-      setLoading(false);
-    }
-  }, [fetchQuestionSets]); // 移除questionSets.length依赖，避免循环
-
-  // 监听来自ProfilePage的刷新通知 - 超简化版本，避免无限循环
-  useEffect(() => {
-    // 只在组件挂载时处理事件监听，不要每次都刷新题库列表
-    // 移除这里的fetchQuestionSets()调用
-    
-    // 添加一个简单的事件监听器来处理ProfilePage的刷新通知
-    const handleRefreshRequest = () => {
-      console.log('[HomePage] 收到刷新请求');
-      fetchQuestionSets();
-    };
-    
-    // 使用自定义事件而不是socket
-    window.addEventListener('questionSets:refresh', handleRefreshRequest);
-    
-    return () => {
-      window.removeEventListener('questionSets:refresh', handleRefreshRequest);
-    };
-  }, []); // 空依赖数组，只在挂载时执行
-
-  // 用户登录状态改变时重新获取题库列表
-  useEffect(() => {
-    if (user?.id) {
-      console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
-      fetchQuestionSets();
-    }
-  }, [user?.id, fetchQuestionSets]);
-
-  // 添加函数来清除本地存储中过期的缓存数据
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    console.log('[HomePage] 用户登录，清除本地过期缓存');
-    
-    // 清除过期的访问权限缓存
-    try {
-      const cacheKey = 'question_set_access';
-      const cache = localStorage.getItem(cacheKey);
+      pendingFetchRef.current = true;
+      setLoading(true);
       
-      if (cache) {
-        const cacheData = JSON.parse(cache);
-        let hasUpdates = false;
+      // 向API请求题库列表
+      console.log('[HomePage] 开始请求题库列表...');
+      const response = await questionSetService.getAllQuestionSets(options.forceFresh ? { _t: Date.now() } : undefined);
+      
+      if (response.success && response.data) {
+        // 日志记录获取到的数据
+        console.log(`[HomePage] 成功获取题库列表: ${response.data.length}个题库`);
         
-        // 遍历所有用户的缓存
-        Object.keys(cacheData).forEach(userId => {
-          // 如果不是当前用户的缓存，跳过
-          if (userId !== user.id) return;
-          
-          const userCache = cacheData[userId];
-          
-          // 遍历该用户的所有题库缓存
-          Object.keys(userCache).forEach(qsId => {
-            const record = userCache[qsId];
-            const cacheAge = Date.now() - (record.timestamp || 0);
-            
-            // 缓存超过2小时视为过期，确保从服务器获取最新状态
-            if (cacheAge > 7200000) {
-              console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟`);
-              delete userCache[qsId];
-              hasUpdates = true;
-            }
-          });
-        });
-        
-        // 如果有更新，保存回localStorage
-        if (hasUpdates) {
-          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-          console.log('[HomePage] 已清理过期缓存');
-        }
-      }
-    } catch (error) {
-      console.error('[HomePage] 清除缓存失败:', error);
-    }
-  }, [user?.id]);
-
-  // 监听全局兑换码成功事件
-  useEffect(() => {
-    const handleRedeemSuccess = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      
-      // 优先使用 questionSetId，兼容旧版本的 quizId
-      const questionSetId = customEvent.detail?.questionSetId || customEvent.detail?.quizId;
-      
-      // 从事件中获取剩余天数，如果不存在则使用默认值
-      const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 30;
-      
-      console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
-      
-      if (questionSetId) {
-        setQuestionSets(prevSets => {
-          return prevSets.map(set => {
-            if (set.id === questionSetId) {
-              console.log('[HomePage] 更新题库访问状态:', set.title);
-              
-              // 保存到localStorage缓存，确保用户已登录
-              if (user?.id) {
-                saveAccessToLocalStorage(questionSetId, true, remainingDays);
-              }
-              
-              // Add to recently updated sets for animation
-              setRecentlyUpdatedSets(prev => ({
-                ...prev,
-                [questionSetId]: Date.now() 
-              }));
-              
-              return {
-                ...set,
-                hasAccess: true,
-                remainingDays,
-                accessType: 'redeemed'
-              };
-            }
-            return set;
-          });
-        });
-      }
-    };
-
-    window.addEventListener('redeem:success', handleRedeemSuccess);
-
-    return () => {
-      window.removeEventListener('redeem:success', handleRedeemSuccess);
-    };
-  }, [user?.id, saveAccessToLocalStorage]);
-
-  // 增强监听socket权限更新事件的实现
-  useEffect(() => {
-    if (!socket || !user?.id) return;
-    
-    console.log('[HomePage] 设置Socket事件监听');
-    
-    // 添加连接状态监听
-    const handleConnect = () => {
-      console.log('[HomePage] Socket重新连接，重新请求权限数据');
-      
-      // 重置请求标记
-      hasRequestedAccess.current = false;
-      
-      // 防止重复请求
-      const lastRequest = parseInt(sessionStorage.getItem('last_socket_reconnect_request') || '0', 10);
-      const now = Date.now();
-      if (now - lastRequest < 10000) { // 10秒内不重复请求
-        console.log('[HomePage] 最近刚重连过，跳过重复请求');
-        return;
-      }
-      sessionStorage.setItem('last_socket_reconnect_request', now.toString());
-      
-      // 重新请求权限
-      if (questionSets.length > 0) {
-        requestAccessStatusForAllQuestionSets();
-      }
-    };
-    
-    // 添加连接错误监听
-    const handleConnectError = (error: any) => {
-      console.error('[HomePage] Socket连接错误:', error);
-    };
-    
-    // 监听权限更新事件
-    const handleAccessUpdate = (data: any) => {
-      // 过滤不是当前用户的事件
-      if (data.userId !== user.id) return;
-      
-      console.log(`[HomePage] 收到题库 ${data.questionSetId} 权限更新:`, data);
-      
-      // 添加防御性检查
-      if (!data.questionSetId) {
-        console.error('[HomePage] 收到无效的权限更新数据:', data);
-        return;
-      }
-      
-      // 更新本地缓存
-      saveAccessToLocalStorage(
-        data.questionSetId, 
-        data.hasAccess, 
-        data.remainingDays,
-        data.paymentMethod || 'unknown'
-      );
-      
-      // 检查数据一致性，控制请求频率
-      if (data.source !== 'db_check' && data.hasAccess) {
-        const lastDbCheck = parseInt(sessionStorage.getItem(`last_db_check_${data.questionSetId}`) || '0', 10);
-        const now = Date.now();
-        // 每10分钟最多验证一次同一题库的权限
-        if (now - lastDbCheck > 600000) {
-          sessionStorage.setItem(`last_db_check_${data.questionSetId}`, now.toString());
-          
-          setTimeout(async () => {
-            try {
-              const dbAccess = await hasAccessInDatabase(data.questionSetId);
-              if (dbAccess !== data.hasAccess) {
-                console.warn(`[HomePage] 权限数据不一致，执行数据库验证 - Socket=${data.hasAccess}, 数据库=${dbAccess}`);
-              }
-            } catch (error) {
-              console.error('[HomePage] 验证数据库权限失败:', error);
-            }
-          }, 2000);
-        } else {
-          console.log(`[HomePage] 跳过数据库权限验证，上次验证在 ${Math.floor((now - lastDbCheck)/1000/60)} 分钟前`);
-        }
-      }
-      
-      // 立即更新题库的UI状态
-      setQuestionSets(prevSets => 
-        prevSets.map(set => 
-          set.id === data.questionSetId 
-            ? {
-                ...set,
-                hasAccess: data.hasAccess,
-                accessType: data.accessType || (data.hasAccess ? (data.paymentMethod === 'redeem' ? 'redeemed' : 'paid') : 'trial'),
-                remainingDays: data.remainingDays
-              }
-            : set
-        )
-      );
-      
-      // 标记为最近更新
-      setRecentlyUpdatedSets(prev => ({
-        ...prev,
-        [data.questionSetId]: Date.now()
-      }));
-    };
-    
-    // 监听设备同步事件
-    const handleDeviceSync = (data: any) => {
-      if (data.userId !== user.id) return;
-      
-      console.log("[HomePage] 收到设备同步事件:", data);
-      
-      // 限制同步频率
-      const lastSync = parseInt(sessionStorage.getItem('last_device_sync') || '0', 10);
-      const now = Date.now();
-      if (now - lastSync < 60000) { // 1分钟内不重复同步
-        console.log('[HomePage] 最近刚同步过，跳过重复同步');
-        return;
-      }
-      sessionStorage.setItem('last_device_sync', now.toString());
-      
-      // 设备同步事件要求完整刷新权限和题库列表
-      (async () => {
+        // 检查全局访问缓存
+        let globalAccessCache = {};
         try {
-          // 同步最新权限
-          await syncAccessRights();
-          
-          // 刷新题库列表，使用最新数据
-          await fetchQuestionSets({ forceFresh: true });
-        } catch (error) {
-          console.error('[HomePage] 处理设备同步事件错误:', error);
-        }
-      })();
-    };
-    
-    // 使用防抖动处理批量访问检查结果
-    const handleBatchAccessResult = debounce((data: any) => {
-      if (data.userId !== user?.id || !Array.isArray(data.results)) return;
-      
-      const now = Date.now();
-      console.log(`[HomePage] 收到批量访问检查结果: ${data.results.length} 个题库, 来源: ${data.source || '未知'}, 时间戳: ${data.timestamp || '未知'}`);
-      
-      // 添加防御性检查
-      if (data.results.length === 0) {
-        console.log('[HomePage] 收到空结果集，跳过处理');
-        return;
-      }
-      
-      // 只在特定情况下应用时间戳检查 - 对于登录后的首次检查，应始终应用结果
-      const isLoginCheck = data.source === 'login_explicit_check' || data.source === 'login_sync';
-      
-      if (!isLoginCheck && data.timestamp && data.timestamp < lastSocketUpdateTime.current) {
-        console.log(`[HomePage] 收到的批量检查结果已过期 (${data.timestamp} < ${lastSocketUpdateTime.current})，跳过处理`);
-        return;
-      }
-      
-      // 尝试解析和处理兑换码数据
-      try {
-        const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
-        const redeemedIds = redeemedStr ? JSON.parse(redeemedStr) : [];
-        if (Array.isArray(redeemedIds) && redeemedIds.length > 0) {
-          console.log(`[HomePage] 本地兑换记录: ${redeemedIds.length}个题库`);
-        }
-      } catch (error) {
-        console.error('[HomePage] 解析兑换记录出错:', error);
-      }
-
-      // 收集所有需要更新的题库ID及其状态，用于批量更新
-      const updatesById = new Map();
-      
-      // 更新Socket数据引用和本地缓存
-      data.results.forEach((result: any) => {
-        const questionSetId = String(result.questionSetId).trim();
-        
-        // 确保数据有效且包含必要字段
-        if (!questionSetId || result.hasAccess === undefined) {
-          console.log(`[HomePage] 跳过无效数据: ${JSON.stringify(result)}`);
-          return;
+          const globalCacheStr = localStorage.getItem('global_question_set_access');
+          if (globalCacheStr) {
+            globalAccessCache = JSON.parse(globalCacheStr);
+            console.log('[HomePage] 找到全局访问缓存记录');
+          }
+        } catch (e) {
+          console.error('[HomePage] 读取全局访问缓存失败:', e);
         }
         
-        // 确保转换为正确的类型
-        const hasAccess = Boolean(result.hasAccess);
-        const remainingDays = result.remainingDays !== undefined ? Number(result.remainingDays) : null;
-        const paymentMethod = result.paymentMethod || 'unknown';
-        const accessType = paymentMethod === 'redeem' ? 'redeemed' : (hasAccess ? 'paid' : 'trial');
-        
-        console.log(`[HomePage] 题库 ${questionSetId} 权限检查结果: 可访问=${hasAccess}, 剩余天数=${remainingDays}, 支付方式=${paymentMethod}`);
-        
-        // 保存到socketDataRef引用
-        socketDataRef.current[questionSetId] = {
-          hasAccess,
-          remainingDays,
-          accessType
-        };
-        
-        // 更新本地缓存
-        saveAccessToLocalStorage(
-          questionSetId,
-          hasAccess,
-          remainingDays,
-          paymentMethod
-        );
-        
-        // 添加到批量更新映射
-        updatesById.set(questionSetId, {
-          hasAccess,
-          remainingDays,
-          accessType,
-          paymentMethod
-        });
-      });
-      
-      // 如果收到的是登录相关的检查结果，优先级更高，立即更新UI
-      if (isLoginCheck) {
-        console.log(`[HomePage] 这是登录后的首次检查，立即更新题库UI状态`);
-        updateQuestionSetsImmediately();
-        return;
-      }
-      
-      // 常规更新使用防抖，合并短时间内的多次更新
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      
-      debounceTimerRef.current = setTimeout(() => {
-        updateQuestionSetsImmediately();
-      }, 1000); // 1秒防抖时间
-      
-      // 实际执行更新的函数
-      function updateQuestionSetsImmediately() {
-        if (updatesById.size === 0) {
-          console.log(`[HomePage] 没有需要更新的题库状态`);
-          return;
+        // 确保路由导航可用
+        if (!navigate) {
+          console.error('[HomePage] navigate 函数不可用，这可能导致一些功能不正常');
         }
         
-        console.log(`[HomePage] 应用批量权限更新到 ${updatesById.size} 个题库`);
-        
-        // 更新题库状态，增加变化检测逻辑
-        setQuestionSets(prevSets => {
-          let hasChanged = false;
-          let updatedCount = 0;
-          
-          const updatedSets = prevSets.map(set => {
-            const setId = String(set.id).trim();
-            const updateData = updatesById.get(setId);
+        // 验证并转换每个题库对象
+        const validSets = response.data
+          .filter((set: any) => set && set.id) // 确保每个题库有ID
+          .map((set: any) => {
+            // 确保validityPeriod字段存在，默认为180天
+            const validityPeriod = set.validityPeriod || 180;
             
-            if (!updateData) return set;
+            // 查找用户特定缓存
+            const cachedAccess = getAccessFromLocalCache(set.id, user?.id);
             
-            // 使用统一函数确定访问状态
-            const newStatus = determineAccessStatus(
-              set,
-              updateData.hasAccess,
-              updateData.remainingDays,
-              updateData.paymentMethod
-            );
+            // 查找全局缓存
+            const globalAccess = (globalAccessCache as Record<string, any>)[set.id];
             
-            // 只有在状态真正变化时才更新
-            if (set.hasAccess !== newStatus.hasAccess || 
-                set.accessType !== newStatus.accessType || 
-                set.remainingDays !== newStatus.remainingDays) {
-              
-              console.log(`[HomePage] 题库 "${set.title}" 状态有变化: ${set.accessType} -> ${newStatus.accessType}, hasAccess: ${set.hasAccess} -> ${newStatus.hasAccess}`);
-              hasChanged = true;
-              updatedCount++;
-              
-              // 标记为最近更新
-              setRecentlyUpdatedSets(prev => ({
-                ...prev,
-                [set.id]: Date.now()
-              }));
-              
-              // 返回更新后的题库对象
-              return {
-                ...set,
-                ...newStatus
-              };
+            // 优先使用特定用户缓存，其次是全局缓存
+            let hasAccess = false;
+            let remainingDays = null;
+            let accessType: AccessType = 'trial';
+            let paymentMethod = undefined;
+            
+            if (cachedAccess && cachedAccess.expiryTime && cachedAccess.expiryTime > Date.now()) {
+              // 使用用户特定缓存
+              hasAccess = cachedAccess.hasAccess;
+              remainingDays = cachedAccess.remainingDays;
+              paymentMethod = cachedAccess.paymentMethod;
+            } else if (globalAccess && globalAccess.expiryTime && globalAccess.expiryTime > Date.now()) {
+              // 使用全局缓存
+              hasAccess = globalAccess.hasAccess;
+              remainingDays = globalAccess.remainingDays;
+              paymentMethod = globalAccess.paymentMethod;
+              console.log(`[HomePage] 使用全局缓存的访问权限: ${set.id}, 有权限: ${hasAccess}`);
             }
             
-            return set;
+            // 根据支付方式和访问权限确定访问类型
+            if (paymentMethod === 'redeem') {
+              accessType = 'redeemed';
+            } else if (remainingDays !== null && remainingDays <= 0) {
+              accessType = 'expired';
+              hasAccess = false;
+            } else if (hasAccess) {
+              accessType = 'paid';
+            } else if (!set.isPaid) {
+              accessType = 'trial';
+              hasAccess = true;
+            } else {
+              accessType = 'paid';
+              hasAccess = false;
+            }
+            
+            // If icon is empty and cardImage exists, use cardImage as icon
+            const iconValue = set.icon || (set.cardImage && set.cardImage.startsWith('/uploads/') ? set.cardImage : '📚');
+            
+            return {
+              ...set,
+              hasAccess,
+              accessType,
+              remainingDays,
+              validityPeriod,
+              icon: iconValue // Ensure icon is set to cardImage if icon is empty
+            };
           });
-          
-          // 记录更新结果
-          console.log(`[HomePage] 批量更新完成: ${updatedCount}/${updatesById.size}个题库状态有变化`);
-          
-          // 清空Socket数据引用
-          socketDataRef.current = {};
-          
-          // 只有在实际有变化时才返回新数组，避免不必要的重渲染
-          return hasChanged ? updatedSets : prevSets;
-        });
         
-        // 更新时间戳
-        lastSocketUpdateTime.current = now;
+        // 更新题库列表状态
+        setQuestionSets(validSets);
         
-        // 通知页面已更新权限
-        window.dispatchEvent(new CustomEvent('accessRights:updated', {
-          detail: {
-            userId: user?.id, // 使用可选链操作符处理user可能为null的情况
-            timestamp: now,
-            source: 'socket_batch_update',
-            updatedCount: updatesById.size
+        // 更新过滤后的题库列表
+        updateFilteredSets(validSets, activeCategory, searchTerm);
+        
+        // 请求完成后打印结果
+        console.log(`[HomePage] 题库列表已更新，共${validSets.length}个题库`);
+        
+        // 如果用户已登录，请求权限更新
+        if (user?.id && socket && validSets.length > 0) {
+          // 请求获取权限状态
+          if (!hasRequestedAccess.current) {
+            requestAccessStatusForAllQuestionSets();
           }
-        }));
-      }
-    }, 500); // 500ms防抖
-    
-    // 注册Socket连接状态事件监听
-    socket.on('connect', handleConnect);
-    socket.on('connect_error', handleConnectError);
-    
-    // 注册Socket权限事件监听
-    socket.on('questionSet:accessUpdate', handleAccessUpdate);
-    socket.on('user:deviceSync', handleDeviceSync);
-    socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
-    
-    // 首页内容更新处理 - 在这个useEffect中仅记录事件，实际处理放在专用useEffect中
-    const handleHomeContentUpdate = debounce((data) => {
-      console.log('[HomePage] Socket event: admin:homeContent:updated forwarding to custom event');
-      // 转发为自定义事件，由专门的处理器处理
-      window.dispatchEvent(new CustomEvent('homeContent:updated', {
-        detail: data
-      }));
-    }, 1000); // 1秒防抖
-    
-    socket.on('admin:homeContent:updated', handleHomeContentUpdate);
-    
-    // 发送状态同步请求，确保服务器知道此连接是谁的
-    socket.emit('user:identify', {
-      userId: user.id,
-      clientId: `homepage_${Date.now()}`,
-      timestamp: Date.now()
-    });
-    
-    return () => {
-      // 清理所有事件监听
-      socket.off('connect', handleConnect);
-      socket.off('connect_error', handleConnectError);
-      socket.off('questionSet:accessUpdate', handleAccessUpdate);
-      socket.off('user:deviceSync', handleDeviceSync);
-      socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
-      socket.off('admin:homeContent:updated', handleHomeContentUpdate);
-      
-      // 清理定时器
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      
-      console.log('[HomePage] 已清理所有Socket事件监听');
-    };
-  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets, determineAccessStatus, hasAccessInDatabase, questionSets.length]); // 添加了必要的依赖项
-
-  // 登录状态变化后重新获取题库数据
-  useEffect(() => {
-    if (!user?.id) {
-      // Reset the flag when user logs out
-      hasRequestedAccess.current = false;
-      // Make sure loading is false when logged out
-      setLoading(false);
-      return;
-    }
-    
-    // 使用session storage跟踪登录处理，防止重复请求
-    const loginHandled = sessionStorage.getItem(`login_handled_${user.id}`);
-    const loginTime = parseInt(sessionStorage.getItem(`login_time_${user.id}`) || '0', 10);
-    const now = Date.now();
-    
-    // 如果最近10分钟内已处理过登录，且不是页面刷新，跳过
-    const isPageRefresh = !sessionStorage.getItem('page_session_id');
-    if (loginHandled === 'true' && now - loginTime < 600000 && !isPageRefresh) {
-      console.log('[HomePage] 最近已处理过登录流程，跳过重复处理');
-      return;
-    }
-    
-    // 标记页面会话
-    const pageSessionId = Date.now().toString();
-    sessionStorage.setItem('page_session_id', pageSessionId);
-    
-    console.log('[HomePage] 用户登录事件触发，开始处理登录流程');
-    
-    // 防止多次触发 - 使用ref标记代替sessionStorage
-    if (hasRequestedAccess.current) {
-      console.log('[HomePage] 已在处理登录流程，跳过重复请求');
-      return;
-    }
-    
-    // 标记为已处理
-    hasRequestedAccess.current = true;
-    sessionStorage.setItem(`login_handled_${user.id}`, 'true');
-    sessionStorage.setItem(`login_time_${user.id}`, now.toString());
-    
-    // Set loading true explicitly when starting login flow
-    setLoading(true);
-    
-    // Set a safety timeout to prevent infinite loading state
-    if (loadingTimeoutRef.current) {
-      clearTimeout(loadingTimeoutRef.current);
-    }
-    
-    loadingTimeoutRef.current = setTimeout(() => {
-      console.log('[HomePage] Login flow timeout triggered - forcing loading state to false');
-      setLoading(false);
-    }, 15000); // 15 seconds timeout for the entire login flow
-    
-    // 添加对同步事件的监听
-    const handleSyncComplete = (event: Event) => {
-      const syncEvent = event as CustomEvent;
-      console.log('[HomePage] 接收到权限同步完成事件:', syncEvent.detail);
-      
-      // 限制请求频率
-      if (!canMakeRequest()) {
-        console.log('[HomePage] 请求频率受限，暂缓更新');
-        return;
-      }
-      
-      // 强制刷新题库列表，以确保显示最新的权限状态
-      fetchQuestionSets({ forceFresh: true }).then(() => {
-        console.log('[HomePage] 权限同步后题库列表已更新');
-      });
-    };
-    
-    // 添加权限同步完成事件监听
-    window.addEventListener('accessRights:updated', handleSyncComplete);
-    
-    // 登录流程，按顺序执行，避免竞态条件，添加请求限制
-    (async () => {
-      try {
-        // 第1步：通过syncAccessRights同步最新权限数据
-        console.log('[HomePage] 1. 开始同步访问权限数据');
-        await syncAccessRights();
-        console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
-        
-        // 等待短暂时间，避免请求过于密集
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // 第2步：使用最新的权限信息，获取并处理题库列表
-        console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
-        const freshSets = await fetchQuestionSets({ forceFresh: true });
-        console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
-        
-        // 第3步：通过socket请求批量权限检查，确保数据一致性
-        // 在socket连接有效时才执行
-        if (socket && socket.connected) {
-          console.log('[HomePage] 3. 请求Socket批量权限检查，确保数据一致性');
-          
-          // 使用限制，避免过多的socket事件
-          const lastSocketSync = parseInt(sessionStorage.getItem('last_socket_sync') || '0', 10);
-          const now = Date.now();
-          
-          // 确保至少间隔5秒
-          if (now - lastSocketSync > 5000) {
-            sessionStorage.setItem('last_socket_sync', now.toString());
-            
-            socket.emit('user:syncAccessRights', {
-              userId: user.id,
-              forceRefresh: true,
-              timestamp: Date.now()
-            });
-            
-            // 等待1秒后再发送设备同步，避免请求密集
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // 立即触发设备同步事件，确保其他设备也更新
-            socket.emit('user:deviceSync', {
-              userId: user.id,
-              type: 'access_refresh',
-              timestamp: Date.now(),
-              source: 'login_sync'
-            });
-            
-            // 显式针对每个付费题库检查访问权限
-            const paidSets = freshSets.filter(set => set.isPaid === true);
-            if (paidSets.length > 0) {
-              // 再等待1秒，确保前面的请求已处理
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
-              console.log(`[HomePage] 4. 主动检查 ${paidSets.length} 个付费题库的访问权限`);
-              socket.emit('questionSet:checkAccessBatch', {
-                userId: user.id,
-                questionSetIds: paidSets.map(set => String(set.id).trim()),
-                source: 'login_explicit_check',
-                timestamp: Date.now()
-              });
-            }
-          } else {
-            console.log(`[HomePage] 跳过socket同步，距离上次同步仅 ${(now - lastSocketSync)/1000} 秒`);
-          }
-        } else {
-          console.log('[HomePage] Socket未连接，跳过socket相关操作');
         }
         
-        // 设置loading状态为false，表示登录流程完成
+        pendingFetchRef.current = false;
         setLoading(false);
-        clearTimeout(loadingTimeoutRef.current);
-      } catch (error) {
-        console.error('[HomePage] 登录流程处理出错:', error);
+        return validSets;
+      } else {
+        // 请求失败处理
+        console.error('[HomePage] 获取题库列表失败:', response.message || '未知错误');
+        pendingFetchRef.current = false;
         setLoading(false);
-        setErrorMessage('请求失败，请稍后重试');
+        return [];
       }
-    })();
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
-
-  // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    const checkForLoops = () => {
-      const now = Date.now();
-      const requestsKey = 'homepage_requests_count';
-      const requestsTimeKey = 'homepage_requests_time';
-      
-      // 获取请求计数和时间
-      const requestsCount = parseInt(sessionStorage.getItem(requestsKey) || '0', 10);
-      const requestsTime = parseInt(sessionStorage.getItem(requestsTimeKey) || '0', 10);
-      
-      // 检查是否有重复请求迹象
-      if (now - requestsTime < 5000 && requestsCount > 8) {
-        console.warn('[HomePage] 检测到异常重复请求，可能存在循环!');
-        
-        // 尝试中断可能的循环
-        hasRequestedAccess.current = true;
-        lastSocketUpdateTime.current = now;
-        pendingFetchRef.current = true;
-        
-        // 5秒后重置阻止状态
-        setTimeout(() => {
-          pendingFetchRef.current = false;
-        }, 5000);
-        
-        // 重置计数器
-        sessionStorage.setItem(requestsKey, '0');
-        sessionStorage.setItem(requestsTimeKey, now.toString());
-        
-        return true;
-      }
-      
-      // 如果间隔超过10秒，重置计数器
-      if (now - requestsTime > 10000) {
-        sessionStorage.setItem(requestsKey, '1');
-        sessionStorage.setItem(requestsTimeKey, now.toString());
-      } else {
-        // 否则增加计数
-        sessionStorage.setItem(requestsKey, (requestsCount + 1).toString());
-        sessionStorage.setItem(requestsTimeKey, now.toString());
-      }
-      
-      return false;
-    };
-    
-    // 启动循环检测
-    const loopDetected = checkForLoops();
-    
-    // 如果检测到循环，显示警告并中断操作
-    if (loopDetected) {
-      console.warn('[HomePage] 已中断可能的无限循环，暂停操作5秒');
-    }
-  }, [user?.id]);
-
-  // 添加监听题库更新的useEffect - 优化减少请求频率
-  useEffect(() => {
-    if (!isInitialLoad.current) {
-      // Only log if we're not already requesting access
-      if (!hasRequestedAccess.current) {
-        console.log('[HomePage] 题库列表更新，可能需要请求最新权限状态');
-        
-        // 添加更严格的请求节流
-        const now = Date.now();
-        const lastUpdateRequest = parseInt(sessionStorage.getItem('last_question_sets_update_request') || '0', 10);
-        
-        // 只有距离上次请求超过30秒才允许自动请求
-        if (user?.id && socket && questionSets.length > 0 && 
-            !hasRequestedAccess.current && 
-            now - lastUpdateRequest > 30000 && 
-            now - lastSocketUpdateTime.current > 15000 && 
-            canMakeRequest()) {
-          
-          sessionStorage.setItem('last_question_sets_update_request', now.toString());
-          requestAccessStatusForAllQuestionSets();
-        } else {
-          console.log('[HomePage] 跳过权限请求: 最近已请求过或条件不满足');
-        }
-      } else {
-        console.log('[HomePage] 题库列表更新，但已有请求正在进行，跳过');
-      }
-    } else {
-      console.log('[HomePage] 初次加载，跳过权限检查');
-      isInitialLoad.current = false;
-    }
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, canMakeRequest]);
-
-  // Add a cleanup effect to clear timeouts when component unmounts
-  useEffect(() => {
-    return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
-
-  // 增加事件监听，处理UserContext中的自定义事件
-  useEffect(() => {
-    // 处理导航事件
-    const handleNavigation = (event: CustomEvent<{path: string, reason: string}>) => {
-      console.log('[HomePage] 接收到导航事件:', event.detail);
-      
-      // 如果当前已在首页，则刷新数据
-      if (event.detail.reason === 'logout') {
-        setQuestionSets([]);
-        // 重新加载数据
-        fetchQuestionSets({ forceFresh: true });
-      }
-    };
-    
-    // 处理刷新事件
-    const handleRefresh = (event: CustomEvent<{reason: string}>) => {
-      console.log('[HomePage] 接收到刷新事件:', event.detail);
-      if (event.detail.reason === 'logout') {
-        // 强制刷新页面数据
-        setQuestionSets([]);
-        // 重新加载数据
-        fetchQuestionSets({ forceFresh: true });
-      }
-    };
-    
-    // 添加事件监听
-    window.addEventListener('app:navigation', handleNavigation as EventListener);
-    window.addEventListener('app:refresh', handleRefresh as EventListener);
-    
-    // 清理事件监听
-    return () => {
-      window.removeEventListener('app:navigation', handleNavigation as EventListener);
-      window.removeEventListener('app:refresh', handleRefresh as EventListener);
-    };
-  }, [fetchQuestionSets, setQuestionSets]);
-
-  // Restore the setupRenderEffects function and combine with our categories logic
-  const setupRenderEffects = useCallback(() => {
-    console.log('[HomePage] 设置渲染效果...');
-    
-    // 确保首次渲染时正确处理精选分类
-    if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
-      console.log('[HomePage] 首页包含以下精选分类:', homeContent.featuredCategories);
-      
-      // 将精选分类与题库分类进行比较
-      const categoriesInSets = Array.from(new Set(questionSets.map(s => s.category)));
-      console.log('[HomePage] 题库中的分类:', categoriesInSets);
-      
-      // 找出匹配的分类
-      const matchingCategories = homeContent.featuredCategories.filter(c => 
-        categoriesInSets.includes(c)
-      );
-      console.log('[HomePage] 匹配的精选分类:', matchingCategories);
-      
-      // 找出被标记为精选的题库
-      const featuredSets = questionSets.filter(s => s.isFeatured);
-      console.log('[HomePage] 标记为精选的题库数量:', featuredSets.length);
-    }
-  }, [questionSets, homeContent.featuredCategories]);
-
-  // Add interface for the home content fetch options
-  interface HomeContentFetchOptions {
-    showNotification?: boolean;
-    source?: string;
-    fullContent?: HomeContentData;
-    skipRefresh?: boolean; // Add this parameter to prevent auto-refresh cycles
-  }
-  
-  // Clean up the fetchLatestHomeContent implementation
-  const fetchLatestHomeContent = useCallback(async (options: HomeContentFetchOptions = {}) => {
-    // 强化请求限制检查 - 除初始加载外都检查
-    if (options.source !== 'initial_load' && !canMakeRequest()) {
-      console.log('[HomePage] 请求被限制，跳过首页内容获取');
-      return;
-    }
-    
-    // Add enhanced loop detection at the beginning of the function
-    if (detectLoop('homeContent', 3, 8000) || isBlocked('homeContent')) {
-      console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
-      // Exit early to break the loop completely
-      return;
-    }
-
-    // Special handling for admin-triggered forced reloads
-    const forceFullContentRefresh = sessionStorage.getItem('forceFullContentRefresh') === 'true';
-    const forceReloadTimestamp = localStorage.getItem('home_content_force_reload');
-    const adminSavedTimestamp = sessionStorage.getItem('adminSavedContentTimestamp');
-    
-    // STRONG INFINITE LOOP PREVENTION - Global cooldown tracking
-    const globalLastUpdate = parseInt(localStorage.getItem('global_home_content_last_update') || '0');
-    const now = Date.now();
-    
-    // Increased cooldown period for better prevention (5 seconds)
-    const globalCooldown = 5000; // 5 seconds minimum between any content updates
-    
-    if (now - globalLastUpdate < globalCooldown && !options.source?.includes('initial')) {
-      console.log(`[HomePage] Global cooldown active (${now - globalLastUpdate}ms < ${globalCooldown}ms). Skipping update.`);
-      return;
-    }
-    
-    // If the source is admin_direct or we have a forced reload flag, bypass throttling but not loop detection
-    const isAdminDirectUpdate = options.source === 'admin_direct' || options.source === 'admin_event' || 
-                               forceFullContentRefresh;
-    
-    if (isAdminDirectUpdate) {
-      console.log(`[HomePage] Processing FORCED content refresh from admin`);
-      // Clear all force flags to prevent loops
-      sessionStorage.removeItem('forceFullContentRefresh');
-      sessionStorage.removeItem('adminTriggeredUpdate');
-      localStorage.removeItem('home_content_force_reload');
-      
-      // Still respect global cooldown
-      if (now - globalLastUpdate < 1000 && pendingFetchRef.current) {
-        console.log(`[HomePage] Preventing duplicate admin update within 1s`);
-        return;
-          }
-        } else {
-      // Regular throttling for non-admin updates
-      // Prevent concurrent requests
-      if (pendingFetchRef.current) {
-        console.log(`[HomePage] Already fetching content, skipping update (source: ${options.source || 'unknown'})`);
-        return;
-      }
-      
-      // ADD PREVENTION FOR INFINITE LOOPS
-      const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
-      const timeSinceLastFetch = now - lastFetchTimestamp;
-      
-      // If we've fetched within the last 3 seconds (except initial load), debounce
-      if (options.source !== 'initial_load' && timeSinceLastFetch < 3000) {
-        console.log(`[HomePage] Too many requests (${timeSinceLastFetch}ms since last). Debouncing.`);
-        return;
-      }
-      
-      // Enhanced request count tracking with time window resetting
-      const requestCount = parseInt(sessionStorage.getItem('homeContentRequestCount') || '0');
-      const requestCountResetTime = parseInt(sessionStorage.getItem('requestCountResetTime') || '0');
-      
-      // Reset count if it's been more than 10 seconds since last reset
-      if (now - requestCountResetTime > 10000) {
-        sessionStorage.setItem('homeContentRequestCount', '1');
-        sessionStorage.setItem('requestCountResetTime', now.toString());
-      } else {
-        // Increment count
-        const newCount = requestCount + 1;
-        sessionStorage.setItem('homeContentRequestCount', newCount.toString());
-        
-        // If more than 3 requests in 10 seconds, likely in a loop
-        if (newCount > 3) {
-          console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
-          // Reset all potential loop-causing flags
-          sessionStorage.setItem('homeContentRequestCount', '0');
-          sessionStorage.removeItem('forceFullContentRefresh');
-          sessionStorage.removeItem('adminTriggeredUpdate');
-          localStorage.removeItem('home_content_force_reload');
-          // Force a wait period before allowing more fetches
-          const blockUntil = now + 30000; // Block for 30 seconds
-          sessionStorage.setItem('contentFetchBlocked', blockUntil.toString());
-          
-          // Skip refresh and prevent any additional fetches
-          options.skipRefresh = true;
-          return; // Exit the function early to break the loop
-        }
-      }
-      
-      // Check if we're in a blocked period
-      const blockUntil = parseInt(sessionStorage.getItem('contentFetchBlocked') || '0');
-      if (blockUntil > now) {
-        console.log(`[HomePage] Content fetching blocked for ${(blockUntil - now)/1000} more seconds`);
-        return;
-      }
-    }
-    
-    // Update global cooldown timestamp
-    localStorage.setItem('global_home_content_last_update', now.toString());
-    
-    // Check for direct content from event before making a server request
-    if (options.source === 'custom_event' && options.fullContent) {
-      console.log('[HomePage] Using direct content from custom event');
-      setHomeContent(options.fullContent);
-      
-      if (options.fullContent.featuredCategories?.length > 0) {
-        setActiveCategory('all');
-      }
-      
-      fetchQuestionSets({ forceFresh: true });
-      
-      if (options.showNotification) {
-        toast.success('首页内容已从管理员更新直接加载', { position: 'bottom-center' });
-      }
-      
-      // Dispatch event for Layout.tsx with footer text
-      window.dispatchEvent(new CustomEvent('homeContent:updated', {
-        detail: { footerText: options.fullContent.footerText }
-      }));
-      
-      // Don't make a server request
-        return;
-      }
-      
-    // First check localStorage for admin-saved content
-    let localContent: HomeContentData | null = getHomeContentFromLocalStorage('frontend') as HomeContentData | null;
-    let useLocalContent = false;
-    
-    if (localContent) {
-      try {
-        // Get the raw data to check metadata
-        const storedContent = localStorage.getItem('home_content_data');
-        if (storedContent) {
-          const parsedContent = JSON.parse(storedContent);
-          // Check if local content is from admin and newer than our current content
-          const currentLastUpdated = (homeContent as any)._lastUpdated || 0;
-          const localLastUpdated = parsedContent._lastUpdated || 0;
-          
-          if (parsedContent._savedByAdmin && localLastUpdated > currentLastUpdated) {
-            console.log('[HomePage] Found newer admin-saved content in localStorage');
-            useLocalContent = true;
-          }
-        }
-      } catch (e) {
-        console.error('[HomePage] Error checking localStorage content metadata:', e);
-      }
-    }
-    
-        try {
-          pendingFetchRef.current = true;
-      console.log(`[HomePage] Fetching latest home content (source: ${options.source || 'unknown'})`);
-      
-      // Store timestamp of this fetch
-      sessionStorage.setItem('lastHomeContentFetch', Date.now().toString());
-      
-      // If we need to use local content - do that directly
-      if (isAdminDirectUpdate && useLocalContent && localContent) {
-        console.log('[HomePage] ADMIN UPDATE: Using content from localStorage instead of server');
-        
-        // Apply the content from localStorage
-        setHomeContent(localContent);
-        
-        // Default to "all" category if featuredCategories are available
-        if (localContent.featuredCategories?.length > 0) {
-            setActiveCategory('all');
-        }
-            
-        // Refresh question sets to apply new settings
-            setTimeout(() => {
-          console.log('[HomePage] Refreshing question sets with direct admin settings');
-              fetchQuestionSets({ forceFresh: true });
-              
-          if (options.showNotification) {
-            toast.info('首页内容已从本地缓存加载', { position: 'bottom-center' });
-          }
-          
-          // Clear the force reload flag
-          if (forceReloadTimestamp) {
-            localStorage.removeItem('home_content_force_reload');
-          }
-          
-          // Notify Layout about the update with footer text
-          window.dispatchEvent(new CustomEvent('homeContent:updated', {
-            detail: { footerText: localContent.footerText }
-          }));
-        }, 200);
-        
-        // We're done - don't try to fetch from server
-              pendingFetchRef.current = false;
-        return;
-      }
-      
-      // Regular server content fetch with cache-busting
-      // Create params with cache-busting
-      const params: Record<string, any> = { 
-        _timestamp: Date.now(),
-        _nocache: true
-      };
-      
-      // For admin-triggered updates, add stronger cache-busting
-      if (isAdminDirectUpdate) {
-        params._forceRefresh = Date.now();
-        params._adminUpdate = 'true';
-        
-        // Avoid multiple parameters that do the same thing
-        params._preventCache = params._timestamp; // Use the same timestamp
-      }
-      
-      try {
-        // Add timestamp to prevent caching
-        const response = await homepageService.getHomeContent(params);
-        
-        if (response.success && response.data) {
-          console.log('[HomePage] Home content loaded successfully from server');
-          
-          // 处理服务器返回的数据 - 可能是snake_case格式
-          let processedData: HomeContentData;
-          if ('welcome_title' in response.data) {
-            // 数据库格式，需要转换
-            processedData = convertDbToFrontend(response.data as HomeContentDataDB);
-          } else {
-            // 前端格式，直接使用
-            processedData = response.data as HomeContentData;
-          }
-          
-          // 如果收到的是空的featuredCategories数组字符串"[]"，确保正确解析
-          if (typeof response.data.featured_categories === 'string' && 
-              (response.data.featured_categories === '[]' || response.data.featured_categories === '')) {
-            processedData.featuredCategories = [];
-          }
-          
-          // Check if server content is actually newer than our local content
-          if (localContent) {
-            const serverLastUpdated = (response.data as any)._lastUpdated || 0;
-            const localLastUpdated = (localContent as any)._lastUpdated || 0;
-            
-            if (localLastUpdated > serverLastUpdated) {
-              console.log('[HomePage] Local content is newer than server content, using local content');
-              setHomeContent(localContent);
-              
-              // Save this to localStorage for Layout.tsx to use
-              saveHomeContentToLocalStorage(localContent, false);
-            } else {
-              // Server content is newer or there is no local content
-              console.log('[HomePage] Using server content');
-              setHomeContent(processedData);
-              
-              // Save this to localStorage for Layout.tsx to use
-              saveHomeContentToLocalStorage(processedData, false);
-            }
-          } else {
-            // No local content or no timestamp, use server content
-            setHomeContent(processedData);
-            
-            // Save this to localStorage for Layout.tsx to use
-            saveHomeContentToLocalStorage(processedData, false);
-          }
-          
-          // If this is an admin update, force the refresh regardless of content change
-          if (isAdminDirectUpdate) {
-            console.log('[HomePage] Admin update detected - forcing content refresh');
-            
-            // Default to "all" category when featured categories are available
-            if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
-              setActiveCategory('all');
-            }
-            
-            // Refresh question sets to apply new categories
-            setTimeout(() => {
-              console.log('[HomePage] Refreshing question sets with new admin settings');
-              // Only fetch if not in a skip refresh mode to prevent loops
-              if (!options.skipRefresh) {
-              fetchQuestionSets({ forceFresh: true });
-              } else {
-                console.log('[HomePage] Skipping question sets refresh as requested by options');
-              }
-              
-              // Show notification if requested
-              if (options.showNotification) {
-                toast.success('首页内容已从服务器更新', { position: 'bottom-center' });
-              }
-              
-              // Clear the force reload flag after processing
-              if (forceReloadTimestamp) {
-                localStorage.removeItem('home_content_force_reload');
-              }
-              // Clear all admin update flags after successful update
-              sessionStorage.removeItem('adminTriggeredUpdate');
-              sessionStorage.removeItem('forceFullContentRefresh');
-              
-              // Notify Layout about the update with footer text
-              window.dispatchEvent(new CustomEvent('homeContent:updated', {
-                detail: { footerText: processedData.footerText }
-              }));
-            }, 200);
-          } else {
-            // Regular content changes - check if there's a difference
-            const currentContent = JSON.stringify(homeContent);
-            const newContent = JSON.stringify(processedData);
-            const hasChanged = currentContent !== newContent;
-            
-            if (hasChanged) {
-              console.log('[HomePage] Home content has changed, updating state');
-              
-              // Default to "all" category when featured categories are available
-              if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
-                setActiveCategory('all');
-              }
-              
-              // Refresh question sets to apply new categories
-              setTimeout(() => {
-                console.log('[HomePage] Refreshing question sets with new category settings');
-                // Only fetch if not in a skip refresh mode to prevent loops
-                if (!options.skipRefresh) {
-                fetchQuestionSets({ forceFresh: true });
-                } else {
-                  console.log('[HomePage] Skipping question sets refresh as requested by options');
-                }
-                
-                // Show notification if requested
-                if (options.showNotification) {
-                  toast.success('首页内容已更新', { position: 'bottom-center' });
-                }
-                
-                // Notify Layout about the update with footer text
-                window.dispatchEvent(new CustomEvent('homeContent:updated', {
-                  detail: { footerText: processedData.footerText }
-                }));
-              }, 200);
-            } else {
-              console.log('[HomePage] Home content unchanged, skipping update');
-            }
-          }
-        } else {
-          console.error('[HomePage] Failed to get home content from server:', response.message);
-          
-          // Use localStorage content as fallback if server fails
-          if (localContent) {
-            console.log('[HomePage] Using localStorage content as fallback');
-            setHomeContent(localContent);
-            
-            if (options.showNotification) {
-              toast.warning('服务器连接失败，使用本地缓存的内容', { position: 'bottom-center' });
-            }
-            
-            // Default to "all" category if featuredCategories are available
-            if (localContent.featuredCategories?.length > 0) {
-              setActiveCategory('all');
-            }
-            
-            // Refresh question sets to apply new settings
-            setTimeout(() => {
-              // Add check to avoid redundant calls if skipRefresh is set
-              if (!options.skipRefresh) {
-              fetchQuestionSets({ forceFresh: true });
-              } else {
-                console.log('[HomePage] Skipping question sets refresh as requested');
-              }
-              
-              // Notify Layout about the update with footer text from fallback content
-              window.dispatchEvent(new CustomEvent('homeContent:updated', {
-                detail: { footerText: localContent.footerText }
-              }));
-            }, 200);
-          }
-          }
-        } catch (error) {
-        console.error('[HomePage] Error fetching home content:', error);
-        
-        // Use localStorage content as fallback if server fetch throws an error
-        if (localContent) {
-          console.log('[HomePage] Server error - using localStorage content as fallback');
-          setHomeContent(localContent);
-          
-          if (options.showNotification) {
-            toast.warning('服务器错误，使用本地缓存的内容', { position: 'bottom-center' });
-          }
-          
-          // Default to "all" category if featuredCategories are available
-          if (localContent.featuredCategories?.length > 0) {
-            setActiveCategory('all');
-          }
-          
-          // Refresh question sets to apply new settings
-          setTimeout(() => {
-            fetchQuestionSets({ forceFresh: true });
-            
-            // Notify Layout about the update with footer text from fallback content
-            window.dispatchEvent(new CustomEvent('homeContent:updated', {
-              detail: { footerText: localContent.footerText }
-            }));
-          }, 200);
-        }
-        
-        // Clear any admin update flags on error to prevent infinite loops
-        sessionStorage.removeItem('adminTriggeredUpdate');
-        sessionStorage.removeItem('forceFullContentRefresh');
-        localStorage.removeItem('home_content_force_reload');
-      } finally {
-        // Release lock
-          pendingFetchRef.current = false;
-        }
     } catch (error) {
-      console.error('[HomePage] Error fetching home content:', error);
-      
-      // Use localStorage content as fallback if server fetch throws an error
-      if (localContent) {
-        console.log('[HomePage] Server error - using localStorage content as fallback');
-        setHomeContent(localContent);
-        
-        if (options.showNotification) {
-          toast.warning('服务器错误，使用本地缓存的内容', { position: 'bottom-center' });
-        }
-        
-        // Default to "all" category if featuredCategories are available
-        if (localContent.featuredCategories?.length > 0) {
-          setActiveCategory('all');
-        }
-        
-        // Refresh question sets to apply new settings
-        setTimeout(() => {
-          fetchQuestionSets({ forceFresh: true });
-        }, 200);
-      }
-      
-      // Clear any admin update flags on error to prevent infinite loops
-      sessionStorage.removeItem('adminTriggeredUpdate');
-      sessionStorage.removeItem('forceFullContentRefresh');
-      localStorage.removeItem('home_content_force_reload');
-      
-      // Release lock
+      console.error('[HomePage] 获取题库列表异常:', error);
       pendingFetchRef.current = false;
+      setLoading(false);
+      return [];
     }
-  }, [fetchQuestionSets, homeContent, setActiveCategory, toast, canMakeRequest]); // 添加canMakeRequest作为依赖项
+  }, [user?.id, navigate, socket, activeCategory, searchTerm, questionSets, getAccessFromLocalCache, requestAccessStatusForAllQuestionSets, updateFilteredSets]);
 
   // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {

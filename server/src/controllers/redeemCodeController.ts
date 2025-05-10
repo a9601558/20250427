@@ -264,7 +264,7 @@ export const redeemCode = async (req: Request, res: Response) => {
     const purchaseId = uuidv4();
     successfulPurchaseId = purchaseId;
     const now = new Date();
-    const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天有效期
+    const expiryDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000); // 180天有效期
 
     try {
       await sequelize.query(
