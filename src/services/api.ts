@@ -873,9 +873,26 @@ export const redeemCodeService = {
   // 生成兑换码 (仅管理员)
   async generateRedeemCodes(questionSetId: string, validityDays: number, quantity: number): Promise<ApiResponse<RedeemCode[]>> {
     try {
+      console.log('[API] 开始生成兑换码', { questionSetId, validityDays, quantity });
       const response = await api.post('/redeem-codes/generate', { questionSetId, validityDays, quantity });
+      
+      console.log('[API] 生成兑换码响应状态:', response.status);
+      console.log('[API] 生成兑换码响应数据类型:', typeof response.data);
+      
+      if (response.data && response.data.data) {
+        console.log('[API] 返回的兑换码数据类型:', typeof response.data.data);
+        console.log('[API] 返回的兑换码数据是否为数组:', Array.isArray(response.data.data));
+      }
+      
       return handleResponse<RedeemCode[]>(response);
     } catch (error: any) {
+      console.error('[API] 生成兑换码错误:', error);
+      
+      if (error.response) {
+        console.error('[API] 错误响应状态:', error.response.status);
+        console.error('[API] 错误响应数据:', error.response.data);
+      }
+      
       return {
         success: false,
         message: error.message,

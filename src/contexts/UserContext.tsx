@@ -1023,10 +1023,26 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await redeemCodeApi.generateRedeemCodes(questionSetId, validityDays, quantity);
       
       if (response.success && response.data) {
+        // Ensure we have a proper array of redeem codes
+        let codesArray: RedeemCode[];
+        
+        if (Array.isArray(response.data)) {
+          codesArray = response.data;
+        } else if (typeof response.data === 'object' && response.data !== null && 'list' in response.data && Array.isArray((response.data as any).list)) {
+          codesArray = (response.data as any).list;
+        } else if (typeof response.data === 'object' && response.data !== null) {
+          // Try to convert object to array if it's not already an array
+          codesArray = Object.values(response.data) as RedeemCode[];
+        } else {
+          // Fallback to empty array if we can't determine the structure
+          console.error("Unexpected redeem codes data structure:", response.data);
+          codesArray = [];
+        }
+        
         return { 
           success: true, 
-          codes: response.data, 
-          message: `成功生成 ${response.data.length} 个兑换码` 
+          codes: codesArray, 
+          message: `成功生成 ${codesArray.length} 个兑换码` 
         };
       } else {
         return { 
@@ -1043,8 +1059,24 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!isAdmin()) return [];
     try {
       const response = await redeemCodeApi.getAllRedeemCodes();
-      return response.success && response.data ? response.data : [];
+      
+      if (response.success && response.data) {
+        // Ensure we have a proper array of redeem codes
+        if (Array.isArray(response.data)) {
+          return response.data;
+        } else if (typeof response.data === 'object' && response.data !== null && 'list' in response.data && Array.isArray((response.data as any).list)) {
+          return (response.data as any).list;
+        } else if (typeof response.data === 'object' && response.data !== null) {
+          // Try to convert object to array if it's not already an array
+          return Object.values(response.data) as RedeemCode[];
+        }
+      }
+      
+      // Fallback to empty array
+      console.warn("Unexpected or empty redeem codes data structure:", response.data);
+      return [];
     } catch (error) {
+      console.error("Error fetching redeem codes:", error);
       return [];
     }
   };

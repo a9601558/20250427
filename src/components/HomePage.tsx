@@ -43,6 +43,12 @@ const customStyles = `
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
   }
+
+  @keyframes gradientBg {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
   
   .animate-float {
     animation: float 6s ease-in-out infinite;
@@ -88,6 +94,40 @@ const customStyles = `
       transparent);
     transform: rotate(30deg);
     animation: shimmer 2s infinite linear;
+  }
+
+  .gradient-bg {
+    background: linear-gradient(-45deg, #3490dc, #6574cd, #9561e2, #f66d9b);
+    background-size: 400% 400%;
+    animation: gradientBg 15s ease infinite;
+  }
+
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+  
+  .tech-card {
+    border-radius: 16px;
+    background: linear-gradient(145deg, #ffffff, #f0f0f0);
+    box-shadow: 8px 8px 16px #d1d1d1, -8px -8px 16px #ffffff;
+    transition: all 0.3s ease;
+  }
+  
+  .tech-card:hover {
+    box-shadow: 12px 12px 20px #c1c1c1, -12px -12px 20px #ffffff;
+  }
+
+  .dark .tech-card {
+    background: linear-gradient(145deg, #2d3748, #1a202c);
+    box-shadow: 8px 8px 16px #131720, -8px -8px 16px #354152;
+  }
+  
+  .dark .tech-card:hover {
+    box-shadow: 12px 12px 20px #0d1117, -12px -12px 20px #3d485c;
   }
 `;
 
@@ -270,7 +310,7 @@ const HomePage = (): JSX.Element => {
     
     // 确定标签的颜色
     const getAccessTypeBadgeClass = () => {
-      if (!set.isPaid) return 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-sm shadow-blue-500/30';
+      if (!set.isPaid) return 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-sm';
       if (set.accessType === 'paid') return hasAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
       if (set.accessType === 'redeemed') return 'bg-purple-100 text-purple-800';
       if (set.accessType === 'expired') return 'bg-red-100 text-red-800';
@@ -278,26 +318,32 @@ const HomePage = (): JSX.Element => {
     };
 
     return (
-      <div className="relative overflow-hidden group bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 h-[180px] flex flex-col">
+      <div className="relative overflow-hidden group tech-card bg-white dark:bg-gray-800 rounded-xl transition-all duration-300 transform hover:-translate-y-1 h-[180px] flex flex-col">
         {/* 背景装饰 - 增加科技感 */}
-        <div className="absolute -right-4 -top-4 w-20 h-20 bg-blue-500 opacity-10 rounded-full blur-lg group-hover:bg-indigo-600 group-hover:opacity-20 transition-all"></div>
-        <div className="absolute -left-6 -bottom-6 w-28 h-28 bg-purple-500 opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-all"></div>
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-10 rounded-full blur-lg group-hover:bg-indigo-600 group-hover:opacity-20 transition-all"></div>
+        <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-purple-500 opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-all"></div>
         
         {/* 卡片内容 - 更紧凑的布局 */}
-        <div className="p-4 relative z-10 flex-1 flex flex-col">
+        <div className="p-4 relative z-10 flex-1 flex flex-col h-full">
           {/* 标题和分类 */}
           <div className="flex justify-between items-start mb-2">
-            <h3 className="text-base font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 pr-2">{set.title}</h3>
+            <div className="flex items-center">
+              {/* 添加图标，使用固定尺寸容器确保大小一致 */}
+              <div className="w-8 h-8 flex items-center justify-center text-xl mr-2 flex-shrink-0">
+                {set.icon || '📚'}
+              </div>
+              <h3 className="text-base font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 pr-2">{set.title}</h3>
+            </div>
             {isFree ? (
               <div className="relative flex-shrink-0">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${getAccessTypeBadgeClass()} animate-pulse`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${getAccessTypeBadgeClass()} animate-pulse`}>
                   {getAccessTypeLabel()}
                   <span className="absolute inset-0 rounded-full bg-blue-400 mix-blend-screen filter blur-sm opacity-75 animate-pulse"></span>
                 </span>
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping"></span>
               </div>
             ) : (
-              <span className={`text-xs px-2 py-1 rounded-full ${getAccessTypeBadgeClass()} flex-shrink-0`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${getAccessTypeBadgeClass()} flex-shrink-0`}>
                 {getAccessTypeLabel()}
               </span>
             )}
@@ -346,7 +392,7 @@ const HomePage = (): JSX.Element => {
                     {formatRemainingDays(set.remainingDays)}
                   </span>
                 </div>
-                <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div 
                     className={`h-full ${color} transition-all duration-500`}
                     style={{ width: `${percent}%` }}
@@ -356,9 +402,9 @@ const HomePage = (): JSX.Element => {
             ) : set.isPaid && !hasAccess ? (
               /* 价格信息 - 仅对未购买的付费题库显示 */
               <div className="flex items-baseline">
-                <span className="text-base font-bold text-blue-600">¥{set.price}</span>
+                <span className="text-base font-bold text-blue-600 dark:text-blue-400">¥{set.price}</span>
                 {set.trialQuestions && (
-                  <span className="ml-2 text-xs text-gray-500">
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                     可试用{set.trialQuestions}题
                   </span>
                 )}
@@ -373,10 +419,10 @@ const HomePage = (): JSX.Element => {
           <div className="flex justify-end mt-2">
             <button
               onClick={() => onStartQuiz(set)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all duration-300 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
                 hasAccess 
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-sm hover:shadow' 
-                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-sm hover:shadow'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-sm hover:shadow transform hover:scale-105' 
+                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-sm hover:shadow transform hover:scale-105'
               } flex items-center`}
             >
               {hasAccess ? (
@@ -2658,7 +2704,7 @@ const HomePage = (): JSX.Element => {
       
       {/* 更新通知 */}
       {showUpdateNotification && (
-        <div className="fixed top-16 right-4 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 max-w-md border-l-4 border-blue-500 animate-fadeIn">
+        <div className="fixed top-16 right-4 z-50 glass-effect rounded-lg shadow-lg p-4 max-w-md border-l-4 border-blue-500 animate-fadeIn">
           <div className="flex items-start">
             <div className="flex-shrink-0 text-blue-500">
               <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
