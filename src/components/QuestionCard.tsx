@@ -526,7 +526,7 @@ const QuestionCard = ({
           </div>
         ))}
       </div>
-      
+          
       {/* 添加提交结果动画效果 */}
       {submissionResult.isShowing && (
         <div className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-scaleIn ${
@@ -600,18 +600,18 @@ const QuestionCard = ({
       {/* 题目导航：上下题切换区域 */}
       <div className="mt-4 flex justify-between items-center">
         {/* 上一题按钮 */}
-        <button 
+          <button 
           onClick={() => onJumpToQuestion && questionNumber > 1 ? onJumpToQuestion(questionNumber - 2) : null}
           className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors ${
             questionNumber <= 1 ? 'opacity-50 cursor-not-allowed' : ''
           }`}
           disabled={questionNumber <= 1}
-        >
-          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          上一题
-        </button>
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            上一题
+          </button>
         
         {/* 当前位置显示 */}
         <div className="text-sm text-gray-500">

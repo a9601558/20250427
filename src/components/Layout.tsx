@@ -18,55 +18,64 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [footerText, setFooterText] = useState<string>("");
   const { socket } = useSocket();
   
-  // Improved footer text fetching with caching control
+  // Simplified footer text fetching that checks if HomePage has already fetched content
   const fetchFooterText = useCallback(async (forceRefresh = false) => {
     try {
-      // Prevent too frequent requests
-      if (forceRefresh) {
+      // First check if HomePage has already fetched the content
+      const homePageContentTimestamp = localStorage.getItem('global_home_content_last_update');
+      const cachedContent = localStorage.getItem('home_content_data');
+      
+      // If we have recent cache and it contains footer text, use it
+      if (!forceRefresh && homePageContentTimestamp && cachedContent) {
+        try {
+          const parsedContent = JSON.parse(cachedContent);
+          if (parsedContent && parsedContent.footerText) {
+            console.log('[Layout] Using footer text from HomePage cache');
+            if (parsedContent.footerText !== footerText) {
+              setFooterText(parsedContent.footerText);
+            }
+            return;
+          }
+        } catch (e) {
+          console.error('[Layout] Error parsing cached content:', e);
+        }
+      }
+      
+      // Prevent too frequent direct API requests
+      if (!forceRefresh) {
         const lastFetchTime = parseInt(sessionStorage.getItem('lastLayoutContentFetch') || '0');
         const now = Date.now();
         
-        // If we've fetched within the last 3 seconds, debounce
-        if (now - lastFetchTime < 3000) {
-          console.log(`[Layout] Too many requests (${now - lastFetchTime}ms since last). Debouncing.`);
+        // If HomePage has fetched within last 10 seconds or Layout has fetched within last 3 seconds, debounce
+        const homePageFetchTime = parseInt(homePageContentTimestamp || '0');
+        if ((now - homePageFetchTime < 10000) || (now - lastFetchTime < 3000)) {
+          console.log(`[Layout] Recent fetch detected. Using cached data or waiting.`);
           return;
         }
-        
-        // Track this request
-        sessionStorage.setItem('lastLayoutContentFetch', now.toString());
       }
+      
+      // Track this request
+      sessionStorage.setItem('lastLayoutContentFetch', Date.now().toString());
       
       console.log('[Layout] Fetching footer text' + (forceRefresh ? ' (forced refresh)' : ''));
       
       // Add cache-busting params when force refreshing
       const params: Record<string, any> = forceRefresh ? 
-        { _timestamp: Date.now(), _nocache: true } : 
-        {};
+        { _timestamp: Date.now(), _nocache: true, _footerOnly: true } : 
+        { _footerOnly: true };  // Signal we only need footer data
         
       const response = await homepageService.getHomeContent(params);
       
       if (response.success && response.data) {
-        console.log('[Layout] Footer text fetched successfully:', response.data.footerText);
+        console.log('[Layout] Footer text fetched successfully');
         
         // Only update if changed to avoid unnecessary renders
         if (response.data.footerText !== footerText) {
           setFooterText(response.data.footerText);
         }
         
-        // Prevent event cycles if this was triggered by an event already
-        // Only dispatch when explicitly refreshing and not already in an event cascade
-        if (forceRefresh && !sessionStorage.getItem('handlingHomeContentEvent')) {
-          // Set flag to prevent cycles
-          sessionStorage.setItem('handlingHomeContentEvent', 'true');
-          
-          // Dispatch event
-          window.dispatchEvent(new CustomEvent('homeContent:updated'));
-          
-          // Clear flag after a short delay
-          setTimeout(() => {
-            sessionStorage.removeItem('handlingHomeContentEvent');
-          }, 1000);
-        }
+        // Don't trigger events from Layout to avoid creating loops
+        // HomePage is the primary handler of content updates
       }
     } catch (error) {
       console.error('[Layout] Failed to fetch footer text:', error);
@@ -80,36 +89,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     fetchFooterText();
   }, [fetchFooterText]);
   
-  // Listen for Socket events for admin updates
+  // Listen for HomeContent updates from HomePage
   useEffect(() => {
-    if (!socket) return;
-    
-    console.log('[Layout] Setting up Socket listener for admin content updates');
-    
-    const handleHomeContentUpdated = (data: any) => {
-      console.log('[Layout] Received admin home content update event:', data);
+    // Listen for custom events (for updates triggered by HomePage)
+    const handleCustomUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('[Layout] Received homeContent:updated event');
       
-      // Force refresh footer text
-      fetchFooterText(true);
-    };
-    
-    // Add Socket listener
-    socket.on('admin:homeContent:updated', handleHomeContentUpdated);
-    
-    // Listen for custom events too (for non-Socket updates)
-    const handleCustomUpdate = () => {
-      console.log('[Layout] Received custom homeContent:updated event');
-      fetchFooterText(true);
+      // Check if event has footer text data directly
+      if (customEvent.detail?.footerText) {
+        console.log('[Layout] Using footer text directly from event');
+        setFooterText(customEvent.detail.footerText);
+      } else {
+        // Otherwise just refresh from cache
+        setTimeout(() => fetchFooterText(false), 100);
+      }
     };
     
     window.addEventListener('homeContent:updated', handleCustomUpdate);
     
     // Cleanup function
     return () => {
-      socket.off('admin:homeContent:updated', handleHomeContentUpdated);
       window.removeEventListener('homeContent:updated', handleCustomUpdate);
     };
-  }, [socket, fetchFooterText]);
+  }, [fetchFooterText]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">

@@ -53,6 +53,7 @@ export interface QuestionSet {
   hasAccess?: boolean;
   remainingDays?: number | null;
   questionCount?: number;
+  cardImage?: string; // URL for the question set card image
 }
 
 export type QuestionType = 'single' | 'multiple';

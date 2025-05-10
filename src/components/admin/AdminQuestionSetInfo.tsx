@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { QuestionSet } from '../../types';
 
@@ -17,6 +17,7 @@ interface LocalQuestionSet {
   questionCount?: number;
   createdAt: string | Date;
   updatedAt: string | Date;
+  cardImage?: string;
 }
 
 const AdminQuestionSetInfo: React.FC = () => {
@@ -28,6 +29,9 @@ const AdminQuestionSetInfo: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<LocalQuestionSet | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 可选的分类和图标
   const categoryOptions = [
@@ -190,8 +194,97 @@ const AdminQuestionSetInfo: React.FC = () => {
       ...serverData,
       price: serverData.isPaid ? (serverData.price || 0) : undefined,
       trialQuestions: serverData.isPaid ? (serverData.trialQuestions || 0) : undefined,
-      featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined
+      featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined,
+      // Add cardImage if it exists and is not a temporary placeholder
+      cardImage: serverData.cardImage === 'pending_upload' ? undefined : serverData.cardImage
     };
+  };
+
+  // Add image upload handler
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
+    }
+    
+    const file = e.target.files[0];
+    
+    // Check file type and size
+    if (!file.type.startsWith('image/')) {
+      toast.error('请选择图片文件');
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error('图片大小不能超过5MB');
+      return;
+    }
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+      
+      if (editFormData) {
+        setEditFormData({
+          ...editFormData,
+          cardImage: 'pending_upload' // Temporary marker for pending upload
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  // Upload image to server
+  const handleImageUpload = async (file: File, questionSetId: string): Promise<string | null> => {
+    try {
+      setUploadingImage(true);
+      
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('questionSetId', questionSetId);
+      
+      const response = await fetch('/api/admin/upload/card-image', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '上传失败');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || '上传失败');
+      }
+      
+      toast.success('图片上传成功');
+      return data.data.imageUrl;
+    } catch (error) {
+      console.error('图片上传失败:', error);
+      toast.error(`图片上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+  
+  // Handle removing image
+  const handleRemoveImage = () => {
+    setImagePreview(null);
+    
+    if (editFormData) {
+      setEditFormData({
+        ...editFormData,
+        cardImage: undefined
+      });
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // 保存编辑
@@ -200,11 +293,34 @@ const AdminQuestionSetInfo: React.FC = () => {
     
     setUpdateLoading(true);
     try {
-      // 准备要发送的数据
-      const dataToSend = prepareDataForServer(editFormData);
+      // Check if we have a new image to upload
+      let cardImageUrl = editFormData.cardImage;
+      
+      // If there's a pending image upload and we have an image preview
+      if (cardImageUrl === 'pending_upload' && imagePreview && fileInputRef.current?.files?.length) {
+        const imageFile = fileInputRef.current.files[0];
+        cardImageUrl = await handleImageUpload(imageFile, editFormData.id) || undefined;
+        
+        if (!cardImageUrl) {
+          // If image upload failed, ask if the user wants to continue without the image
+          if (!window.confirm('图片上传失败，是否继续保存其他信息？')) {
+            setUpdateLoading(false);
+            return;
+          }
+          // Reset to previous value if available
+          cardImageUrl = selectedSet?.cardImage;
+        }
+      }
+      
+      // Prepare data with image URL
+      const dataToSend = prepareDataForServer({
+        ...editFormData,
+        cardImage: cardImageUrl
+      });
+      
       console.log('正在保存题库信息，发送数据:', dataToSend);
       
-      // 直接使用 API 服务更新题库
+      // Save question set info
       const { questionSetService } = await import('../../services/api');
       const response = await questionSetService.updateQuestionSet(editFormData.id, dataToSend);
       
@@ -212,29 +328,35 @@ const AdminQuestionSetInfo: React.FC = () => {
         console.log('题库信息更新成功:', response.data);
         toast.success('题库信息更新成功');
         
-        // 获取更新后的题目数量
+        // Get updated question count
         const count = await getActualQuestionCount(editFormData.id);
         
-        // 构建更新后的题库对象
+        // Build updated question set object
         const updatedSet: LocalQuestionSet = {
           ...response.data,
           questionCount: count,
           price: response.data.price === undefined ? null : response.data.price,
           trialQuestions: response.data.trialQuestions === undefined ? null : response.data.trialQuestions,
           isFeatured: response.data.isFeatured || false,
-          // 确保日期是 Date 对象
+          cardImage: response.data.cardImage || cardImageUrl, // Include card image
           createdAt: new Date(response.data.createdAt || Date.now()),
           updatedAt: new Date(response.data.updatedAt || Date.now())
         };
         
-        // 更新本地状态
+        // Update local state
         setQuestionSets(prev => 
           prev.map(set => set.id === editFormData.id ? updatedSet : set)
         );
         setSelectedSet(updatedSet);
         setIsEditing(false);
         
-        // 刷新题库列表以确保数据同步
+        // Reset image preview and file input
+        setImagePreview(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+        // Refresh question sets list to ensure data sync
         fetchQuestionSets();
       } else {
         console.error('更新失败:', response.message || response.error);

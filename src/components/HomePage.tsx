@@ -155,6 +155,7 @@ interface BaseQuestionSet {
   questions?: { id: string }[];
   questionSetQuestions?: { id: string }[];
   validityPeriod?: number; // 题库有效期，以天为单位
+  cardImage?: string; // 添加题库卡片图片字段
 }
 
 // 扩展题库类型，添加访问类型
@@ -163,6 +164,7 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   remainingDays: number | null;
   validityPeriod: number;
   featuredCategory?: string; // 添加精选分类字段
+  cardImage?: string; // 添加题库卡片图片字段
 }
 
 const HomePage = (): JSX.Element => {
@@ -323,6 +325,19 @@ const HomePage = (): JSX.Element => {
         <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-10 rounded-full blur-lg group-hover:bg-indigo-600 group-hover:opacity-20 transition-all"></div>
         <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-purple-500 opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-all"></div>
         
+        {/* Card Image Background - Add support for card image */}
+        {set.cardImage && (
+          <div 
+            className="absolute inset-0 z-0 opacity-15 dark:opacity-10"
+            style={{ 
+              backgroundImage: `url(${set.cardImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(1px)'
+            }}
+          />
+        )}
+        
         {/* 卡片内容 - 更紧凑的布局 */}
         <div className="p-4 relative z-10 flex-1 flex flex-col h-full">
           {/* 标题和分类 */}
@@ -359,7 +374,7 @@ const HomePage = (): JSX.Element => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {getQuestionCount() > 0 ? (
-              <span>{getQuestionCount()}题</span>
+                <span>{getQuestionCount()}题</span>
               ) : (
                 <span className="text-red-500 dark:text-red-400 flex items-center">
                   <span>0题</span>
@@ -1861,7 +1876,7 @@ const HomePage = (): JSX.Element => {
     const globalLastUpdate = parseInt(localStorage.getItem('global_home_content_last_update') || '0');
     const now = Date.now();
     
-    // Increased cooldown period for better prevention (3 seconds → 5 seconds)
+    // Increased cooldown period for better prevention (5 seconds)
     const globalCooldown = 5000; // 5 seconds minimum between any content updates
     
     if (now - globalLastUpdate < globalCooldown && !options.source?.includes('initial')) {
@@ -1925,7 +1940,7 @@ const HomePage = (): JSX.Element => {
           sessionStorage.removeItem('adminTriggeredUpdate');
           localStorage.removeItem('home_content_force_reload');
           // Force a wait period before allowing more fetches
-          const blockUntil = now + 30000; // Block for 30 seconds instead of 10
+          const blockUntil = now + 30000; // Block for 30 seconds
           sessionStorage.setItem('contentFetchBlocked', blockUntil.toString());
           
           // Skip refresh and prevent any additional fetches
@@ -1959,6 +1974,11 @@ const HomePage = (): JSX.Element => {
       if (options.showNotification) {
         toast.success('首页内容已从管理员更新直接加载', { position: 'bottom-center' });
       }
+      
+      // Dispatch event for Layout.tsx with footer text
+      window.dispatchEvent(new CustomEvent('homeContent:updated', {
+        detail: { footerText: options.fullContent.footerText }
+      }));
       
       // Don't make a server request
         return;
@@ -2013,7 +2033,6 @@ const HomePage = (): JSX.Element => {
               fetchQuestionSets({ forceFresh: true });
               
           if (options.showNotification) {
-            // 修改这里的错误信息，不要默认认为是数据库连接失败
             toast.info('首页内容已从本地缓存加载', { position: 'bottom-center' });
           }
           
@@ -2021,6 +2040,11 @@ const HomePage = (): JSX.Element => {
           if (forceReloadTimestamp) {
             localStorage.removeItem('home_content_force_reload');
           }
+          
+          // Notify Layout about the update with footer text
+          window.dispatchEvent(new CustomEvent('homeContent:updated', {
+            detail: { footerText: localContent.footerText }
+          }));
         }, 200);
         
         // We're done - don't try to fetch from server
@@ -2075,14 +2099,23 @@ const HomePage = (): JSX.Element => {
             if (localLastUpdated > serverLastUpdated) {
               console.log('[HomePage] Local content is newer than server content, using local content');
               setHomeContent(localContent);
+              
+              // Save this to localStorage for Layout.tsx to use
+              saveHomeContentToLocalStorage(localContent, false);
             } else {
               // Server content is newer or there is no local content
               console.log('[HomePage] Using server content');
               setHomeContent(processedData);
+              
+              // Save this to localStorage for Layout.tsx to use
+              saveHomeContentToLocalStorage(processedData, false);
             }
           } else {
             // No local content or no timestamp, use server content
             setHomeContent(processedData);
+            
+            // Save this to localStorage for Layout.tsx to use
+            saveHomeContentToLocalStorage(processedData, false);
           }
           
           // If this is an admin update, force the refresh regardless of content change
@@ -2116,6 +2149,11 @@ const HomePage = (): JSX.Element => {
               // Clear all admin update flags after successful update
               sessionStorage.removeItem('adminTriggeredUpdate');
               sessionStorage.removeItem('forceFullContentRefresh');
+              
+              // Notify Layout about the update with footer text
+              window.dispatchEvent(new CustomEvent('homeContent:updated', {
+                detail: { footerText: processedData.footerText }
+              }));
             }, 200);
           } else {
             // Regular content changes - check if there's a difference
@@ -2145,6 +2183,11 @@ const HomePage = (): JSX.Element => {
                 if (options.showNotification) {
                   toast.success('首页内容已更新', { position: 'bottom-center' });
                 }
+                
+                // Notify Layout about the update with footer text
+                window.dispatchEvent(new CustomEvent('homeContent:updated', {
+                  detail: { footerText: processedData.footerText }
+                }));
               }, 200);
             } else {
               console.log('[HomePage] Home content unchanged, skipping update');
@@ -2175,6 +2218,11 @@ const HomePage = (): JSX.Element => {
               } else {
                 console.log('[HomePage] Skipping question sets refresh as requested');
               }
+              
+              // Notify Layout about the update with footer text from fallback content
+              window.dispatchEvent(new CustomEvent('homeContent:updated', {
+                detail: { footerText: localContent.footerText }
+              }));
             }, 200);
           }
           }
@@ -2198,6 +2246,11 @@ const HomePage = (): JSX.Element => {
           // Refresh question sets to apply new settings
           setTimeout(() => {
             fetchQuestionSets({ forceFresh: true });
+            
+            // Notify Layout about the update with footer text from fallback content
+            window.dispatchEvent(new CustomEvent('homeContent:updated', {
+              detail: { footerText: localContent.footerText }
+            }));
           }, 200);
         }
         
@@ -2236,6 +2289,9 @@ const HomePage = (): JSX.Element => {
       sessionStorage.removeItem('adminTriggeredUpdate');
       sessionStorage.removeItem('forceFullContentRefresh');
       localStorage.removeItem('home_content_force_reload');
+      
+      // Release lock
+      pendingFetchRef.current = false;
     }
   }, [fetchQuestionSets, homeContent, setActiveCategory, toast]);
 
@@ -2409,6 +2465,19 @@ const HomePage = (): JSX.Element => {
         setShowUpdateNotification(false);
       }, 5000);
       
+      // Check if this is a duplicate event (using timestamp comparison)
+      const lastEventTime = parseInt(sessionStorage.getItem('lastAdminContentEvent') || '0', 10);
+      const now = Date.now();
+      const isTooFrequent = now - lastEventTime < 2000;
+      
+      if (isTooFrequent) {
+        console.log('[HomePage] Ignoring duplicate admin content event (too frequent)');
+        return;
+      }
+      
+      // Record this event time
+      sessionStorage.setItem('lastAdminContentEvent', now.toString());
+      
       // 如果事件包含完整内容数据，尝试直接使用
       if (contentData && (contentData.welcomeTitle || contentData.welcome_title)) {
         let processedContent: HomeContentData;
@@ -2419,6 +2488,9 @@ const HomePage = (): JSX.Element => {
         } else {
           processedContent = contentData as HomeContentData;
         }
+        
+        // Save to localStorage for Layout component to use
+        saveHomeContentToLocalStorage(processedContent, false);
         
         // 直接使用内容更新状态，避免触发额外的fetch请求
         console.log('[HomePage] Direct state update with content from socket event');
@@ -2432,10 +2504,14 @@ const HomePage = (): JSX.Element => {
         // 在内容更新后刷新题库列表，使用延迟确保状态已更新
         setTimeout(() => {
           fetchQuestionSets({ forceFresh: true });
+          
+          // Notify Layout directly about the update with footer text
+          window.dispatchEvent(new CustomEvent('homeContent:updated', {
+            detail: { footerText: processedContent.footerText }
+          }));
         }, 200);
       } else {
         // 使用更强的防抖动机制避免过多请求
-        const now = Date.now();
         const lastFetchTimestamp = parseInt(sessionStorage.getItem('lastHomeContentFetch') || '0');
         const timeSinceLastFetch = now - lastFetchTimestamp;
         
@@ -2443,7 +2519,10 @@ const HomePage = (): JSX.Element => {
         if (timeSinceLastFetch > 5000 || data.force === true) {
           // 使用延迟避免并发请求
           setTimeout(() => {
-            fetchLatestHomeContent({ source: 'socket_event', showNotification: true });
+            fetchLatestHomeContent({ 
+              source: 'socket_event', 
+              showNotification: true
+            });
           }, 1000);
         } else {
           console.log(`[HomePage] Skipping content fetch - too recent (${timeSinceLastFetch}ms ago)`);
@@ -2451,7 +2530,7 @@ const HomePage = (): JSX.Element => {
       }
     };
     
-    // Listen for admin content updates - ONLY register this handler, not both
+    // Listen for admin content updates
     socket.on('admin:homeContent:updated', handleAdminHomeContentUpdated);
     
     return () => {
@@ -2874,22 +2953,22 @@ const HomePage = (): JSX.Element => {
             [...new Set(questionSets.map(set => set.category))]
               .filter(cat => !!cat)  // Filter out empty categories
               .map(category => (
-                <button 
-                  key={category}
-                  onClick={() => handleCategoryChange(category)}
+            <button 
+              key={category}
+              onClick={() => handleCategoryChange(category)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
-                    activeCategory === category 
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
-                        : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
-                  }`}
-                >
-                    <div className="flex items-center">
-                      <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                  {category}
-                    </div>
-                </button>
+                activeCategory === category 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                    : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+              }`}
+            >
+                <div className="flex items-center">
+                  <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+              {category}
+                </div>
+            </button>
               ))
           }
           
@@ -2907,9 +2986,9 @@ const HomePage = (): JSX.Element => {
                 <div className="flex items-center">
                   <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
+                </svg>
               {category}
-                </div>
+              </div>
             </button>
           ))}
             
@@ -2927,7 +3006,7 @@ const HomePage = (): JSX.Element => {
                 </svg>
               刷新题目数量
             </button>
-            </div>
+                </div>
 
         {/* 题库分类展示区域 */}
         <div id="question-sets-section" className="pt-6">
