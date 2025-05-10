@@ -62,6 +62,28 @@ const AnswerCard: React.FC<{
   isTrialMode?: boolean;
   isTrialLimitReached?: boolean; // 新增，是否已达到试用限制
 }> = ({ totalQuestions, answeredQuestions, currentIndex, onJump, trialLimit, isTrialMode, isTrialLimitReached }) => {
+  // 添加分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const questionsPerPage = 10; // 每页显示的题目数量
+  const totalPages = Math.ceil(totalQuestions / questionsPerPage);
+  
+  // 自动计算当前页面
+  useEffect(() => {
+    const page = Math.ceil((currentIndex + 1) / questionsPerPage);
+    setCurrentPage(page);
+  }, [currentIndex, questionsPerPage]);
+  
+  // 计算当前页显示的题目范围
+  const startIndex = (currentPage - 1) * questionsPerPage;
+  const endIndex = Math.min(startIndex + questionsPerPage, totalQuestions);
+  
+  // 处理分页导航
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+  
   return (
     <div className="flex flex-col bg-white rounded-xl shadow-md p-5 mb-5">
       {/* 标题与进度指示器 */}
@@ -72,50 +94,121 @@ const AnswerCard: React.FC<{
         </div>
       </div>
       
-      {/* 题目状态指示器 - 使用更美观的网格布局，全部显示无需分页 */}
+      {/* 题目状态指示器 - 使用分页显示 */}
       <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-100">
-        <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
-          {/* 显示所有题目状态按钮，无需分页 */}
-          {Array.from({length: totalQuestions}).map((_, questionIndex) => {
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-5 md:grid-cols-10 lg:grid-cols-10">
+          {/* 只显示当前页的题目状态按钮 */}
+          {Array.from({length: endIndex - startIndex}).map((_, i) => {
+            const questionIndex = startIndex + i;
             const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);
             const isActive = currentIndex === questionIndex;
-          const isDisabled = isTrialMode && isTrialLimitReached && !isActive;
-          
+            const isDisabled = isTrialMode && isTrialLimitReached && !isActive;
+            
             // 计算样式类
             let buttonClass = "flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all";
             
-          if (isActive) {
+            if (isActive) {
               buttonClass += " bg-blue-500 text-white scale-105 shadow-md";
-          } else if (answered) {
+            } else if (answered) {
               buttonClass += answered.isCorrect 
                 ? " bg-green-500 text-white hover:shadow-md" 
                 : " bg-red-500 text-white hover:shadow-md";
-          } else if (isDisabled) {
+            } else if (isDisabled) {
               buttonClass += " bg-gray-200 text-gray-400 cursor-not-allowed opacity-60";
             } else {
               buttonClass += " bg-white text-gray-700 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md";
-          }
-          
-          return (
-            <button
+            }
+            
+            return (
+              <button
                 key={questionIndex}
                 className={buttonClass}
                 onClick={() => !isDisabled && onJump(questionIndex)}
-              disabled={isDisabled}
+                disabled={isDisabled}
                 title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${questionIndex + 1}题`}
-            >
+              >
                 {questionIndex + 1}
-              {isDisabled && (
-                <span className="absolute -top-1 -right-1">
-                  <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              )}
-            </button>
-          );
-        })}
+                {isDisabled && (
+                  <span className="absolute -top-1 -right-1">
+                    <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
+        
+        {/* 分页控制器 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center mt-4 space-x-1">
+            {/* 上一页按钮 */}
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`px-2 py-1 rounded ${
+                currentPage === 1 
+                  ? 'text-gray-400 cursor-not-allowed' 
+                  : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              上一页
+            </button>
+            
+            {/* 页码数字按钮 */}
+            <div className="flex space-x-1">
+              {Array.from({ length: totalPages }).map((_, i) => {
+                const page = i + 1;
+                const isCurrentPage = page === currentPage;
+                
+                // 显示当前页码附近的页码和首尾页码
+                if (
+                  page === 1 || 
+                  page === totalPages || 
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`w-8 h-8 rounded-md text-sm ${
+                        isCurrentPage
+                          ? 'bg-blue-500 text-white font-medium'
+                          : 'text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                }
+                
+                // 显示省略号
+                if (
+                  (page === 2 && currentPage > 3) ||
+                  (page === totalPages - 1 && currentPage < totalPages - 2)
+                ) {
+                  return <span key={page} className="flex items-center justify-center w-8 h-8">...</span>;
+                }
+                
+                return null;
+              })}
+            </div>
+            
+            {/* 下一页按钮 */}
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={`px-2 py-1 rounded ${
+                currentPage === totalPages 
+                  ? 'text-gray-400 cursor-not-allowed' 
+                  : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              下一页
+            </button>
+          </div>
+        )}
       </div>
       
       {/* 题目状态图例 */}
@@ -140,8 +233,8 @@ const AnswerCard: React.FC<{
           <div className="flex items-center">
             <span className="w-4 h-4 bg-gray-200 opacity-60 rounded-md mr-1"></span>
             需购买
-        </div>
-      )}
+          </div>
+        )}
       </div>
       
       {/* 试用模式提示 */}
