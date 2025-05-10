@@ -156,6 +156,9 @@ const HomePage = (): JSX.Element => {
   const [notificationMessage, setNotificationMessage] = useState<string>('');
   const notificationTimeoutRef = useRef<any>(null);
   
+  // 新增状态 - 控制是否显示倒计时组件
+  const [showCountdownWidget, setShowCountdownWidget] = useState<boolean>(false);
+  
   // 在这里添加BaseCard组件定义（组件内部）
   const BaseCard: React.FC<{
     key: string;
@@ -653,9 +656,12 @@ const HomePage = (): JSX.Element => {
   }, []);
 
   // 切换分类
-  const handleCategoryChange = (category: string) => {
+  const handleCategoryChange = useCallback((category: string) => {
+    console.log(`[HomePage] Changing category to: ${category}`);
     setActiveCategory(category);
-  };
+    // 强制刷新UI
+    setQuestionSets(prev => [...prev]);
+  }, []);
 
   // 获取过滤后的题库列表，按分类组织
   const getFilteredQuestionSets = useCallback(() => {
@@ -674,6 +680,7 @@ const HomePage = (): JSX.Element => {
     if (activeCategory !== 'all') {
       // 直接按选中的分类筛选
       filteredSets = filteredSets.filter(set => set.category === activeCategory);
+      console.log(`[HomePage] Filtered by category '${activeCategory}': ${filteredSets.length} sets remaining`);
     } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
       // 在全部模式，且有精选分类时，只显示精选分类或featuredCategory匹配的题库
       filteredSets = filteredSets.filter(set => {
@@ -683,6 +690,7 @@ const HomePage = (): JSX.Element => {
         const featuredCategoryMatches = set.featuredCategory && homeContent.featuredCategories.includes(set.featuredCategory);
         return categoryMatches || featuredCategoryMatches;
       });
+      console.log(`[HomePage] Filtered by featuredCategories: ${filteredSets.length} sets remaining`);
     }
     
     return filteredSets;
@@ -2650,544 +2658,434 @@ const HomePage = (): JSX.Element => {
       
       {/* 更新通知 */}
       {showUpdateNotification && (
-        <div className="fixed top-20 right-4 z-50 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span>{notificationMessage}</span>
-          <button 
-            onClick={() => setShowUpdateNotification(false)} 
-            className="ml-3 text-indigo-200 hover:text-white focus:outline-none"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div className="fixed top-16 right-4 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 max-w-md border-l-4 border-blue-500 animate-fadeIn">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 text-blue-500">
+              <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{notificationMessage}</p>
+            </div>
+            <button
+              className="ml-auto -mx-1.5 -my-1.5 bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 rounded-lg p-1.5"
+              onClick={() => setShowUpdateNotification(false)}
+            >
+              <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 错误信息展示 */}
-      {errorMessage && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 mx-4 sm:mx-auto sm:max-w-4xl" role="alert">
-          <strong className="font-bold mr-1">错误:</strong>
-          <span className="block sm:inline">{errorMessage}</span>
-          <button 
-            onClick={() => setErrorMessage(null)}
-            className="absolute top-0 bottom-0 right-0 px-4 py-3"
-          >
-            <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {/* 高科技英雄区域 - 已整合倒计时组件 */}
-      <div className="relative bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 pb-20 mb-6 overflow-hidden rounded-3xl shadow-2xl"> {/* 移除mt-8 */}
-        {/* 科技背景元素 */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-700/20 via-transparent to-transparent"></div>
-          <div className="absolute top-20 right-20 w-64 h-64 bg-purple-500 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDuration: '8s'}}></div>
-          <div className="absolute bottom-10 left-1/4 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDuration: '12s'}}></div>
-          
-          {/* 科技网格 */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIHN0cm9rZT0iIzMzMzMzMyIgc3Ryb2tlLXdpZHRoPSIwLjIiPjxwYXRoIGQ9Ik0zMCAzMGgzMHYzMGgtMzB6Ii8+PHBhdGggZD0iTTMwIDMwaC0zMHYzMGgzMHoiLz48cGF0aCBkPSJNMzAgMzB2LTMwaDMwdjMweiIvPjxwYXRoIGQ9Ik0zMCAzMHYtMzBoLTMwdjMweiIvPjwvZz48L2c+PC9zdmc+')] opacity-10"></div>
-
-          {/* 添加动态飘浮元素 */}
-          <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-blue-300 rounded-full opacity-20 animate-float"></div>
-          <div className="absolute top-1/3 right-1/3 w-4 h-4 bg-purple-300 rounded-full opacity-20 animate-float" style={{animationDelay: '1s'}}></div>
-          <div className="absolute bottom-1/4 right-1/4 w-8 h-8 bg-indigo-300 rounded-full opacity-20 animate-float" style={{animationDelay: '2s'}}></div>
-        </div>
-
-        <div className="container mx-auto px-6 pt-6 pb-12 relative z-10"> {/* 进一步减少pt-10为pt-6 */}
-          <div className="max-w-5xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* 左侧标题和搜索区域 */}
-              <div className="lg:col-span-2 text-center lg:text-left">
-                <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-800/30 backdrop-blur-sm text-blue-300 text-sm font-medium mb-6 border border-indigo-700/50 shadow-lg hover:shadow-indigo-900/20 transition-all duration-300 transform hover:-translate-y-1">
-              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
-                  <span className="mr-2">在线学习平台</span>
-                  <span className="text-xs opacity-70">|</span>
-                  <span className="ml-2 text-xs">实时更新</span>
-            </div>
-            
-                <h1 className="text-4xl md:text-5xl lg:text-5xl font-bold text-white mb-6 leading-tight tracking-tight drop-shadow-lg">
-              {homeContent.welcomeTitle || defaultHomeContent.welcomeTitle}
-            </h1>
-            
-                <p className="text-xl text-blue-200 mb-8 max-w-3xl lg:mx-0 mx-auto leading-relaxed">
-              {homeContent.welcomeDescription || defaultHomeContent.welcomeDescription}
-            </p>
-            
-                {/* 搜索栏 - 全新改进UI */}
-                <div className="relative w-full max-w-xl mx-auto lg:mx-0 backdrop-blur-sm transform transition-all duration-500 hover:scale-102 mb-4">
-                  <div className="relative flex bg-white/10 rounded-xl shadow-lg overflow-hidden p-1 border border-white/20 transition-all duration-300 focus-within:bg-white/20 focus-within:border-white/30 focus-within:shadow-xl group">
-                <input
-                  type="text"
-                  placeholder="搜索题库名称或分类..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full px-6 py-3 bg-transparent border-none focus:outline-none focus:ring-0 text-white placeholder-blue-300"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && searchTerm.trim()) {
-                      document.getElementById('question-sets-section')?.scrollIntoView({ 
-                        behavior: 'smooth',
-                        block: 'start'
-                      });
-                    }
-                  }}
-                />
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-blue-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute inset-y-0 right-16 pr-3 flex items-center text-blue-300 hover:text-white"
-                  >
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+      {/* 公告栏 - 美化公告栏UI */}
+      {homeContent.announcements && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-b border-blue-100 dark:border-gray-700 shadow-sm">
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex overflow-x-auto hide-scrollbar">
+              <div className="flex-shrink-0 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-blue-100 dark:border-gray-700">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                    <svg className="h-5 w-5 text-blue-600 dark:text-blue-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                     </svg>
-                  </button>
-                )}
-                
-                <div className="flex">
-                  <button
-                    onClick={() => {
-                      if (searchTerm.trim()) {
-                        document.getElementById('question-sets-section')?.scrollIntoView({ 
-                          behavior: 'smooth',
-                          block: 'start'
-                        });
-                      } else {
-                        handleStartQuiz(questionSets[0] || recommendedSets[0]);
-                      }
-                    }}
-                        className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  >
-                    {searchTerm.trim() ? (
-                      <>
-                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        搜索
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        开始学习
-                      </>
-                    )}
-                  </button>
-                  
-                  <Link 
-                    to="/question-sets-search"
-                        className="ml-2 px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  >
-                    <svg className="h-5 w-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                        浏览题库
-                  </Link>
-                </div>
-              </div>
-            </div>
-            
-            {/* 键盘快捷键提示 */}
-                <div className="text-blue-300/70 text-sm flex justify-center lg:justify-start gap-4 mb-6">
-              <span className="flex items-center">
-                    <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1 border border-white/10 shadow-sm">
-                      <span className="opacity-80">/</span>
-                    </span>
-                <span className="mr-4">搜索</span>
-              </span>
-              <span className="flex items-center">
-                    <span className="inline-block px-2 py-1 rounded bg-white/10 text-xs mr-1 border border-white/10 shadow-sm">
-                      <span className="opacity-80">Esc</span>
-                    </span>
-                <span>清除</span>
-              </span>
-                </div>
-              </div>
-              
-              {/* 右侧倒计时组件 - 优化UI，移除图标 */}
-              <div className="lg:col-span-1 relative">
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
-                  <div className="p-5">
-                    <h3 className="text-lg font-semibold text-white mb-2">考试倒计时</h3>
-                    <div className="text-sm text-blue-200 mb-1">距离下次考试还有</div>
-                    {/* 倒计时组件 */}
-                    <ExamCountdownWidget theme="dark" />
-                    {/* 额外链接 */}
-                    <div className="mt-3 flex justify-end">
-                      <Link 
-                        to="/profile" 
-                        className="text-xs text-blue-300 hover:text-white flex items-center transition-colors"
-                      >
-                        <span>设置考试日期</span>
-                        <svg className="h-3 w-3 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </Link>
-                    </div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{homeContent.announcements}</p>
                   </div>
                 </div>
-                
-                {/* 装饰性元素 */}
-                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-blue-500/20 rounded-full blur-xl"></div>
-                <div className="absolute -top-4 -left-4 w-16 h-16 bg-purple-500/20 rounded-full blur-xl"></div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 首页主内容 */}
+      <div className="container mx-auto px-4 py-6">
+        {/* 自适应英雄区域 */}
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 mb-8 relative overflow-hidden shadow-xl">
+          {/* 背景装饰 */}
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-500 opacity-20 rounded-full blur-xl"></div>
+          <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-indigo-500 opacity-20 rounded-full blur-xl"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-center">
+            <div className="w-full md:w-3/5 text-center md:text-left mb-8 md:mb-0">
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-4">
+                {homeContent.welcomeTitle || "欢迎来到在线考试中心"}
+              </h1>
+              <p className="text-blue-100 text-sm md:text-base mb-6">
+                {homeContent.welcomeDescription || "选择下面的题库开始练习，提升你的专业技能"}
+              </p>
+              <div className="flex flex-wrap justify-center md:justify-start">
+                <a 
+                  href="#question-sets" 
+                  className="bg-white text-blue-600 font-medium px-5 py-2 rounded-lg shadow-md hover:bg-blue-50 transition-all mr-3 mb-2 text-sm"
+                >
+                  浏览题库
+                </a>
+                <a 
+                  href="/user/dashboard" 
+                  className="bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm"
+                >
+                  个人中心
+                </a>
+              </div>
+            </div>
+            
+            {/* 倒计时组件 - 根据状态显示或隐藏 */}
+            {showCountdownWidget && (
+              <div className="w-full md:w-2/5 flex justify-center">
+                <ExamCountdownWidget />
+              </div>
+            )}
           </div>
         </div>
         
-        {/* 波浪形分隔线 */}
-        <div className="absolute -bottom-1 left-0 right-0">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" className="w-full">
-            <path fill="#fff" fillOpacity="1" d="M0,192L48,176C96,160,192,128,288,133.3C384,139,480,181,576,186.7C672,192,768,160,864,138.7C960,117,1056,107,1152,117.3C1248,128,1344,160,1392,176L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-          </svg>
-        </div>
-      </div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
-        {/* 公告信息 - 优化UI，移除图标，简化设计 */}
-        {homeContent.announcements && (
-          <div className="relative bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-900/30 dark:to-gray-800 rounded-2xl p-4 shadow-xl mb-6 border-l-4 border-blue-500 transform hover:scale-[1.01] transition-all duration-300 group">
-            <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
-            <div className="flex items-start">
-              <div className="flex-1">
-                <div className="flex items-center mb-1">
-                  <h3 className="font-bold text-blue-600 dark:text-blue-400 text-lg mr-2">公告</h3>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
-                    NEW
-                  </span>
-                </div>
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm">
-                  {homeContent.announcements}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 分类选择器 - 简化UI，只保留按钮 */}
-        <div className="my-4 flex flex-wrap gap-2">
-          <button 
-            onClick={() => handleCategoryChange('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-              activeCategory === 'all' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
-                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
-            }`}
-          >
-              <div className="flex items-center">
-                <svg className={`w-3.5 h-3.5 ${activeCategory === 'all' ? 'text-white' : 'text-blue-500 dark:text-blue-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              全部题库
-              </div>
-          </button>
-          {homeContent.featuredCategories.map(category => (
-            <button 
-              key={category}
-              onClick={() => handleCategoryChange(category)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-                activeCategory === category 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
-                    : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
-              }`}
-            >
-                <div className="flex items-center">
-                  <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-              {category}
-                </div>
-            </button>
-          ))}
-          
-          {/* 添加刷新题目数量按钮 */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              refreshQuestionCounts(true);
-            }}
-            className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 flex items-center"
-            title="刷新题目数量"
-          >
-            <svg className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            刷新题目数量
-          </button>
-        </div>
-
-        {/* 推荐题库区域 */}
+        {/* 推荐题库 */}
         {recommendedSets.length > 0 && (
           <div className="mb-12">
-            <div className="flex items-center mb-6 relative">
-              <div className="relative">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg mr-3 z-10">
-                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-              </div>
-                <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-indigo-400 blur-md opacity-50 animate-pulse"></div>
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white">推荐题库</h2>
-              <div className="flex items-center ml-3">
-                <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">精选</span>
-                <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
-              </div>
-            </div>
+            <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white flex items-center">
+              <svg className="w-5 h-5 mr-2 text-yellow-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              推荐题库
+            </h2>
             
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {recommendedSets.map((set, index) => (
-                <div 
-                  key={set.id}
-                  className="animate-fadeIn" 
-                  style={{ animationDelay: `${index * 150}ms` }}
-                >
-                <BaseCard 
-                  key={set.id} 
-                  set={{...set, accessType: set.accessType}} 
-                  onStartQuiz={handleStartQuiz} 
-                />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendedSets.map(set => (
+                <BaseCard key={set.id} set={set} onStartQuiz={() => handleStartQuiz(set)} />
               ))}
             </div>
           </div>
         )}
-
-        {/* 题库分类展示区域 */}
-        <div id="question-sets-section" className="pt-6">
-          {/* 分类展示题库 */}
-          {(() => {
-            const categorized = getCategorizedQuestionSets();
-            const sections = [];
+        
+        {/* 题库分类和搜索 */}
+        <div id="question-sets" className="mb-6">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
+              <svg className="w-5 h-5 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+              </svg>
+              题库列表
+            </h2>
             
-            // 我的题库（已购买/兑换的题库）
-            if (categorized.purchased.length > 0) {
-              sections.push(
-                <div key="purchased" className="mb-12">
-                  <div className="flex items-center mb-6">
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 flex items-center justify-center shadow-lg mr-3 z-10">
-                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                    </div>
-                      <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-green-400 blur-md opacity-50 animate-pulse"></div>
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">我的题库</h2>
-                    <div className="flex items-center ml-3">
-                      <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
-                      {categorized.purchased.length}个已购买/兑换
-                    </span>
-                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-green-600 to-transparent"></div>
+            {/* 搜索框 */}
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="搜索题库..." 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64"
+              />
+              <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+          
+          {/* 分类选择器 */}
+          <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-2">
+            <button 
+              onClick={() => handleCategoryChange('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+                activeCategory === 'all' 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center">
+                <svg className={`w-3.5 h-3.5 ${activeCategory === 'all' ? 'text-white' : 'text-blue-500 dark:text-blue-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                全部
+              </div>
+            </button>
+            
+            {homeContent.featuredCategories.map(category => (
+              <button 
+                key={category}
+                onClick={() => handleCategoryChange(category)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+                  activeCategory === category 
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                      : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+                }`}
+              >
+                  <div className="flex items-center">
+                    <svg className={`w-3.5 h-3.5 ${activeCategory === category ? 'text-white' : 'text-indigo-500 dark:text-indigo-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                {category}
                   </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {categorized.purchased.map((set: PreparedQuestionSet, index) => (
-                      <div 
-                        key={set.id} 
-                        className="animate-fadeIn" 
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+              </button>
+            ))}
+            
+            {/* 添加刷新题目数量按钮 */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                refreshQuestionCounts(true);
+              }}
+              className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 flex items-center"
+              title="刷新题目数量"
+            >
+              <svg className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新题目数量
+            </button>
+          </div>
+          
+          {/* 题库分类展示区域 */}
+          <div id="question-sets-section" className="pt-6">
+            {/* 分类展示题库 */}
+            {(() => {
+              const categorized = getCategorizedQuestionSets();
+              const sections = [];
+              
+              // 我的题库（已购买/兑换的题库）
+              if (categorized.purchased.length > 0) {
+                sections.push(
+                  <div key="purchased" className="mb-12">
+                    <div className="flex items-center mb-6">
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 免费题库
-            if (categorized.free.length > 0) {
-              sections.push(
-                <div key="free" className="mb-12">
-                  <div className="flex items-center mb-6">
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg mr-3 z-10">
-                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
-                      </svg>
-                    </div>
-                      <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-blue-400 blur-md opacity-50 animate-pulse"></div>
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">免费题库</h2>
-                    <div className="flex items-center ml-3">
-                      <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
-                      {categorized.free.length}个免费题库
-                    </span>
-                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
-                  </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {categorized.free.map((set: PreparedQuestionSet, index) => (
-                      <div 
-                        key={set.id} 
-                        className="animate-fadeIn" 
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+                        <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-green-400 blur-md opacity-50 animate-pulse"></div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 付费题库
-            if (categorized.paid.length > 0) {
-              sections.push(
-                <div key="paid" className="mb-12">
-                  <div className="flex items-center mb-6">
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center shadow-lg mr-3 z-10">
-                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">我的题库</h2>
+                      <div className="flex items-center ml-3">
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
+                        {categorized.purchased.length}个已购买/兑换
+                      </span>
+                        <div className="ml-3 h-px w-12 bg-gradient-to-r from-green-600 to-transparent"></div>
                     </div>
-                      <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-purple-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">付费题库</h2>
-                    <div className="flex items-center ml-3">
-                      <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
-                      {categorized.paid.length}个待购买
-                    </span>
-                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-purple-600 to-transparent"></div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {categorized.purchased.map((set: PreparedQuestionSet, index) => (
+                        <div 
+                          key={set.id} 
+                          className="animate-fadeIn" 
+                          style={{ animationDelay: `${index * 100}ms` }}
+                        >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {categorized.paid.map((set: PreparedQuestionSet, index) => (
-                      <div 
-                        key={set.id} 
-                        className="animate-fadeIn" 
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
+                );
+              }
+              
+              // 免费题库
+              if (categorized.free.length > 0) {
+                sections.push(
+                  <div key="free" className="mb-12">
+                    <div className="flex items-center mb-6">
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                        </svg>
                       </div>
-                    ))}
+                        <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-blue-400 blur-md opacity-50 animate-pulse"></div>
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">免费题库</h2>
+                      <div className="flex items-center ml-3">
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
+                        {categorized.free.length}个免费题库
+                      </span>
+                        <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
+                    </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {categorized.free.map((set: PreparedQuestionSet, index) => (
+                        <div 
+                          key={set.id} 
+                          className="animate-fadeIn" 
+                          style={{ animationDelay: `${index * 100}ms` }}
+                        >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            }
-            
-            // 已过期题库
-            if (categorized.expired.length > 0) {
-              sections.push(
-                <div key="expired" className="mb-12">
-                  <div className="flex items-center mb-6">
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-600 to-rose-600 flex items-center justify-center shadow-lg mr-3 z-10">
-                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                );
+              }
+              
+              // 付费题库
+              if (categorized.paid.length > 0) {
+                sections.push(
+                  <div key="paid" className="mb-12">
+                    <div className="flex items-center mb-6">
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                        <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-purple-400 blur-md opacity-50 animate-pulse"></div>
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">付费题库</h2>
+                      <div className="flex items-center ml-3">
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
+                        {categorized.paid.length}个待购买
+                      </span>
+                        <div className="ml-3 h-px w-12 bg-gradient-to-r from-purple-600 to-transparent"></div>
                     </div>
-                      <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-red-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">已过期题库</h2>
-                    <div className="flex items-center ml-3">
-                      <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
-                      {categorized.expired.length}个已过期
-                    </span>
-                      <div className="ml-3 h-px w-12 bg-gradient-to-r from-red-600 to-transparent"></div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {categorized.paid.map((set: PreparedQuestionSet, index) => (
+                        <div 
+                          key={set.id} 
+                          className="animate-fadeIn" 
+                          style={{ animationDelay: `${index * 100}ms` }}
+                        >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                        </div>
+                      ))}
                     </div>
-                    <button 
+                  </div>
+                );
+              }
+              
+              // 已过期题库
+              if (categorized.expired.length > 0) {
+                sections.push(
+                  <div key="expired" className="mb-12">
+                    <div className="flex items-center mb-6">
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-600 to-rose-600 flex items-center justify-center shadow-lg mr-3 z-10">
+                        <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                        <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-red-400 blur-md opacity-50 animate-pulse"></div>
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">已过期题库</h2>
+                      <div className="flex items-center ml-3">
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
+                        {categorized.expired.length}个已过期
+                      </span>
+                        <div className="ml-3 h-px w-12 bg-gradient-to-r from-red-600 to-transparent"></div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const refreshEvent = new CustomEvent('questionSets:refresh');
+                          window.dispatchEvent(refreshEvent);
+                        }}
+                        className="ml-auto px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-all duration-300 shadow-sm hover:shadow"
+                      >
+                        <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        更新状态
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {categorized.expired.map((set: PreparedQuestionSet, index) => (
+                        <div 
+                          key={set.id} 
+                          className="animate-fadeIn" 
+                          style={{ animationDelay: `${index * 100}ms` }}
+                        >
+                        <BaseCard
+                          key={set.id}
+                          set={set}
+                          onStartQuiz={handleStartQuiz}
+                        />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              
+              // 如果没有题库，显示提示
+              if (sections.length === 0) {
+                sections.push(
+                  <div key="empty" className="flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8 relative overflow-hidden">
+                    {/* 背景装饰 */}
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl"></div>
+                    <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-400/10 rounded-full blur-3xl"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-transparent via-blue-50/5 to-transparent shimmer-bg"></div>
+                    
+                    <div className="relative w-20 h-20 mb-6 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                      <svg className="h-10 w-10 text-blue-400 dark:text-blue-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                      <div className="absolute inset-0 rounded-full animate-glow"></div>
+                    </div>
+                    
+                    <h3 className="text-xl font-medium text-gray-700 dark:text-gray-200 mb-2">未找到题库</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-8">
+                      没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
+                    </p>
+                    
+                    <button
                       onClick={() => {
-                        const refreshEvent = new CustomEvent('questionSets:refresh');
-                        window.dispatchEvent(refreshEvent);
+                        setActiveCategory('all');
+                        setSearchTerm('');
                       }}
-                      className="ml-auto px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-all duration-300 shadow-sm hover:shadow"
+                      className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                     >
-                      <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      更新状态
+                      重置筛选条件
                     </button>
+                    
+                    {/* 装饰性技术元素 */}
+                    <div className="absolute top-1/4 right-1/4 w-2 h-2 bg-blue-400 rounded-full animate-ping opacity-70"></div>
+                    <div className="absolute bottom-1/4 left-1/4 w-2 h-2 bg-purple-400 rounded-full animate-ping opacity-70" style={{animationDelay: '1s'}}></div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {categorized.expired.map((set: PreparedQuestionSet, index) => (
-                      <div 
-                        key={set.id} 
-                        className="animate-fadeIn" 
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                      <BaseCard
-                        key={set.id}
-                        set={set}
-                        onStartQuiz={handleStartQuiz}
-                      />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            
-            // 如果没有题库，显示提示
-            if (sections.length === 0) {
-              sections.push(
-                <div key="empty" className="flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-md p-8 relative overflow-hidden">
-                  {/* 背景装饰 */}
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl"></div>
-                  <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-400/10 rounded-full blur-3xl"></div>
-                  <div className="absolute inset-0 bg-gradient-to-br from-transparent via-blue-50/5 to-transparent shimmer-bg"></div>
-                  
-                  <div className="relative w-20 h-20 mb-6 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                    <svg className="h-10 w-10 text-blue-400 dark:text-blue-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                );
+              }
+              
+              return sections;
+            })()}
+          </div>
+          
+          {/* 渲染过滤后的题库列表 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {getFilteredQuestionSets().length > 0 ? (
+              getFilteredQuestionSets().map(set => (
+                <BaseCard key={set.id} set={set} onStartQuiz={() => handleStartQuiz(set)} />
+              ))
+            ) : (
+              <div className="col-span-full py-8 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                  <svg className="w-8 h-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                    <div className="absolute inset-0 rounded-full animate-glow"></div>
-                  </div>
-                  
-                  <h3 className="text-xl font-medium text-gray-700 dark:text-gray-200 mb-2">未找到题库</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-8">
-                    没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
-                  </p>
-                  
-                  <button
-                    onClick={() => {
-                      setActiveCategory('all');
-                      setSearchTerm('');
-                    }}
-                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  >
-                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    重置筛选条件
-                  </button>
-                  
-                  {/* 装饰性技术元素 */}
-                  <div className="absolute top-1/4 right-1/4 w-2 h-2 bg-blue-400 rounded-full animate-ping opacity-70"></div>
-                  <div className="absolute bottom-1/4 left-1/4 w-2 h-2 bg-purple-400 rounded-full animate-ping opacity-70" style={{animationDelay: '1s'}}></div>
                 </div>
-              );
-            }
-            
-            return sections;
-          })()}
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">暂无符合条件的题库</h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchTerm ? '请尝试其他搜索关键词' : '请尝试选择其他分类'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
+        
+        {/* 推荐题库区域 */}
       </div>
     </div>
   );

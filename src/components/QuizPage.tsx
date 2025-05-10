@@ -132,106 +132,169 @@ const AnswerCard: React.FC<{
   
   return (
     <div className="flex flex-col bg-white rounded-xl shadow-md p-5 mb-5">
-      <h3 className="text-lg font-medium text-gray-700 mb-4">答题卡</h3>
-      
-      {/* 题目状态指示器 */}
-      <div className="grid grid-cols-5 gap-2 mb-4 sm:grid-cols-8 md:grid-cols-10">
-        {/* 显示当前页的题目状态 */}
-        {Array.from({length: Math.min(itemsPerPage, totalQuestions - (currentPage - 1) * itemsPerPage)}).map((_, i) => {
-          const questionIndex = (currentPage - 1) * itemsPerPage + i;
-          const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);
-          const isActive = currentIndex === questionIndex;
-          const isDisabled = isTrialMode && isTrialLimitReached && !isActive;
-          
-          let bgColor = "bg-gray-100 text-gray-600";
-          if (isActive) {
-            bgColor = "bg-blue-500 text-white";
-          } else if (answered) {
-            bgColor = answered.isCorrect 
-              ? "bg-green-500 text-white" 
-              : "bg-red-500 text-white";
-          } else if (isDisabled) {
-            bgColor = "bg-gray-200 text-gray-400 cursor-not-allowed";
-          }
-          
-          return (
-            <button
-              key={questionIndex}
-              className={`h-8 rounded text-sm ${bgColor} ${
-                isDisabled ? "opacity-50 pointer-events-none" : "hover:bg-opacity-80"
-              }`}
-              onClick={() => !isDisabled && onJump(questionIndex)}
-              disabled={isDisabled}
-              title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${questionIndex + 1}题`}
-            >
-              {questionIndex + 1}
-              {isDisabled && (
-                <span className="absolute -top-1 -right-1">
-                  <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* 标题与进度指示器 */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-medium text-gray-700">答题卡</h3>
+        <div className="text-sm text-gray-500">
+          当前进度: <span className="text-blue-600 font-medium">{currentIndex + 1}</span> / {totalQuestions}
+        </div>
       </div>
       
-      {/* 分页导航 */}
-      <div className="flex justify-center items-center mt-2 space-x-1">
+      {/* 题目状态指示器 - 使用更美观的网格布局 */}
+      <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-100">
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">
+          {/* 显示当前页的题目状态 */}
+          {Array.from({length: Math.min(itemsPerPage, totalQuestions - (currentPage - 1) * itemsPerPage)}).map((_, i) => {
+            const questionIndex = (currentPage - 1) * itemsPerPage + i;
+            const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);
+            const isActive = currentIndex === questionIndex;
+            const isDisabled = isTrialMode && isTrialLimitReached && !isActive;
+            
+            // 计算样式类
+            let buttonClass = "flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 transform";
+            
+            if (isActive) {
+              buttonClass += " bg-gradient-to-br from-blue-500 to-blue-600 text-white scale-105 shadow-md";
+            } else if (answered) {
+              buttonClass += answered.isCorrect 
+                ? " bg-gradient-to-br from-green-500 to-green-600 text-white hover:shadow-md hover:-translate-y-0.5" 
+                : " bg-gradient-to-br from-red-500 to-red-600 text-white hover:shadow-md hover:-translate-y-0.5";
+            } else if (isDisabled) {
+              buttonClass += " bg-gray-200 text-gray-400 cursor-not-allowed opacity-60";
+            } else {
+              buttonClass += " bg-white text-gray-700 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md hover:-translate-y-0.5";
+            }
+            
+            return (
+              <button
+                key={questionIndex}
+                className={buttonClass}
+                onClick={() => !isDisabled && onJump(questionIndex)}
+                disabled={isDisabled}
+                title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${questionIndex + 1}题`}
+              >
+                {questionIndex + 1}
+                {isDisabled && (
+                  <span className="absolute -top-1 -right-1">
+                    <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* 题目状态图例 */}
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-4 text-xs text-gray-600">
+        <div className="flex items-center">
+          <span className="w-4 h-4 bg-white border border-gray-200 rounded-md mr-1"></span>
+          未作答
+        </div>
+        <div className="flex items-center">
+          <span className="w-4 h-4 bg-blue-500 rounded-md mr-1"></span>
+          当前题目
+        </div>
+        <div className="flex items-center">
+          <span className="w-4 h-4 bg-green-500 rounded-md mr-1"></span>
+          答对
+        </div>
+        <div className="flex items-center">
+          <span className="w-4 h-4 bg-red-500 rounded-md mr-1"></span>
+          答错
+        </div>
+        {isTrialMode && isTrialLimitReached && (
+          <div className="flex items-center">
+            <span className="w-4 h-4 bg-gray-200 opacity-60 rounded-md mr-1"></span>
+            需购买
+          </div>
+        )}
+      </div>
+      
+      {/* 分页导航 - 美化版 */}
+      <div className="bg-white border border-gray-200 rounded-lg p-2 flex justify-center items-center space-x-1 shadow-sm">
         {/* 上一页按钮 */}
         <button 
           onClick={goToPrevPage} 
           disabled={currentPage === 1}
-          className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          className={`p-2 rounded-md transition-colors ${
+            currentPage === 1 
+              ? 'text-gray-300 cursor-not-allowed' 
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+          aria-label="上一页"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         
-        {/* 页码 */}
-        {pageRange.map((page, index) => 
-          page === 'ellipsis' ? (
-            <span key={`ellipsis-${index}`} className="px-3 py-1">...</span>
-          ) : (
-            <button
-              key={`page-${page}`}
-              onClick={() => goToPage(page as number)}
-              className={`px-3 py-1 rounded ${
-                currentPage === page 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {page}
-            </button>
-          )
-        )}
+        {/* 页码按钮 */}
+        <div className="flex space-x-1">
+          {pageRange.map((page, index) => 
+            page === 'ellipsis' ? (
+              <span key={`ellipsis-${index}`} className="px-3 py-1 text-gray-400">...</span>
+            ) : (
+              <button
+                key={`page-${page}`}
+                onClick={() => goToPage(page as number)}
+                className={`w-8 h-8 rounded-md transition-colors ${
+                  currentPage === page 
+                    ? 'bg-blue-500 text-white font-medium shadow-sm' 
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                aria-label={`第${page}页`}
+              >
+                {page}
+              </button>
+            )
+          )}
+        </div>
         
         {/* 下一页按钮 */}
         <button 
           onClick={goToNextPage} 
           disabled={currentPage === totalPages}
-          className={`px-3 py-1 rounded ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+          className={`p-2 rounded-md transition-colors ${
+            currentPage === totalPages 
+              ? 'text-gray-300 cursor-not-allowed' 
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+          aria-label="下一页"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
       </div>
       
-      {/* 更新试用限制提示的文本 */}
-      {isTrialMode && trialLimit && !isTrialLimitReached && (
-        <div className="mt-3 text-xs text-center text-gray-500">
-          您正在试用模式，可使用 <span className="font-medium text-blue-600">{trialLimit}</span> 道题，
-          已答 <span className="font-medium text-blue-600">{answeredQuestions.length}</span> 道
-        </div>
-      )}
-      
-      {isTrialMode && isTrialLimitReached && (
-        <div className="mt-3 text-xs text-center text-orange-600 font-medium">
-          已达到试用题目上限，请购买完整版继续使用，无法回看已答题目
+      {/* 试用模式提示 */}
+      {isTrialMode && trialLimit && (
+        <div className={`mt-4 p-3 rounded-lg text-sm ${
+          isTrialLimitReached 
+            ? 'bg-red-50 border border-red-100 text-red-600' 
+            : 'bg-blue-50 border border-blue-100 text-blue-600'
+        }`}>
+          {!isTrialLimitReached ? (
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>
+                您正在试用模式，可使用 <span className="font-medium">{trialLimit}</span> 道题，
+                已答 <span className="font-medium">{answeredQuestions.length}</span> 道
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>已达到试用题目上限，请购买完整版继续使用，无法回看已答题目</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1084,7 +1147,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         
         // 调用购买API，发送Stripe支付数据
         const purchaseResponse = await axios.post(
-          `${API_BASE_URL}/purchases/complete-stripe-purchase`,
+          `${API_BASE_URL}/payments/complete-purchase`,
           {
             questionSetId: normalizedId,
             paymentIntentId: paymentData.paymentIntentId,

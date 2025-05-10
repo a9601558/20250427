@@ -401,33 +401,89 @@ const QuestionCard = ({
     };
   }, []);
 
-  // 修改 Array.from 函数中对 totalQuestions 的使用，确保它是数字
+  // 修改 renderNumberButtons 函数，添加分页效果
   const renderNumberButtons = () => {
     // 确保 totalQuestions 是数字
     const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
     
-    return Array.from({ length: count }).map((_, index) => {
-      // 简化访问控制，所有题目都可以访问
-      const isAccessible = true;
-      return (
-        <button
-          key={index}
-          onClick={() => onJumpToQuestion && onJumpToQuestion(index)}
-          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-            ${questionNumber === index + 1 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            }
-            focus:ring-blue-500
-          `}
-          aria-label={`跳转到第${index + 1}题`}
-          title={`跳转到第${index + 1}题`}
-        >
-          {index + 1}
-        </button>
-      );
-    });
+    // 添加分页逻辑，当题目数量过多时显示省略号
+    const visiblePageCount = 5; // 最多显示的页码数
+    const currentPage = questionNumber;
+    
+    let pages = [];
+    
+    if (count <= visiblePageCount + 2) { // 总数较少时，全部显示
+      for (let i = 1; i <= count; i++) {
+        pages.push(i);
+      }
+    } else {
+      // 总是显示第一页
+      pages.push(1);
+      
+      // 计算中间应该显示哪些页码
+      let startPage = Math.max(2, currentPage - Math.floor(visiblePageCount / 2));
+      let endPage = Math.min(count - 1, startPage + visiblePageCount - 1);
+      
+      // 调整起始页，确保显示足够数量的页码
+      if (endPage - startPage + 1 < visiblePageCount) {
+        startPage = Math.max(2, endPage - visiblePageCount + 1);
+      }
+      
+      // 添加前省略号
+      if (startPage > 2) {
+        pages.push('...');
+      }
+      
+      // 添加中间页码
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+      
+      // 添加后省略号
+      if (endPage < count - 1) {
+        pages.push('...');
+      }
+      
+      // 添加最后一页
+      pages.push(count);
+    }
+    
+    return (
+      <div className="flex flex-wrap gap-2 justify-center">
+        {pages.map((page, index) => {
+          if (typeof page === 'string') {
+            // 渲染省略号
+            return (
+              <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-gray-400">
+                {page}
+              </span>
+            );
+          } else {
+            // 渲染页码按钮
+            const isActive = currentPage === page;
+            
+            return (
+              <button
+                key={page}
+                onClick={() => onJumpToQuestion && onJumpToQuestion(page - 1)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
+                  transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+                  ${isActive
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }
+                  focus:ring-blue-500
+                `}
+                aria-label={`跳转到第${page}题`}
+                title={`跳转到第${page}题`}
+              >
+                {page}
+              </button>
+            );
+          }
+        })}
+      </div>
+    );
   };
 
   // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
@@ -620,23 +676,40 @@ const QuestionCard = ({
         </button>
       </div>
       
-      {/* 题目导航：添加上一题和下一题按钮 */}
-      {questionNumber > 1 && (
-        <div className="mt-4">
+      {/* 题目导航：上下题切换区域 */}
+      <div className="mt-4 flex justify-between items-center">
+        {/* 上一题按钮 */}
+        {questionNumber > 1 ? (
           <button 
             onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber - 2)}
-            className="text-gray-500 hover:text-gray-700 text-sm flex items-center"
+            className="text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
           >
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             上一题
           </button>
-        </div>
-      )}
+        ) : (
+          <div>{/* 占位 */}</div>
+        )}
+        
+        {/* 下一题按钮 - 在未提交答案时显示，提交后通过主按钮切换 */}
+        {!isSubmitted && questionNumber < totalQuestions && (
+          <button 
+            onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber)}
+            className="text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
+          >
+            下一题
+            <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+      </div>
       
-      {/* 添加水平导航栏 */}
-      <div className="mt-6 flex flex-wrap gap-2 justify-center">
+      {/* 页码导航区域 - 添加更美观的页码导航 */}
+      <div className="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
+        <div className="text-xs text-gray-500 mb-2 text-center">题目导航</div>
         {renderNumberButtons()}
       </div>
     </div>

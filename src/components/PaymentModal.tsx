@@ -177,8 +177,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           </div>
           <h3 className="text-2xl font-bold mb-2">安全支付</h3>
           <p className="text-blue-200 text-sm">使用Stripe提供的安全支付服务</p>
-        </div>
-        
+      </div>
+
         {/* 支付金额 */}
         <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-md rounded-xl p-5 border border-white border-opacity-20">
           <div className="flex justify-between items-center">
@@ -191,27 +191,27 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-200 mb-1">
             银行卡信息
-          </label>
+        </label>
           <div className="p-4 border border-gray-500 rounded-xl bg-black bg-opacity-20 backdrop-filter backdrop-blur-md shadow-inner">
-            <CardElement
-              options={{
-                style: {
-                  base: {
-                    fontSize: '16px',
+          <CardElement
+            options={{
+              style: {
+                base: {
+                  fontSize: '16px',
                     color: '#ffffff',
-                    '::placeholder': {
-                      color: '#aab7c4',
-                    },
-                    iconColor: '#ffffff',
+                  '::placeholder': {
+                    color: '#aab7c4',
                   },
-                  invalid: {
+                    iconColor: '#ffffff',
+                },
+                invalid: {
                     color: '#ef4444',
                     iconColor: '#ef4444',
-                  },
                 },
-              }}
-            />
-          </div>
+              },
+            }}
+          />
+        </div>
           
           {/* 安全标识 */}
           <div className="flex items-center mt-1">
@@ -220,9 +220,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             </svg>
             <span className="text-xs text-gray-400">端到端加密，确保您的支付数据安全</span>
           </div>
-        </div>
+      </div>
 
-        {error && (
+      {error && (
           <div className="p-4 rounded-xl bg-red-900 bg-opacity-30 border border-red-500 text-red-200">
             <div className="flex items-start">
               <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,8 +230,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
               </svg>
               <span>{error}</span>
             </div>
-          </div>
-        )}
+        </div>
+      )}
 
         {/* 支付卡图标 */}
         <div className="flex items-center justify-center space-x-3 py-2">
@@ -242,17 +242,17 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
         {/* 按钮组 */}
         <div className="flex space-x-4 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
+        <button
+          type="button"
+          onClick={onCancel}
             className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-all focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:ring-offset-gray-900"
             disabled={isProcessing || isLoading || isSubmitting}
-          >
-            取消
-          </button>
-          <button
+        >
+          取消
+        </button>
+        <button
             ref={submitButtonRef}
-            type="submit"
+          type="submit"
             disabled={!stripe || !elements || isProcessing || isLoading || isSubmitting}
             className={`
               flex-1 py-3 rounded-xl font-medium flex items-center justify-center
@@ -272,9 +272,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
                 处理中...
               </>
             ) : '确认支付'}
-          </button>
-        </div>
-      </form>
+        </button>
+      </div>
+    </form>
     </div>
   );
 };
@@ -504,7 +504,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   // 处理表单提交
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // 防止重复提交
     if (isProcessing || isPayButtonDisabled || stripeProcessing.current) {
       console.log('[支付] 正在处理中，忽略重复提交', { 
@@ -512,7 +512,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       });
       return;
     }
-    
+
     // 立即禁用按钮
     setIsPayButtonDisabled(true);
     
@@ -530,7 +530,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       setIsPayButtonDisabled(false);
       return;
     }
-    
+
     console.log(`[支付] 开始处理支付, 题库ID: ${questionSet.id}, 价格: ${price}`);
     setIsProcessing(true);
     setError('');
@@ -589,7 +589,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       // 禁用支付按钮，防止重复点击
       setIsPayButtonDisabled(true);
       submitButtonRef.current?.setAttribute('disabled', 'true');
-      
+
       // 2. 确认支付
       const { paymentIntent, error } = await stripe.confirmCardPayment(intentData.clientSecret, {
         payment_method: {
@@ -843,18 +843,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
                 </svg>
                 支付中心
               </h2>
-              <button 
-                onClick={onClose} 
+          <button 
+            onClick={onClose}
                 className="text-gray-200 hover:text-white bg-black bg-opacity-20 rounded-full p-1.5 transition-all hover:bg-opacity-30"
-                disabled={isProcessing}
-              >
+            disabled={isProcessing}
+          >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            </svg>
+          </button>
             </div>
-          </div>
-          
+        </div>
+        
           {/* 主内容区域 */}
           <div className="p-6">
             {/* 题库信息 */}
@@ -867,17 +867,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
                       {questionSet.title}
                     </h3>
                     <p className="text-gray-300 text-sm">{questionSet.description || '无描述'}</p>
-                  </div>
+          </div>
                   <div className="bg-indigo-600 bg-opacity-30 rounded-lg px-3 py-1 text-blue-200 text-sm">
                     {questionSet.questionCount} 题
                   </div>
-                </div>
-                
+        </div>
+        
                 <div className="mt-4 flex justify-between items-center">
                   <div className="flex items-baseline">
                     <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet.price}</span>
                     <span className="text-gray-400 text-xs ml-2">一次付费，永久使用</span>
-                  </div>
+            </div>
                 </div>
               </div>
             )}
@@ -907,8 +907,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
                   <div>
                     <p className="font-medium">{successMessage}</p>
                     <p className="text-sm text-green-300 mt-1">系统将在3秒后自动关闭此窗口</p>
-                  </div>
-                </div>
+              </div>
+            </div>
               </div>
             )}
             
@@ -922,22 +922,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
                   <div>
                     <p className="font-medium">支付过程中出现错误</p>
                     <p className="text-sm mt-1">{error}</p>
-                  </div>
-                </div>
+            </div>
+          </div>
               </div>
             )}
             
             {/* Stripe支付表单 */}
             {isOpen && !alreadyPurchased && !successMessage && (
-              <Elements stripe={stripePromise}>
-                <StripePaymentForm
+          <Elements stripe={stripePromise}>
+            <StripePaymentForm
                   amount={questionSet?.price || 0}
                   onSubmit={handlePaymentSubmit}
                   onCancel={onClose}
-                  isProcessing={isProcessing}
-                />
-              </Elements>
-            )}
+              isProcessing={isProcessing}
+            />
+          </Elements>
+        )}
           </div>
           
           {/* 底部支付安全信息 */}
