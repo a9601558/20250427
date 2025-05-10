@@ -17,7 +17,6 @@ interface LocalQuestionSet {
   questionCount?: number;
   createdAt: string | Date;
   updatedAt: string | Date;
-  cardImage?: string;
 }
 
 const AdminQuestionSetInfo: React.FC = () => {
@@ -195,8 +194,8 @@ const AdminQuestionSetInfo: React.FC = () => {
       price: serverData.isPaid ? (serverData.price || 0) : undefined,
       trialQuestions: serverData.isPaid ? (serverData.trialQuestions || 0) : undefined,
       featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined,
-      // Add cardImage if it exists and is not a temporary placeholder
-      cardImage: serverData.cardImage === 'pending_upload' ? undefined : serverData.cardImage
+      // 使用icon字段存储图片URL
+      icon: serverData.icon === 'pending_upload' ? 'default' : serverData.icon
     };
   };
 
@@ -227,7 +226,7 @@ const AdminQuestionSetInfo: React.FC = () => {
       if (editFormData) {
         setEditFormData({
           ...editFormData,
-          cardImage: 'pending_upload' // Temporary marker for pending upload
+          icon: 'pending_upload' // 使用icon字段标记待上传状态
         });
       }
     };
@@ -313,7 +312,7 @@ const AdminQuestionSetInfo: React.FC = () => {
     if (editFormData) {
       setEditFormData({
         ...editFormData,
-        cardImage: undefined
+        icon: 'default' // 重置为默认图标
       });
     }
     
@@ -328,34 +327,36 @@ const AdminQuestionSetInfo: React.FC = () => {
     
     setUpdateLoading(true);
     try {
-      // Check if we have a new image to upload
-      let cardImageUrl = editFormData.cardImage;
+      // 检查是否有新图片需要上传
+      let iconUrl = editFormData.icon;
       
-      // If there's a pending image upload and we have an image preview
-      if (cardImageUrl === 'pending_upload' && imagePreview && fileInputRef.current?.files?.length) {
+      // 如果有待上传的图片并且有预览图
+      if (iconUrl === 'pending_upload' && imagePreview && fileInputRef.current?.files?.length) {
         const imageFile = fileInputRef.current.files[0];
-        cardImageUrl = await handleImageUpload(imageFile, editFormData.id) || undefined;
+        const uploadedUrl = await handleImageUpload(imageFile, editFormData.id);
         
-        if (!cardImageUrl) {
-          // If image upload failed, ask if the user wants to continue without the image
+        if (!uploadedUrl) {
+          // 如果图片上传失败，询问用户是否继续保存其他信息
           if (!window.confirm('图片上传失败，是否继续保存其他信息？')) {
             setUpdateLoading(false);
             return;
           }
-          // Reset to previous value if available
-          cardImageUrl = selectedSet?.cardImage;
+          // 重置为之前的值（如果有）
+          iconUrl = selectedSet?.icon || 'default';
+        } else {
+          iconUrl = uploadedUrl;
         }
       }
       
-      // Prepare data with image URL
+      // 准备包含图片URL的数据
       const dataToSend = prepareDataForServer({
         ...editFormData,
-        cardImage: cardImageUrl
+        icon: iconUrl
       });
       
       console.log('正在保存题库信息，发送数据:', dataToSend);
       
-      // Save question set info
+      // 保存题库信息
       const { questionSetService } = await import('../../services/api');
       const response = await questionSetService.updateQuestionSet(editFormData.id, dataToSend);
       
@@ -363,35 +364,35 @@ const AdminQuestionSetInfo: React.FC = () => {
         console.log('题库信息更新成功:', response.data);
         toast.success('题库信息更新成功');
         
-        // Get updated question count
+        // 获取更新后的题目数量
         const count = await getActualQuestionCount(editFormData.id);
         
-        // Build updated question set object
+        // 构建更新后的题库对象
         const updatedSet: LocalQuestionSet = {
           ...response.data,
           questionCount: count,
           price: response.data.price === undefined ? null : response.data.price,
           trialQuestions: response.data.trialQuestions === undefined ? null : response.data.trialQuestions,
           isFeatured: response.data.isFeatured || false,
-          cardImage: response.data.cardImage || cardImageUrl, // Include card image
+          icon: response.data.icon || iconUrl, // 包含更新后的图标/图片
           createdAt: new Date(response.data.createdAt || Date.now()),
           updatedAt: new Date(response.data.updatedAt || Date.now())
         };
         
-        // Update local state
+        // 更新本地状态
         setQuestionSets(prev => 
           prev.map(set => set.id === editFormData.id ? updatedSet : set)
         );
         setSelectedSet(updatedSet);
         setIsEditing(false);
         
-        // Reset image preview and file input
+        // 重置图片预览和文件输入
         setImagePreview(null);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
         
-        // Refresh question sets list to ensure data sync
+        // 刷新题库列表以确保数据同步
         fetchQuestionSets();
       } else {
         console.error('更新失败:', response.message || response.error);
@@ -770,15 +771,15 @@ const AdminQuestionSetInfo: React.FC = () => {
                     </div>
                   )}
                   
-                  {/* Add Card Image Upload Section */}
+                  {/* Card Image Upload Section */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">题库卡片图片</label>
                     <div className="mt-1 flex items-center space-x-4">
                       <div className="flex-shrink-0 h-32 w-48 border rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
                         {imagePreview ? (
                           <img src={imagePreview} alt="预览" className="h-full w-full object-cover" />
-                        ) : editFormData.cardImage && editFormData.cardImage !== 'pending_upload' ? (
-                          <img src={editFormData.cardImage} alt="当前图片" className="h-full w-full object-cover" />
+                        ) : editFormData.icon && editFormData.icon !== 'default' && editFormData.icon !== 'pending_upload' ? (
+                          <img src={editFormData.icon} alt="当前图片" className="h-full w-full object-cover" />
                         ) : (
                           <svg className="h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -796,7 +797,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                           />
                           选择图片
                         </label>
-                        {(imagePreview || (editFormData.cardImage && editFormData.cardImage !== 'pending_upload')) && (
+                        {(imagePreview || (editFormData.icon && editFormData.icon !== 'default' && editFormData.icon !== 'pending_upload')) && (
                           <button
                             type="button"
                             onClick={handleRemoveImage}
@@ -825,12 +826,12 @@ const AdminQuestionSetInfo: React.FC = () => {
                     <p className="text-gray-900">{selectedSet.description || '无描述'}</p>
                   </div>
                   
-                  {/* Add Card Image Display Section */}
+                  {/* Card Image Display Section */}
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 mb-1">题库卡片图片</h4>
-                    {selectedSet.cardImage ? (
+                    {selectedSet.icon && selectedSet.icon !== 'default' ? (
                       <div className="mt-1 h-40 w-64 border rounded-md overflow-hidden bg-gray-100">
-                        <img src={selectedSet.cardImage} alt="题库卡片" className="h-full w-full object-cover" />
+                        <img src={selectedSet.icon} alt="题库卡片" className="h-full w-full object-cover" />
                       </div>
                     ) : (
                       <p className="text-gray-500">未设置卡片图片</p>
