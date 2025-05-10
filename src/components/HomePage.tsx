@@ -5,7 +5,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
-import { homepageService } from '../services/api';
+import { homepageService, questionSetService } from '../services/api';
 import { toast } from 'react-toastify';
 import { throttleContentFetch, detectLoop, isBlocked, httpLimiter } from '../utils/loopPrevention';
 
@@ -232,7 +232,7 @@ const HomePage = (): JSX.Element => {
   const questionSetService = {
     getAllQuestionSets: async (params?: any) => {
       // Implementation 
-      return await apiClient.get('/api/question-sets', params);
+      return await apiClient.get('/api/question-sets', { params });
     }
   };
   
@@ -277,6 +277,8 @@ const HomePage = (): JSX.Element => {
   const hasRequestedAccess = useRef<boolean>(false);
   // Add loading timeout ref to avoid getting stuck in loading state
   const loadingTimeoutRef = useRef<any>(null);
+  // Add missing lastSocketUpdateTime ref
+  const lastSocketUpdateTime = useRef<number>(0);
   
   const socketDataRef = useRef<{[key: string]: {hasAccess: boolean, remainingDays: number | null, accessType?: string}}>({}); 
   // 修改bgClass的定义，确保不影响用户菜单的交互
@@ -948,7 +950,6 @@ const HomePage = (): JSX.Element => {
   // 添加API缓存和请求防抖
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const pendingFetchRef = useRef<boolean>(false);
-  const lastSocketUpdateTime = useRef<number>(0);
   const debounceTimerRef = useRef<any>(null);
   
   // 添加请求限制检查函数
@@ -971,7 +972,19 @@ const HomePage = (): JSX.Element => {
       
       // 向API请求题库列表
       console.log('[HomePage] 开始请求题库列表...');
-      const response = await questionSetService.getAllQuestionSets(options.forceFresh ? { _t: Date.now() } : undefined);
+      
+      // 准备params参数
+      const params = options.forceFresh ? { _t: Date.now() } : undefined;
+      
+      // 使用正确方式调用API - 通过API服务而不是直接调用 - 注意questionSetService.getAllQuestionSets不接受参数
+      let response;
+      if (params) {
+        // 使用自定义参数的API调用 (如强制刷新)
+        response = await apiClient.get('/api/question-sets', { params });
+      } else {
+        // 使用标准API服务调用
+        response = await questionSetService.getAllQuestionSets();
+      }
       
       if (response.success && response.data) {
         // 日志记录获取到的数据
