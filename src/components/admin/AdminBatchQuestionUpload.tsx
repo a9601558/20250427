@@ -155,21 +155,49 @@ const AdminBatchQuestionUpload: React.FC = () => {
           <div className="ml-3">
             <p className="text-sm font-medium">文件格式说明</p>
             <div className="mt-2 text-sm">
-              <p>支持 TXT 格式文件，每行一个问题，格式如下：</p>
+              <p>支持 TXT 或 CSV 格式文件，每行一个问题，格式如下：</p>
               <pre className="mt-1 font-mono text-xs bg-blue-100 p-2 rounded overflow-x-auto mb-2">
                 问题?|选项A|选项B|选项C|选项D|正确答案|解析
               </pre>
               <ul className="list-disc list-inside text-xs mt-2">
                 <li>每个字段之间使用竖线 | 分隔</li>
-                <li>正确答案必须是选项的字母，如：A、B、C、D</li>
-                <li>多选题答案用逗号分隔，如：A,C</li>
+                <li><strong>单选题</strong>：正确答案填写单个选项字母，如：A、B、C 或 D</li>
+                <li><strong>多选题</strong>：正确答案用英文逗号分隔多个选项字母，如：A,B 或 A,C,D</li>
+                <li>注意：单选题请勿在答案中添加逗号，否则会被识别为多选题</li>
+                <li>必须包含至少两个选项（问题后至少有两列）</li>
                 <li>解析是可选的，可以为空</li>
               </ul>
-              <p className="mt-2 text-xs bg-yellow-100 p-2 rounded">
+              
+              <div className="mt-3 p-2 rounded bg-blue-100">
+                <p className="font-medium text-blue-800 mb-1">支持的格式变体：</p>
+                <ul className="list-disc list-inside text-xs">
+                  <li>4个选项 + 答案 + 解析：<code>问题|选项A|选项B|选项C|选项D|A|解析</code></li>
+                  <li>4个选项 + 答案（无解析）：<code>问题|选项A|选项B|选项C|选项D|A</code></li>
+                  <li>3个选项 + 答案：<code>问题|选项A|选项B|选项C|B</code></li>
+                  <li>2个选项 + 答案：<code>问题|选项A|选项B|A</code></li>
+                </ul>
+              </div>
+              
+              <p className="mt-3 text-xs bg-yellow-100 p-3 rounded">
                 <strong>示例:</strong><br />
-                这是一个问题?|这是选项A|这是选项B|这是选项C|这是选项D|A|这是解析<br />
-                这是另一个多选题?|选项A|选项B|选项C|选项D|A,C|这是解析
+                <span className="block mb-1 border-l-2 border-green-500 pl-2">
+                  <strong className="text-green-700">单选题：</strong> 
+                  以下哪个是水的化学式?|H2O|CO2|NaCl|CH4|<strong>A</strong>|水的化学式是H2O
+                </span>
+                <span className="block border-l-2 border-purple-500 pl-2">
+                  <strong className="text-purple-700">多选题：</strong> 
+                  以下哪些是编程语言?|Java|篮球|Python|足球|<strong>A,C</strong>|Java和Python是编程语言
+                </span>
               </p>
+              
+              <div className="bg-red-50 p-2 mt-3 rounded border-l-2 border-red-500">
+                <p className="text-red-700 font-medium">常见错误：</p>
+                <ul className="list-disc list-inside text-xs text-red-600">
+                  <li>答案字段包含空格：正确写法 <code>A,B</code>，错误写法 <code>A, B</code></li>
+                  <li>使用中文逗号：正确写法 <code>A,B</code>，错误写法 <code>A，B</code></li>
+                  <li>答案字母大小写不对应：请使用大写字母 <code>A</code> 而非 <code>a</code></li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -322,7 +350,7 @@ const AdminBatchQuestionUpload: React.FC = () => {
           type="button"
           className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           onClick={() => {
-            const templateContent = "问题文本?|选项A|选项B|选项C|选项D|A|这是解析\n这是一个多选题?|选项A|选项B|选项C|选项D|A,B|这是多选题解析";
+            const templateContent = "以下哪个是水的化学式?|H2O|CO2|NaCl|CH4|A|水的化学式是H2O\n以下哪些是编程语言?|Java|篮球|Python|足球|A,C|Java和Python是编程语言\n1+1等于多少?|1|2|3|4|B|1+1=2";
             const blob = new Blob([templateContent], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');

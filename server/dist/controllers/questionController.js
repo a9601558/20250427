@@ -230,7 +230,7 @@ const batchUploadQuestions = async (req, res) => {
                 message: '没有上传文件'
             });
         }
-        console.log('[API] Received file:', req.file.originalname, 'size:', req.file.size);
+        console.log(`[API] Received file: ${req.file.originalname} size: ${req.file.size}`);
         // 读取文件内容
         const fs = require('fs');
         const path = require('path');
@@ -259,30 +259,25 @@ const batchUploadQuestions = async (req, res) => {
                 const questionText = fields[0];
                 // 处理不同的字段数量情况
                 let options = [];
-                let correctAnswer = '';
                 let explanation = '';
                 if (fields.length >= 7) {
                     // 标准格式: 问题|选项A|选项B|选项C|选项D|正确答案|解析
                     options = fields.slice(1, 5); // 四个选项A,B,C,D
-                    correctAnswer = fields[5]; // 第6个元素是正确答案
                     explanation = fields[6]; // 第7个元素是解析
                 }
                 else if (fields.length === 6) {
                     // 少一个字段: 问题|选项A|选项B|选项C|选项D|正确答案
                     options = fields.slice(1, 5);
-                    correctAnswer = fields[5];
                     explanation = '';
                 }
                 else if (fields.length === 5) {
                     // 三个选项: 问题|选项A|选项B|选项C|正确答案
                     options = fields.slice(1, 4);
-                    correctAnswer = fields[4];
                     explanation = '';
                 }
                 else if (fields.length === 4) {
                     // 两个选项: 问题|选项A|选项B|正确答案
                     options = fields.slice(1, 3);
-                    correctAnswer = fields[3];
                     explanation = '';
                 }
                 else {
@@ -292,7 +287,14 @@ const batchUploadQuestions = async (req, res) => {
                     continue;
                 }
                 // 分割正确答案, 支持多选(如 "A,B")
-                const correctAnswers = correctAnswer.split(',').map((a) => a.trim().toUpperCase());
+                const correctAnswer = fields[5] ? fields[5].trim() : '';
+                // 检查答案是否包含英文逗号，真正用于多选题答案分割
+                // 只有当答案中包含多个字母（如"A,B"）时才视为多选题
+                const isMultipleChoice = correctAnswer.includes(',') && correctAnswer.split(',').length > 1;
+                // 处理正确答案 - 修复单选题被识别为多选题的问题
+                const correctAnswers = isMultipleChoice
+                    ? correctAnswer.split(',').map((a) => a.trim().toUpperCase())
+                    : [correctAnswer.trim().toUpperCase()];
                 // 验证正确答案格式 - 必须是有效的选项字母 (A, B, C, D...)
                 const validAnswers = correctAnswers.filter((answer) => {
                     const index = answer.charCodeAt(0) - 'A'.charCodeAt(0);
@@ -310,71 +312,93 @@ const batchUploadQuestions = async (req, res) => {
                     errors.push(`行 ${lineIndex + 1}: 选项不足: ${line.substring(0, 50)}...`);
                     continue;
                 }
-                // 在事务中创建问题和选项，确保数据一致性
-                const result = await database_1.default.transaction(async (t) => {
-                    // 1. 创建问题
-                    const question = await Question_1.default.create({
-                        questionSetId,
-                        text: questionText,
-                        questionType: correctAnswers.length > 1 ? 'multiple' : 'single',
-                        explanation,
-                        orderIndex: successCount
-                    }, { transaction: t });
-                    // 2. 批量创建选项
-                    const optionsToCreate = options.map((optionText, index) => {
-                        const optionLetter = String.fromCharCode(65 + index); // A, B, C, D...
-                        const isCorrect = correctAnswers.includes(optionLetter);
-                        return {
-                            questionId: question.id,
-                            text: optionText,
-                            isCorrect,
-                            optionIndex: optionLetter
-                        };
+                try {
+                    // 使用独立事务来处理每一行，避免整批失败
+                    await database_1.default.transaction(async (t) => {
+                        // 1. 创建问题
+                        const question = await Question_1.default.create({
+                            questionSetId,
+                            text: questionText,
+                            questionType: isMultipleChoice ? 'multiple' : 'single',
+                            explanation,
+                            orderIndex: lineIndex // 使用行号作为排序索引
+                        }, { transaction: t });
+                        console.log(`[API] 创建问题成功，ID: ${question.id}`);
+                        // 2. 准备选项数据
+                        const optionsToCreate = options.map((optionText, index) => {
+                            const optionLetter = String.fromCharCode(65 + index); // A, B, C, D...
+                            const isCorrect = correctAnswers.includes(optionLetter);
+                            console.log(`[API] 准备选项: ${optionLetter} - ${optionText.substring(0, 20)}... 正确答案: ${isCorrect}`);
+                            return {
+                                questionId: question.id,
+                                text: optionText,
+                                isCorrect,
+                                optionIndex: optionLetter
+                            };
+                        });
+                        // 3. 创建选项 - 使用独立create而非bulkCreate以便更好处理错误
+                        const createdOptions = [];
+                        for (const optionData of optionsToCreate) {
+                            try {
+                                const option = await Option_1.default.create(optionData, { transaction: t });
+                                createdOptions.push(option);
+                                console.log(`[API] 创建选项成功, ID: ${option.id}, 选项: ${option.optionIndex}, 正确答案: ${option.isCorrect}`);
+                            }
+                            catch (optionError) {
+                                console.error(`[API] 创建选项失败:`, optionError);
+                                throw new Error(`创建选项 "${optionData.optionIndex}" 失败: ${optionError.message}`);
+                            }
+                        }
+                        // 4. 验证选项创建是否成功
+                        if (createdOptions.length !== options.length) {
+                            throw new Error(`只创建了 ${createdOptions.length} 个选项，应该有 ${options.length} 个选项`);
+                        }
+                        // 5. 验证是否有正确选项
+                        const hasCorrectOption = createdOptions.some(option => option.isCorrect);
+                        if (!hasCorrectOption) {
+                            throw new Error(`没有正确选项被创建，请检查答案格式是否正确`);
+                        }
+                        console.log(`[API] 问题 ID ${question.id} 及其 ${createdOptions.length} 个选项创建成功`);
                     });
-                    console.log(`[API] Creating ${optionsToCreate.length} options for question ID ${question.id}`);
-                    const createdOptions = await Option_1.default.bulkCreate(optionsToCreate, { transaction: t });
-                    // 3. 验证选项创建是否成功
-                    if (createdOptions.length !== options.length) {
-                        throw new Error(`只创建了 ${createdOptions.length} 个选项，应该有 ${options.length} 个选项`);
-                    }
-                    // 4. 验证是否有正确选项
-                    const hasCorrectOption = createdOptions.some(option => option.isCorrect);
-                    if (!hasCorrectOption) {
-                        throw new Error(`没有正确选项被创建`);
-                    }
-                    console.log(`[API] Successfully created question with ID ${question.id} and ${createdOptions.length} options`);
-                    return { question, options: createdOptions };
-                });
-                // 如果没有错误抛出，则计算导入成功
-                successCount++;
+                    // 如果事务完成没有错误，则计数成功
+                    successCount++;
+                }
+                catch (transactionError) {
+                    // 事务失败，计数为失败并记录错误
+                    failedCount++;
+                    const errorMessage = transactionError instanceof Error ? transactionError.message : '未知错误';
+                    errors.push(`行 ${lineIndex + 1}: 数据库操作失败: ${errorMessage}`);
+                    console.error(`[API] 事务失败 (行 ${lineIndex + 1}):`, transactionError);
+                }
             }
-            catch (error) {
+            catch (parseError) {
+                // 解析失败，计数为失败并记录错误
                 failedCount++;
                 const errorLine = line.substring(0, 50);
-                const errorMessage = error instanceof Error ? error.message : '未知错误';
-                errors.push(`行 ${lineIndex + 1}: 处理失败: ${errorLine}... - ${errorMessage}`);
-                console.error(`[API] Error processing line ${lineIndex + 1}: `, error);
+                const errorMessage = parseError instanceof Error ? parseError.message : '未知错误';
+                errors.push(`行 ${lineIndex + 1}: 解析失败: ${errorLine}... - ${errorMessage}`);
+                console.error(`[API] 解析行 ${lineIndex + 1} 失败:`, parseError);
             }
         }
         // 清理上传的临时文件
         try {
             fs.unlinkSync(req.file.path);
-            console.log(`[API] Cleaned up temporary file: ${req.file.path}`);
+            console.log(`[API] 清理临时文件: ${req.file.path}`);
         }
         catch (cleanupError) {
-            console.error(`[API] Error cleaning up temporary file: `, cleanupError);
+            console.error(`[API] 清理临时文件失败:`, cleanupError);
         }
         // 导入完成后返回结果
         return res.status(200).json({
             success: true,
             successCount,
             failedCount,
-            errors,
+            errors: errors.length > 0 ? errors : undefined,
             message: `成功导入 ${successCount} 个问题，失败 ${failedCount} 个`
         });
     }
     catch (error) {
-        console.error('批量导入题目失败:', error);
+        console.error('[API] 批量导入题目失败:', error);
         return res.status(500).json({
             success: false,
             message: '批量导入题目失败',

@@ -125,7 +125,7 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   featuredCategory?: string; // 添加精选分类字段
 }
 
-const HomePage: React.FC = () => {
+const HomePage = (): JSX.Element => {
   const { user, isAdmin, syncAccessRights } = useUser();
   const { socket } = useSocket();
   // Remove unused destructured variables
@@ -1941,7 +1941,8 @@ const HomePage: React.FC = () => {
               fetchQuestionSets({ forceFresh: true });
               
           if (options.showNotification) {
-            toast.success('首页内容已从本地缓存加载（数据库连接失败）', { position: 'bottom-center' });
+            // 修改这里的错误信息，不要默认认为是数据库连接失败
+            toast.info('首页内容已从本地缓存加载', { position: 'bottom-center' });
           }
           
           // Clear the force reload flag
