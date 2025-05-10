@@ -2,8 +2,8 @@ import { QuestionSet } from '../types';
 import API_ENDPOINTS from '../config/apiConfig';
 import { uploadFile } from '../utils/apiUtils';
 
-// Using an interface that matches the ApiResponse in api.ts
-interface ApiResponse<T> {
+// Define ApiResponse interface here
+interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;
@@ -16,6 +16,9 @@ interface BatchUploadResult {
   failed: number;
   errors?: string[];
 }
+
+// Progress callback type
+type ProgressCallback = (progress: number) => void;
 
 // Question Set API service
 export const questionSetService = {
@@ -235,7 +238,7 @@ export const questionSetService = {
   },
   
   // Batch add questions to an existing question set (admin only)
-  async batchAddQuestions(formData: FormData, onProgress?: (progress: number) => void): Promise<ApiResponse<BatchUploadResult>> {
+  async batchAddQuestions(formData: FormData, onProgress?: ProgressCallback): Promise<ApiResponse<BatchUploadResult>> {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -323,6 +326,91 @@ export const questionSetService = {
     } catch (error) {
       console.error('Batch upload error:', error);
       return { success: false, error: (error as Error).message };
+    }
+  },
+  
+  /**
+   * Create a new question set with batch questions
+   * @param formData FormData containing the file and question set data
+   * @param onProgress Optional callback for progress updates
+   * @returns ApiResponse with success/error information
+   */
+  batchCreateQuestionSet: async (formData: FormData, onProgress?: ProgressCallback): Promise<ApiResponse<any>> => {
+    try {
+      // Check if FormData contains required fields
+      if (!formData.has('file') || !formData.has('title') || !formData.has('description') || !formData.has('category')) {
+        console.error('[QuestionSetService] Missing required fields in FormData');
+        return {
+          success: false,
+          message: '缺少必要的表单数据',
+          error: 'Missing required fields: file, title, description, or category'
+        };
+      }
+      
+      console.log('[QuestionSetService] Sending batch create question set request');
+      
+      // Create XMLHttpRequest to support progress tracking
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Track upload progress if callback provided
+        if (onProgress) {
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 100);
+              onProgress(percentComplete);
+            }
+          });
+        }
+        
+        // Handle response
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (error) {
+              console.error('[QuestionSetService] Error parsing response:', error);
+              reject({
+                success: false,
+                message: '解析响应失败',
+                error: 'Error parsing response'
+              });
+            }
+          } else {
+            console.error('[QuestionSetService] Request failed:', xhr.statusText);
+            reject({
+              success: false,
+              message: '请求失败',
+              error: xhr.statusText
+            });
+          }
+        };
+        
+        // Handle network errors
+        xhr.onerror = function() {
+          console.error('[QuestionSetService] Network error');
+          reject({
+            success: false,
+            message: '网络错误',
+            error: 'Network error'
+          });
+        };
+        
+        // Open and send request
+        const apiUrl = '/api/question-sets/batch-create';
+        xhr.open('POST', apiUrl);
+        
+        // Send FormData
+        xhr.send(formData);
+      });
+    } catch (error) {
+      console.error('[QuestionSetService] Batch create question set error:', error);
+      return {
+        success: false,
+        message: '创建题库失败',
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 };

@@ -8,10 +8,7 @@ import AddQuestionSet from './AddQuestionSet';
 import ManageQuestionSets from './ManageQuestionSets';
 import AdminFeaturedManagement from './admin/AdminFeaturedManagement';
 import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
-import AdminPurchasedSets from './admin/AdminPurchasedSets';
 import AdminBatchUpload from './admin/AdminBatchUpload';
-import AdminBatchQuestionUpload from './admin/AdminBatchQuestionUpload';
-import FirebaseErrorHandler from './FirebaseErrorHandler';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -22,8 +19,6 @@ enum AdminTab {
   FEATURED_MANAGEMENT = 'featuredManagement',
   HOME_CONTENT = 'homeContent',
   QUESTION_SET_INFO = 'questionSetInfo',
-  PURCHASED_SETS = 'purchasedSets',
-  BATCH_UPLOAD = 'batchUpload',
   BATCH_QUESTION_UPLOAD = 'batchQuestionUpload',
 }
 
@@ -93,22 +88,13 @@ const AdminPage: React.FC = () => {
                   添加题库
                 </button>
                 <button
-                  onClick={() => setActiveTab(AdminTab.BATCH_UPLOAD)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.BATCH_UPLOAD ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  批量上传题库
-                </button>
-                <button
                   onClick={() => setActiveTab(AdminTab.BATCH_QUESTION_UPLOAD)}
                   className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.BATCH_QUESTION_UPLOAD ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  批量添加题目
+                  批量题目管理
                 </button>
                 <button
                   onClick={() => setActiveTab(AdminTab.MANAGE_QUESTION_SETS)}
@@ -118,15 +104,6 @@ const AdminPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   管理题库
-                </button>
-                <button
-                  onClick={() => setActiveTab(AdminTab.PURCHASED_SETS)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.PURCHASED_SETS ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                  已购题库管理
                 </button>
                 <button
                   onClick={() => setActiveTab(AdminTab.QUESTION_SET_INFO)}
@@ -177,17 +154,12 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.FEATURED_MANAGEMENT && <AdminFeaturedManagement />}
                 {activeTab === AdminTab.HOME_CONTENT && <AdminHomeContent />}
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
-                {activeTab === AdminTab.PURCHASED_SETS && <AdminPurchasedSets />}
-                {activeTab === AdminTab.BATCH_UPLOAD && <AdminBatchUpload />}
-                {activeTab === AdminTab.BATCH_QUESTION_UPLOAD && <AdminBatchQuestionUpload />}
+                {activeTab === AdminTab.BATCH_QUESTION_UPLOAD && <AdminBatchUpload />}
               </div>
             </div>
           </div>
         </div>
       </div>
-      
-      {/* Firebase错误处理器 */}
-      <FirebaseErrorHandler />
     </div>
   );
 };

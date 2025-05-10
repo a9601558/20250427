@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import SocketStatus from './SocketStatus';
 import LoginModal from './LoginModal';
 import UserMenu from './UserMenu';
-import FirebaseErrorHandler from './FirebaseErrorHandler';
 import { useUser } from '../contexts/UserContext';
 import { homepageService } from '../services/api';
 import { HomeContent } from '../types';
@@ -141,9 +140,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Socket连接状态指示器 */}
       <SocketStatus />
-
-      {/* Firebase错误处理器 */}
-      <FirebaseErrorHandler />
 
       <footer className="bg-white border-t border-gray-200 py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

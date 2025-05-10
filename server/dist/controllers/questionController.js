@@ -277,19 +277,13 @@ const batchUploadQuestions = async (req, res) => {
         // 处理每一行数据
         for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
             const line = lines[lineIndex];
-            let transaction = null;
-            let currentQuestionId = '';
             try {
                 console.log(`[API] 处理第 ${lineIndex + 1} 行数据`);
-                // 开启一个新事务
-                transaction = await database_1.default.transaction();
                 // 分割数据字段，使用|作为分隔符
                 const fields = line.split('|').map((field) => field.trim());
                 if (fields.length < 3) {
                     failedCount++;
                     errors.push(`行 ${lineIndex + 1}: 格式不正确: ${line.substring(0, 50)}...`);
-                    if (transaction)
-                        await transaction.rollback();
                     continue;
                 }
                 // 解析字段 - 正确解析我们的模板格式
@@ -321,8 +315,6 @@ const batchUploadQuestions = async (req, res) => {
                     // 不支持的格式
                     failedCount++;
                     errors.push(`行 ${lineIndex + 1}: 字段数量不足: ${line.substring(0, 50)}...`);
-                    if (transaction)
-                        await transaction.rollback();
                     continue;
                 }
                 // 获取正确答案字段位置（总是倒数第二个或倒数第一个字段）
@@ -343,135 +335,69 @@ const batchUploadQuestions = async (req, res) => {
                     failedCount++;
                     errors.push(`行 ${lineIndex + 1}: 无效的正确答案 "${correctAnswer}": ${line.substring(0, 50)}...`);
                     console.log(`[API] Invalid correct answers: "${correctAnswer}" for question "${questionText.substring(0, 30)}..."`);
-                    if (transaction)
-                        await transaction.rollback();
                     continue;
                 }
                 console.log(`[API] Parsed question: "${questionText.substring(0, 30)}...", ${options.length} options, answers: ${correctAnswers.join(',')}, explanation: ${explanation.substring(0, 20)}...`);
                 if (options.length < 2) {
                     failedCount++;
                     errors.push(`行 ${lineIndex + 1}: 选项不足: ${line.substring(0, 50)}...`);
-                    if (transaction)
-                        await transaction.rollback();
                     continue;
                 }
                 try {
-                    // 使用事务并明确指定ID
-                    const questionId = (0, uuid_1.v4)();
-                    currentQuestionId = questionId;
-                    console.log(`[API] 为问题生成新ID: ${questionId}`);
-                    // 1. 首先创建问题 - 指定ID而不是依赖默认生成的ID
-                    const questionData = {
-                        id: questionId,
-                        questionSetId,
-                        text: questionText,
-                        questionType: isMultipleChoice ? 'multiple' : 'single',
-                        explanation: explanation || '无解析',
-                        orderIndex: lineIndex // 使用行号作为排序索引
-                    };
-                    console.log(`[API] 创建问题数据:`, JSON.stringify(questionData));
-                    // 使用事务创建问题
-                    const question = await Question_1.default.create(questionData, { transaction });
-                    // 确保问题正确创建且有ID
-                    if (!question) {
-                        throw new Error(`问题创建失败，未能获取问题对象`);
-                    }
-                    // 增加额外确认步骤，确保问题存在且ID有效
-                    if (!question.id) {
-                        throw new Error(`问题创建后ID为空`);
-                    }
-                    console.log(`[API] 创建问题成功，ID: ${questionId}, 数据库返回ID: ${question.id}`);
-                    // 增加额外验证确保ID匹配
-                    if (question.id !== questionId) {
-                        console.warn(`[API] 警告: 创建的问题ID ${question.id} 与生成的ID ${questionId} 不匹配`);
-                        // 使用数据库返回的ID作为实际ID
-                        currentQuestionId = question.id;
-                    }
-                    // 再次确认ID有效
-                    if (!currentQuestionId) {
-                        throw new Error(`问题ID无效，无法创建选项`);
-                    }
-                    // 显示选项创建的问题ID引用
-                    console.log(`[API] 将使用问题ID: ${currentQuestionId} 创建选项`);
-                    // 2. 然后为每个选项创建记录
-                    const createdOptions = [];
-                    for (let i = 0; i < options.length; i++) {
-                        const optionText = options[i];
+                    // 最简单的方式：直接使用原始SQL创建问题和选项
+                    // 1. 首先创建问题 - 使用SQL直接插入
+                    const newQuestionId = (0, uuid_1.v4)();
+                    console.log(`[API] 正在创建问题, ID: ${newQuestionId}`);
+                    // 使用原始SQL插入问题
+                    await database_1.default.query(`INSERT INTO questions (id, questionSetId, text, questionType, explanation, orderIndex, createdAt, updatedAt) 
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`, {
+                        replacements: [
+                            newQuestionId,
+                            questionSetId,
+                            questionText,
+                            isMultipleChoice ? 'multiple' : 'single',
+                            explanation || '无解析',
+                            lineIndex
+                        ]
+                    });
+                    console.log(`[API] 问题创建成功, ID: ${newQuestionId}`);
+                    // 2. 为每个选项创建记录 - 使用SQL直接插入
+                    const optionPromises = options.map(async (optionText, i) => {
+                        const optionId = (0, uuid_1.v4)();
                         const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
                         const isCorrect = correctAnswers.includes(optionLetter);
-                        // 创建选项 - 也明确指定ID
-                        const optionId = (0, uuid_1.v4)();
-                        console.log(`[API] 为选项 ${optionLetter} 生成新ID: ${optionId}, 关联到问题ID: ${currentQuestionId}`);
-                        try {
-                            // 直接内联创建选项，避免中间对象
-                            const optionData = {
-                                id: optionId,
-                                questionId: currentQuestionId,
-                                text: optionText || '选项内容',
-                                isCorrect: !!isCorrect,
-                                optionIndex: optionLetter
-                            };
-                            console.log(`[API] 创建选项数据:`, JSON.stringify(optionData));
-                            // 在同一事务中创建
-                            const option = await Option_1.default.create(optionData, { transaction });
-                            // 验证选项是否成功创建
-                            if (!option || !option.id) {
-                                throw new Error(`选项 ${optionLetter} 创建失败`);
-                            }
-                            console.log(`[API] 选项创建成功, ID: ${option.id}, 选项: ${option.optionIndex}, 问题ID: ${option.questionId}`);
-                            // 额外验证选项ID
-                            if (option.id !== optionId) {
-                                console.warn(`[API] 警告: 创建的选项ID ${option.id} 与生成的ID ${optionId} 不匹配`);
-                            }
-                            // 额外验证问题关联
-                            if (!option.questionId) {
-                                console.error(`[API] 错误: 选项创建成功但问题ID为空`);
-                            }
-                            else if (option.questionId !== currentQuestionId) {
-                                console.warn(`[API] 警告: 选项关联的问题ID ${option.questionId} 与预期ID ${currentQuestionId} 不匹配`);
-                            }
-                            createdOptions.push(option);
-                        }
-                        catch (optionError) {
-                            console.error(`[API] 创建选项 ${optionLetter} 失败:`, optionError);
-                            throw new Error(`创建选项 ${optionLetter} 失败: ${optionError instanceof Error ? optionError.message : String(optionError)}`);
-                        }
-                    }
-                    // 验证选项创建是否成功
-                    if (createdOptions.length !== options.length) {
-                        throw new Error(`只创建了 ${createdOptions.length} 个选项，应该有 ${options.length} 个选项`);
-                    }
-                    // 验证是否有正确选项
-                    const hasCorrectOption = createdOptions.some(option => option.isCorrect);
-                    if (!hasCorrectOption) {
-                        throw new Error(`没有正确选项被创建，请检查答案格式是否正确`);
-                    }
-                    console.log(`[API] 问题 ID ${currentQuestionId} 及其 ${createdOptions.length} 个选项创建成功`);
-                    // 添加到成功创建的ID集合
-                    createdQuestionIds.push(currentQuestionId);
-                    // 提交事务
-                    await transaction.commit();
-                    transaction = null; // 防止后续代码重复提交/回滚
-                    // 更新成功计数
+                        console.log(`[API] 正在创建选项 ${optionLetter}, ID: ${optionId}, 问题ID: ${newQuestionId}`);
+                        // 使用原始SQL插入选项
+                        await database_1.default.query(`INSERT INTO options (id, questionId, text, isCorrect, optionIndex, createdAt, updatedAt) 
+               VALUES (?, ?, ?, ?, ?, NOW(), NOW())`, {
+                            replacements: [
+                                optionId,
+                                newQuestionId,
+                                optionText,
+                                isCorrect ? 1 : 0,
+                                optionLetter
+                            ]
+                        });
+                        console.log(`[API] 选项 ${optionLetter} 创建成功, ID: ${optionId}`);
+                        return { id: optionId, optionIndex: optionLetter, isCorrect };
+                    });
+                    // 等待所有选项创建完成
+                    const createdOptions = await Promise.all(optionPromises);
+                    console.log(`[API] 问题 ${newQuestionId} 的所有选项创建成功, 共 ${createdOptions.length} 个`);
+                    // 添加到成功列表
+                    createdQuestionIds.push(newQuestionId);
                     successCount++;
                 }
-                catch (innerError) {
-                    // 事务错误，回滚所有操作
-                    if (transaction)
-                        await transaction.rollback();
-                    transaction = null;
-                    // 操作失败，计数为失败并记录错误
+                catch (error) {
+                    // 处理错误
                     failedCount++;
-                    const errorMessage = innerError instanceof Error ? innerError.message : '未知错误';
+                    const errorMessage = error instanceof Error ? error.message : '未知错误';
                     errors.push(`行 ${lineIndex + 1}: ${errorMessage}`);
-                    console.error(`[API] 第 ${lineIndex + 1} 行处理失败:`, innerError);
+                    console.error(`[API] 第 ${lineIndex + 1} 行处理失败:`, error);
                 }
             }
             catch (parseError) {
-                // 确保事务回滚
-                if (transaction)
-                    await transaction.rollback();
-                // 解析失败，计数为失败并记录错误
+                // 解析失败
                 failedCount++;
                 const errorLine = line.substring(0, 50);
                 const errorMessage = parseError instanceof Error ? parseError.message : '未知错误';

@@ -1,46 +1,35 @@
-import React, { useState, useRef } from 'react';
-import { collection, addDoc, writeBatch, doc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../../config/firebase'; // 导入已初始化的Firebase服务
+import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
+import { questionSetService } from '../../services/api';
+import { QuestionSet } from '../../types';
 
-interface QuestionData {
-  id?: string;
-  text: string;
-  options: {
-    id: string;
-    text: string;
-    isCorrect: boolean;
-  }[];
-  explanation?: string;
-  category?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
-  tags?: string[];
+// Interface for upload result
+interface UploadResult {
+  success: number;
+  failed: number;
+  errors?: string[];
 }
 
-interface QuestionSet {
-  id?: string;
+// Interface for question set creation data
+interface NewQuestionSetData {
   title: string;
   description: string;
   category: string;
-  questionCount: number;
   isPaid: boolean;
   price: number;
   trialQuestions: number;
-  questions: QuestionData[];
 }
 
 const AdminBatchUpload: React.FC = () => {
-  const [file, setFile] = useState<File | null>(null);
-  const [fileType, setFileType] = useState<'csv' | 'txt' | null>(null);
-  const [uploadStep, setUploadStep] = useState<'select' | 'preview' | 'uploading' | 'complete'>('select');
-  const [parsedData, setParsedData] = useState<QuestionSet | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [previewData, setPreviewData] = useState<{questions: QuestionData[], total: number}>({
-    questions: [],
-    total: 0
-  });
-  const [questionSetInfo, setQuestionSetInfo] = useState({
+  // Upload mode: 'add' for adding questions to existing set, 'create' for creating new set
+  const [uploadMode, setUploadMode] = useState<'add' | 'create'>('add');
+  
+  // Existing question set selection
+  const [selectedQuestionSet, setSelectedQuestionSet] = useState<string>('');
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  
+  // New question set data
+  const [newQuestionSetData, setNewQuestionSetData] = useState<NewQuestionSetData>({
     title: '',
     description: '',
     category: '',
@@ -49,416 +38,387 @@ const AdminBatchUpload: React.FC = () => {
     trialQuestions: 0
   });
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null);
+  // File and processing states
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string>('');
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+
+  // 获取所有题库
+  useEffect(() => {
+    const fetchQuestionSets = async () => {
+      setIsLoading(true);
+      try {
+        const response = await questionSetService.getAllQuestionSets();
+        if (response.success && response.data) {
+          setQuestionSets(response.data);
+        } else {
+          toast.error('获取题库列表失败');
+        }
+      } catch (error) {
+        console.error('获取题库列表出错:', error);
+        toast.error('获取题库列表出错');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchQuestionSets();
+  }, []);
+
+  // 处理文件选择
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) {
+      setFile(null);
+      setFilePreview('');
+      return;
+    }
+
+    // 检查文件类型
+    const fileType = selectedFile.name.split('.').pop()?.toLowerCase();
+    if (fileType !== 'csv' && fileType !== 'txt') {
+      toast.error('只支持 CSV 或 TXT 文件格式');
+      e.target.value = '';
+      return;
+    }
+
+    setFile(selectedFile);
     
-    if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
-      
-      // 检查文件类型
-      if (selectedFile.name.endsWith('.csv')) {
-        setFileType('csv');
-      } else if (selectedFile.name.endsWith('.txt')) {
-        setFileType('txt');
-      } else {
-        setError('只支持CSV或TXT格式的文件');
+    // 创建文件预览
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      // 只显示前10行作为预览
+      const lines = content.split('\n').slice(0, 10).join('\n');
+      setFilePreview(lines);
+    };
+    reader.readAsText(selectedFile);
+  };
+
+  // 处理新题库数据变更
+  const handleNewQuestionSetChange = (field: keyof NewQuestionSetData, value: string | boolean | number) => {
+    setNewQuestionSetData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // 提交文件处理
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (uploadMode === 'add' && !selectedQuestionSet) {
+      toast.error('请选择目标题库');
+      return;
+    }
+    
+    if (uploadMode === 'create') {
+      // 验证新题库数据
+      if (!newQuestionSetData.title) {
+        toast.error('请输入题库标题');
         return;
       }
       
-      setFile(selectedFile);
-      
-      try {
-        // 读取文件内容
-        const content = await readFileContent(selectedFile);
-        
-        // 根据文件类型解析数据
-        let questions: QuestionData[] = [];
-        
-        if (fileType === 'csv') {
-          questions = parseCSV(content);
-        } else {
-          questions = parseTXT(content);
-        }
-        
-        // 设置预览数据
-        setPreviewData({
-          questions: questions.slice(0, 5), // 只显示前5个问题预览
-          total: questions.length
-        });
-        
-        // 创建题库数据对象
-        setParsedData({
-          title: '',
-          description: '',
-          category: '',
-          questionCount: questions.length,
-          isPaid: false,
-          price: 0,
-          trialQuestions: 0,
-          questions: questions
-        });
-        
-        // 切换到预览步骤
-        setUploadStep('preview');
-      } catch (err) {
-        console.error('解析文件出错:', err);
-        setError('解析文件失败: ' + (err instanceof Error ? err.message : String(err)));
+      if (!newQuestionSetData.description) {
+        toast.error('请输入题库描述');
+        return;
       }
-    }
-  };
-  
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
       
-      reader.onload = (event) => {
-        if (event.target && typeof event.target.result === 'string') {
-          resolve(event.target.result);
-        } else {
-          reject(new Error('读取文件失败'));
-        }
-      };
-      
-      reader.onerror = () => {
-        reject(new Error('读取文件时出错'));
-      };
-      
-      reader.readAsText(file);
-    });
-  };
-  
-  const parseCSV = (content: string): QuestionData[] => {
-    const lines = content.split('\n');
-    const questions: QuestionData[] = [];
-    let currentQuestion: QuestionData | null = null;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      if (!line) continue; // 跳过空行
-      
-      const parts = line.split(',');
-      
-      if (parts.length >= 2) {
-        const type = parts[0].trim();
-        
-        if (type === 'Q') {
-          // 如果已经有一个问题在处理中，先保存它
-          if (currentQuestion) {
-            questions.push(currentQuestion);
-          }
-          
-          // 开始一个新问题
-          currentQuestion = {
-            text: parts[1].trim(),
-            options: [],
-            explanation: parts[2]?.trim() || '',
-            category: parts[3]?.trim() || '',
-            tags: parts[4]?.trim().split('|') || []
-          };
-        } else if (type === 'O' && currentQuestion) {
-          // 添加选项
-          const isCorrect = parts[2]?.trim().toLowerCase() === 'true';
-          currentQuestion.options.push({
-            id: `option_${currentQuestion.options.length}`,
-            text: parts[1].trim(),
-            isCorrect: isCorrect
-          });
-        }
+      if (!newQuestionSetData.category) {
+        toast.error('请输入题库分类');
+        return;
       }
     }
     
-    // 添加最后一个问题
-    if (currentQuestion) {
-      questions.push(currentQuestion);
+    if (!file) {
+      toast.error('请选择要上传的文件');
+      return;
     }
-    
-    return questions;
-  };
-  
-  const parseTXT = (content: string): QuestionData[] => {
-    const lines = content.split('\n');
-    const questions: QuestionData[] = [];
-    let currentQuestion: QuestionData | null = null;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      if (!line) continue; // 跳过空行
-      
-      if (line.startsWith('Q:')) {
-        // 如果已经有一个问题在处理中，先保存它
-        if (currentQuestion) {
-          questions.push(currentQuestion);
-        }
-        
-        // 开始一个新问题
-        currentQuestion = {
-          text: line.substring(2).trim(),
-          options: [],
-          explanation: '',
-          category: '',
-          tags: []
-        };
-      } else if (line.startsWith('E:') && currentQuestion) {
-        // 设置解释
-        currentQuestion.explanation = line.substring(2).trim();
-      } else if (line.startsWith('C:') && currentQuestion) {
-        // 设置分类
-        currentQuestion.category = line.substring(2).trim();
-      } else if (line.startsWith('T:') && currentQuestion) {
-        // 设置标签
-        currentQuestion.tags = line.substring(2).trim().split(',');
-      } else if (/^[A-D]:\s/.test(line) && currentQuestion) {
-        // 添加选项 (A: B: C: D:)
-        const optionLetter = line[0];
-        const optionText = line.substring(2).trim();
-        currentQuestion.options.push({
-          id: `option_${currentQuestion.options.length}`,
-          text: optionText,
-          isCorrect: false // 默认为false，稍后设置
-        });
-      } else if (line.startsWith('Answer:') && currentQuestion) {
-        // 设置正确选项
-        const correctOptions = line.substring(7).trim().split(',');
-        
-        // 将选中的选项设置为正确
-        for (const option of correctOptions) {
-          const index = option.charCodeAt(0) - 'A'.charCodeAt(0);
-          if (index >= 0 && index < currentQuestion.options.length) {
-            currentQuestion.options[index].isCorrect = true;
-          }
-        }
-      }
-    }
-    
-    // 添加最后一个问题
-    if (currentQuestion) {
-      questions.push(currentQuestion);
-    }
-    
-    return questions;
-  };
-  
-  const handleUpload = async () => {
-    if (!parsedData) return;
-    
-    try {
-      setUploadStep('uploading');
-      setError(null);
-      
-      // 创建题库数据
-      const questionSet: QuestionSet = {
-        ...parsedData,
-        title: questionSetInfo.title,
-        description: questionSetInfo.description,
-        category: questionSetInfo.category,
-        isPaid: questionSetInfo.isPaid,
-        price: questionSetInfo.price,
-        trialQuestions: questionSetInfo.trialQuestions
-      };
-      
-      // 使用导入的db实例，而不是重新调用getFirestore()
-      const batch = writeBatch(db);
-      
-      // 创建题库文档
-      const questionSetsRef = collection(db, 'questionSets');
-      const newQuestionSetRef = doc(questionSetsRef);
-      
-      // 准备题库数据（不包括问题）
-      const questionSetData = {
-        title: questionSet.title,
-        description: questionSet.description,
-        category: questionSet.category,
-        questionCount: questionSet.questions.length,
-        isPaid: questionSet.isPaid,
-        price: questionSet.price,
-        trialQuestions: questionSet.trialQuestions,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      // 将题库添加到批处理中
-      batch.set(newQuestionSetRef, questionSetData);
-      
-      // 创建问题集合
-      const questionsRef = collection(newQuestionSetRef, 'questions');
-      
-      // 逐个添加问题
-      for (let i = 0; i < questionSet.questions.length; i++) {
-        const question = questionSet.questions[i];
-        const questionRef = doc(questionsRef);
-        
-        batch.set(questionRef, {
-          ...question,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-        
-        // 更新进度
-        setUploadProgress(Math.round((i + 1) / questionSet.questions.length * 100));
-      }
-      
-      // 提交批处理
-      await batch.commit();
-      
-      // 设置为完成状态
-      setUploadStep('complete');
-    } catch (err) {
-      console.error('上传失败:', err);
-      setError('上传失败: ' + (err instanceof Error ? err.message : String(err)));
-      setUploadStep('preview');
-    }
-  };
-  
-  const resetUpload = () => {
-    setFile(null);
-    setFileType(null);
-    setUploadStep('select');
-    setParsedData(null);
-    setPreviewData({ questions: [], total: 0 });
-    setQuestionSetInfo({
-      title: '',
-      description: '',
-      category: '',
-      isPaid: false,
-      price: 0,
-      trialQuestions: 0
-    });
-    setError(null);
-    setUploadProgress(0);
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-  
-  const renderFileUpload = () => {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">批量上传题库</h2>
-          <p className="text-gray-600">支持CSV和TXT格式的文件批量导入题库。</p>
-        </div>
-        
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">文件格式说明</h3>
-          
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-medium text-gray-800 mb-2">CSV格式</h4>
-              <pre className="bg-gray-50 p-3 rounded text-xs overflow-auto">
-                {`Q,问题文本,解释文本,分类,标签1|标签2
-O,选项A,true
-O,选项B,false
-O,选项C,false
-O,选项D,false
-Q,下一个问题...`}
-              </pre>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-800 mb-2">TXT格式</h4>
-              <pre className="bg-gray-50 p-3 rounded text-xs overflow-auto">
-                {`Q: 问题文本
-A: 选项A
-B: 选项B
-C: 选项C
-D: 选项D
-Answer: A,C
-E: 解释文本
-C: 分类
-T: 标签1,标签2
 
-Q: 下一个问题...`}
-              </pre>
-            </div>
-          </div>
-        </div>
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadResult(null);
+
+    try {
+      // 创建 FormData 对象
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      if (uploadMode === 'add') {
+        // 添加题目到现有题库
+        formData.append('questionSetId', selectedQuestionSet);
         
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-center w-full">
-            <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <svg className="w-12 h-12 mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <p className="mb-2 text-sm text-gray-600"><span className="font-semibold">点击上传</span> 或拖放文件</p>
-                <p className="text-xs text-gray-500">支持 CSV, TXT (最大 10MB)</p>
-              </div>
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                className="hidden" 
-                accept=".csv,.txt"
-                onChange={handleFileChange}
-              />
-            </label>
-          </div>
-        </div>
+        console.log('[Upload] FormData questionSetId:', selectedQuestionSet);
+        console.log('[Upload] FormData file name:', file.name);
+        console.log('[Upload] FormData file size:', file.size);
         
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
-            {error}
-          </div>
-        )}
-      </div>
-    );
+        // Force a slight delay to ensure the form is properly built
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 导入修改后的questionSetService而不是使用API
+        const myQuestionSetService = await import('../../services/questionSetService');
+
+        // 发送请求
+        const response = await myQuestionSetService.default.batchAddQuestions(formData, (progress: number) => {
+          setUploadProgress(progress);
+        });
+
+        if (response.success) {
+          toast.success('问题批量添加成功！');
+          setUploadResult({
+            success: response.data?.success || 0,
+            failed: response.data?.failed || 0,
+            errors: response.data?.errors
+          });
+        } else {
+          toast.error(`批量添加失败: ${response.message || response.error}`);
+        }
+      } else {
+        // 创建新题库模式
+        // 添加新题库数据到FormData
+        Object.entries(newQuestionSetData).forEach(([key, value]) => {
+          formData.append(key, String(value));
+        });
+        
+        console.log('[Upload] 创建新题库:', newQuestionSetData.title);
+        console.log('[Upload] FormData file name:', file.name);
+        
+        // 导入修改后的questionSetService
+        const myQuestionSetService = await import('../../services/questionSetService');
+        
+        // 发送创建新题库的请求
+        const response = await myQuestionSetService.default.batchCreateQuestionSet(formData, (progress: number) => {
+          setUploadProgress(progress);
+        });
+        
+        if (response.success) {
+          toast.success('题库创建成功！');
+          setUploadResult({
+            success: response.data?.success || 0,
+            failed: response.data?.failed || 0,
+            errors: response.data?.errors
+          });
+          
+          // 刷新题库列表
+          const refreshResponse = await questionSetService.getAllQuestionSets();
+          if (refreshResponse.success && refreshResponse.data) {
+            setQuestionSets(refreshResponse.data);
+          }
+        } else {
+          toast.error(`创建题库失败: ${response.message || response.error}`);
+        }
+      }
+      
+      // 重置表单
+      resetForm(e);
+    } catch (error) {
+      console.error('批量操作出错:', error);
+      toast.error('批量操作出错，请重试');
+    } finally {
+      setIsUploading(false);
+    }
   };
-  
-  const renderPreview = () => {
-    if (!previewData || !parsedData) return null;
+
+  // 重置表单
+  const resetForm = (e: React.FormEvent) => {
+    setFile(null);
+    setFilePreview('');
     
-    return (
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">预览题库</h2>
+    if (uploadMode === 'create') {
+      setNewQuestionSetData({
+        title: '',
+        description: '',
+        category: '',
+        isPaid: false,
+        price: 0,
+        trialQuestions: 0
+      });
+    }
+    
+    if (e.target instanceof HTMLFormElement) {
+      e.target.reset();
+    }
+  };
+
+  // 切换上传模式
+  const toggleUploadMode = (mode: 'add' | 'create') => {
+    setUploadMode(mode);
+    setUploadResult(null);
+    setFile(null);
+    setFilePreview('');
+  };
+
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+        <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        批量题目管理
+      </h2>
+
+      {/* 模式选择 */}
+      <div className="mb-6">
+        <div className="flex space-x-4 border-b border-gray-200">
           <button
-            onClick={resetUpload}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            type="button"
+            className={`py-2 px-4 focus:outline-none ${
+              uploadMode === 'add' 
+                ? 'border-b-2 border-blue-500 text-blue-600 font-medium' 
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => toggleUploadMode('add')}
           >
-            返回选择文件
+            批量添加题目到现有题库
+          </button>
+          <button
+            type="button"
+            className={`py-2 px-4 focus:outline-none ${
+              uploadMode === 'create' 
+                ? 'border-b-2 border-blue-500 text-blue-600 font-medium' 
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => toggleUploadMode('create')}
+          >
+            创建新题库并批量导入题目
           </button>
         </div>
-        
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">题库信息</h3>
-          
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700">题库标题 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                id="title"
-                value={questionSetInfo.title}
-                onChange={(e) => setQuestionSetInfo({...questionSetInfo, title: e.target.value})}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                required
-              />
+      </div>
+
+      <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm font-medium">文件格式说明</p>
+            <div className="mt-2 text-sm">
+              <p>支持 TXT 或 CSV 格式文件，每行一个问题，格式如下：</p>
+              <pre className="mt-1 font-mono text-xs bg-blue-100 p-2 rounded overflow-x-auto mb-2">
+                问题?|选项A|选项B|选项C|选项D|正确答案|解析
+              </pre>
+              <ul className="list-disc list-inside text-xs mt-2">
+                <li>每个字段之间使用竖线 | 分隔</li>
+                <li><strong>单选题</strong>：正确答案填写单个选项字母，如：A、B、C 或 D</li>
+                <li><strong>多选题</strong>：正确答案用英文逗号分隔多个选项字母，如：A,B 或 A,C,D</li>
+                <li>注意：单选题请勿在答案中添加逗号，否则会被识别为多选题</li>
+                <li>必须包含至少两个选项（问题后至少有两列）</li>
+                <li>解析是可选的，可以为空</li>
+              </ul>
+              
+              <div className="mt-3 p-2 rounded bg-blue-100">
+                <p className="font-medium text-blue-800 mb-1">支持的格式变体：</p>
+                <ul className="list-disc list-inside text-xs">
+                  <li>4个选项 + 答案 + 解析：<code>问题|选项A|选项B|选项C|选项D|A|解析</code></li>
+                  <li>4个选项 + 答案（无解析）：<code>问题|选项A|选项B|选项C|选项D|A</code></li>
+                  <li>3个选项 + 答案：<code>问题|选项A|选项B|选项C|B</code></li>
+                  <li>2个选项 + 答案：<code>问题|选项A|选项B|A</code></li>
+                </ul>
+              </div>
+              
+              <p className="mt-3 text-xs bg-yellow-100 p-3 rounded">
+                <strong>示例:</strong><br />
+                <span className="block mb-1 border-l-2 border-green-500 pl-2">
+                  <strong className="text-green-700">单选题：</strong> 
+                  以下哪个是水的化学式?|H2O|CO2|NaCl|CH4|<strong>A</strong>|水的化学式是H2O
+                </span>
+                <span className="block border-l-2 border-purple-500 pl-2">
+                  <strong className="text-purple-700">多选题：</strong> 
+                  以下哪些是编程语言?|Java|篮球|Python|足球|<strong>A,C</strong>|Java和Python是编程语言
+                </span>
+              </p>
+              
+              <div className="bg-red-50 p-2 mt-3 rounded border-l-2 border-red-500">
+                <p className="text-red-700 font-medium">常见错误：</p>
+                <ul className="list-disc list-inside text-xs text-red-600">
+                  <li>答案字段包含空格：正确写法 <code>A,B</code>，错误写法 <code>A, B</code></li>
+                  <li>使用中文逗号：正确写法 <code>A,B</code>，错误写法 <code>A，B</code></li>
+                  <li>答案字母大小写不对应：请使用大写字母 <code>A</code> 而非 <code>a</code></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        {/* 模式特定表单部分 */}
+        {uploadMode === 'add' ? (
+          // 添加题目到现有题库的表单
+          <div>
+            <label htmlFor="questionSet" className="block text-sm font-medium text-gray-700 mb-1">
+              选择目标题库
+            </label>
+            <select
+              id="questionSet"
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              value={selectedQuestionSet}
+              onChange={(e) => setSelectedQuestionSet(e.target.value)}
+              disabled={isLoading || isUploading}
+              required
+            >
+              <option value="">-- 请选择题库 --</option>
+              {questionSets.map((set) => (
+                <option key={set.id} value={set.id}>
+                  {set.title} {set.questionCount ? `(${set.questionCount}题)` : ''}
+                </option>
+              ))}
+            </select>
+            {isLoading && (
+              <p className="mt-1 text-sm text-gray-500">加载题库中...</p>
+            )}
+          </div>
+        ) : (
+          // 创建新题库的表单
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                  题库标题 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="title"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={newQuestionSetData.title}
+                  onChange={(e) => handleNewQuestionSetChange('title', e.target.value)}
+                  disabled={isUploading}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+                  分类 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="category"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={newQuestionSetData.category}
+                  onChange={(e) => handleNewQuestionSetChange('category', e.target.value)}
+                  disabled={isUploading}
+                  required
+                />
+              </div>
             </div>
             
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700">分类 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                id="category"
-                value={questionSetInfo.category}
-                onChange={(e) => setQuestionSetInfo({...questionSetInfo, category: e.target.value})}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                required
-              />
-            </div>
-            
-            <div className="sm:col-span-2">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">题库描述 <span className="text-red-500">*</span></label>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                题库描述 <span className="text-red-500">*</span>
+              </label>
               <textarea
                 id="description"
                 rows={3}
-                value={questionSetInfo.description}
-                onChange={(e) => setQuestionSetInfo({...questionSetInfo, description: e.target.value})}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                value={newQuestionSetData.description}
+                onChange={(e) => handleNewQuestionSetChange('description', e.target.value)}
+                disabled={isUploading}
                 required
               />
             </div>
@@ -467,183 +427,192 @@ Q: 下一个问题...`}
               <input
                 id="isPaid"
                 type="checkbox"
-                checked={questionSetInfo.isPaid}
-                onChange={(e) => setQuestionSetInfo({...questionSetInfo, isPaid: e.target.checked})}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                checked={newQuestionSetData.isPaid}
+                onChange={(e) => handleNewQuestionSetChange('isPaid', e.target.checked)}
+                disabled={isUploading}
               />
               <label htmlFor="isPaid" className="ml-2 block text-sm text-gray-700">
                 付费题库
               </label>
             </div>
             
-            {questionSetInfo.isPaid && (
-              <>
+            {newQuestionSetData.isPaid && (
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="price" className="block text-sm font-medium text-gray-700">价格 (￥)</label>
+                  <label htmlFor="price" className="block text-sm font-medium text-gray-700">
+                    价格 (￥)
+                  </label>
                   <input
                     type="number"
                     id="price"
                     min="0"
                     step="0.01"
-                    value={questionSetInfo.price}
-                    onChange={(e) => setQuestionSetInfo({...questionSetInfo, price: parseFloat(e.target.value)})}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    value={newQuestionSetData.price}
+                    onChange={(e) => handleNewQuestionSetChange('price', parseFloat(e.target.value))}
+                    disabled={isUploading}
                   />
                 </div>
                 
                 <div>
-                  <label htmlFor="trialQuestions" className="block text-sm font-medium text-gray-700">试用题目数量</label>
+                  <label htmlFor="trialQuestions" className="block text-sm font-medium text-gray-700">
+                    试用题目数量
+                  </label>
                   <input
                     type="number"
                     id="trialQuestions"
                     min="0"
-                    value={questionSetInfo.trialQuestions}
-                    onChange={(e) => setQuestionSetInfo({...questionSetInfo, trialQuestions: parseInt(e.target.value)})}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    value={newQuestionSetData.trialQuestions}
+                    onChange={(e) => handleNewQuestionSetChange('trialQuestions', parseInt(e.target.value))}
+                    disabled={isUploading}
                   />
                 </div>
-              </>
+              </div>
             )}
           </div>
-        </div>
-        
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">问题预览</h3>
-            <span className="text-sm text-gray-500">总计 {previewData.total} 个问题</span>
-          </div>
-          
-          <div className="space-y-6">
-            {previewData.questions.map((question, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="flex items-start mb-3">
-                  <span className="flex-shrink-0 bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded">{index + 1}</span>
-                  <p className="text-gray-900">{question.text}</p>
-                </div>
-                
-                <div className="space-y-2 ml-6 mb-3">
-                  {question.options.map((option, optIndex) => (
-                    <div key={optIndex} className={`flex items-center ${option.isCorrect ? 'text-green-700' : 'text-gray-700'}`}>
-                      <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mr-2 text-xs font-medium ${option.isCorrect ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {String.fromCharCode(65 + optIndex)}
-                      </div>
-                      <p className={option.isCorrect ? 'font-medium' : ''}>{option.text}</p>
-                    </div>
-                  ))}
-                </div>
-                
-                {question.explanation && (
-                  <div className="mt-2 text-sm text-gray-600">
-                    <span className="font-medium">解释：</span> {question.explanation}
-                  </div>
-                )}
+        )}
+
+        {/* 文件上传 - 两种模式下都需要 */}
+        <div>
+          <label htmlFor="file" className="block text-sm font-medium text-gray-700 mb-1">
+            选择文件 (CSV 或 TXT)
+          </label>
+          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <div className="space-y-1 text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div className="flex text-sm text-gray-600">
+                <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                  <span>上传文件</span>
+                  <input 
+                    id="file-upload" 
+                    name="file-upload" 
+                    type="file" 
+                    className="sr-only"
+                    accept=".csv,.txt"
+                    onChange={handleFileChange}
+                    disabled={isUploading}
+                  />
+                </label>
+                <p className="pl-1">或拖放文件到此处</p>
               </div>
-            ))}
-          </div>
-          
-          <div className="mt-4 text-center text-sm text-gray-500">
-            显示前 5 个问题的预览，共 {previewData.total} 个问题
+              <p className="text-xs text-gray-500">
+                支持 CSV, TXT 文件，最大 10MB
+              </p>
+            </div>
           </div>
         </div>
-        
-        <div className="flex justify-end space-x-4">
-          <button
-            onClick={resetUpload}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleUpload}
-            disabled={!questionSetInfo.title || !questionSetInfo.description || !questionSetInfo.category}
-            className={`inline-flex items-center px-5 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 ${!questionSetInfo.title || !questionSetInfo.description || !questionSetInfo.category ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'}`}
-          >
-            <svg className="mr-2 -ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-            上传并导入题库
-          </button>
-        </div>
-        
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
-            {error}
+
+        {/* 文件预览 */}
+        {filePreview && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              文件预览 (前10行)
+            </label>
+            <div className="mt-1 bg-gray-50 p-3 rounded-md border border-gray-200 max-h-60 overflow-auto">
+              <pre className="text-xs font-mono whitespace-pre-wrap">{filePreview}</pre>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              文件名: {file?.name} | 大小: {file ? (file.size / 1024).toFixed(2) : 0} KB
+            </p>
           </div>
         )}
-      </div>
-    );
-  };
-  
-  const renderUploading = () => {
-    return (
-      <div className="p-6">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">正在上传题库</h2>
-          <p className="text-gray-600 mb-4">请稍候，正在将题库上传到数据库...</p>
-          
-          <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-2.5 mb-4 dark:bg-gray-700">
-            <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
+
+        {/* 上传进度 */}
+        {isUploading && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              上传进度
+            </label>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div 
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-xs mt-1 text-gray-500 text-right">{uploadProgress}%</p>
           </div>
-          <p className="text-sm text-gray-600">{uploadProgress}% 完成</p>
+        )}
+
+        {/* 上传结果 */}
+        {uploadResult && (
+          <div className="bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium">上传完成</p>
+                <div className="mt-2 text-sm">
+                  <p>成功添加: <span className="font-bold">{uploadResult.success}</span> 道题目</p>
+                  {uploadResult.failed > 0 && (
+                    <p>失败: <span className="font-bold">{uploadResult.failed}</span> 道题目</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 提交按钮 */}
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className={`
+              inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
+              ${isUploading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'} 
+            `}
+            disabled={isUploading || !file || (uploadMode === 'add' && !selectedQuestionSet)}
+          >
+            {isUploading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                处理中...
+              </>
+            ) : (
+              <>
+                <svg className="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                {uploadMode === 'add' ? '开始上传题目' : '创建题库并上传题目'}
+              </>
+            )}
+          </button>
         </div>
+      </form>
+
+      {/* 下载模板 */}
+      <div className="mt-6 text-right">
+        <button
+          type="button"
+          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          onClick={() => {
+            const templateContent = "以下哪个是水的化学式?|H2O|CO2|NaCl|CH4|A|水的化学式是H2O\n以下哪些是编程语言?|Java|篮球|Python|足球|A,C|Java和Python是编程语言\n1+1等于多少?|1|2|3|4|B|1+1=2";
+            const blob = new Blob([templateContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '批量添加题目模板.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }}
+        >
+          <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          下载模板
+        </button>
       </div>
-    );
-  };
-  
-  const renderComplete = () => {
-    return (
-      <div className="p-6">
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">题库上传成功！</h2>
-          <p className="text-gray-600 mb-6">已成功导入 {previewData.total} 个问题到新题库</p>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-w-md mx-auto mb-6 text-left">
-            <p className="text-sm text-gray-700 mb-1"><span className="font-medium">题库名称：</span> {questionSetInfo.title}</p>
-            <p className="text-sm text-gray-700 mb-1"><span className="font-medium">分类：</span> {questionSetInfo.category}</p>
-            <p className="text-sm text-gray-700"><span className="font-medium">问题数量：</span> {previewData.total}</p>
-          </div>
-          
-          <div className="space-x-4">
-            <button
-              onClick={resetUpload}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <svg className="mr-2 -ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-              </svg>
-              上传新题库
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-  
-  // 根据当前步骤渲染不同内容
-  const renderContent = () => {
-    switch (uploadStep) {
-      case 'select':
-        return renderFileUpload();
-      case 'preview':
-        return renderPreview();
-      case 'uploading':
-        return renderUploading();
-      case 'complete':
-        return renderComplete();
-      default:
-        return renderFileUpload();
-    }
-  };
-  
-  return (
-    <div className="bg-gray-50">
-      {renderContent()}
     </div>
   );
 };
