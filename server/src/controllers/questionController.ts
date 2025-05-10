@@ -200,8 +200,8 @@ export const getQuestionCount = async (req: Request, res: Response) => {
     console.log(`[API] Question count for questionSetId=${questionSetId}: ${count}`);
     
     // 返回标准格式的响应
-    return res.status(200).json({
-      success: true,
+    return res.status(200).json({ 
+      success: true, 
       count,
       message: '获取题目数量成功'
     });
@@ -209,8 +209,8 @@ export const getQuestionCount = async (req: Request, res: Response) => {
     console.error('[API] Error getting question count:', error);
     
     // 确保返回一个有效的响应，即使发生错误
-    return res.status(500).json({
-      success: false,
+    return res.status(500).json({ 
+      success: false, 
       count: 0,
       message: '获取题目数量失败',
       error: (error as Error).message

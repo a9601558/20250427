@@ -27,6 +27,14 @@ router.post('/create-intent', auth_1.authenticateJwt, async (req, res) => {
                 message: '支付金额必须大于0'
             });
         }
+        // 添加金额上限检查，避免超过Stripe的限制（人民币最大999999.99元）
+        const amountInCents = numericAmount * 100;
+        if (amountInCents > 99999999) {
+            return res.status(400).json({
+                success: false,
+                message: '支付金额超过限制，最大金额为¥999,999.99'
+            });
+        }
         console.log(`[支付路由] 创建支付意向: 金额=${numericAmount}, 货币=${currency}`);
         // 确保用户ID与认证用户匹配
         if (metadata && metadata.userId && metadata.userId !== req.user?.id) {

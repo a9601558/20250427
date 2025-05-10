@@ -162,7 +162,7 @@ export interface Purchase {
   createdAt: string;
   updatedAt: string;
   remainingDays?: number;
-}
+} 
 
 export interface ApiResponse<T = any> {
   success: boolean;

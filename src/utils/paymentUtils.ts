@@ -43,9 +43,9 @@ export const processPayment = async (
   try {
     // 确保金额有效
     if (isNaN(amount) || amount <= 0) {
-      throw new Error('无效的支付金额');
-    }
-    
+    throw new Error('无效的支付金额');
+  }
+  
     // 转换为分
     const amountInCents = Math.round(amount * 100);
     
@@ -56,21 +56,21 @@ export const processPayment = async (
     }
     
     // 创建支付意向
-    const response = await axios.post(
-      `${BASE_URL}/payments/create-intent`,
-      {
-        amount: amountInCents,
-        currency,
-        metadata
-      },
-      {
-        headers: {
+  const response = await axios.post(
+    `${BASE_URL}/payments/create-intent`,
+    {
+      amount: amountInCents,
+      currency, 
+      metadata
+    },
+    {
+      headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        'Content-Type': 'application/json'
       }
-    );
-    
+    }
+  );
+  
     // 检查响应
     if (!response.data || !response.data.success) {
       throw new Error(response.data?.message || '创建支付意向失败');
@@ -265,11 +265,11 @@ export const verifyPaymentStatus = async (paymentIntentId: string): Promise<bool
   console.log(`[PaymentUtils] 验证支付状态，支付ID: ${paymentIntentId}`);
   
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
+  const token = localStorage.getItem('token');
+  if (!token) {
       throw new Error('需要登录才能验证支付');
-    }
-    
+  }
+  
     // 修正API端点
     const response = await axios.post(
       `${BASE_URL}/payments/verify-payment`,
@@ -331,7 +331,7 @@ export const completeStripePurchase = async (
     
     if (!response.data || !response.data.success) {
       throw new Error(response.data?.message || '完成购买失败');
-    }
+  }
     
     return response.data;
   } catch (error: any) {
@@ -348,11 +348,11 @@ export const refreshUserPurchases = async (): Promise<any[]> => {
   console.log('[PaymentUtils] 刷新用户购买记录');
   
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      return [];
-    }
-    
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return [];
+  }
+  
     const response = await axios.get(
       `${BASE_URL}/purchases`,
       {

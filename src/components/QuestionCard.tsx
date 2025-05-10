@@ -406,81 +406,38 @@ const QuestionCard = ({
     // 确保 totalQuestions 是数字
     const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
     
-    // 添加分页逻辑，当题目数量过多时显示省略号
-    const visiblePageCount = 5; // 最多显示的页码数
-    const currentPage = questionNumber;
-    
-    let pages = [];
-    
-    if (count <= visiblePageCount + 2) { // 总数较少时，全部显示
-      for (let i = 1; i <= count; i++) {
-        pages.push(i);
-      }
-    } else {
-      // 总是显示第一页
-      pages.push(1);
-      
-      // 计算中间应该显示哪些页码
-      let startPage = Math.max(2, currentPage - Math.floor(visiblePageCount / 2));
-      let endPage = Math.min(count - 1, startPage + visiblePageCount - 1);
-      
-      // 调整起始页，确保显示足够数量的页码
-      if (endPage - startPage + 1 < visiblePageCount) {
-        startPage = Math.max(2, endPage - visiblePageCount + 1);
-      }
-      
-      // 添加前省略号
-      if (startPage > 2) {
-        pages.push('...');
-      }
-      
-      // 添加中间页码
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(i);
-      }
-      
-      // 添加后省略号
-      if (endPage < count - 1) {
-        pages.push('...');
-      }
-      
-      // 添加最后一页
-      pages.push(count);
-    }
-    
     return (
-      <div className="flex flex-wrap gap-2 justify-center">
-        {pages.map((page, index) => {
-          if (typeof page === 'string') {
-            // 渲染省略号
-            return (
-              <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-gray-400">
-                {page}
-              </span>
-            );
+      <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+        {Array.from({ length: count }).map((_, index) => {
+          const pageNum = index + 1;
+          const isActive = questionNumber === pageNum;
+          const isAnswered = userAnsweredQuestion && (userAnsweredQuestion.index === index);
+          const isCorrect = isAnswered && userAnsweredQuestion?.isCorrect;
+          
+          // 样式参考答题卡组件
+          let buttonClass = "flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 transform";
+          
+          if (isActive) {
+            buttonClass += " bg-gradient-to-br from-blue-500 to-blue-600 text-white scale-105 shadow-md";
+          } else if (isAnswered) {
+            buttonClass += isCorrect 
+              ? " bg-gradient-to-br from-green-500 to-green-600 text-white hover:shadow-md hover:-translate-y-0.5" 
+              : " bg-gradient-to-br from-red-500 to-red-600 text-white hover:shadow-md hover:-translate-y-0.5";
           } else {
-            // 渲染页码按钮
-            const isActive = currentPage === page;
-            
-            return (
-              <button
-                key={page}
-                onClick={() => onJumpToQuestion && onJumpToQuestion(page - 1)}
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm 
-                  transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
-                  ${isActive
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }
-                  focus:ring-blue-500
-                `}
-                aria-label={`跳转到第${page}题`}
-                title={`跳转到第${page}题`}
-              >
-                {page}
-              </button>
-            );
+            buttonClass += " bg-white text-gray-700 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md hover:-translate-y-0.5";
           }
+          
+          return (
+            <button
+              key={index}
+              onClick={() => onJumpToQuestion && onJumpToQuestion(index)}
+              className={buttonClass}
+              aria-label={`跳转到第${pageNum}题`}
+              title={`跳转到第${pageNum}题`}
+            >
+              {pageNum}
+            </button>
+          );
         })}
       </div>
     );
@@ -707,10 +664,35 @@ const QuestionCard = ({
         )}
       </div>
       
-      {/* 页码导航区域 - 添加更美观的页码导航 */}
-      <div className="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
-        <div className="text-xs text-gray-500 mb-2 text-center">题目导航</div>
+      {/* 页码导航区域 - 改进样式与答题卡一致 */}
+      <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-100">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-medium text-gray-700">题目导航</h4>
+          <div className="text-xs text-gray-500">
+            当前: <span className="text-blue-600 font-medium">{questionNumber}</span> / {totalQuestions}
+          </div>
+        </div>
         {renderNumberButtons()}
+        
+        {/* 添加状态图例 */}
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-3 text-xs text-gray-600">
+          <div className="flex items-center">
+            <span className="w-4 h-4 bg-white border border-gray-200 rounded-md mr-1"></span>
+            未作答
+          </div>
+          <div className="flex items-center">
+            <span className="w-4 h-4 bg-blue-500 rounded-md mr-1"></span>
+            当前题目
+          </div>
+          <div className="flex items-center">
+            <span className="w-4 h-4 bg-green-500 rounded-md mr-1"></span>
+            答对
+          </div>
+          <div className="flex items-center">
+            <span className="w-4 h-4 bg-red-500 rounded-md mr-1"></span>
+            答错
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -720,21 +702,25 @@ const QuestionCard = ({
 const styleElement = document.createElement('style');
 styleElement.textContent = `
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    0% { opacity: 0; }
+    100% { opacity: 1; }
   }
   
   @keyframes scaleIn {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
   }
   
   .animate-fadeIn {
-    animation: fadeIn 0.3s ease-in-out;
+    animation-name: fadeIn;
+    animation-duration: 0.3s;
+    animation-timing-function: ease-in-out;
   }
   
   .animate-scaleIn {
-    animation: scaleIn 0.3s ease-out;
+    animation-name: scaleIn;
+    animation-duration: 0.3s;
+    animation-timing-function: ease-out;
   }
 `;
 document.head.appendChild(styleElement);

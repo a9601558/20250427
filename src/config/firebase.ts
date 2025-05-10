@@ -60,7 +60,7 @@ const storage: any = {
 export const isFirebaseDisabled = () => true;
 
 // Export mock services
-export { app, db, auth, storage };
+export { app, db, auth, storage }; 
 
 // Maintain the disableFirebase function for compatibility
 export const disableFirebase = () => {

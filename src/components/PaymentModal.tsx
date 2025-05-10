@@ -62,14 +62,14 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         }
 
         setIsLoading(true);
-        // Convert amount to cents for Stripe
-        const amountInCents = Math.round(amount * 100);
-        console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount} (${amountInCents} cents)`);
+        // 不要转换为分，直接使用原始金额，因为后端会进行转换
+        const amountToSend = Math.round(amount);
+        console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount} (sending ${amountToSend})`);
         
         const response = await axios.post(
           `${API_BASE_URL}/payments/create-intent`,
           {
-            amount: amountInCents,
+            amount: amountToSend,
             currency: 'cny'
           },
           {
@@ -219,7 +219,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             <span className="text-xs text-gray-400">端到端加密，确保您的支付数据安全</span>
-          </div>
+        </div>
       </div>
 
       {error && (

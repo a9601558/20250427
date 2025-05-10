@@ -19,8 +19,11 @@ const stripe = new stripe_1.default(STRIPE_SECRET_KEY, {
 const stripePaymentIntent = async (params) => {
     try {
         console.log(`Creating Stripe payment intent: amount=${params.amount}, currency=${params.currency}`);
+        // 确保金额是整数（Stripe要求以分为单位）
+        const amountInCents = Math.round(params.amount * 100);
+        console.log(`Converted amount for Stripe: ${params.amount} ${params.currency} -> ${amountInCents} cents`);
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: params.amount,
+            amount: amountInCents,
             currency: params.currency,
             metadata: params.metadata,
             automatic_payment_methods: {
