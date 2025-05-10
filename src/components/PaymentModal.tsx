@@ -11,6 +11,106 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import './payment-styles.css'; // 添加样式引用
 
+// 新增：导入React Spring用于动画效果
+import { useSpring, animated } from 'react-spring';
+
+// 定义庆祝组件接口
+interface CelebrationPopupProps {
+  isVisible: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+}
+
+// 新增：庆祝组件
+const CelebrationPopup: React.FC<CelebrationPopupProps> = ({ isVisible, onClose, title, message }) => {
+  const [confetti, setConfetti] = useState<{ x: number; y: number; color: string; size: number; }[]>([]);
+  
+  // 动画效果
+  const animation = useSpring({
+    transform: isVisible ? 'scale(1)' : 'scale(0.8)',
+    opacity: isVisible ? 1 : 0,
+    config: { tension: 300, friction: 20 }
+  });
+  
+  // 生成彩色纸屑效果
+  useEffect(() => {
+    if (isVisible) {
+      // 创建彩色纸屑
+      const colors = ['#FF5252', '#4CAF50', '#2196F3', '#FFC107', '#9C27B0', '#3F51B5'];
+      const newConfetti = Array.from({ length: 100 }, () => ({
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: Math.random() * 8 + 4
+      }));
+      setConfetti(newConfetti);
+      
+      // 3秒后自动关闭
+      const timer = setTimeout(() => {
+        onClose();
+      }, 6000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+  
+  if (!isVisible) return null;
+  
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50">
+      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}></div>
+      
+      {/* 彩色纸屑 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {confetti.map((item, index) => (
+          <div 
+            key={index}
+            className="absolute animate-confetti"
+            style={{
+              left: `${item.x}%`,
+              top: `${item.y}%`,
+              backgroundColor: item.color,
+              width: `${item.size}px`,
+              height: `${item.size}px`,
+              borderRadius: '2px',
+              animationDelay: `${Math.random() * 3}s`,
+              animationDuration: `${Math.random() * 2 + 2}s`
+            }}
+          />
+        ))}
+      </div>
+      
+      <animated.div 
+        style={animation}
+        className="bg-gradient-to-br from-blue-500 to-indigo-600 p-8 rounded-2xl shadow-2xl text-white max-w-md relative z-10"
+      >
+        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
+          <div className="bg-yellow-400 w-24 h-24 rounded-full flex items-center justify-center shadow-lg border-4 border-white">
+            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        
+        <div className="text-center mt-14 mb-6">
+          <h2 className="text-2xl font-bold mb-4">{title}</h2>
+          <p className="text-blue-100">{message}</p>
+        </div>
+        
+        <div className="mt-6 text-center">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-white text-indigo-600 rounded-lg font-medium shadow-md hover:shadow-lg transition-all transform hover:-translate-y-1"
+          >
+            开始使用
+          </button>
+        </div>
+      </animated.div>
+    </div>
+  );
+};
+
 interface PaymentModalProps {
   isOpen?: boolean;
   onClose: () => void;
@@ -100,7 +200,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
-    // 防止重复提交
+    // 防止重复提交 - 更严格的检查
     if (isSubmitting || isProcessing || isLoading || !stripe || !elements) {
       console.log('[StripePaymentForm] Preventing duplicate submission:', { 
         isSubmitting, isProcessing, isLoading, hasStripe: !!stripe, hasElements: !!elements 
@@ -108,16 +208,28 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       return;
     }
     
+    // 立即设置提交中状态，防止重复点击
+    setIsSubmitting(true);
+    setIsLoading(true);
+    
+    // 禁用提交按钮 DOM 元素
+    if (submitButtonRef.current) {
+      submitButtonRef.current.disabled = true;
+      submitButtonRef.current.setAttribute('data-processing', 'true');
+    }
+    
     setError(null);
     
     if (!clientSecret) {
       setError('Payment system is not ready yet. Please try again.');
+      setIsSubmitting(false);
+      setIsLoading(false);
+      if (submitButtonRef.current) {
+        submitButtonRef.current.disabled = false;
+        submitButtonRef.current.removeAttribute('data-processing');
+      }
       return;
     }
-
-    // 设置提交状态，防止重复点击
-    setIsSubmitting(true);
-    setIsLoading(true);
     
     try {
       console.log('[StripePaymentForm] Processing payment submission...');
@@ -158,10 +270,15 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       setError('An error occurred while processing your payment. Please try again.');
     } finally {
       setIsLoading(false);
-      // 延迟重置提交状态，防止意外的快速多次点击
+      
+      // 长时间禁用按钮，确保不会发生重复提交
       setTimeout(() => {
         setIsSubmitting(false);
-      }, 1000);
+        if (submitButtonRef.current) {
+          submitButtonRef.current.disabled = false;
+          submitButtonRef.current.removeAttribute('data-processing');
+        }
+      }, 3000); // 延长到3秒，确保有足够时间完成操作
     }
   };
 
@@ -299,6 +416,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   const [alreadyPurchased, setAlreadyPurchased] = useState(false);
   const [showStripeForm, setShowStripeForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // 新增：庆祝组件状态
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationTitle, setCelebrationTitle] = useState('');
+  const [celebrationMessage, setCelebrationMessage] = useState('');
 
   // 检查是否已购买
   useEffect(() => {
@@ -546,7 +668,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
       // 延迟重置按钮状态，防止意外的快速点击
       setTimeout(() => {
         setIsPayButtonDisabled(false);
-      }, 2000);
+      }, 3000); // 延长到3秒
     }
   };
 
@@ -559,6 +681,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     }
     
     stripeProcessing.current = true;
+    
+    // 禁用按钮
+    if (submitButtonRef.current) {
+      submitButtonRef.current.disabled = true;
+    }
     
     try {
       // 确保价格是有效的数字
@@ -584,64 +711,72 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
         throw new Error('创建支付意向失败');
       }
 
-      console.log(`[支付] 支付意向创建成功，准备确认支付`);
+      console.log(`[支付] 支付意向创建成功，准备确认支付, clientSecret 长度: ${intentData.clientSecret.length}`);
 
       // 禁用支付按钮，防止重复点击
       setIsPayButtonDisabled(true);
-      submitButtonRef.current?.setAttribute('disabled', 'true');
-
-      // 2. 确认支付
-      const { paymentIntent, error } = await stripe.confirmCardPayment(intentData.clientSecret, {
-        payment_method: {
-          card: cardElement,
-          billing_details: {
-            name: user?.username || '用户',
-            email: user?.email || undefined
+      
+      // 创建一个标记，防止重复处理
+      const paymentKey = `payment_processing_${intentData.clientSecret.substring(0, 20) || 'unknown'}`;
+      localStorage.setItem(paymentKey, 'true');
+      
+      try {
+        // 2. 确认支付
+        const { paymentIntent, error } = await stripe.confirmCardPayment(intentData.clientSecret, {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name: user?.username || '用户',
+              email: user?.email || undefined
+            }
           }
-        }
-      });
-
-      // 将按钮状态保持禁用一段时间，防止意外的快速点击
-      setTimeout(() => {
-        setIsPayButtonDisabled(false);
-        submitButtonRef.current?.removeAttribute('disabled');
-      }, 2000);
-
-      if (error) {
-        // 支付失败
-        console.error('[支付] 支付确认失败:', error);
-        throw new Error(error.message || '支付确认失败');
-      }
-
-      if (paymentIntent.status === 'succeeded') {
-        // 支付成功
-        console.log('[支付] 支付成功:', paymentIntent);
-        
-        // 计算过期时间（6个月后）
-        const now = new Date();
-        const expiryDate = new Date(now);
-        expiryDate.setMonth(expiryDate.getMonth() + 6);
-        
-        // 验证支付状态并确保服务器端已处理
-        await verifyPaymentStatus(paymentIntent.id);
-        
-        // 完成后续处理
-        await finalizePurchase({
-          transactionId: paymentIntent.id,
-          expiryDate: expiryDate.toISOString(),
-          paymentMethod: 'card'
         });
-      } else {
-        // 支付状态不是成功
-        console.error(`[支付] 支付未完成，状态: ${paymentIntent.status}`);
-        throw new Error(`支付未完成，状态: ${paymentIntent.status}`);
+
+        if (error) {
+          // 支付失败
+          console.error('[支付] 支付确认失败:', error);
+          throw new Error(error.message || '支付确认失败');
+        }
+
+        if (paymentIntent.status === 'succeeded') {
+          // 支付成功
+          console.log('[支付] 支付成功:', paymentIntent);
+          
+          // 计算过期时间（6个月后）
+          const now = new Date();
+          const expiryDate = new Date(now);
+          expiryDate.setMonth(expiryDate.getMonth() + 6);
+          
+          // 验证支付状态并确保服务器端已处理
+          await verifyPaymentStatus(paymentIntent.id);
+          
+          // 完成后续处理
+          await finalizePurchase({
+            transactionId: paymentIntent.id,
+            expiryDate: expiryDate.toISOString(),
+            paymentMethod: 'card'
+          });
+        } else {
+          // 支付状态不是成功
+          console.error(`[支付] 支付未完成，状态: ${paymentIntent.status}`);
+          throw new Error(`支付未完成，状态: ${paymentIntent.status}`);
+        }
+      } finally {
+        // 清除处理标记
+        localStorage.removeItem(paymentKey);
       }
     } catch (error: any) {
       console.error('[支付] Stripe支付错误:', error);
       throw new Error(error.message || '支付处理失败');
     } finally {
-      // 重置处理状态
-      stripeProcessing.current = false;
+      // 延迟重置处理状态，防止意外的快速点击
+      setTimeout(() => {
+        stripeProcessing.current = false;
+        setIsPayButtonDisabled(false);
+        if (submitButtonRef.current) {
+          submitButtonRef.current.disabled = false;
+        }
+      }, 3000); // 3秒延迟，确保有足够时间完成和恢复
     }
   };
 
@@ -658,6 +793,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     if (!user) {
       throw new Error('用户未登录');
     }
+
+    // 创建一个完成购买的标志，防止重复操作
+    const purchaseKey = `${transactionId}_${user.id}`;
+    const processingKey = `purchase_processing_${purchaseKey}`;
+    
+    // 检查是否已经在处理这个购买
+    if (localStorage.getItem(processingKey)) {
+      console.log(`[支付] 购买已在处理中: ${purchaseKey}`);
+      return;
+    }
+    
+    // 标记为正在处理
+    localStorage.setItem(processingKey, 'true');
 
     try {
       console.log(`[支付] 支付成功，开始处理购买记录，交易ID: ${transactionId}`);
@@ -718,8 +866,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
         });
       }
       
-      // 显示成功消息
-      setSuccessMessage(`支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${new Date(expiryDate).toLocaleDateString()}`);
+      // 设置成功消息
+      const successMsg = `支付成功！您现在可以访问《${questionSet?.title}》题库的所有内容，有效期至 ${new Date(expiryDate).toLocaleDateString()}`;
+      setSuccessMessage(successMsg);
+      
+      // 显示庆祝弹窗
+      setCelebrationTitle('购买成功！');
+      setCelebrationMessage(`恭喜您已成功购买《${questionSet?.title}》题库！\n立即开始您的学习之旅吧！`);
+      setShowCelebration(true);
       
       // 保存访问记录到localStorage
       try {
@@ -768,10 +922,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
             position: 'top-center'
           });
           
-          // 强制关闭支付弹窗
+          // 强制关闭支付弹窗 - 延长关闭时间，让用户看到庆祝弹窗
           setTimeout(() => {
-            onClose();
-          }, 1000);
+            // 只有当庆祝弹窗被关闭时才关闭支付弹窗
+            if (!showCelebration) {
+              onClose();
+            }
+          }, 3000);
         }, 300);
       }
       
@@ -780,7 +937,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     } catch (err) {
       console.error('[支付] 完成购买后处理失败:', err);
       throw err;
+    } finally {
+      // 清除处理标记
+      localStorage.removeItem(processingKey);
     }
+  };
+
+  // 处理关闭庆祝弹窗
+  const handleCloseCelebration = () => {
+    setShowCelebration(false);
+    // 关闭庆祝弹窗后关闭支付弹窗
+    setTimeout(() => {
+      onClose();
+    }, 500);
   };
 
   // 如果已购买，直接显示成功消息
@@ -819,8 +988,68 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
 
   if (!isOpen) return null;
 
+  // 注入全局样式用于纸屑动画
+  const injectStyles = () => {
+    const styleId = 'celebration-styles';
+    
+    // 如果已经存在样式，则不重复添加
+    if (document.getElementById(styleId)) {
+      return;
+    }
+    
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.innerHTML = `
+      @keyframes confetti-fall {
+        0% {
+          transform: translateY(-10px) rotate(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(100vh) rotate(360deg);
+          opacity: 0;
+        }
+      }
+      
+      @keyframes confetti-sway {
+        0% {
+          transform: translateX(0px);
+        }
+        33% {
+          transform: translateX(100px);
+        }
+        66% {
+          transform: translateX(-100px);
+        }
+        100% {
+          transform: translateX(0px);
+        }
+      }
+      
+      .animate-confetti {
+        position: absolute;
+        will-change: transform;
+        animation: confetti-fall 5s linear forwards, confetti-sway 3s ease-in-out infinite alternate;
+      }
+    `;
+    document.head.appendChild(style);
+  };
+
+  // 初始化全局样式
+  useEffect(() => {
+    injectStyles();
+  }, []);
+
   return (
     <div className={`${isOpen ? 'fixed' : 'hidden'} inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-filter backdrop-blur-sm`}>
+      {/* 庆祝弹窗 */}
+      <CelebrationPopup
+        isVisible={showCelebration}
+        onClose={handleCloseCelebration}
+        title={celebrationTitle}
+        message={celebrationMessage}
+      />
+
       <div className="max-w-xl w-full relative">
         {/* 装饰元素 */}
         <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-blue-500 bg-opacity-10 filter blur-3xl"></div>
