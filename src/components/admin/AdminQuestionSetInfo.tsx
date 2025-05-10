@@ -734,6 +734,46 @@ const AdminQuestionSetInfo: React.FC = () => {
                       />
                     </div>
                   )}
+                  
+                  {/* Add Card Image Upload Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">题库卡片图片</label>
+                    <div className="mt-1 flex items-center space-x-4">
+                      <div className="flex-shrink-0 h-32 w-48 border rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {imagePreview ? (
+                          <img src={imagePreview} alt="预览" className="h-full w-full object-cover" />
+                        ) : editFormData.cardImage && editFormData.cardImage !== 'pending_upload' ? (
+                          <img src={editFormData.cardImage} alt="当前图片" className="h-full w-full object-cover" />
+                        ) : (
+                          <svg className="h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex flex-col space-y-2">
+                        <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+                          <input 
+                            type="file" 
+                            ref={fileInputRef}
+                            accept="image/*"
+                            className="sr-only" 
+                            onChange={handleImageSelect}
+                          />
+                          选择图片
+                        </label>
+                        {(imagePreview || (editFormData.cardImage && editFormData.cardImage !== 'pending_upload')) && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveImage}
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-gray-50"
+                          >
+                            移除图片
+                          </button>
+                        )}
+                        <p className="text-xs text-gray-500">支持JPG、PNG格式，最大5MB</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -748,6 +788,18 @@ const AdminQuestionSetInfo: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 mb-1">描述</h4>
                     <p className="text-gray-900">{selectedSet.description || '无描述'}</p>
+                  </div>
+                  
+                  {/* Add Card Image Display Section */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500 mb-1">题库卡片图片</h4>
+                    {selectedSet.cardImage ? (
+                      <div className="mt-1 h-40 w-64 border rounded-md overflow-hidden bg-gray-100">
+                        <img src={selectedSet.cardImage} alt="题库卡片" className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <p className="text-gray-500">未设置卡片图片</p>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-6">
