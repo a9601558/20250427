@@ -286,8 +286,8 @@ const batchUploadQuestions = async (req, res) => {
                     errors.push(`行 ${lineIndex + 1}: 字段数量不足: ${line.substring(0, 50)}...`);
                     continue;
                 }
-                // 分割正确答案, 支持多选(如 "A,B")
-                const correctAnswer = fields[5] ? fields[5].trim() : '';
+                // 获取正确答案字段位置（总是倒数第二个或倒数第一个字段）
+                const correctAnswer = fields.length > 1 ? fields[fields.length - (fields.length > 5 ? 2 : 1)].trim() : '';
                 // 检查答案是否包含英文逗号，真正用于多选题答案分割
                 // 只有当答案中包含多个字母（如"A,B"）时才视为多选题
                 const isMultipleChoice = correctAnswer.includes(',') && correctAnswer.split(',').length > 1;
@@ -313,62 +313,57 @@ const batchUploadQuestions = async (req, res) => {
                     continue;
                 }
                 try {
-                    // 使用独立事务来处理每一行，避免整批失败
-                    await database_1.default.transaction(async (t) => {
-                        // 1. 创建问题
-                        const question = await Question_1.default.create({
-                            questionSetId,
-                            text: questionText,
-                            questionType: isMultipleChoice ? 'multiple' : 'single',
-                            explanation,
-                            orderIndex: lineIndex // 使用行号作为排序索引
-                        }, { transaction: t });
-                        console.log(`[API] 创建问题成功，ID: ${question.id}`);
-                        // 2. 准备选项数据
-                        const optionsToCreate = options.map((optionText, index) => {
-                            const optionLetter = String.fromCharCode(65 + index); // A, B, C, D...
-                            const isCorrect = correctAnswers.includes(optionLetter);
-                            console.log(`[API] 准备选项: ${optionLetter} - ${optionText.substring(0, 20)}... 正确答案: ${isCorrect}`);
-                            return {
-                                questionId: question.id,
-                                text: optionText,
-                                isCorrect,
-                                optionIndex: optionLetter
-                            };
-                        });
-                        // 3. 创建选项 - 使用独立create而非bulkCreate以便更好处理错误
-                        const createdOptions = [];
-                        for (const optionData of optionsToCreate) {
-                            try {
-                                const option = await Option_1.default.create(optionData, { transaction: t });
-                                createdOptions.push(option);
-                                console.log(`[API] 创建选项成功, ID: ${option.id}, 选项: ${option.optionIndex}, 正确答案: ${option.isCorrect}`);
-                            }
-                            catch (optionError) {
-                                console.error(`[API] 创建选项失败:`, optionError);
-                                throw new Error(`创建选项 "${optionData.optionIndex}" 失败: ${optionError.message}`);
-                            }
-                        }
-                        // 4. 验证选项创建是否成功
-                        if (createdOptions.length !== options.length) {
-                            throw new Error(`只创建了 ${createdOptions.length} 个选项，应该有 ${options.length} 个选项`);
-                        }
-                        // 5. 验证是否有正确选项
-                        const hasCorrectOption = createdOptions.some(option => option.isCorrect);
-                        if (!hasCorrectOption) {
-                            throw new Error(`没有正确选项被创建，请检查答案格式是否正确`);
-                        }
-                        console.log(`[API] 问题 ID ${question.id} 及其 ${createdOptions.length} 个选项创建成功`);
+                    // 不使用事务，改用直接创建方式来确保ID正确传递
+                    // 1. 首先创建问题
+                    const question = await Question_1.default.create({
+                        questionSetId,
+                        text: questionText,
+                        questionType: isMultipleChoice ? 'multiple' : 'single',
+                        explanation,
+                        orderIndex: lineIndex // 使用行号作为排序索引
                     });
-                    // 如果事务完成没有错误，则计数成功
+                    // 确保问题正确创建且有ID
+                    if (!question || !question.id) {
+                        throw new Error(`问题创建失败，未能获取问题ID`);
+                    }
+                    const questionId = question.id;
+                    console.log(`[API] 创建问题成功，ID: ${questionId}`);
+                    // 2. 然后为每个选项创建记录
+                    const createdOptions = [];
+                    for (let i = 0; i < options.length; i++) {
+                        const optionText = options[i];
+                        const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
+                        const isCorrect = correctAnswers.includes(optionLetter);
+                        console.log(`[API] 创建选项: ${optionLetter} - "${optionText}" 正确答案: ${isCorrect}, 问题ID: ${questionId}`);
+                        // 创建选项
+                        const option = await Option_1.default.create({
+                            questionId, // 确保使用完整的问题ID
+                            text: optionText,
+                            isCorrect,
+                            optionIndex: optionLetter
+                        });
+                        console.log(`[API] 选项创建成功, ID: ${option.id}, 选项: ${option.optionIndex}`);
+                        createdOptions.push(option);
+                    }
+                    // 验证选项创建是否成功
+                    if (createdOptions.length !== options.length) {
+                        throw new Error(`只创建了 ${createdOptions.length} 个选项，应该有 ${options.length} 个选项`);
+                    }
+                    // 验证是否有正确选项
+                    const hasCorrectOption = createdOptions.some(option => option.isCorrect);
+                    if (!hasCorrectOption) {
+                        throw new Error(`没有正确选项被创建，请检查答案格式是否正确`);
+                    }
+                    console.log(`[API] 问题 ID ${questionId} 及其 ${createdOptions.length} 个选项创建成功`);
+                    // 更新成功计数
                     successCount++;
                 }
                 catch (transactionError) {
-                    // 事务失败，计数为失败并记录错误
+                    // 操作失败，计数为失败并记录错误
                     failedCount++;
                     const errorMessage = transactionError instanceof Error ? transactionError.message : '未知错误';
-                    errors.push(`行 ${lineIndex + 1}: 数据库操作失败: ${errorMessage}`);
-                    console.error(`[API] 事务失败 (行 ${lineIndex + 1}):`, transactionError);
+                    errors.push(`行 ${lineIndex + 1}: ${errorMessage}`);
+                    console.error(`[API] 第 ${lineIndex + 1} 行处理失败:`, transactionError);
                 }
             }
             catch (parseError) {
