@@ -76,20 +76,20 @@ const AdminBatchUpload: React.FC = () => {
       setFilePreview('');
       return;
     }
-
-    // 检查文件类型
+      
+      // 检查文件类型
     const fileType = selectedFile.name.split('.').pop()?.toLowerCase();
     if (fileType !== 'csv' && fileType !== 'txt') {
       toast.error('只支持 CSV 或 TXT 文件格式');
       e.target.value = '';
-      return;
-    }
-
-    setFile(selectedFile);
-    
+        return;
+      }
+      
+      setFile(selectedFile);
+      
     // 创建文件预览
-    const reader = new FileReader();
-    reader.onload = (event) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
       const content = event.target?.result as string;
       // 只显示前10行作为预览
       const lines = content.split('\n').slice(0, 10).join('\n');
@@ -229,13 +229,13 @@ const AdminBatchUpload: React.FC = () => {
     
     if (uploadMode === 'create') {
       setNewQuestionSetData({
-        title: '',
-        description: '',
-        category: '',
-        isPaid: false,
-        price: 0,
-        trialQuestions: 0
-      });
+      title: '',
+      description: '',
+      category: '',
+      isPaid: false,
+      price: 0,
+      trialQuestions: 0
+    });
     }
     
     if (e.target instanceof HTMLFormElement) {
@@ -251,8 +251,8 @@ const AdminBatchUpload: React.FC = () => {
     setFilePreview('');
   };
 
-  return (
-    <div className="p-6">
+    return (
+      <div className="p-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
         <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -261,7 +261,7 @@ const AdminBatchUpload: React.FC = () => {
       </h2>
 
       {/* 模式选择 */}
-      <div className="mb-6">
+        <div className="mb-6">
         <div className="flex space-x-4 border-b border-gray-200">
           <button
             type="button"
@@ -286,8 +286,8 @@ const AdminBatchUpload: React.FC = () => {
             创建新题库并批量导入题目
           </button>
         </div>
-      </div>
-
+        </div>
+        
       <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded">
         <div className="flex">
           <div className="flex-shrink-0">
@@ -319,8 +319,8 @@ const AdminBatchUpload: React.FC = () => {
                   <li>3个选项 + 答案：<code>问题|选项A|选项B|选项C|B</code></li>
                   <li>2个选项 + 答案：<code>问题|选项A|选项B|A</code></li>
                 </ul>
-              </div>
-              
+            </div>
+            
               <p className="mt-3 text-xs bg-yellow-100 p-3 rounded">
                 <strong>示例:</strong><br />
                 <span className="block mb-1 border-l-2 border-green-500 pl-2">
@@ -342,10 +342,10 @@ const AdminBatchUpload: React.FC = () => {
                 </ul>
               </div>
             </div>
+            </div>
           </div>
         </div>
-      </div>
-
+        
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         {/* 模式特定表单部分 */}
         {uploadMode === 'add' ? (
@@ -376,35 +376,35 @@ const AdminBatchUpload: React.FC = () => {
         ) : (
           // 创建新题库的表单
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700">
                   题库标题 <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="title"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              <input
+                type="text"
+                id="title"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   value={newQuestionSetData.title}
                   onChange={(e) => handleNewQuestionSetChange('title', e.target.value)}
                   disabled={isUploading}
-                  required
-                />
-              </div>
-              
-              <div>
+                required
+              />
+            </div>
+            
+            <div>
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700">
                   分类 <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="category"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              <input
+                type="text"
+                id="category"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   value={newQuestionSetData.category}
                   onChange={(e) => handleNewQuestionSetChange('category', e.target.value)}
                   disabled={isUploading}
-                  required
-                />
+                required
+              />
               </div>
             </div>
             
@@ -505,7 +505,7 @@ const AdminBatchUpload: React.FC = () => {
             </div>
           </div>
         </div>
-
+        
         {/* 文件预览 */}
         {filePreview && (
           <div>
@@ -534,7 +534,7 @@ const AdminBatchUpload: React.FC = () => {
               ></div>
             </div>
             <p className="text-xs mt-1 text-gray-500 text-right">{uploadProgress}%</p>
-          </div>
+                </div>
         )}
 
         {/* 上传结果 */}
@@ -545,7 +545,7 @@ const AdminBatchUpload: React.FC = () => {
                 <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-              </div>
+                      </div>
               <div className="ml-3">
                 <p className="text-sm font-medium">上传完成</p>
                 <div className="mt-2 text-sm">
@@ -555,10 +555,10 @@ const AdminBatchUpload: React.FC = () => {
                   )}
                 </div>
               </div>
-            </div>
+          </div>
           </div>
         )}
-
+        
         {/* 提交按钮 */}
         <div className="flex justify-end">
           <button
@@ -581,7 +581,7 @@ const AdminBatchUpload: React.FC = () => {
               <>
                 <svg className="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
+            </svg>
                 {uploadMode === 'add' ? '开始上传题目' : '创建题库并上传题目'}
               </>
             )}
@@ -591,7 +591,7 @@ const AdminBatchUpload: React.FC = () => {
 
       {/* 下载模板 */}
       <div className="mt-6 text-right">
-        <button
+            <button
           type="button"
           className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           onClick={() => {
@@ -609,9 +609,9 @@ const AdminBatchUpload: React.FC = () => {
         >
           <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
+              </svg>
           下载模板
-        </button>
+            </button>
       </div>
     </div>
   );

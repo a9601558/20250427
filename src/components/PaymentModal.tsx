@@ -3,12 +3,13 @@ import { useUser } from '../contexts/UserContext';
 import { QuestionSet } from '../types';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
-import { processPayment, verifyPaymentStatus, refreshUserPurchases } from '../utils/paymentUtils';
+import { processPayment, verifyPaymentStatus, refreshUserPurchases, completeStripePurchase } from '../utils/paymentUtils';
 import { questionSetApi } from '../utils/api';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import './payment-styles.css'; // 添加样式引用
 
 interface PaymentModalProps {
   isOpen?: boolean;
@@ -47,6 +48,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   const [clientSecret, setClientSecret] = useState<string>('');
   const [paymentIntentId, setPaymentIntentId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     // Create a payment intent when the form loads
@@ -97,7 +100,11 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
-    if (!stripe || !elements) {
+    // 防止重复提交
+    if (isSubmitting || isProcessing || isLoading || !stripe || !elements) {
+      console.log('[StripePaymentForm] Preventing duplicate submission:', { 
+        isSubmitting, isProcessing, isLoading, hasStripe: !!stripe, hasElements: !!elements 
+      });
       return;
     }
     
@@ -108,8 +115,13 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       return;
     }
 
+    // 设置提交状态，防止重复点击
+    setIsSubmitting(true);
     setIsLoading(true);
+    
     try {
+      console.log('[StripePaymentForm] Processing payment submission...');
+      
       // Confirm the card payment
       const result = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
@@ -121,9 +133,11 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       });
 
       if (result.error) {
+        console.error('[StripePaymentForm] Payment confirmation error:', result.error);
         setError(result.error.message || 'Payment failed');
       } else {
         if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+          console.log('[StripePaymentForm] Payment succeeded:', result.paymentIntent);
           const paymentMethodId = typeof result.paymentIntent.payment_method === 'string' 
             ? result.paymentIntent.payment_method 
             : null;
@@ -135,6 +149,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             status: 'succeeded'
           });
         } else {
+          console.warn('[StripePaymentForm] Payment not succeeded:', result.paymentIntent);
           setError(`Payment status: ${result.paymentIntent?.status || 'unknown'}. Please try again.`);
         }
       }
@@ -143,66 +158,124 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       setError('An error occurred while processing your payment. Please try again.');
     } finally {
       setIsLoading(false);
+      // 延迟重置提交状态，防止意外的快速多次点击
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 1000);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2">支付金额</h3>
-        <p className="text-2xl font-bold text-green-600">¥{amount}</p>
-      </div>
+    <div className="p-8 rounded-2xl bg-gradient-to-br from-gray-900 to-indigo-900 text-white">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* 支付标题 */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold mb-2">安全支付</h3>
+          <p className="text-blue-200 text-sm">使用Stripe提供的安全支付服务</p>
+        </div>
+        
+        {/* 支付金额 */}
+        <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-md rounded-xl p-5 border border-white border-opacity-20">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-200">支付金额</span>
+            <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{amount}</span>
+          </div>
+        </div>
 
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          卡号信息
-        </label>
-        <div className="p-3 border rounded-md bg-white">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#424770',
-                  '::placeholder': {
-                    color: '#aab7c4',
+        {/* 卡号信息 */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-200 mb-1">
+            银行卡信息
+          </label>
+          <div className="p-4 border border-gray-500 rounded-xl bg-black bg-opacity-20 backdrop-filter backdrop-blur-md shadow-inner">
+            <CardElement
+              options={{
+                style: {
+                  base: {
+                    fontSize: '16px',
+                    color: '#ffffff',
+                    '::placeholder': {
+                      color: '#aab7c4',
+                    },
+                    iconColor: '#ffffff',
+                  },
+                  invalid: {
+                    color: '#ef4444',
+                    iconColor: '#ef4444',
                   },
                 },
-                invalid: {
-                  color: '#9e2146',
-                },
-              },
-            }}
-          />
+              }}
+            />
+          </div>
+          
+          {/* 安全标识 */}
+          <div className="flex items-center mt-1">
+            <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span className="text-xs text-gray-400">端到端加密，确保您的支付数据安全</span>
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-          {error}
+        {error && (
+          <div className="p-4 rounded-xl bg-red-900 bg-opacity-30 border border-red-500 text-red-200">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* 支付卡图标 */}
+        <div className="flex items-center justify-center space-x-3 py-2">
+          <div className="w-10 h-7 bg-gray-700 rounded-md opacity-70"></div>
+          <div className="w-10 h-7 bg-gray-700 rounded-md opacity-70"></div>
+          <div className="w-10 h-7 bg-gray-700 rounded-md opacity-70"></div>
         </div>
-      )}
 
-      <div className="flex justify-end space-x-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-          disabled={isProcessing || isLoading}
-        >
-          取消
-        </button>
-        <button
-          type="submit"
-          disabled={!stripe || !elements || isProcessing || isLoading}
-          className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
-            (!stripe || !elements || isProcessing || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          {isProcessing || isLoading ? '处理中...' : '确认支付'}
-        </button>
-      </div>
-    </form>
+        {/* 按钮组 */}
+        <div className="flex space-x-4 pt-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-all focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+            disabled={isProcessing || isLoading || isSubmitting}
+          >
+            取消
+          </button>
+          <button
+            ref={submitButtonRef}
+            type="submit"
+            disabled={!stripe || !elements || isProcessing || isLoading || isSubmitting}
+            className={`
+              flex-1 py-3 rounded-xl font-medium flex items-center justify-center
+              ${(isProcessing || isLoading || isSubmitting || !stripe || !elements) 
+                ? 'bg-blue-700 bg-opacity-50 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+              }
+              transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+            `}
+          >
+            {isProcessing || isLoading || isSubmitting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                处理中...
+              </>
+            ) : '确认支付'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };
 
@@ -218,6 +291,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const scriptRef = useRef<HTMLScriptElement | null>(null);
   const cardRef = useRef<any>(null);
+  const [isPayButtonDisabled, setIsPayButtonDisabled] = useState(false);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+  const stripeProcessing = useRef<boolean>(false);
+  
   const [questionSet, setQuestionSet] = useState<QuestionSet>(propQuestionSet);
   const [alreadyPurchased, setAlreadyPurchased] = useState(false);
   const [showStripeForm, setShowStripeForm] = useState(false);
@@ -396,27 +473,64 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     };
   }, []);
 
-  // 处理支付提交
+  // 用于处理支付表单提交的函数
+  const handlePaymentSubmit = async (paymentInfo: {
+    paymentIntentId: string;
+    paymentMethodId: string | null;
+    amount: number;
+    status: string;
+  }) => {
+    try {
+      // 计算过期时间（6个月后）
+      const now = new Date();
+      const expiryDate = new Date(now);
+      expiryDate.setMonth(expiryDate.getMonth() + 6);
+      
+      // 验证支付状态
+      await verifyPaymentStatus(paymentInfo.paymentIntentId);
+      
+      // 完成购买流程
+      await finalizePurchase({
+        transactionId: paymentInfo.paymentIntentId,
+        expiryDate: expiryDate.toISOString(),
+        paymentMethod: 'card'
+      });
+    } catch (error) {
+      console.error('[PaymentModal] 处理支付失败:', error);
+      throw error;
+    }
+  };
+
+  // 处理表单提交
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!stripe || !cardElement || !user) {
-      setError('支付系统未准备好，请刷新页面重试');
+    
+    // 防止重复提交
+    if (isProcessing || isPayButtonDisabled || stripeProcessing.current) {
+      console.log('[支付] 正在处理中，忽略重复提交', { 
+        isProcessing, isPayButtonDisabled, stripeProcessing: stripeProcessing.current 
+      });
+      return;
+    }
+    
+    // 立即禁用按钮
+    setIsPayButtonDisabled(true);
+    
+    // 如果用户未登录，提示错误
+    if (!user) {
+      setError('请先登录');
+      setIsPayButtonDisabled(false);
       return;
     }
 
-    // 验证题库和价格
-    if (!questionSet || !questionSet.id) {
-      setError('题库信息未加载，请刷新页面重试');
-      return;
-    }
-
-    const price = parseFloat(String(questionSet.price));
+    // 获取题库价格，并检查是否有效
+    const price = parseFloat(String(questionSet?.price || 0));
     if (isNaN(price) || price <= 0) {
-      setError('题库价格无效，请联系管理员');
+      setError('题库价格无效');
+      setIsPayButtonDisabled(false);
       return;
     }
-
+    
     console.log(`[支付] 开始处理支付, 题库ID: ${questionSet.id}, 价格: ${price}`);
     setIsProcessing(true);
     setError('');
@@ -427,12 +541,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     } catch (err: any) {
       console.error('[支付错误]:', err);
       setError(err.message || '支付处理过程中发生错误，请重试');
+    } finally {
       setIsProcessing(false);
+      // 延迟重置按钮状态，防止意外的快速点击
+      setTimeout(() => {
+        setIsPayButtonDisabled(false);
+      }, 2000);
     }
   };
 
   // 真实Stripe支付流程
   const handleStripePayment = async () => {
+    // 防止重复调用
+    if (stripeProcessing.current) {
+      console.log('[支付] 正在处理中，忽略重复调用');
+      return;
+    }
+    
+    stripeProcessing.current = true;
+    
     try {
       // 确保价格是有效的数字
       const price = parseFloat(String(questionSet?.price || 0));
@@ -459,6 +586,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
 
       console.log(`[支付] 支付意向创建成功，准备确认支付`);
 
+      // 禁用支付按钮，防止重复点击
+      setIsPayButtonDisabled(true);
+      submitButtonRef.current?.setAttribute('disabled', 'true');
+      
       // 2. 确认支付
       const { paymentIntent, error } = await stripe.confirmCardPayment(intentData.clientSecret, {
         payment_method: {
@@ -469,6 +600,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
           }
         }
       });
+
+      // 将按钮状态保持禁用一段时间，防止意外的快速点击
+      setTimeout(() => {
+        setIsPayButtonDisabled(false);
+        submitButtonRef.current?.removeAttribute('disabled');
+      }, 2000);
 
       if (error) {
         // 支付失败
@@ -502,6 +639,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     } catch (error: any) {
       console.error('[支付] Stripe支付错误:', error);
       throw new Error(error.message || '支付处理失败');
+    } finally {
+      // 重置处理状态
+      stripeProcessing.current = false;
     }
   };
 
@@ -680,123 +820,136 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-      <div className="relative mx-auto p-5 border w-full max-w-md shadow-xl rounded-lg bg-white animate-fadeIn">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold text-gray-900">
-            购买题库
-          </h3>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-500"
-            disabled={isProcessing}
-            aria-label="关闭"
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div className={`${isOpen ? 'fixed' : 'hidden'} inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-filter backdrop-blur-sm`}>
+      <div className="max-w-xl w-full relative">
+        {/* 装饰元素 */}
+        <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-blue-500 bg-opacity-10 filter blur-3xl"></div>
+        <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-purple-500 bg-opacity-10 filter blur-3xl"></div>
         
-        <div className="mb-6">
-          <h4 className="font-medium text-lg mb-2">
-            {questionSet?.title || '未知题库'}
-          </h4>
-          <p className="text-gray-600 mb-3">
-            {questionSet?.description || '无描述信息'}
-          </p>
-          <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
-            <span className="text-gray-700">付费内容</span>
-            <span className="font-medium text-lg text-green-600">
-              ¥{questionSet?.price ?? '未定价'}
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 mt-2">购买后有效期为6个月</p>
-        </div>
-        
-        {!showStripeForm ? (
-          // 初始确认页面
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">购买确认</h2>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600"
+        {/* 主卡片容器 */}
+        <div className="relative bg-gradient-to-br from-gray-900 to-indigo-900 rounded-2xl overflow-hidden shadow-2xl border border-indigo-500 border-opacity-20">
+          {/* 头部标题区域 */}
+          <div className="relative">
+            {/* 网格背景 */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-600 opacity-90">
+              <div className="absolute inset-0 bg-grid-white/[0.05]" style={{ backgroundSize: '10px 10px' }}></div>
+            </div>
+            
+            {/* 标题内容 */}
+            <div className="relative py-6 px-8 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <svg className="w-6 h-6 mr-2 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                支付中心
+              </h2>
+              <button 
+                onClick={onClose} 
+                className="text-gray-200 hover:text-white bg-black bg-opacity-20 rounded-full p-1.5 transition-all hover:bg-opacity-30"
                 disabled={isProcessing}
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
-                {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-                    {error}
+          </div>
+          
+          {/* 主内容区域 */}
+          <div className="p-6">
+            {/* 题库信息 */}
+            {questionSet && (
+              <div className="mb-6 bg-white bg-opacity-5 rounded-xl p-5 border border-white border-opacity-10 transform transition-transform hover:scale-[1.01]">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1 flex items-center">
+                      <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                      {questionSet.title}
+                    </h3>
+                    <p className="text-gray-300 text-sm">{questionSet.description || '无描述'}</p>
+                  </div>
+                  <div className="bg-indigo-600 bg-opacity-30 rounded-lg px-3 py-1 text-blue-200 text-sm">
+                    {questionSet.questionCount} 题
+                  </div>
+                </div>
+                
+                <div className="mt-4 flex justify-between items-center">
+                  <div className="flex items-baseline">
+                    <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet.price}</span>
+                    <span className="text-gray-400 text-xs ml-2">一次付费，永久使用</span>
+                  </div>
+                </div>
               </div>
             )}
             
-            <div className="mb-6">
-              <h3 className="font-bold text-lg mb-2">{questionSet?.title}</h3>
-              <p className="text-gray-600 mb-4">{questionSet?.description}</p>
-              <div className="flex justify-between items-center text-lg border-t pt-4">
-                <span>价格:</span>
-                <span className="font-bold text-green-600">¥{questionSet?.price || 0}</span>
+            {/* 已购买提示 */}
+            {alreadyPurchased && (
+              <div className="bg-green-900 bg-opacity-20 text-green-200 p-5 rounded-xl border border-green-500 border-opacity-30 mb-4">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 mr-2 mt-0.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="font-medium">您已成功购买此题库</p>
+                    <p className="text-sm text-green-300 mt-1">系统将在3秒后自动关闭此窗口</p>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
             
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-                disabled={isProcessing}
-              >
-                取消
-              </button>
-              <button
-                onClick={() => setShowStripeForm(true)}
-                className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
-                  isProcessing ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-                disabled={isProcessing}
-              >
-                {isProcessing ? '处理中...' : '继续支付'}
-              </button>
+            {/* 成功消息 */}
+            {successMessage && (
+              <div className="bg-green-900 bg-opacity-20 text-green-200 p-5 rounded-xl border border-green-500 border-opacity-30 mb-4">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 mr-2 mt-0.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="font-medium">{successMessage}</p>
+                    <p className="text-sm text-green-300 mt-1">系统将在3秒后自动关闭此窗口</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* 错误消息 */}
+            {error && (
+              <div className="bg-red-900 bg-opacity-20 text-red-200 p-5 rounded-xl border border-red-500 border-opacity-30 mb-4">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 mr-2 mt-0.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="font-medium">支付过程中出现错误</p>
+                    <p className="text-sm mt-1">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Stripe支付表单 */}
+            {isOpen && !alreadyPurchased && !successMessage && (
+              <Elements stripe={stripePromise}>
+                <StripePaymentForm
+                  amount={questionSet?.price || 0}
+                  onSubmit={handlePaymentSubmit}
+                  onCancel={onClose}
+                  isProcessing={isProcessing}
+                />
+              </Elements>
+            )}
+          </div>
+          
+          {/* 底部支付安全信息 */}
+          <div className="bg-black bg-opacity-20 p-4 border-t border-white border-opacity-5">
+            <div className="flex items-center justify-center text-xs text-gray-400">
+              <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              所有支付数据经过加密处理，我们不会存储您的完整卡号信息
             </div>
           </div>
-        ) : (
-          <Elements stripe={stripePromise}>
-            <StripePaymentForm
-              amount={parseFloat(String(questionSet?.price || 0))}
-              onSubmit={async (paymentInfo) => {
-                try {
-                  // 计算过期时间（6个月后）
-                  const now = new Date();
-                  const expiryDate = new Date(now);
-                  expiryDate.setMonth(expiryDate.getMonth() + 6);
-                  
-                  // 验证支付状态
-                  await verifyPaymentStatus(paymentInfo.paymentIntentId);
-                  
-                  // 完成购买流程
-                  await finalizePurchase({
-                    transactionId: paymentInfo.paymentIntentId,
-                    expiryDate: expiryDate.toISOString(),
-                    paymentMethod: 'card'
-                  });
-                } catch (error) {
-                  console.error('[PaymentModal] 处理支付失败:', error);
-                  throw error;
-                }
-              }}
-              onCancel={() => {
-                setShowStripeForm(false);
-                onClose();
-              }}
-              isProcessing={isProcessing}
-            />
-          </Elements>
-        )}
+        </div>
       </div>
     </div>
   );

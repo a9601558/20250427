@@ -131,11 +131,11 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         });
         
         console.log(`[QuestionSetController] 成功获取 ${questionCountsQuery.length} 个题库的问题数量`);
-      } catch (countError) {
+        } catch (countError) {
         console.error('[QuestionSetController] 获取题库问题数量失败:', countError);
+        }
       }
-    }
-    
+      
     // 为每个题库添加问题数量
     const enhancedSets = questionSets.map(set => {
       const setJSON = set.toJSON();

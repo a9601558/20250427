@@ -36,15 +36,15 @@ export const questionSetService = {
           response.data.map(async (set) => {
             try {
               // Use the dedicated method instead of direct fetch to ensure consistent handling
-              const count = await this.getQuestionCount(set.id);
+            const count = await this.getQuestionCount(set.id);
               
               // Log successful count fetching
               if (count > 0) {
                 console.log(`[QuestionSetService] Successfully got count for "${set.title}": ${count}`);
-                return {
-                  ...set,
-                  questionCount: count
-                };
+            return {
+              ...set,
+              questionCount: count
+            };
               } else {
                 console.warn(`[QuestionSetService] Zero count for "${set.title}", checking for embedded counts...`);
                 

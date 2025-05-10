@@ -310,7 +310,7 @@ const HomePage = (): JSX.Element => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {getQuestionCount() > 0 ? (
-                <span>{getQuestionCount()}题</span>
+              <span>{getQuestionCount()}题</span>
               ) : (
                 <span className="text-red-500 dark:text-red-400 flex items-center">
                   <span>0题</span>
@@ -2027,7 +2027,7 @@ const HomePage = (): JSX.Element => {
               console.log('[HomePage] Refreshing question sets with new admin settings');
               // Only fetch if not in a skip refresh mode to prevent loops
               if (!options.skipRefresh) {
-                fetchQuestionSets({ forceFresh: true });
+              fetchQuestionSets({ forceFresh: true });
               } else {
                 console.log('[HomePage] Skipping question sets refresh as requested by options');
               }
@@ -2064,7 +2064,7 @@ const HomePage = (): JSX.Element => {
                 console.log('[HomePage] Refreshing question sets with new category settings');
                 // Only fetch if not in a skip refresh mode to prevent loops
                 if (!options.skipRefresh) {
-                  fetchQuestionSets({ forceFresh: true });
+                fetchQuestionSets({ forceFresh: true });
                 } else {
                   console.log('[HomePage] Skipping question sets refresh as requested by options');
                 }
@@ -2099,7 +2099,7 @@ const HomePage = (): JSX.Element => {
             setTimeout(() => {
               // Add check to avoid redundant calls if skipRefresh is set
               if (!options.skipRefresh) {
-                fetchQuestionSets({ forceFresh: true });
+              fetchQuestionSets({ forceFresh: true });
               } else {
                 console.log('[HomePage] Skipping question sets refresh as requested');
               }
@@ -2632,7 +2632,7 @@ const HomePage = (): JSX.Element => {
       }
     }
   }, [recommendedSets]);
-  
+
   // 修复加载状态检查
   if (loading) {
     return (

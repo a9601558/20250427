@@ -402,17 +402,17 @@ const AdminFeaturedManagement: React.FC = () => {
       return;
     }
     
-    try {
+      try {
       console.log(`通知所有客户端分类变更: ${action} ${category}`);
       
       // 发送websocket事件
       socket.emit('admin:homeContent:updated', {
         type: 'featuredCategories',
-        action,
-        category,
+          action,
+          category,
         oldCategory,
         timestamp: Date.now()
-      });
+        });
       
       // 使用localStorage强制刷新
       localStorage.setItem('home_content_updated', Date.now().toString());
@@ -433,7 +433,7 @@ const AdminFeaturedManagement: React.FC = () => {
       
       // 显示额外确认消息
       showMessage('success', `通知已发送，所有客户端将刷新分类（${action}: ${category}）`);
-    } catch (err) {
+      } catch (err) {
       console.error("发送通知失败:", err);
     }
   };
@@ -458,31 +458,31 @@ const AdminFeaturedManagement: React.FC = () => {
         action: isFeatured ? 'featured' : 'unfeatured',
         questionSetId: id,
         title,
-        featuredCategory,
-        timestamp: Date.now()
-      });
-      
+          featuredCategory,
+          timestamp: Date.now()
+        });
+        
       // 使用localStorage强制刷新
       localStorage.setItem('home_content_updated', Date.now().toString());
       localStorage.setItem('home_content_force_reload', Date.now().toString());
       
       // 使用自定义事件通知页面刷新
       const customEvent = new CustomEvent('homeContent:updated', {
-        detail: {
-          type: 'featuredQuestionSet',
+          detail: {
+            type: 'featuredQuestionSet',
           action: isFeatured ? 'featured' : 'unfeatured',
           questionSetId: id,
           title,
           featuredCategory,
-          timestamp: Date.now()
-        }
+            timestamp: Date.now()
+          }
       });
       
       window.dispatchEvent(customEvent);
-      
+        
       // 显示额外确认消息
       showMessage('success', `通知已发送，所有客户端将刷新题库状态（${title}）`);
-    } catch (err) {
+      } catch (err) {
       console.error("发送通知失败:", err);
     }
   };

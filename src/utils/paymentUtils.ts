@@ -1,8 +1,34 @@
 import axios from 'axios';
+import { toast } from 'react-toastify';
 import { API_BASE_URL } from '../services/api';
 
 // 获取API基础URL，确保末尾没有斜杠
 const BASE_URL = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+
+// 防抖函数 - 防止连续快速调用
+export function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return function(...args: Parameters<F>) {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => func(...args), waitFor);
+  };
+}
+
+// 支付信息接口
+interface PaymentMetadata {
+  userId: string;
+  questionSetId: string;
+  questionSetTitle: string;
+}
+
+// 支付结果接口
+interface PaymentResult {
+  clientSecret: string;
+  paymentIntentId: string;
+}
 
 /**
  * 处理支付流程 - 创建支付意向
@@ -10,57 +36,57 @@ const BASE_URL = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BA
 export const processPayment = async (
   amount: number,
   currency: string = 'cny',
-  metadata?: Record<string, string>
-) => {
-  console.log(`[支付] 创建支付意向: 金额=${amount}, 货币=${currency}`);
+  metadata: PaymentMetadata
+): Promise<PaymentResult> => {
+  console.log(`[PaymentUtils] 创建支付意向，金额: ${amount} ${currency}`, metadata);
   
-  // 从localStorage获取token
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('未找到认证信息，请重新登录');
-  }
-  
-  // 确保金额是一个有效的数字并转为cents（分）
-  const amountInCents = Math.round(parseFloat(String(amount)) * 100);
-  if (isNaN(amountInCents) || amountInCents <= 0) {
-    throw new Error('无效的支付金额');
-  }
-  
-  // 使用支付API
-  console.log('[支付] 使用Stripe支付API，金额(分):', amountInCents);
   try {
-  const response = await axios.post(
-    `${BASE_URL}/payments/create-intent`,
-    {
-      amount: amountInCents,
-      currency, 
-      metadata
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    // 确保金额有效
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error('无效的支付金额');
+    }
+    
+    // 转换为分
+    const amountInCents = Math.round(amount * 100);
+    
+    // 获取token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('需要登录才能进行支付');
+    }
+    
+    // 创建支付意向
+    const response = await axios.post(
+      `${BASE_URL}/payments/create-intent`,
+      {
+        amount: amountInCents,
+        currency,
+        metadata
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       }
+    );
+    
+    // 检查响应
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || '创建支付意向失败');
     }
-  );
-  
-  if (response.data && response.data.success) {
-    // 确保返回的数据格式一致
-      console.log('[支付] 创建支付意向成功:', response.data);
+    
     return {
-      id: response.data.paymentIntentId,
-      clientSecret: response.data.clientSecret
+      clientSecret: response.data.clientSecret,
+      paymentIntentId: response.data.paymentIntentId
     };
-  } else {
-      console.error('[支付] 创建支付意向失败:', response.data);
-    throw new Error(response.data?.message || '创建支付意向失败');
-    }
   } catch (error: any) {
-    console.error('[支付] 创建支付意向请求失败:', error);
-    if (error.response) {
-      console.error('[支付] 服务器响应:', error.response.data);
-    }
-    throw new Error(error.message || '创建支付意向请求失败');
+    console.error('[PaymentUtils] 创建支付意向错误:', error);
+    
+    // 显示错误提示
+    toast.error(`支付初始化失败: ${error.message || '未知错误'}`);
+    
+    throw error;
   }
 };
 
@@ -235,75 +261,114 @@ export function isPaidQuiz(quizData: any, debug = false): boolean {
 /**
  * 验证支付状态并同步购买记录
  */
-export async function verifyPaymentStatus(paymentIntentId: string) {
-  console.log(`[支付] 验证支付状态: ${paymentIntentId}`);
-  
-  // 从localStorage获取token
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('未找到认证信息，请重新登录');
-  }
+export const verifyPaymentStatus = async (paymentIntentId: string): Promise<boolean> => {
+  console.log(`[PaymentUtils] 验证支付状态，支付ID: ${paymentIntentId}`);
   
   try {
-    const response = await axios.get(
-      `${BASE_URL}/payments/verify/${paymentIntentId}`,
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('需要登录才能验证支付');
+    }
+    
+    // 修正API端点
+    const response = await axios.post(
+      `${BASE_URL}/payments/verify-payment`,
+      { paymentIntentId },
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       }
     );
     
-    if (response.data && response.data.success) {
-      console.log('[支付] 支付验证成功:', response.data);
-      return response.data;
-    } else {
-      console.error('[支付] 支付验证失败:', response.data);
+    if (!response.data || !response.data.success) {
       throw new Error(response.data?.message || '支付验证失败');
     }
+    
+    return true;
   } catch (error: any) {
-    console.error('[支付] 支付验证请求失败:', error);
-    if (error.response) {
-      console.error('[支付] 服务器响应:', error.response.data);
-    }
-    throw new Error(error.message || '支付验证请求失败');
+    console.error('[PaymentUtils] 支付验证错误:', error);
+    return false;
   }
-}
+};
+
+/**
+ * 完成Stripe支付购买
+ * @param questionSetId 题库ID
+ * @param paymentIntentId 支付意向ID
+ * @param amount 支付金额
+ * @returns 购买结果
+ */
+export const completeStripePurchase = async (
+  questionSetId: string,
+  paymentIntentId: string,
+  amount: number
+): Promise<any> => {
+  console.log(`[PaymentUtils] 完成Stripe购买，题库ID: ${questionSetId}, 支付ID: ${paymentIntentId}`);
+  
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('需要登录才能完成购买');
+    }
+    
+    // 修正API端点
+    const response = await axios.post(
+      `${BASE_URL}/payments/complete-purchase`,
+      {
+        questionSetId,
+        paymentIntentId,
+        amount: Math.round(amount * 100) // 转换为分
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || '完成购买失败');
+    }
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('[PaymentUtils] 完成购买错误:', error);
+    throw error;
+  }
+};
 
 /**
  * 刷新用户购买记录
+ * @returns 用户的购买记录列表
  */
-export async function refreshUserPurchases() {
-  console.log('[支付] 刷新用户购买记录');
-  
-  // 从localStorage获取token
-  const token = localStorage.getItem('token');
-  if (!token) {
-    console.warn('[支付] 未找到认证信息，无法刷新购买记录');
-    return [];
-  }
+export const refreshUserPurchases = async (): Promise<any[]> => {
+  console.log('[PaymentUtils] 刷新用户购买记录');
   
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return [];
+    }
+    
     const response = await axios.get(
       `${BASE_URL}/purchases`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       }
     );
     
-    if (response.data && response.data.success) {
-      console.log(`[支付] 购买记录刷新成功: ${response.data.data.length} 条记录`);
-      return response.data.data || [];
-    } else {
-      console.error('[支付] 购买记录刷新失败:', response.data);
-      return [];
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || '获取购买记录失败');
     }
+    
+    return response.data.purchases || [];
   } catch (error: any) {
-    console.error('[支付] 购买记录刷新请求失败:', error);
+    console.error('[PaymentUtils] 获取购买记录错误:', error);
     return [];
   }
-} 
+}; 

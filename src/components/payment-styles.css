@@ -1,0 +1,55 @@
+/* 网格背景效果 */
+.bg-grid-white {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                    radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+/* 动画效果 */
+@keyframes ripple {
+  0% {
+    transform: scale(0.1);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 1s cubic-bezier(0, 0.2, 0.8, 1) forwards;
+}
+
+/* 文字阴影效果 */
+.text-shadow {
+  text-shadow: 0 0 10px rgba(0, 0, 255, 0.3),
+               0 0 20px rgba(0, 0, 255, 0.2),
+               0 0 30px rgba(0, 0, 255, 0.1);
+}
+
+/* 背景磁力效果 */
+.magnetic-bg {
+  position: relative;
+  overflow: hidden;
+}
+
+.magnetic-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), 
+                              rgba(100, 100, 255, 0.2) 0%, 
+                              rgba(50, 50, 200, 0.15) 20%, 
+                              transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.magnetic-bg:hover::before {
+  opacity: 1;
+} 

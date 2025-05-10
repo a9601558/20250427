@@ -62,17 +62,85 @@ const AnswerCard: React.FC<{
   isTrialMode?: boolean;
   isTrialLimitReached?: boolean; // 新增，是否已达到试用限制
 }> = ({ totalQuestions, answeredQuestions, currentIndex, onJump, trialLimit, isTrialMode, isTrialLimitReached }) => {
-  // 生成按钮
+  // 计算分页状态
+  const itemsPerPage = 15; // 每页显示的题目数量
+  const totalPages = Math.ceil(totalQuestions / itemsPerPage);
+  const currentPage = Math.floor(currentIndex / itemsPerPage) + 1;
+  
+  // 计算要显示的页码范围
+  const getPageRange = () => {
+    const range = [];
+    const maxVisiblePages = 7; // 最多显示的页码数
+    
+    if (totalPages <= maxVisiblePages) {
+      // 如果总页数小于最大显示数，显示所有页码
+      for (let i = 1; i <= totalPages; i++) {
+        range.push(i);
+      }
+    } else {
+      // 计算显示哪些页码
+      let startPage = Math.max(1, currentPage - 3);
+      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      // 调整起始页和结束页
+      if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+      
+      // 添加首页
+      if (startPage > 1) {
+        range.push(1);
+        if (startPage > 2) range.push('ellipsis');
+      }
+      
+      // 添加中间页码
+      for (let i = startPage; i <= endPage; i++) {
+        range.push(i);
+      }
+      
+      // 添加末页
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) range.push('ellipsis');
+        range.push(totalPages);
+      }
+    }
+    
+    return range;
+  };
+  
+  // 获取页码范围
+  const pageRange = getPageRange();
+  
+  // 跳转到特定页的第一个题目
+  const goToPage = (page: number) => {
+    const questionIndex = (page - 1) * itemsPerPage;
+    onJump(Math.min(questionIndex, totalQuestions - 1));
+  };
+  
+  // 跳转到前一页或后一页
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      goToPage(currentPage - 1);
+    }
+  };
+  
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      goToPage(currentPage + 1);
+    }
+  };
+  
   return (
     <div className="flex flex-col bg-white rounded-xl shadow-md p-5 mb-5">
       <h3 className="text-lg font-medium text-gray-700 mb-4">答题卡</h3>
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">
-        {Array.from({length: totalQuestions}).map((_, index) => {
-          const answered = answeredQuestions.find(q => q.questionIndex === index);
-          const isActive = currentIndex === index;
-          
-          // 修改禁用逻辑：如果已达到试用限制，禁用所有非当前激活的题目
-          // 只有当前题目可以操作（保持当前状态），其他题目都禁用
+      
+      {/* 题目状态指示器 */}
+      <div className="grid grid-cols-5 gap-2 mb-4 sm:grid-cols-8 md:grid-cols-10">
+        {/* 显示当前页的题目状态 */}
+        {Array.from({length: Math.min(itemsPerPage, totalQuestions - (currentPage - 1) * itemsPerPage)}).map((_, i) => {
+          const questionIndex = (currentPage - 1) * itemsPerPage + i;
+          const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);
+          const isActive = currentIndex === questionIndex;
           const isDisabled = isTrialMode && isTrialLimitReached && !isActive;
           
           let bgColor = "bg-gray-100 text-gray-600";
@@ -88,15 +156,15 @@ const AnswerCard: React.FC<{
           
           return (
             <button
-              key={index}
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${bgColor} ${
+              key={questionIndex}
+              className={`h-8 rounded text-sm ${bgColor} ${
                 isDisabled ? "opacity-50 pointer-events-none" : "hover:bg-opacity-80"
               }`}
-              onClick={() => !isDisabled && onJump(index)}
+              onClick={() => !isDisabled && onJump(questionIndex)}
               disabled={isDisabled}
-              title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${index + 1}题`}
+              title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${questionIndex + 1}题`}
             >
-              {index + 1}
+              {questionIndex + 1}
               {isDisabled && (
                 <span className="absolute -top-1 -right-1">
                   <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -107,6 +175,50 @@ const AnswerCard: React.FC<{
             </button>
           );
         })}
+      </div>
+      
+      {/* 分页导航 */}
+      <div className="flex justify-center items-center mt-2 space-x-1">
+        {/* 上一页按钮 */}
+        <button 
+          onClick={goToPrevPage} 
+          disabled={currentPage === 1}
+          className={`px-3 py-1 rounded ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        
+        {/* 页码 */}
+        {pageRange.map((page, index) => 
+          page === 'ellipsis' ? (
+            <span key={`ellipsis-${index}`} className="px-3 py-1">...</span>
+          ) : (
+            <button
+              key={`page-${page}`}
+              onClick={() => goToPage(page as number)}
+              className={`px-3 py-1 rounded ${
+                currentPage === page 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {page}
+            </button>
+          )
+        )}
+        
+        {/* 下一页按钮 */}
+        <button 
+          onClick={goToNextPage} 
+          disabled={currentPage === totalPages}
+          className={`px-3 py-1 rounded ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
       
       {/* 更新试用限制提示的文本 */}
@@ -323,154 +435,219 @@ const PurchasePage: React.FC<{
   };
   
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-95 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 relative overflow-hidden">
-        {/* Processing overlay */}
-        {isProcessing && (
-          <div className="absolute inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center z-10">
-            <div className="w-16 h-16 border-t-4 border-blue-500 border-solid rounded-full animate-spin mb-3"></div>
-            <p className="text-blue-600 font-semibold">正在处理，请稍候...</p>
-          </div>
-        )}
-        
-        {/* Title and info */}
-        <div className="text-center mb-6">
-          <div className="inline-block p-3 bg-blue-100 rounded-full text-blue-600 mb-3">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">试用已结束</h2>
-          <p className="text-gray-600 mb-1">您已完成 <span className="font-semibold text-blue-600">{trialCount}</span> 道试用题目</p>
-          <p className="text-gray-600 mb-4">请购买完整版或使用兑换码继续使用</p>
-        </div>
-        
-        {/* Quiz set info */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-lg mb-8 shadow-sm border border-blue-200">
-          <h3 className="text-lg font-medium text-blue-800 mb-2">{questionSet?.title || '题库'}</h3>
-          <p className="text-blue-700 mb-4">{questionSet?.description || '详细学习各种问题，提升知识水平。'}</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-baseline">
-              <span className="text-3xl font-bold text-blue-800">¥{questionSet?.price || '0'}</span>
-              <span className="text-sm text-blue-600 ml-1">一次付费，永久使用</span>
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 to-indigo-900 bg-opacity-95 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="max-w-lg w-full mx-auto overflow-hidden">
+        {/* 主卡片 - 采用玻璃态设计 */}
+        <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-2xl shadow-2xl border border-white border-opacity-20 p-8 relative overflow-hidden">
+          {/* 装饰元素 - 半透明圆形 */}
+          <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-blue-500 bg-opacity-20 filter blur-2xl"></div>
+          <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-purple-500 bg-opacity-20 filter blur-2xl"></div>
+          
+          {/* Processing overlay */}
+          {isProcessing && (
+            <div className="absolute inset-0 bg-black bg-opacity-30 backdrop-filter backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-2xl">
+              <div className="w-16 h-16 relative">
+                <div className="w-16 h-16 rounded-full border-4 border-indigo-200 border-opacity-40 animate-spin"></div>
+                <div className="w-16 h-16 rounded-full border-t-4 border-blue-600 absolute top-0 left-0 animate-spin"></div>
+              </div>
+              <p className="text-white text-lg font-medium mt-5 tracking-wide">处理中<span className="animate-pulse">...</span></p>
             </div>
-            <span className="bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-              包含 {questionSet?.questionCount || '0'} 道题
-            </span>
-          </div>
-        </div>
-        
-        {/* Action buttons */}
-        <div className="space-y-4 mb-6">
-          {/* Purchase button */}
-          <button 
-            onClick={handlePurchaseClick}
-            type="button" 
-            className={`
-              w-full py-4 relative overflow-hidden
-              ${btnStates.purchase.clicked 
-                ? 'bg-blue-800 transform scale-[0.98] shadow-inner' 
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transform hover:-translate-y-0.5'
-              } 
-              text-white rounded-lg font-medium transition-all duration-200 
-              flex items-center justify-center shadow-md hover:shadow-lg 
-              disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-              active:scale-[0.98] active:shadow-inner
-            `}
-            disabled={isProcessing}
-          >
-            {/* Ripple effect */}
-            {btnStates.purchase.clicked && (
-              <span className="absolute inset-0 bg-white opacity-30 rounded-lg animate-ripple"></span>
-            )}
-            
-            {/* Button content */}
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-            </svg>
-            <span className="mr-2">立即购买完整版</span>
-            
-            {/* Right arrow icon */}
-            <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
+          )}
           
-          {/* Divider */}
-          <div className="flex items-center">
-            <div className="flex-grow border-t border-gray-200"></div>
-            <span className="mx-4 text-sm text-gray-500">或者</span>
-            <div className="flex-grow border-t border-gray-200"></div>
+          {/* Title and info */}
+          <div className="text-center mb-8 relative z-10">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg mb-5 transform -rotate-6">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-3 text-shadow">试用已结束</h2>
+            <div className="flex items-center justify-center space-x-2 mb-1">
+              <p className="text-blue-100">您已完成</p>
+              <div className="bg-blue-900 bg-opacity-50 text-blue-200 font-mono px-3 py-1 rounded-full font-bold">
+                {trialCount} <span className="text-xs">/ {questionSet?.trialQuestions || 0}</span>
+              </div>
+              <p className="text-blue-100">道试用题目</p>
+            </div>
+            <p className="text-blue-200 text-sm font-light">请购买完整版或使用兑换码继续使用</p>
           </div>
           
-          {/* Redeem button */}
-          <button 
-            onClick={handleRedeemClick}
-            type="button" 
-            className={`
-              w-full py-4 relative overflow-hidden
-              ${btnStates.redeem.clicked 
-                ? 'bg-green-100 text-green-800 transform scale-[0.98] shadow-inner' 
-                : 'bg-white hover:bg-green-50 text-green-700 transform hover:-translate-y-0.5'
-              } 
-              border-2 border-green-400 rounded-lg font-medium transition-all duration-200 
-              flex items-center justify-center shadow-sm hover:shadow-md
-              disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
-              focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2
-              active:scale-[0.98] active:bg-green-100
-            `}
-            disabled={isProcessing}
-          >
-            {/* Ripple effect */}
-            {btnStates.redeem.clicked && (
-              <span className="absolute inset-0 bg-green-500 opacity-10 rounded-lg animate-ripple"></span>
-            )}
-            
-            {/* Button content */}
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-            <span className="mr-2">使用兑换码解锁</span>
-            
-            {/* Right arrow icon */}
-            <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
+          {/* Quiz set info */}
+          <div className="mb-8 relative z-10">
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 border border-gray-700 shadow-inner transform transition-transform hover:scale-[1.01] cursor-default">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-2 flex items-center">
+                    <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                    {questionSet?.title || '题库'}
+                  </h3>
+                  <p className="text-gray-300 mb-4 text-sm">{questionSet?.description || '详细学习各种问题，提升知识水平。'}</p>
+                </div>
+                <div className="bg-indigo-600 bg-opacity-50 rounded-lg px-3 py-2 text-white">
+                  包含 <span className="font-mono font-bold">{questionSet?.questionCount || '0'}</span> 道题
+                </div>
+              </div>
+              
+              <div className="mt-4 flex justify-between items-center">
+                <div className="flex items-baseline">
+                  <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet?.price || '0'}</span>
+                  <span className="text-gray-400 text-xs ml-2">一次付费，永久使用</span>
+                </div>
+                <div className="flex space-x-1">
+                  {['安全', '快速', '高效'].map(tag => (
+                    <span key={tag} className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
           
-          {/* Back button */}
-          <button 
-            onClick={handleBackClick}
-            type="button" 
-            className={`
-              w-full py-3 mt-2 
-              ${btnStates.back.clicked 
-                ? 'bg-gray-300 transform scale-[0.98]' 
-                : 'bg-gray-100 hover:bg-gray-200 transform hover:-translate-y-0.5'
-              } 
-              text-gray-700 rounded-lg font-medium transition-all duration-200 
-              flex items-center justify-center
-              disabled:opacity-70 disabled:cursor-not-allowed
-              focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
-            `}
-            disabled={isProcessing}
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            返回首页
-          </button>
-        </div>
-        
-        {/* Footer info */}
-        <div className="text-center">
-          <p className="text-xs text-gray-500 mb-2">
-          付费后立即获得完整题库的访问权限，内容持续更新
-        </p>
-          <p className="text-xs text-gray-400">
-            支持Stripe安全支付，确保您的付款安全
-          </p>
+          {/* Action buttons */}
+          <div className="space-y-4 mb-6 relative z-10">
+            {/* Purchase button */}
+            <button 
+              onClick={handlePurchaseClick}
+              type="button" 
+              className={`
+                w-full py-4 relative overflow-hidden group
+                ${btnStates.purchase.clicked 
+                  ? 'bg-blue-800 transform scale-[0.98] shadow-inner' 
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 transform hover:-translate-y-0.5'
+                } 
+                text-white rounded-xl font-medium transition-all duration-200 
+                flex items-center justify-center shadow-lg hover:shadow-xl 
+                disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                active:scale-[0.98] active:shadow-inner
+              `}
+              disabled={isProcessing}
+            >
+              {/* Ripple effect */}
+              {btnStates.purchase.clicked && (
+                <span className="absolute inset-0 bg-white opacity-30 rounded-lg animate-ripple"></span>
+              )}
+              
+              {/* Button content */}
+              <span className="absolute inset-0 flex items-center justify-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <span className="mr-2">立即购买完整版</span>
+              
+                {/* Right arrow icon */}
+                <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </span>
+              
+              {/* Progress rings for hover effect */}
+              <span className="absolute inset-0 rounded-xl">
+                <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 overflow-hidden transition-opacity duration-300">
+                  {[...Array(8)].map((_, i) => (
+                    <span 
+                      key={i} 
+                      className="absolute w-40 h-40 rounded-full bg-white bg-opacity-10"
+                      style={{
+                        top: `${-20 + Math.random() * 100}%`,
+                        left: `${-20 + Math.random() * 100}%`,
+                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        transitionDelay: `${i * 0.05}s`,
+                        transform: 'scale(0)',
+                        opacity: 0,
+                      }}
+                    ></span>
+                  ))}
+                </span>
+              </span>
+            </button>
+            
+            {/* Divider */}
+            <div className="flex items-center my-4">
+              <div className="flex-grow h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent opacity-20"></div>
+              <span className="mx-4 text-sm text-gray-300">或者</span>
+              <div className="flex-grow h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent opacity-20"></div>
+            </div>
+            
+            {/* Redeem button */}
+            <button 
+              onClick={handleRedeemClick}
+              type="button" 
+              className={`
+                w-full py-4 relative overflow-hidden group
+                ${btnStates.redeem.clicked 
+                  ? 'bg-green-900 text-green-100 transform scale-[0.98] shadow-inner' 
+                  : 'bg-transparent text-green-300 transform hover:-translate-y-0.5'
+                } 
+                border-2 border-green-500 rounded-xl font-medium transition-all duration-200 
+                flex items-center justify-center shadow-sm hover:shadow-md
+                disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
+                focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2
+                active:scale-[0.98] active:shadow-inner
+              `}
+              disabled={isProcessing}
+            >
+              {/* Ripple effect */}
+              {btnStates.redeem.clicked && (
+                <span className="absolute inset-0 bg-green-500 opacity-10 rounded-lg animate-ripple"></span>
+              )}
+              
+              {/* Button content */}
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span className="mr-2">使用兑换码解锁</span>
+              
+              {/* Right arrow icon */}
+              <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+            
+            {/* Back button */}
+            <button 
+              onClick={handleBackClick}
+              type="button" 
+              className={`
+                w-full py-3 mt-2 
+                ${btnStates.back.clicked 
+                  ? 'bg-gray-700 transform scale-[0.98]' 
+                  : 'bg-gray-800 hover:bg-gray-700 transform hover:-translate-y-0.5'
+                } 
+                text-gray-300 rounded-lg font-medium transition-all duration-200 
+                flex items-center justify-center
+                disabled:opacity-70 disabled:cursor-not-allowed
+                focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
+              `}
+              disabled={isProcessing}
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              返回首页
+            </button>
+          </div>
+          
+          {/* Footer info */}
+          <div className="text-center relative z-10">
+            <div className="flex items-center justify-center mb-3 space-x-2">
+              <div className="h-6 flex items-center space-x-2">
+                {['visa', 'mastercard', 'unionpay'].map(card => (
+                  <div key={card} className="w-8 h-6 bg-gray-700 rounded opacity-70"></div>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-2">
+              付费后立即获得完整题库的访问权限，内容持续更新
+            </p>
+            <div className="flex items-center justify-center text-xs text-gray-500">
+              <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              支持Stripe安全支付，确保您的付款安全
+            </div>
+          </div>
         </div>
       </div>
     </div>
