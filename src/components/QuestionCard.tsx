@@ -454,101 +454,8 @@ const QuestionCard = ({
 
   // 修改renderNumberButtons函数 - 显示带分页效果的纯数字导航
   const renderNumberButtons = () => {
-    // 确保 totalQuestions 是数字
-    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
-    const currentPage = questionNumber || 1;
-    
-    // 计算要显示哪些页码按钮
-    const getVisiblePages = () => {
-      const maxVisibleButtons = 5; // 最多显示5个页码按钮
-      
-      // 如果总页数小于等于最大可见数，显示所有页码
-      if (count <= maxVisibleButtons) {
-        return Array.from({ length: count }).map((_, i) => i + 1);
-      }
-      
-      // 否则，显示当前页附近的页码
-      let start = Math.max(1, currentPage - Math.floor(maxVisibleButtons / 2));
-      let end = start + maxVisibleButtons - 1;
-      
-      // 调整确保不超出范围
-      if (end > count) {
-        end = count;
-        start = Math.max(1, end - maxVisibleButtons + 1);
-      }
-      
-      return Array.from({ length: end - start + 1 }).map((_, i) => start + i);
-    };
-    
-    const visiblePages = getVisiblePages();
-    
-    return (
-      <div className="flex justify-center items-center mt-6 mb-4 gap-1">
-        {/* 首页按钮 */}
-        {currentPage > 1 && count > 5 && (
-          <button
-            onClick={() => onJumpToQuestion && onJumpToQuestion(0)}
-            className="w-8 h-8 rounded flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors"
-            aria-label="跳转到第一题"
-          >
-            &laquo;
-          </button>
-        )}
-        
-        {/* 上一页按钮 */}
-        {currentPage > 1 && (
-          <button
-            onClick={() => onJumpToQuestion && onJumpToQuestion(currentPage - 2)}
-            className="w-8 h-8 rounded flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors"
-            aria-label="上一题"
-          >
-            &lsaquo;
-          </button>
-        )}
-        
-        {/* 页码按钮 */}
-        {visiblePages.map(pageNum => {
-          const isActive = currentPage === pageNum;
-          return (
-            <button
-              key={pageNum}
-              onClick={() => onJumpToQuestion && onJumpToQuestion(pageNum - 1)}
-              className={`w-8 h-8 rounded flex items-center justify-center ${
-                isActive 
-                  ? 'bg-blue-600 text-white font-medium' 
-                  : 'text-gray-700 hover:bg-gray-100 transition-colors'
-              }`}
-              aria-label={`跳转到第${pageNum}题`}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              {pageNum}
-            </button>
-          );
-        })}
-        
-        {/* 下一页按钮 */}
-        {currentPage < count && (
-          <button
-            onClick={() => onJumpToQuestion && onJumpToQuestion(currentPage)}
-            className="w-8 h-8 rounded flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors"
-            aria-label="下一题"
-          >
-            &rsaquo;
-          </button>
-        )}
-        
-        {/* 末页按钮 */}
-        {currentPage < count && count > 5 && (
-          <button
-            onClick={() => onJumpToQuestion && onJumpToQuestion(count - 1)}
-            className="w-8 h-8 rounded flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors"
-            aria-label="跳转到最后一题"
-          >
-            &raquo;
-          </button>
-        )}
-      </div>
-    );
+    // Return null to hide the pagination
+    return null;
   };
 
   return (
@@ -619,9 +526,6 @@ const QuestionCard = ({
           </div>
         ))}
       </div>
-      
-      {/* 添加纯数字分页导航 */}
-      {renderNumberButtons()}
       
       {/* 添加提交结果动画效果 */}
       {submissionResult.isShowing && (

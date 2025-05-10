@@ -18,12 +18,12 @@ interface RedeemCodeFormProps {
 
 const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questionSetId }) => {
   const [redeemCode, setRedeemCode] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'warning'>('idle');
   const [message, setMessage] = useState('');
   const [redeemedSet, setRedeemedSet] = useState<any>(null);
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   
-  const { redeemCode: redeemCodeFunction } = useUser();
+  const { redeemCode: redeemCodeFunction, syncAccessRights } = useUser();
   
   // 加载题库数据
   useEffect(() => {
@@ -143,9 +143,38 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
         setMessage(result.message || '兑换失败，请检查兑换码是否正确');
       }
     } catch (error: any) {
-      console.error('Redeem code error:', error);
+      console.error('[RedeemCodeForm] Redeem code error:', error);
+      
+      // 发送一个额外的检查，因为有可能兑换码已经成功兑换但返回错误
+      try {
+        console.log('[RedeemCodeForm] 尝试检查兑换码可能已兑换...');
+        
+        // 等待一小段时间再检查，让服务器有时间完成事务
+        setTimeout(async () => {
+          try {
+            // 刷新用户访问权限，可能会获取到新兑换的权限
+            if (syncAccessRights) {
+              await syncAccessRights();
+            }
+            
+            // 通知用户可能需要刷新页面
+            setStatus('warning');
+            setMessage('兑换可能已成功，但系统响应错误。请刷新页面查看最新权限，或联系客服。');
+            
+            // 触发全局事件以便应用程序可以刷新状态
+            window.dispatchEvent(new CustomEvent('redeem:possibleSuccess', { 
+              detail: { forceRefresh: true, timestamp: Date.now() }
+            }));
+          } catch (checkError) {
+            console.error('[RedeemCodeForm] 检查兑换状态失败:', checkError);
+          }
+        }, 1000);
+      } catch (recoveryError) {
+        console.error('[RedeemCodeForm] 恢复尝试失败:', recoveryError);
+      }
+      
       setStatus('error');
-      setMessage(error.message || '兑换过程中发生错误，请稍后再试');
+      setMessage(typeof error === 'string' ? error : (error.message || '兑换过程中出现错误，请稍后再试。如果问题持续，请联系客服。'));
     }
   };
   

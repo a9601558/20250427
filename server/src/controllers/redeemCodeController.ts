@@ -190,6 +190,10 @@ export const getRedeemCodes = async (req: Request, res: Response) => {
 // @route   POST /api/redeem-codes/redeem
 // @access  Private
 export const redeemCode = async (req: Request, res: Response) => {
+  let successfulPurchaseId = null;
+  let successfulQuestionSet = null;
+  let transactionSuccessful = false;
+
   try {
     const { code } = req.body;
     const userId = req.user.id;
@@ -253,75 +257,107 @@ export const redeemCode = async (req: Request, res: Response) => {
     }
 
     const questionSet = questionSetResults as any;
+    successfulQuestionSet = questionSet;
     console.log(`找到题库: ${questionSet.id}, 标题: ${questionSet.title}`);
 
     // 创建购买记录
     const purchaseId = uuidv4();
+    successfulPurchaseId = purchaseId;
     const now = new Date();
     const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天有效期
 
-    await sequelize.query(
-      `INSERT INTO purchases (id, user_id, question_set_id, purchase_date, status, expiry_date, amount, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)`,
-      {
-        replacements: [purchaseId, userId, questionSet.id, now, expiryDate, now, now],
-        type: QueryTypes.INSERT
-      }
-    );
-
-    console.log(`创建了购买记录: ${purchaseId}`);
+    try {
+      await sequelize.query(
+        `INSERT INTO purchases (id, user_id, question_set_id, purchase_date, status, expiry_date, amount, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'active', ?, 0, ?, ?)`,
+        {
+          replacements: [purchaseId, userId, questionSet.id, now, expiryDate, now, now],
+          type: QueryTypes.INSERT
+        }
+      );
+      console.log(`创建了购买记录: ${purchaseId}`);
+    } catch (purchaseError) {
+      console.error('创建购买记录失败:', purchaseError);
+      return res.status(500).json({
+        success: false,
+        message: '兑换失败: 创建购买记录时出错',
+        error: purchaseError
+      });
+    }
 
     // 更新兑换码状态
-    await sequelize.query(
-      `UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`,
-      {
-        replacements: [userId, now, redeemCode.id],
-        type: QueryTypes.UPDATE
+    try {
+      await sequelize.query(
+        `UPDATE redeem_codes SET isUsed = 1, usedBy = ?, usedAt = ? WHERE id = ?`,
+        {
+          replacements: [userId, now, redeemCode.id],
+          type: QueryTypes.UPDATE
+        }
+      );
+      console.log(`已更新兑换码状态为已使用`);
+      transactionSuccessful = true; // 成功完成交易的重要部分
+    } catch (updateError) {
+      console.error('更新兑换码状态失败:', updateError);
+      return res.status(500).json({
+        success: false,
+        message: '兑换失败: 更新兑换码状态时出错',
+        error: updateError
+      });
+    }
+
+    // 查询创建的购买记录 - 这一步可能失败但不影响兑换成功
+    let purchase = null;
+    try {
+      const [purchaseResult] = await sequelize.query(
+        `SELECT * FROM purchases WHERE id = ?`,
+        {
+          replacements: [purchaseId],
+          type: QueryTypes.SELECT
+        }
+      );
+      purchase = purchaseResult;
+    } catch (queryError) {
+      console.warn('查询购买记录失败，但兑换已成功:', queryError);
+      // 继续处理，不中断流程
+    }
+
+    // 查询用户的socket_id - 这一步可能失败但不影响兑换成功
+    try {
+      const [userSocketResult] = await sequelize.query(
+        `SELECT socketId FROM users WHERE id = ?`,
+        {
+          replacements: [userId],
+          type: QueryTypes.SELECT
+        }
+      );
+
+      // 如果用户在线，通过Socket.IO发送兑换成功通知
+      const userSocket = userSocketResult as any;
+      if (userSocket && userSocket.socketId) {
+        try {
+          const io = getSocketIO();
+          // 发送题库访问权限更新
+          io.to(userSocket.socketId).emit('questionSet:accessUpdate', {
+            questionSetId: questionSet.id,
+            hasAccess: true
+          });
+
+          // 发送兑换成功事件
+          io.to(userSocket.socketId).emit('redeem:success', {
+            questionSetId: questionSet.id,
+            purchaseId: purchaseId,
+            expiryDate: expiryDate
+          });
+          
+          console.log(`已通过Socket发送兑换成功事件到客户端`);
+        } catch (socketError) {
+          console.error('发送Socket事件失败，但兑换已成功:', socketError);
+          // 继续处理，不中断流程
+        }
       }
-    );
-
-    console.log(`已更新兑换码状态为已使用`);
-
-    // 查询创建的购买记录
-    const [purchase] = await sequelize.query(
-      `SELECT * FROM purchases WHERE id = ?`,
-      {
-        replacements: [purchaseId],
-        type: QueryTypes.SELECT
-      }
-    );
-
-    // 查询用户的socket_id
-    const [userSocketResult] = await sequelize.query(
-      `SELECT socketId FROM users WHERE id = ?`,
-      {
-        replacements: [userId],
-        type: QueryTypes.SELECT
-      }
-    );
-
-    // 如果用户在线，通过Socket.IO发送兑换成功通知
-    const userSocket = userSocketResult as any;
-    if (userSocket && userSocket.socketId) {
-      try {
-        const io = getSocketIO();
-        // 发送题库访问权限更新
-        io.to(userSocket.socketId).emit('questionSet:accessUpdate', {
-          questionSetId: questionSet.id,
-          hasAccess: true
-        });
-
-        // 发送兑换成功事件
-        io.to(userSocket.socketId).emit('redeem:success', {
-          questionSetId: questionSet.id,
-          purchaseId: purchaseId,
-          expiryDate: expiryDate
-        });
-        
-        console.log(`已通过Socket发送兑换成功事件到客户端`);
-      } catch (error) {
-        console.error('发送Socket事件失败:', error);
-      }
+    } catch (socketQueryError) {
+      console.warn('查询用户socket信息失败，但兑换已成功:', socketQueryError);
+      // 继续处理，不中断流程
     }
 
     res.json({
@@ -334,6 +370,23 @@ export const redeemCode = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('兑换失败:', error);
+    
+    // 如果交易的重要部分已经成功完成，我们仍然返回成功
+    if (transactionSuccessful && successfulPurchaseId && successfulQuestionSet) {
+      console.log('尽管出现错误，但兑换的重要部分已成功完成，返回成功响应');
+      return res.json({
+        success: true,
+        message: '兑换成功，但系统处理过程中出现了一些问题',
+        data: {
+          questionSet: successfulQuestionSet,
+          purchase: {
+            id: successfulPurchaseId,
+            questionSetId: successfulQuestionSet.id
+          }
+        }
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: '兑换失败'

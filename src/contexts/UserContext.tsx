@@ -8,6 +8,7 @@ import { userProgressService } from '../services/UserProgressService';
 import { toast } from 'react-toastify';
 import { refreshUserPurchases } from '../utils/paymentUtils';
 import { refreshTokenExpiry } from '../utils/authUtils';
+import { Socket } from 'socket.io-client';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -79,14 +80,91 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  // 创建一个用户变化事件
-  const [userChangeEvent, setUserChangeEvent] = useState<{userId: string | null, timestamp: number}>({userId: null, timestamp: 0});
+  const [userChangeEvent, setUserChangeEvent] = useState<{ userId: string | null; timestamp: number }>({ userId: null, timestamp: Date.now() });
+  const [userPurchases, setUserPurchases] = useState<Purchase[]>([]);
   // 添加一个上次通知时间引用，用于防抖
   const lastNotifyTimeRef = useRef<number>(0);
   // 添加当前用户ID引用，用于比较
   const prevUserIdRef = useRef<string | null>(null);
+  
   const { socket } = useSocket();
-  const [userPurchases, setUserPurchases] = useState<Purchase[]>([]);
+
+  // 计算剩余天数
+  const calculateRemainingDays = (expiryDate: string | Date): number | null => {
+    if (!expiryDate) return null;
+    
+    const expiry = typeof expiryDate === 'string' ? new Date(expiryDate) : expiryDate;
+    const now = new Date();
+    
+    if (isNaN(expiry.getTime())) return null;
+    
+    const diffTime = expiry.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  // 初始加载时检查用户登录状态并确保数据不是来自之前的登录会话
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const activeUserId = localStorage.getItem('activeUserId');
+    
+    if (token) {
+      console.log('[UserContext] 检测到存储的令牌，尝试恢复会话');
+      
+      const initializeUserSession = async () => {
+        try {
+          // 设置API客户端授权头
+          apiClient.setAuthHeader(token);
+          
+          // 获取当前用户数据
+          const userData = await fetchCurrentUser();
+          
+          // 如果获取到用户数据，检查与activeUserId是否匹配
+          if (userData && userData.id) {
+            if (activeUserId && activeUserId !== userData.id) {
+              console.warn('[UserContext] 存储的activeUserId与获取的用户ID不匹配，更新activeUserId');
+              localStorage.setItem('activeUserId', userData.id);
+            }
+            
+            // 确保清理任何不属于当前用户的数据
+            const nonUserKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && !key.startsWith(`user_${userData.id}_`) && 
+                  (key.startsWith('user_') || 
+                   key.startsWith('quiz_'))) {
+                if (!key.endsWith('_token')) { // 保留其他用户的token用于账号切换
+                  nonUserKeys.push(key);
+                }
+              }
+            }
+            
+            if (nonUserKeys.length > 0) {
+              console.log(`[UserContext] 清理 ${nonUserKeys.length} 个不属于当前用户的数据项`);
+              nonUserKeys.forEach(key => localStorage.removeItem(key));
+            }
+            
+            // 初始化Socket连接
+            const socketInstance = initializeSocket();
+            if (socketInstance) {
+              authenticateUser(userData.id, token);
+            }
+          }
+        } catch (error) {
+          console.error('[UserContext] 恢复会话失败:', error);
+          // 清除无效令牌
+          localStorage.removeItem('token');
+          setUser(null);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      initializeUserSession();
+    } else {
+      console.log('[UserContext] 未检测到令牌，用户未登录');
+      setLoading(false);
+    }
+  }, []);
 
   // 当用户变化时触发事件
   const notifyUserChange = useCallback((newUser: User | null) => {
@@ -122,38 +200,72 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  // 初始化Socket.IO连接并处理实时进度更新及获取初始进度
-  useEffect(() => {
-    if (!user) return;
-
-    // 使用防抖，确保socket只初始化一次
-    const timer = setTimeout(() => {
-    const socket = initializeSocket();
-    authenticateUser(user.id, localStorage.getItem('token') || '');
+  // 初始化Socket连接
+  const initializeSocket = useCallback(() => {
+    if (!socket) {
+      console.log('[UserContext] Socket未初始化或无效');
+      return null;
+    }
     
-    socket.on('progress:update', (data: ProgressUpdateEvent) => {
-      setUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          progress: {
-            ...prev.progress,
-            [data.questionSetId]: {
-              ...data.progress,
-                lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
-            }
-          }
-        };
-      });
+    console.log('[UserContext] 初始化Socket连接');
+    
+    socket.on('disconnect', () => {
+      console.log('[UserContext] Socket连接已断开');
     });
-
-    return () => {
-      socket.disconnect();
-    };
-    }, 300);
     
-    return () => clearTimeout(timer);
-  }, [user?.id]); // 只监听user.id，而不是整个user对象，减少不必要的重新渲染
+    socket.on('connect', () => {
+      console.log('[UserContext] Socket连接已建立');
+    });
+    
+    socket.on('error', (error) => {
+      console.error('[UserContext] Socket连接错误:', error);
+    });
+    
+    // 监听服务器发送的访问权限更新
+    socket.on('questionSet:accessUpdate', (data: { questionSetId: string; hasAccess: boolean; expiryDate?: string }) => {
+      if (!data.questionSetId) return;
+      
+      console.log(`[Socket] 收到题库 ${data.questionSetId} 访问权限更新:`, data.hasAccess);
+      
+      // 更新本地存储中的访问权限
+      saveAccessToLocalStorage(
+        data.questionSetId,
+        data.hasAccess,
+        data.expiryDate ? calculateRemainingDays(data.expiryDate) : null,
+        'socket'
+      );
+      
+      // 通知所有组件访问权限已更新
+      window.dispatchEvent(new CustomEvent('accessRights:updated', {
+        detail: { questionSetId: data.questionSetId }
+      }));
+    });
+    
+    // 监听服务器发送的购买成功事件
+    socket.on('purchase:success', (data: { questionSetId: string; expiryDate?: string }) => {
+      if (!data.questionSetId) return;
+      
+      console.log(`[Socket] 收到题库 ${data.questionSetId} 购买成功事件`);
+      
+      // 更新本地存储中的访问权限
+      saveAccessToLocalStorage(
+        data.questionSetId,
+        true,
+        data.expiryDate ? calculateRemainingDays(data.expiryDate) : null,
+        'purchase'
+      );
+      
+      // 通知所有组件访问权限已更新
+      window.dispatchEvent(new CustomEvent('accessRights:updated', {
+        detail: { questionSetId: data.questionSetId }
+      }));
+      
+      // 刷新购买记录
+      refreshPurchases();
+    });
+    
+    return socket;
+  }, [socket]);
 
   const fetchCurrentUser = async () => {
     setLoading(true);
@@ -222,7 +334,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       console.log(`[UserContext] 用户登出，保留用户 ${currentUserId} 的数据`);
       
-      // 清除所有相关的本地存储数据
+      // 清除所有非用户前缀特定的本地存储数据
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -233,7 +345,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           key.startsWith('lastAttempt_') ||
           key.startsWith('quizAccessRights') ||
           key === 'redeemedQuestionSetIds' ||
-          key === 'questionSetAccessCache'
+          key === 'questionSetAccessCache' ||
+          // 清除当前用户的所有数据，但保留token以便将来可以切换回来
+          (currentUserId && key.startsWith(`user_${currentUserId}_`) && !key.endsWith('_token'))
         )) {
           keysToRemove.push(key);
         }
@@ -306,15 +420,46 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     setError(null);
     try {
-      // 在登录之前清除所有之前用户的本地存储数据
+      // 清除之前登录用户的所有数据
       const oldToken = localStorage.getItem('token');
-      if (oldToken) {
-        console.log('[UserContext] 检测到之前的登录会话，保留会话数据...');
-        // 不再清除旧用户数据，而是保留它们，因为我们将使用用户ID前缀来隔离
+      const oldUserId = localStorage.getItem('activeUserId');
+      
+      if (oldToken && oldUserId) {
+        console.log(`[UserContext] 检测到之前的登录会话 (ID: ${oldUserId})，清除当前会话数据...`);
+        
+        // 保存之前用户的token，以便将来可以切换回来
+        localStorage.setItem(`user_${oldUserId}_token`, oldToken);
+        
+        // 清除与旧用户相关联的会话数据（除了token）
+        const oldUserKeysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            (key.startsWith(`user_${oldUserId}_`) && !key.endsWith('_token')) ||
+            key.startsWith('quiz_progress_') ||
+            key.startsWith('quiz_payment_completed_') ||
+            key.startsWith('quiz_state_') ||
+            key.startsWith('lastAttempt_') ||
+            key.startsWith('quizAccessRights') ||
+            key === 'redeemedQuestionSetIds' ||
+            key === 'questionSetAccessCache')
+          ) {
+            oldUserKeysToRemove.push(key);
+          }
+        }
+        
+        // 批量删除与旧用户相关的存储项
+        oldUserKeysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log(`[UserContext] 已清除 ${oldUserKeysToRemove.length} 个旧用户相关的存储项`);
       }
       
       // 清空状态
       setUserPurchases([]);
+      
+      // 清除API客户端缓存和状态
+      apiClient.clearCache();
+      apiClient.setAuthHeader(null);
+      userProgressService.clearCachedUserId();
       
       const response = await userApi.login(username, password);
       if (response.success && response.data) {
@@ -1258,10 +1403,40 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 保存当前会话状态（如果已登录）
       if (currentUserId && currentToken) {
         localStorage.setItem(`user_${currentUserId}_token`, currentToken);
+        
+        // 清除当前用户的所有会话数据（除token外）
+        const currentUserKeysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            (key.startsWith(`user_${currentUserId}_`) && !key.endsWith('_token')) ||
+            key.startsWith('quiz_progress_') ||
+            key.startsWith('quiz_payment_completed_') ||
+            key.startsWith('quiz_state_') ||
+            key.startsWith('lastAttempt_') ||
+            key.startsWith('quizAccessRights') ||
+            key === 'redeemedQuestionSetIds' ||
+            key === 'questionSetAccessCache')
+          ) {
+            currentUserKeysToRemove.push(key);
+          }
+        }
+        currentUserKeysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log(`[UserContext] 已清除 ${currentUserKeysToRemove.length} 个当前用户的会话数据项`);
       }
       
       // 清除当前会话
       setUser(null);
+      
+      // 清除API客户端缓存和状态
+      apiClient.clearCache();
+      apiClient.setAuthHeader(null);
+      userProgressService.clearCachedUserId();
+      
+      // 清除Socket连接
+      if (socket) {
+        socket.disconnect();
+      }
       
       // 设置新用户的令牌
       localStorage.setItem('token', targetUserToken);
@@ -1272,6 +1447,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.success && response.data) {
         setUser(response.data);
         notifyUserChange(response.data);
+        
+        // 重新初始化Socket连接
+        const socketInstance = initializeSocket();
+        authenticateUser(userId, targetUserToken);
         
         // 同步访问权限
         setTimeout(async () => {
@@ -1299,6 +1478,71 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return false;
     }
   };
+
+  // 初始化Socket.IO连接并处理实时进度更新及获取初始进度
+  useEffect(() => {
+    if (!user) return;
+
+    // 使用防抖，确保socket只初始化一次
+    const timer = setTimeout(() => {
+      const socketInstance = initializeSocket();
+      if (socketInstance) {
+        authenticateUser(user.id, localStorage.getItem('token') || '');
+      }
+      
+      if (socket) {
+        // 设置进度更新监听器
+        socket.on('progress:update', (data: ProgressUpdateEvent) => {
+          setUser(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              progress: {
+                ...prev.progress,
+                [data.questionSetId]: {
+                  ...data.progress,
+                  lastAccessed: data.progress?.lastAccessed || new Date().toISOString()
+                }
+              }
+            };
+          });
+        });
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [user?.id, socket]);
+
+  // 向Socket.IO发送用户认证
+  const authenticateUser = useCallback((userId: string, token: string) => {
+    if (!socket || !socket.connected) {
+      console.log('[UserContext] Socket未连接，无法进行认证');
+      return;
+    }
+    
+    console.log(`[UserContext] 向Socket发送用户认证: 用户ID ${userId}`);
+    
+    // 向服务器发送认证请求
+    socket.emit('user:auth', {
+      userId,
+      token
+    });
+    
+    // 注册认证结果处理
+    socket.once('user:auth_result', (result: { success: boolean; message?: string }) => {
+      if (result.success) {
+        console.log('[UserContext] Socket用户认证成功');
+        
+        // 同步权限
+        socket.emit('user:syncAccessRights', {
+          userId,
+          forceRefresh: true
+        });
+      } else {
+        console.error(`[UserContext] Socket用户认证失败: ${result.message || '未知错误'}`);
+      }
+    });
+  }, [socket]);
 
   const contextValue = useMemo(() => ({
     user,
