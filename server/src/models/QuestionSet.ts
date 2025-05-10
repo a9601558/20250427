@@ -14,7 +14,7 @@ export interface QuestionSetAttributes {
   trialQuestions?: number;
   isFeatured?: boolean;
   featuredCategory?: string;
-  cardImage?: string;
+  // cardImage?: string; // Commenting out this field
   createdAt?: Date;
   updatedAt?: Date;
   questionSetQuestions?: Question[];
@@ -35,7 +35,7 @@ class QuestionSet extends Model<QuestionSetAttributes, QuestionSetCreationAttrib
   public trialQuestions?: number;
   public isFeatured?: boolean;
   public featuredCategory?: string;
-  public cardImage?: string;
+  // public cardImage?: string; // Commenting out this field
   
   // 时间戳
   public readonly createdAt!: Date;
@@ -97,11 +97,14 @@ QuestionSet.init(
       allowNull: true,
       field: 'featured_category',
     },
+    // Commenting out the cardImage field
+    /*
     cardImage: {
       type: DataTypes.STRING,
       allowNull: true,
       field: 'card_image',
     },
+    */
   },
   {
     sequelize,

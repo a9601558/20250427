@@ -84,10 +84,10 @@ const getAllQuestionSets = async (req, res) => {
         const enhancedSets = questionSets.map(set => {
             const setJSON = set.toJSON();
             const questionCount = questionCountMap.get(set.id) || 0;
+            // 使用 icon 替代 cardImage，不再添加 cardImage 字段
             return {
                 ...setJSON,
-                questionCount, // 使用查询结果或默认为0
-                cardImage: null // 添加空的 cardImage 字段以保持前端兼容性
+                questionCount // 使用查询结果或默认为0
             };
         });
         console.log(`[QuestionSetController] 成功获取${enhancedSets.length}个题库，包含问题数量信息`);
@@ -147,11 +147,8 @@ const getQuestionSetById = async (req, res) => {
             console.log(`未找到题库，ID: ${req.params.id}`);
             return sendError(res, 404, '题库不存在');
         }
-        // 添加空的 cardImage 字段以保持前端兼容性
-        const questionSetData = {
-            ...questionSet.toJSON(),
-            cardImage: null
-        };
+        // 直接使用 questionSet 的数据，不添加 cardImage 字段
+        const questionSetData = questionSet.toJSON();
         console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个问题`);
         sendResponse(res, 200, questionSetData);
     }

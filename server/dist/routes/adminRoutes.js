@@ -103,10 +103,10 @@ router.post('/upload/card-image', (req, res) => {
                 // 获取图片的公共URL
                 const relativePath = req.file.path.split('uploads/')[1];
                 const imageUrl = `/uploads/${relativePath}`;
-                // 如果之前有图片，删除它
-                if (questionSet.cardImage) {
+                // 如果之前有图片（非默认图标），删除它
+                if (questionSet.icon && questionSet.icon !== 'default') {
                     try {
-                        const previousPath = path_1.default.join(__dirname, '../../uploads', questionSet.cardImage.replace('/uploads/', ''));
+                        const previousPath = path_1.default.join(__dirname, '../../uploads', questionSet.icon.replace('/uploads/', ''));
                         if (fs_1.default.existsSync(previousPath)) {
                             fs_1.default.unlinkSync(previousPath);
                         }
@@ -116,8 +116,8 @@ router.post('/upload/card-image', (req, res) => {
                         // 即使删除失败也继续
                     }
                 }
-                // 更新题库，添加新的图片URL
-                await questionSet.update({ cardImage: imageUrl });
+                // 更新题库，添加新的图片URL到icon字段
+                await questionSet.update({ icon: imageUrl });
                 return res.json({
                     success: true,
                     data: {
@@ -161,16 +161,16 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
                 message: '题库不存在'
             });
         }
-        // 检查题库是否有图片
-        if (!questionSet.cardImage) {
+        // 检查题库是否有自定义图片（非默认图标）
+        if (!questionSet.icon || questionSet.icon === 'default') {
             return res.status(400).json({
                 success: false,
-                message: '题库没有卡片图片'
+                message: '题库没有自定义图片'
             });
         }
         // 删除图片文件
         try {
-            const imagePath = path_1.default.join(__dirname, '../../uploads', questionSet.cardImage.replace('/uploads/', ''));
+            const imagePath = path_1.default.join(__dirname, '../../uploads', questionSet.icon.replace('/uploads/', ''));
             if (fs_1.default.existsSync(imagePath)) {
                 fs_1.default.unlinkSync(imagePath);
             }
@@ -179,8 +179,8 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
             console.error('删除图片文件失败:', err);
             // 即使文件删除失败也继续
         }
-        // 更新题库，移除图片URL
-        await questionSet.update({ cardImage: undefined });
+        // 更新题库，恢复默认图标
+        await questionSet.update({ icon: 'default' });
         return res.json({
             success: true,
             message: '卡片图片删除成功'

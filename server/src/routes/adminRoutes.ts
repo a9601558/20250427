@@ -118,13 +118,13 @@ router.post('/upload/card-image', (req, res) => {
         const relativePath = req.file.path.split('uploads/')[1];
         const imageUrl = `/uploads/${relativePath}`;
         
-        // 如果之前有图片，删除它
-        if (questionSet.cardImage) {
+        // 如果之前有图片（非默认图标），删除它
+        if (questionSet.icon && questionSet.icon !== 'default') {
           try {
             const previousPath = path.join(
               __dirname, 
               '../../uploads', 
-              questionSet.cardImage.replace('/uploads/', '')
+              questionSet.icon.replace('/uploads/', '')
             );
             
             if (fs.existsSync(previousPath)) {
@@ -136,8 +136,8 @@ router.post('/upload/card-image', (req, res) => {
           }
         }
         
-        // 更新题库，添加新的图片URL
-        await questionSet.update({ cardImage: imageUrl });
+        // 更新题库，添加新的图片URL到icon字段
+        await questionSet.update({ icon: imageUrl });
         
         return res.json({
           success: true,
@@ -186,11 +186,11 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
       });
     }
     
-    // 检查题库是否有图片
-    if (!questionSet.cardImage) {
+    // 检查题库是否有自定义图片（非默认图标）
+    if (!questionSet.icon || questionSet.icon === 'default') {
       return res.status(400).json({
         success: false,
-        message: '题库没有卡片图片'
+        message: '题库没有自定义图片'
       });
     }
     
@@ -199,7 +199,7 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
       const imagePath = path.join(
         __dirname, 
         '../../uploads', 
-        questionSet.cardImage.replace('/uploads/', '')
+        questionSet.icon.replace('/uploads/', '')
       );
       
       if (fs.existsSync(imagePath)) {
@@ -210,8 +210,8 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
       // 即使文件删除失败也继续
     }
     
-    // 更新题库，移除图片URL
-    await questionSet.update({ cardImage: undefined });
+    // 更新题库，恢复默认图标
+    await questionSet.update({ icon: 'default' });
     
     return res.json({
       success: true,
