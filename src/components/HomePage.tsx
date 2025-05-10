@@ -393,8 +393,25 @@ const HomePage = (): JSX.Element => {
             <div className="flex justify-between items-start mb-2">
               {/* Title and icon */}
               <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600">
-                  {set.icon || '📚'}
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600 overflow-hidden">
+                  {set.icon && (set.icon.startsWith('/') || set.icon.startsWith('http') || set.icon.startsWith('data:')) ? (
+                    <img 
+                      src={set.icon} 
+                      alt="icon" 
+                      className="w-5 h-5 object-contain"
+                      onError={(e) => {
+                        // On error, replace with default emoji
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.textContent = '📚';
+                        }
+                      }} 
+                    />
+                  ) : (
+                    set.icon || '📚'
+                  )}
                 </div>
                 <h3 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2">
                   {set.title}
@@ -1287,8 +1304,8 @@ const HomePage = (): JSX.Element => {
       // 优先使用 questionSetId，兼容旧版本的 quizId
       const questionSetId = customEvent.detail?.questionSetId || customEvent.detail?.quizId;
       
-      // 从事件中获取剩余天数，如果不存在则使用默认值
-      const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 30;
+      // 从事件中获取剩余天数，如果不存在则使用默认值（180天）
+      const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 180;
       
       console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
       
