@@ -401,48 +401,6 @@ const QuestionCard = ({
     };
   }, []);
 
-  // 修改 renderNumberButtons 函数，添加分页效果
-  const renderNumberButtons = () => {
-    // 确保 totalQuestions 是数字
-    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
-    
-    return (
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
-        {Array.from({ length: count }).map((_, index) => {
-          const pageNum = index + 1;
-          const isActive = questionNumber === pageNum;
-          const isAnswered = userAnsweredQuestion && (userAnsweredQuestion.index === index);
-          const isCorrect = isAnswered && userAnsweredQuestion?.isCorrect;
-          
-          // 样式参考答题卡组件
-          let buttonClass = "flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 transform";
-          
-          if (isActive) {
-            buttonClass += " bg-gradient-to-br from-blue-500 to-blue-600 text-white scale-105 shadow-md";
-          } else if (isAnswered) {
-            buttonClass += isCorrect 
-              ? " bg-gradient-to-br from-green-500 to-green-600 text-white hover:shadow-md hover:-translate-y-0.5" 
-              : " bg-gradient-to-br from-red-500 to-red-600 text-white hover:shadow-md hover:-translate-y-0.5";
-          } else {
-            buttonClass += " bg-white text-gray-700 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md hover:-translate-y-0.5";
-          }
-          
-          return (
-            <button
-              key={index}
-              onClick={() => onJumpToQuestion && onJumpToQuestion(index)}
-              className={buttonClass}
-              aria-label={`跳转到第${pageNum}题`}
-              title={`跳转到第${pageNum}题`}
-            >
-              {pageNum}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
   // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
   const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
     try {
@@ -493,6 +451,41 @@ const QuestionCard = ({
     checkLocalRedeemedStatus(questionSetId) || 
     checkLocalAccessRights(questionSetId) ||
     isPaid === false; // 免费题库
+
+  // 添加renderNumberButtons函数 - 显示简单的数字分页
+  const renderNumberButtons = () => {
+    // 确保 totalQuestions 是数字
+    const count = typeof totalQuestions === 'number' ? totalQuestions : 1;
+    
+    return (
+      <div className="flex flex-wrap justify-center gap-2 mt-4">
+        {Array.from({ length: count }).map((_, index) => {
+          const pageNum = index + 1;
+          const isActive = questionNumber === pageNum;
+          
+          // 简化样式，使用纯数字
+          let buttonClass = "flex items-center justify-center h-8 w-8 rounded text-sm font-medium transition-all";
+          
+          if (isActive) {
+            buttonClass += " bg-blue-600 text-white";
+          } else {
+            buttonClass += " bg-gray-100 text-gray-700 hover:bg-gray-200";
+          }
+          
+          return (
+            <button
+              key={index}
+              onClick={() => onJumpToQuestion && onJumpToQuestion(index)}
+              className={buttonClass}
+              aria-label={`跳转到第${pageNum}题`}
+            >
+              {pageNum}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6 mb-6">
@@ -562,7 +555,10 @@ const QuestionCard = ({
           </div>
         ))}
       </div>
-          
+      
+      {/* 添加纯数字分页导航 */}
+      {renderNumberButtons()}
+      
       {/* 添加提交结果动画效果 */}
       {submissionResult.isShowing && (
         <div className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-scaleIn ${
@@ -636,63 +632,37 @@ const QuestionCard = ({
       {/* 题目导航：上下题切换区域 */}
       <div className="mt-4 flex justify-between items-center">
         {/* 上一题按钮 */}
-        {questionNumber > 1 ? (
-          <button 
-            onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber - 2)}
-            className="text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
-          >
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            上一题
-          </button>
-        ) : (
-          <div>{/* 占位 */}</div>
-        )}
+        <button 
+          onClick={() => onJumpToQuestion && questionNumber > 1 ? onJumpToQuestion(questionNumber - 2) : null}
+          className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors ${
+            questionNumber <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+          disabled={questionNumber <= 1}
+        >
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          上一题
+        </button>
         
-        {/* 下一题按钮 - 在未提交答案时显示，提交后通过主按钮切换 */}
-        {!isSubmitted && questionNumber < totalQuestions && (
-          <button 
-            onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber)}
-            className="text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
-          >
-            下一题
-            <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
-      </div>
-      
-      {/* 页码导航区域 - 改进样式与答题卡一致 */}
-      <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-100">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-medium text-gray-700">题目导航</h4>
-          <div className="text-xs text-gray-500">
-            当前: <span className="text-blue-600 font-medium">{questionNumber}</span> / {totalQuestions}
-          </div>
+        {/* 当前位置显示 */}
+        <div className="text-sm text-gray-500">
+          {questionNumber} / {totalQuestions}
         </div>
-        {renderNumberButtons()}
         
-        {/* 添加状态图例 */}
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-3 text-xs text-gray-600">
-          <div className="flex items-center">
-            <span className="w-4 h-4 bg-white border border-gray-200 rounded-md mr-1"></span>
-            未作答
-          </div>
-          <div className="flex items-center">
-            <span className="w-4 h-4 bg-blue-500 rounded-md mr-1"></span>
-            当前题目
-          </div>
-          <div className="flex items-center">
-            <span className="w-4 h-4 bg-green-500 rounded-md mr-1"></span>
-            答对
-          </div>
-          <div className="flex items-center">
-            <span className="w-4 h-4 bg-red-500 rounded-md mr-1"></span>
-            答错
-          </div>
-        </div>
+        {/* 下一题按钮 */}
+        <button 
+          onClick={() => onJumpToQuestion && questionNumber < totalQuestions ? onJumpToQuestion(questionNumber) : null}
+          className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors ${
+            questionNumber >= totalQuestions ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+          disabled={questionNumber >= totalQuestions}
+        >
+          下一题
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
     </div>
   );

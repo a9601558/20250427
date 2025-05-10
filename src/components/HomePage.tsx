@@ -2726,7 +2726,7 @@ const HomePage = (): JSX.Element => {
                   浏览题库
                 </a>
                 <a 
-                  href="/user/dashboard" 
+                  href="/profile" 
                   className="bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm"
                 >
                   个人中心
