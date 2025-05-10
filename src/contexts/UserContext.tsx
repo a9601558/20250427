@@ -110,61 +110,96 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (token) {
       console.log('[UserContext] 检测到存储的令牌，尝试恢复会话');
       
-      const initializeUserSession = async () => {
-        try {
-          // 设置API客户端授权头
-          apiClient.setAuthHeader(token);
-          
-          // 获取当前用户数据
-          const userData = await fetchCurrentUser();
-          
-          // 如果获取到用户数据，检查与activeUserId是否匹配
-          if (userData && userData.id) {
-            if (activeUserId && activeUserId !== userData.id) {
-              console.warn('[UserContext] 存储的activeUserId与获取的用户ID不匹配，更新activeUserId');
-              localStorage.setItem('activeUserId', userData.id);
-            }
-            
-            // 确保清理任何不属于当前用户的数据
-            const nonUserKeys = [];
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key && !key.startsWith(`user_${userData.id}_`) && 
-                  (key.startsWith('user_') || 
-                   key.startsWith('quiz_'))) {
-                if (!key.endsWith('_token')) { // 保留其他用户的token用于账号切换
-                  nonUserKeys.push(key);
-                }
-              }
-            }
-            
-            if (nonUserKeys.length > 0) {
-              console.log(`[UserContext] 清理 ${nonUserKeys.length} 个不属于当前用户的数据项`);
-              nonUserKeys.forEach(key => localStorage.removeItem(key));
-            }
-            
-            // 初始化Socket连接
-            const socketInstance = initializeSocket();
-            if (socketInstance) {
-              authenticateUser(userData.id, token);
-            }
-          }
-        } catch (error) {
-          console.error('[UserContext] 恢复会话失败:', error);
-          // 清除无效令牌
-          localStorage.removeItem('token');
-          setUser(null);
-        } finally {
-          setLoading(false);
-        }
-      };
+      // 设置API客户端授权头
+      apiClient.setAuthHeader(token);
+      
+      // 如果有活跃用户ID，设置到API客户端
+      if (activeUserId) {
+        apiClient.setUserId(activeUserId);
+      }
       
       initializeUserSession();
     } else {
       console.log('[UserContext] 未检测到令牌，用户未登录');
+      // 确保API客户端状态清理
+      apiClient.setAuthHeader(null);
+      apiClient.setUserId(null);
       setLoading(false);
     }
   }, []);
+
+  // 初始化用户会话
+  const initializeUserSession = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const activeUserId = localStorage.getItem('activeUserId');
+      
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      
+      // 获取当前用户数据
+      const userData = await fetchCurrentUser();
+      
+      // 如果获取到用户数据，检查与activeUserId是否匹配
+      if (userData && userData.id) {
+        if (activeUserId && activeUserId !== userData.id) {
+          console.warn('[UserContext] 存储的activeUserId与获取的用户ID不匹配，更新activeUserId');
+          localStorage.setItem('activeUserId', userData.id);
+          apiClient.setUserId(userData.id);
+        }
+        
+        // 确保清理任何不属于当前用户的数据
+        const nonUserKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && !key.startsWith(`user_${userData.id}_`) && 
+              (key.startsWith('user_') || 
+                key.startsWith('quiz_'))) {
+            if (!key.endsWith('_token')) { // 保留其他用户的token用于账号切换
+              nonUserKeys.push(key);
+            }
+          }
+        }
+        
+        if (nonUserKeys.length > 0) {
+          console.log(`[UserContext] 清理 ${nonUserKeys.length} 个不属于当前用户的数据项`);
+          nonUserKeys.forEach(key => localStorage.removeItem(key));
+        }
+        
+        // 清理会话存储中的通用数据
+        const sessionKeysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (
+            (key.startsWith('quiz_') && !key.includes(`_${userData.id}_`)) || 
+            (key.startsWith('user_') && !key.startsWith(`user_${userData.id}_`))
+          )) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        
+        if (sessionKeysToRemove.length > 0) {
+          console.log(`[UserContext] 清理 ${sessionKeysToRemove.length} 个会话存储中不属于当前用户的数据项`);
+          sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+        }
+        
+        // 初始化Socket连接
+        const socketInstance = initializeSocket();
+        if (socketInstance) {
+          authenticateUser(userData.id, token);
+        }
+      }
+    } catch (error) {
+      console.error('[UserContext] 恢复会话失败:', error);
+      // 清除无效令牌
+      localStorage.removeItem('token');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 当用户变化时触发事件
   const notifyUserChange = useCallback((newUser: User | null) => {
@@ -442,8 +477,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             key.startsWith('lastAttempt_') ||
             key.startsWith('quizAccessRights') ||
             key === 'redeemedQuestionSetIds' ||
-            key === 'questionSetAccessCache')
-          ) {
+            key === 'questionSetAccessCache'))
+          {
             oldUserKeysToRemove.push(key);
           }
         }
@@ -451,6 +486,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // 批量删除与旧用户相关的存储项
         oldUserKeysToRemove.forEach(key => localStorage.removeItem(key));
         console.log(`[UserContext] 已清除 ${oldUserKeysToRemove.length} 个旧用户相关的存储项`);
+        
+        // 清除会话存储中与上一用户相关的数据
+        const sessionKeysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (key.startsWith('quiz_') || key.startsWith('user_'))) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+        console.log(`[UserContext] 已清除 ${sessionKeysToRemove.length} 个会话存储数据项`);
       }
       
       // 清空状态
@@ -459,6 +505,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 清除API客户端缓存和状态
       apiClient.clearCache();
       apiClient.setAuthHeader(null);
+      apiClient.setUserId(null);
       userProgressService.clearCachedUserId();
       
       const response = await userApi.login(username, password);
@@ -481,6 +528,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           // 设置用户状态
           setUser(userData);
+          
+          // 设置API客户端的用户ID
+          apiClient.setUserId(userData.id);
           
           // 更新令牌过期时间
           refreshTokenExpiry(userData.id);
@@ -1416,8 +1466,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             key.startsWith('lastAttempt_') ||
             key.startsWith('quizAccessRights') ||
             key === 'redeemedQuestionSetIds' ||
-            key === 'questionSetAccessCache')
-          ) {
+            key === 'questionSetAccessCache'))
+          {
             currentUserKeysToRemove.push(key);
           }
         }
@@ -1427,6 +1477,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // 清除当前会话
       setUser(null);
+      
+      // 清除会话存储中与上一用户相关的数据
+      const sessionKeysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('quiz_') || key.startsWith('user_'))) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+      console.log(`[UserContext] 已清除 ${sessionKeysToRemove.length} 个会话存储数据项`);
       
       // 清除API客户端缓存和状态
       apiClient.clearCache();
@@ -1441,6 +1502,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 设置新用户的令牌
       localStorage.setItem('token', targetUserToken);
       localStorage.setItem('activeUserId', userId);
+      
+      // 设置API客户端授权头和用户ID
+      apiClient.setAuthHeader(targetUserToken);
+      apiClient.setUserId(userId);
       
       // 获取用户数据
       const response = await userApi.getCurrentUser();
@@ -1465,6 +1530,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (currentUserId && currentToken) {
           localStorage.setItem('token', currentToken);
           localStorage.setItem('activeUserId', currentUserId);
+          apiClient.setAuthHeader(currentToken);
+          apiClient.setUserId(currentUserId);
           const prevResponse = await userApi.getCurrentUser();
           if (prevResponse.success && prevResponse.data) {
             setUser(prevResponse.data);

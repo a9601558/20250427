@@ -173,6 +173,8 @@ const HomePage = (): JSX.Element => {
   // Remove unused destructured variables
   const { /* progressStats, fetchUserProgress */ } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
+  const [filteredSets, setFilteredSets] = useState<PreparedQuestionSet[]>([]);
+  const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -180,7 +182,6 @@ const HomePage = (): JSX.Element => {
   const navigate = useNavigate();
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
   const [searchTerm, setSearchTerm] = useState<string>('');
-  // const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]); // 移除
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
@@ -312,102 +313,119 @@ const HomePage = (): JSX.Element => {
     
     // 确定标签的颜色
     const getAccessTypeBadgeClass = () => {
-      if (!set.isPaid) return 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-sm';
-      if (set.accessType === 'paid') return hasAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
-      if (set.accessType === 'redeemed') return 'bg-purple-100 text-purple-800';
-      if (set.accessType === 'expired') return 'bg-red-100 text-red-800';
-      return 'bg-yellow-100 text-yellow-800';
+      if (!set.isPaid) return 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white';
+      if (set.accessType === 'paid') return hasAccess ? 'bg-green-500 text-white' : 'bg-amber-500 text-white';
+      if (set.accessType === 'redeemed') return 'bg-purple-500 text-white';
+      if (set.accessType === 'expired') return 'bg-red-500 text-white';
+      return 'bg-amber-500 text-white';
     };
 
     return (
-      <div className="relative overflow-hidden group tech-card bg-white dark:bg-gray-800 rounded-xl transition-all duration-300 transform hover:-translate-y-1 h-[180px] flex flex-col">
-        {/* 背景装饰 - 增加科技感 */}
-        <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-10 rounded-full blur-lg group-hover:bg-indigo-600 group-hover:opacity-20 transition-all"></div>
-        <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-purple-500 opacity-5 rounded-full blur-xl group-hover:opacity-10 transition-all"></div>
+      <div className="relative group overflow-hidden h-[200px] rounded-2xl transition-all duration-300 shadow-md hover:shadow-xl transform hover:-translate-y-1">
+        {/* Card background with gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 opacity-90"></div>
         
         {/* Card Image Background - Add support for card image */}
         {set.cardImage && (
           <div 
-            className="absolute inset-0 z-0 opacity-15 dark:opacity-10"
+            className="absolute inset-0 z-0 opacity-40"
             style={{ 
               backgroundImage: `url(${set.cardImage})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              filter: 'blur(1px)'
             }}
           />
         )}
         
-        {/* 卡片内容 - 更紧凑的布局 */}
-        <div className="p-4 relative z-10 flex-1 flex flex-col h-full">
-          {/* 标题和分类 */}
-          <div className="flex justify-between items-start mb-2">
-            <div className="flex items-center">
-              {/* 添加图标，使用固定尺寸容器确保大小一致 */}
-              <div className="w-8 h-8 flex items-center justify-center text-xl mr-2 flex-shrink-0">
-                {set.icon || '📚'}
+        {/* Animated tech pattern background */}
+        <div className="absolute inset-0 z-0 opacity-20">
+          <svg className="w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="circuitPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 10,0 L 10,10 M 0,10 L 20,10" stroke="currentColor" strokeWidth="0.5" fill="none"/>
+                <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="100" height="100" fill="url(#circuitPattern)" />
+          </svg>
+        </div>
+        
+        {/* Glowing accent effects */}
+        <div className="absolute -top-10 -right-10 w-20 h-20 bg-blue-500 rounded-full opacity-30 blur-xl group-hover:bg-indigo-500 group-hover:opacity-40 transition-all duration-700"></div>
+        <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-purple-500 rounded-full opacity-20 blur-xl group-hover:opacity-30 transition-all duration-700"></div>
+        
+        {/* Card content */}
+        <div className="relative z-10 h-full p-5 flex flex-col justify-between">
+          {/* Header */}
+          <div>
+            <div className="flex justify-between items-start mb-2">
+              {/* Title and icon */}
+              <div className="flex items-start">
+                <div className="w-9 h-9 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center text-lg mr-3 text-white shadow-inner border border-white/20 flex-shrink-0">
+                  {set.icon || '📚'}
+                </div>
+                <h3 className="text-lg font-bold text-white group-hover:text-blue-300 transition-colors line-clamp-1 pr-2">
+                  {set.title}
+                </h3>
               </div>
-              <h3 className="text-base font-semibold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 pr-2">{set.title}</h3>
-            </div>
-            {isFree ? (
-              <div className="relative flex-shrink-0">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${getAccessTypeBadgeClass()} animate-pulse`}>
+              
+              {/* Access type badge */}
+              <div className="flex-shrink-0">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getAccessTypeBadgeClass()} shadow-lg`}>
                   {getAccessTypeLabel()}
-                  <span className="absolute inset-0 rounded-full bg-blue-400 mix-blend-screen filter blur-sm opacity-75 animate-pulse"></span>
+                  {isFree && <span className="absolute inset-0 rounded-full bg-blue-400 mix-blend-overlay animate-pulse"></span>}
                 </span>
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping"></span>
+                {isFree && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping"></span>
+                )}
               </div>
-            ) : (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${getAccessTypeBadgeClass()} flex-shrink-0`}>
-                {getAccessTypeLabel()}
-              </span>
-            )}
+            </div>
+            
+            {/* Description */}
+            <p className="text-sm text-gray-300 mb-3 line-clamp-1 opacity-80">{set.description}</p>
           </div>
           
-          {/* 描述 */}
-          <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-1">{set.description}</p>
-          
-          {/* 题库信息 */}
-          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-auto space-x-3">
-            <div className="flex items-center">
-              <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {getQuestionCount() > 0 ? (
-                <span>{getQuestionCount()}题</span>
-              ) : (
-                <span className="text-red-500 dark:text-red-400 flex items-center">
-                  <span>0题</span>
-                  <svg className="w-3 h-3 ml-1 animate-pulse text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </span>
-              )}
+          {/* Info section */}
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="flex items-center text-xs text-gray-300 space-x-4">
+              <div className="flex items-center">
+                <svg className="w-3.5 h-3.5 mr-1.5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {getQuestionCount() > 0 ? (
+                  <span>{getQuestionCount()}题</span>
+                ) : (
+                  <span className="text-red-400 flex items-center">
+                    <span>0题</span>
+                    <svg className="w-3 h-3 ml-1 animate-pulse text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center">
+                <svg className="w-3.5 h-3.5 mr-1.5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                <span>{set.category}</span>
+              </div>
             </div>
-            <div className="flex items-center">
-              <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              <span>{set.category}</span>
-            </div>
-          </div>
-          
-          {/* 条件内容区域 - 确保统一高度 */}
-          <div className="h-[40px] flex items-center">
-            {/* 剩余有效期 - 仅对已购买或已兑换的题库显示 */}
+            
+            {/* Validity period or price */}
             {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
               <div className="w-full">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-xs">有效期</span>
-                  <span className={`font-medium text-xs ${
-                    percent < 20 ? 'text-red-600' : 
-                    percent < 50 ? 'text-yellow-600' : 
-                    'text-green-600'
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-gray-400">有效期</span>
+                  <span className={`font-medium ${
+                    percent < 20 ? 'text-red-400' : 
+                    percent < 50 ? 'text-amber-400' : 
+                    'text-green-400'
                   }`}>
                     {formatRemainingDays(set.remainingDays)}
                   </span>
                 </div>
-                <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden backdrop-blur-sm">
                   <div 
                     className={`h-full ${color} transition-all duration-500`}
                     style={{ width: `${percent}%` }}
@@ -415,41 +433,37 @@ const HomePage = (): JSX.Element => {
                 </div>
               </div>
             ) : set.isPaid && !hasAccess ? (
-              /* 价格信息 - 仅对未购买的付费题库显示 */
               <div className="flex items-baseline">
-                <span className="text-base font-bold text-blue-600 dark:text-blue-400">¥{set.price}</span>
+                <span className="text-lg font-bold text-amber-400">¥{set.price}</span>
                 {set.trialQuestions && (
-                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="ml-2 text-xs text-gray-400">
                     可试用{set.trialQuestions}题
                   </span>
                 )}
               </div>
             ) : (
-              /* 空白占位 */
-              <div className="w-full h-[1px]"></div>
+              <div className="w-full h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full opacity-70"></div>
             )}
-          </div>
-          
-          {/* 操作按钮 - 统一位置 */}
-          <div className="flex justify-end mt-2">
+            
+            {/* Action button */}
             <button
               onClick={() => onStartQuiz(set)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+              className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-all duration-300 ${
                 hasAccess 
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-sm hover:shadow transform hover:scale-105' 
-                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-sm hover:shadow transform hover:scale-105'
-              } flex items-center`}
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-md'
+              } flex items-center justify-center group-hover:shadow-lg transform group-hover:scale-[1.02]`}
             >
               {hasAccess ? (
                 <>
-                  <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   </svg>
                   开始练习
                 </>
               ) : (
                 <>
-                  <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                   </svg>
                   试用练习
@@ -459,8 +473,8 @@ const HomePage = (): JSX.Element => {
           </div>
         </div>
         
-        {/* 闪光效果 */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-10 dark:group-hover:opacity-5 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out"></div>
+        {/* Hover effects */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-10 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out"></div>
       </div>
     );
   };
@@ -536,25 +550,25 @@ const HomePage = (): JSX.Element => {
 
   // 将 getCategorizedQuestionSets 函数移到组件内部，这样它可以访问 questionSets 状态
   const getCategorizedQuestionSets = useCallback(() => {
-    // 根据状态过滤题库
-    const purchased = questionSets.filter((set: PreparedQuestionSet) => 
+    // 根据状态过滤题库 - 使用filteredSets而不是questionSets
+    const purchased = filteredSets.filter((set: PreparedQuestionSet) => 
       (set.accessType === 'paid' || set.accessType === 'redeemed') && set.hasAccess
     );
     
-    const free = questionSets.filter((set: PreparedQuestionSet) => 
+    const free = filteredSets.filter((set: PreparedQuestionSet) => 
       !set.isPaid // 只有真正的免费题库才显示在免费区域
     );
     
-    const paid = questionSets.filter((set: PreparedQuestionSet) => 
+    const paid = filteredSets.filter((set: PreparedQuestionSet) => 
       set.isPaid && !set.hasAccess && set.accessType !== 'expired'
     );
     
-    const expired = questionSets.filter((set: PreparedQuestionSet) => 
+    const expired = filteredSets.filter((set: PreparedQuestionSet) => 
       set.accessType === 'expired'
     );
     
     return { purchased, free, paid, expired };
-  }, [questionSets]);
+  }, [filteredSets]);
 
   // Save access info to local storage
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string) => {
@@ -719,40 +733,34 @@ const HomePage = (): JSX.Element => {
   // 切换分类
   const handleCategoryChange = useCallback((category: string) => {
     console.log(`[HomePage] Changing category to: ${category}`);
-    // Debug the available categories
-    console.log(`[HomePage] Available categories: ${homeContent.featuredCategories.join(', ')}`);
+    // Debug available categories
+    const availableCategories = [...new Set(questionSets.map(set => set.category))];
+    console.log(`[HomePage] Available categories: ${availableCategories.join(', ')}`);
     
     setActiveCategory(category);
     
     // Set a timeout to ensure state updates are processed
     setTimeout(() => {
-      // Reset search term when changing categories for better UX
-      setSearchTerm('');
-      
       // Scroll to question sets section for better user experience
       const questionSetsSection = document.getElementById('question-sets-section');
       if (questionSetsSection) {
         questionSetsSection.scrollIntoView({ behavior: 'smooth' });
       }
-      
-      console.log(`[HomePage] Category changed and UI updated to: ${category}`);
-    }, 50);
-  }, [homeContent.featuredCategories]);
+    }, 100);
+  }, [questionSets]);
 
   // 获取过滤后的题库列表，按分类组织
   const getFilteredQuestionSets = useCallback(() => {
     console.log(`[getFilteredQuestionSets] Starting filter with activeCategory: ${activeCategory}`);
     
     // 先根据搜索词过滤
-    let filteredSets = searchTerm.trim() ? 
+    let filtered = searchTerm.trim() ? 
       questionSets.filter(set => 
         set.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        set.category.toLowerCase().includes(searchTerm.toLowerCase())
+        set.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        set.description.toLowerCase().includes(searchTerm.toLowerCase())
       ) : 
       questionSets;
-    
-    // 排除推荐题库（只在推荐区域出现）
-    filteredSets = filteredSets.filter(set => !set.isFeatured);
     
     // 再根据分类过滤
     if (activeCategory !== 'all') {
@@ -761,22 +769,34 @@ const HomePage = (): JSX.Element => {
       console.log(`[getFilteredQuestionSets] Available categories in data: ${availableCategories.join(', ')}`);
       
       // 直接按选中的分类筛选
-      const preFilterCount = filteredSets.length;
-      filteredSets = filteredSets.filter(set => 
+      const preFilterCount = filtered.length;
+      filtered = filtered.filter(set => 
         set.category === activeCategory || 
         set.featuredCategory === activeCategory
       );
-      console.log(`[getFilteredQuestionSets] Filtered by category '${activeCategory}': from ${preFilterCount} to ${filteredSets.length} sets`);
+      console.log(`[getFilteredQuestionSets] Filtered by category '${activeCategory}': from ${preFilterCount} to ${filtered.length} sets`);
     } else if (homeContent.featuredCategories && homeContent.featuredCategories.length > 0) {
       // 在全部模式，且有精选分类时，正常显示所有题库
-      console.log(`[getFilteredQuestionSets] Showing all non-featured sets: ${filteredSets.length} sets`);
+      console.log(`[getFilteredQuestionSets] Showing all sets: ${filtered.length} sets`);
     }
     
-    return filteredSets;
+    return filtered;
   }, [questionSets, activeCategory, homeContent.featuredCategories, searchTerm]);
 
   // 推荐题库直接用 questionSets 过滤
-  const recommendedSets = questionSets.filter(set => set.isFeatured).slice(0, 3);
+
+  // Replace the above with this effect
+  useEffect(() => {
+    // Update recommended sets from featured items
+    const featured = questionSets.filter(set => set.isFeatured);
+    setRecommendedSets(featured.slice(0, 3));
+    
+    // Also update filtered sets based on search and category
+    const filtered = getFilteredQuestionSets();
+    setFilteredSets(filtered);
+    
+    console.log(`[HomePage] Updated sets: ${filtered.length} filtered sets, ${featured.length} featured sets`);
+  }, [questionSets, searchTerm, activeCategory, getFilteredQuestionSets]);
 
   // 添加API缓存和请求防抖
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
@@ -2862,18 +2882,18 @@ const HomePage = (): JSX.Element => {
                 {homeContent.welcomeDescription || "选择下面的题库开始练习，提升你的专业技能"}
               </p>
               <div className="flex flex-wrap justify-center md:justify-start">
-                <a 
-                  href="#question-sets" 
+                <Link
+                  to="/question-sets" 
                   className="bg-white text-blue-600 font-medium px-5 py-2 rounded-lg shadow-md hover:bg-blue-50 transition-all mr-3 mb-2 text-sm"
                 >
                   浏览题库
-                </a>
-                <a 
-                  href="/profile" 
+                </Link>
+                <Link
+                  to="/profile" 
                   className="bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm"
                 >
                   个人中心
-                </a>
+                </Link>
               </div>
             </div>
             

@@ -26,6 +26,7 @@ class ApiClient {
   private requestsPerMinute: Map<string, number[]> = new Map();
   private maxRequestsPerMinute = 50; // 每分钟最大请求数
   private defaultCacheDuration = 60000; // 默认缓存1分钟
+  private currentUserId: string | null = null; // 当前用户ID
 
   /**
    * 生成请求的缓存键
@@ -34,7 +35,9 @@ class ApiClient {
     const method = config?.method?.toUpperCase() || 'GET';
     const params = config?.params ? JSON.stringify(config.params) : '';
     const data = config?.data ? JSON.stringify(config.data) : '';
-    return `${method}:${url}:${params}:${data}`;
+    // 在缓存键中包含当前用户ID
+    const userId = this.currentUserId ? `user:${this.currentUserId}:` : '';
+    return `${userId}${method}:${url}:${params}:${data}`;
   }
 
   /**
@@ -304,6 +307,25 @@ class ApiClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  /**
+   * 设置当前用户ID，用于区分不同用户的缓存和请求
+   */
+  public setUserId(userId: string | null): void {
+    if (this.currentUserId !== userId) {
+      console.log(`[ApiClient] 设置当前用户ID: ${userId || '无'}`);
+      this.currentUserId = userId;
+      // 更换用户ID时清除缓存，确保不会使用上一个用户的数据
+      this.clearCache();
+    }
+  }
+
+  /**
+   * 获取当前用户ID
+   */
+  public getCurrentUserId(): string | null {
+    return this.currentUserId;
   }
 }
 

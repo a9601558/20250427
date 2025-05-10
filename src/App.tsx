@@ -91,7 +91,7 @@ const App: React.FC = () => {
                 } />
                 <Route path="/quiz/:questionSetId" element={<QuizPage />} />
                 <Route path="/payment/:id" element={<Navigate to="/" replace />} />
-                <Route path="/question-sets-search" element={<QuestionSetSearchPage />} />
+                <Route path="/question-sets" element={<QuestionSetSearchPage />} />
               </Routes>
             </Layout>
           </Router>
