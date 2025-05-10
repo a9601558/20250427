@@ -162,7 +162,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     } catch (error) {
       console.error('[Layout] Failed to fetch footer text:', error);
       // Set default footer text as fallback
-      setFooterText(`© ${new Date().getFullYear()} ExamTopics Online Quiz System. All Rights Reserved.`);
+      setFooterText(`© ${new Date().getFullYear()} Exam7 Online Quiz System. All Rights Reserved.`);
     }
   }, [footerText]);
   
@@ -205,7 +205,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center group">
             <div className="text-2xl font-bold text-gradient group-hover:scale-105 transition-transform">
-              ExamTopics
+              Exam7
             </div>
             <div className="ml-2 bg-blue-500 w-2 h-2 rounded-full animate-pulse"></div>
           </Link>
@@ -269,7 +269,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center">
             <div className="flex items-center mb-4">
-              <div className="text-xl font-bold text-gradient">ExamTopics</div>
+              <div className="text-xl font-bold text-gradient">Exam7</div>
               <div className="ml-2 bg-blue-500 w-1.5 h-1.5 rounded-full animate-pulse"></div>
             </div>
             

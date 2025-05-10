@@ -62,7 +62,7 @@ const FirebaseErrorHandler: React.FC = () => {
       if (
         errorText.includes('firebase') || 
         errorText.includes('firestore') || 
-        errorText.includes('examtopics-app') ||
+        errorText.includes('Exam7-app') ||
         errorText.includes('googleapis.com')
       ) {
         setErrorCount(prev => prev + 1);
@@ -106,7 +106,7 @@ const FirebaseErrorHandler: React.FC = () => {
       if (
         event.message.includes('firebase') || 
         event.filename?.includes('firestore') || 
-        event.message.includes('examtopics-app') ||
+        event.message.includes('Exam7-app') ||
         event.message.includes('googleapis.com')
       ) {
         setErrorCount(prev => prev + 1);

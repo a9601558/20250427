@@ -50,6 +50,11 @@ const customStyles = `
     100% { background-position: 0% 50%; }
   }
   
+  @keyframes scan {
+    from { transform: translateY(-50%); }
+    to { transform: translateY(0); }
+  }
+  
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -63,6 +68,18 @@ const customStyles = `
     animation: glow 2s ease-in-out infinite;
   }
   
+  .animate-scan {
+    animation: scan 5s linear infinite;
+  }
+  
+  .animate-spin-slow {
+    animation: spin 15s linear infinite;
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s ease-in-out infinite;
+  }
+  
   .shimmer-bg {
     background: linear-gradient(90deg, 
       rgba(255,255,255,0) 0%, 
@@ -70,6 +87,11 @@ const customStyles = `
       rgba(255,255,255,0) 100%);
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
+  }
+  
+  .bg-grid-white {
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
   }
   
   .scale-102:hover {
@@ -313,22 +335,22 @@ const HomePage = (): JSX.Element => {
     
     // 确定标签的颜色
     const getAccessTypeBadgeClass = () => {
-      if (!set.isPaid) return 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white';
-      if (set.accessType === 'paid') return hasAccess ? 'bg-green-500 text-white' : 'bg-amber-500 text-white';
-      if (set.accessType === 'redeemed') return 'bg-purple-500 text-white';
-      if (set.accessType === 'expired') return 'bg-red-500 text-white';
-      return 'bg-amber-500 text-white';
+      if (!set.isPaid) return 'bg-blue-100 text-blue-800 border border-blue-200';
+      if (set.accessType === 'paid') return hasAccess ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200';
+      if (set.accessType === 'redeemed') return 'bg-purple-100 text-purple-800 border border-purple-200';
+      if (set.accessType === 'expired') return 'bg-red-100 text-red-800 border border-red-200';
+      return 'bg-amber-100 text-amber-800 border border-amber-200';
     };
 
     return (
-      <div className="relative group overflow-hidden h-[200px] rounded-2xl transition-all duration-300 shadow-md hover:shadow-xl transform hover:-translate-y-1">
-        {/* Card background with gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 opacity-90"></div>
+      <div className="relative group h-[180px] rounded-xl transition-all duration-300 bg-white border border-gray-100 shadow hover:shadow-md hover:border-blue-100 transform hover:-translate-y-1 overflow-hidden">
+        {/* Subtle accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-80"></div>
         
         {/* Card Image Background - Add support for card image */}
         {set.cardImage && (
           <div 
-            className="absolute inset-0 z-0 opacity-40"
+            className="absolute inset-0 z-0 opacity-5"
             style={{ 
               backgroundImage: `url(${set.cardImage})`,
               backgroundSize: 'cover',
@@ -337,66 +359,50 @@ const HomePage = (): JSX.Element => {
           />
         )}
         
-        {/* Animated tech pattern background */}
-        <div className="absolute inset-0 z-0 opacity-20">
-          <svg className="w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="circuitPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M 10,0 L 10,10 M 0,10 L 20,10" stroke="currentColor" strokeWidth="0.5" fill="none"/>
-                <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
-              </pattern>
-            </defs>
-            <rect x="0" y="0" width="100" height="100" fill="url(#circuitPattern)" />
-          </svg>
-        </div>
-        
-        {/* Glowing accent effects */}
-        <div className="absolute -top-10 -right-10 w-20 h-20 bg-blue-500 rounded-full opacity-30 blur-xl group-hover:bg-indigo-500 group-hover:opacity-40 transition-all duration-700"></div>
-        <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-purple-500 rounded-full opacity-20 blur-xl group-hover:opacity-30 transition-all duration-700"></div>
+        {/* Subtle decorative elements */}
+        <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-400 opacity-5 rounded-full"></div>
+        <div className="absolute -left-4 -bottom-4 w-16 h-16 bg-indigo-400 opacity-5 rounded-full"></div>
         
         {/* Card content */}
-        <div className="relative z-10 h-full p-5 flex flex-col justify-between">
+        <div className="relative z-10 h-full p-4 flex flex-col justify-between">
           {/* Header */}
           <div>
             <div className="flex justify-between items-start mb-2">
               {/* Title and icon */}
-              <div className="flex items-start">
-                <div className="w-9 h-9 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center text-lg mr-3 text-white shadow-inner border border-white/20 flex-shrink-0">
+              <div className="flex items-center">
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600">
                   {set.icon || '📚'}
                 </div>
-                <h3 className="text-lg font-bold text-white group-hover:text-blue-300 transition-colors line-clamp-1 pr-2">
+                <h3 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2">
                   {set.title}
                 </h3>
               </div>
               
               {/* Access type badge */}
               <div className="flex-shrink-0">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getAccessTypeBadgeClass()} shadow-lg`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getAccessTypeBadgeClass()}`}>
                   {getAccessTypeLabel()}
-                  {isFree && <span className="absolute inset-0 rounded-full bg-blue-400 mix-blend-overlay animate-pulse"></span>}
+                  {isFree && <span className="absolute inset-0 rounded-md bg-blue-400 mix-blend-screen opacity-10 animate-pulse hidden group-hover:block"></span>}
                 </span>
-                {isFree && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping"></span>
-                )}
               </div>
             </div>
             
             {/* Description */}
-            <p className="text-sm text-gray-300 mb-3 line-clamp-1 opacity-80">{set.description}</p>
+            <p className="text-xs text-gray-500 mb-3 line-clamp-1">{set.description}</p>
           </div>
           
           {/* Info section */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Stats */}
-            <div className="flex items-center text-xs text-gray-300 space-x-4">
+            <div className="flex items-center text-xs text-gray-500 space-x-4">
               <div className="flex items-center">
-                <svg className="w-3.5 h-3.5 mr-1.5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {getQuestionCount() > 0 ? (
                   <span>{getQuestionCount()}题</span>
                 ) : (
-                  <span className="text-red-400 flex items-center">
+                  <span className="text-red-500 flex items-center">
                     <span>0题</span>
                     <svg className="w-3 h-3 ml-1 animate-pulse text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -405,7 +411,7 @@ const HomePage = (): JSX.Element => {
                 )}
               </div>
               <div className="flex items-center">
-                <svg className="w-3.5 h-3.5 mr-1.5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 mr-1 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                 </svg>
                 <span>{set.category}</span>
@@ -415,17 +421,17 @@ const HomePage = (): JSX.Element => {
             {/* Validity period or price */}
             {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
               <div className="w-full">
-                <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-gray-400">有效期</span>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-500">有效期</span>
                   <span className={`font-medium ${
-                    percent < 20 ? 'text-red-400' : 
-                    percent < 50 ? 'text-amber-400' : 
-                    'text-green-400'
+                    percent < 20 ? 'text-red-600' : 
+                    percent < 50 ? 'text-amber-600' : 
+                    'text-green-600'
                   }`}>
                     {formatRemainingDays(set.remainingDays)}
                   </span>
                 </div>
-                <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden backdrop-blur-sm">
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     className={`h-full ${color} transition-all duration-500`}
                     style={{ width: `${percent}%` }}
@@ -434,36 +440,36 @@ const HomePage = (): JSX.Element => {
               </div>
             ) : set.isPaid && !hasAccess ? (
               <div className="flex items-baseline">
-                <span className="text-lg font-bold text-amber-400">¥{set.price}</span>
+                <span className="text-base font-bold text-blue-600">¥{set.price}</span>
                 {set.trialQuestions && (
-                  <span className="ml-2 text-xs text-gray-400">
+                  <span className="ml-2 text-xs text-gray-500">
                     可试用{set.trialQuestions}题
                   </span>
                 )}
               </div>
             ) : (
-              <div className="w-full h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full opacity-70"></div>
+              <div className="w-full h-[2px] bg-blue-50 rounded-full mt-2"></div>
             )}
             
             {/* Action button */}
             <button
               onClick={() => onStartQuiz(set)}
-              className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-all duration-300 ${
+              className={`w-full py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
                 hasAccess 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-md'
-              } flex items-center justify-center group-hover:shadow-lg transform group-hover:scale-[1.02]`}
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              } flex items-center justify-center group-hover:shadow transform group-hover:scale-[1.01]`}
             >
               {hasAccess ? (
                 <>
-                  <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   </svg>
                   开始练习
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                   </svg>
                   试用练习
@@ -474,7 +480,7 @@ const HomePage = (): JSX.Element => {
         </div>
         
         {/* Hover effects */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-10 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100 to-transparent opacity-0 group-hover:opacity-10 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out"></div>
       </div>
     );
   };
@@ -2868,14 +2874,46 @@ const HomePage = (): JSX.Element => {
       {/* 首页主内容 */}
       <div className="container mx-auto px-4 py-6">
         {/* 自适应英雄区域 */}
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 mb-8 relative overflow-hidden shadow-xl">
-          {/* 背景装饰 */}
-          <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-500 opacity-20 rounded-full blur-xl"></div>
-          <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-indigo-500 opacity-20 rounded-full blur-xl"></div>
+        <div className="bg-gradient-to-br from-slate-900 to-indigo-900 rounded-2xl p-6 mb-8 relative overflow-hidden shadow-xl">
+          {/* High-tech decorative elements */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 right-0 w-full h-full bg-grid-white/[0.2] bg-[length:30px_30px] transform -skew-y-12"></div>
+          </div>
           
+          {/* Circuit patterns */}
+          <div className="absolute top-0 left-0 w-full h-full opacity-10">
+            <svg className="absolute left-0 top-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0,0 L100,0 L100,100 L0,100 Z" fill="none" stroke="white" strokeWidth="0.5"></path>
+              <path d="M0,50 L100,50" stroke="white" strokeWidth="0.5"></path>
+              <path d="M50,0 L50,100" stroke="white" strokeWidth="0.5"></path>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="white" strokeWidth="0.5"></circle>
+              <circle cx="50" cy="50" r="20" fill="none" stroke="white" strokeWidth="0.5"></circle>
+              <path d="M0,0 L100,100" stroke="white" strokeWidth="0.5"></path>
+              <path d="M0,100 L100,0" stroke="white" strokeWidth="0.5"></path>
+            </svg>
+          </div>
+
+          {/* Floating particles */}
+          <div className="absolute h-full w-full">
+            <div className="absolute h-2 w-2 rounded-full bg-blue-400 animate-ping" style={{top: '20%', left: '10%', animationDuration: '3s'}}></div>
+            <div className="absolute h-2 w-2 rounded-full bg-indigo-400 animate-ping" style={{top: '70%', left: '20%', animationDuration: '4s'}}></div>
+            <div className="absolute h-2 w-2 rounded-full bg-cyan-400 animate-ping" style={{top: '30%', left: '80%', animationDuration: '5s'}}></div>
+            <div className="absolute h-3 w-3 rounded-full bg-purple-400 animate-ping" style={{top: '60%', left: '75%', animationDuration: '7s'}}></div>
+            <div className="absolute h-3 w-3 rounded-full bg-blue-400 animate-ping" style={{top: '40%', left: '30%', animationDuration: '6s'}}></div>
+          </div>
+
+          {/* Glowing orbs */}
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-500 opacity-20 rounded-full blur-xl animate-pulse"></div>
+          <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-purple-500 opacity-20 rounded-full blur-xl animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div className="absolute right-1/3 bottom-0 w-24 h-24 bg-cyan-500 opacity-15 rounded-full blur-lg animate-pulse" style={{animationDelay: '0.5s'}}></div>
+
+          {/* Digital scan line effect */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-900/10 to-transparent h-[200%] animate-scan"></div>
+          
+          {/* Content with tech-themed graphic */}
           <div className="relative z-10 flex flex-col md:flex-row items-center">
             <div className="w-full md:w-3/5 text-center md:text-left mb-8 md:mb-0">
-              <h1 className="text-2xl md:text-3xl font-bold text-white mb-4">
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-4 tracking-wider">
                 {homeContent.welcomeTitle || "欢迎来到在线考试中心"}
               </h1>
               <p className="text-blue-100 text-sm md:text-base mb-6">
@@ -2884,28 +2922,50 @@ const HomePage = (): JSX.Element => {
               <div className="flex flex-wrap justify-center md:justify-start">
                 <Link
                   to="/question-sets" 
-                  className="bg-white text-blue-600 font-medium px-5 py-2 rounded-lg shadow-md hover:bg-blue-50 transition-all mr-3 mb-2 text-sm"
+                  className="relative overflow-hidden bg-white text-blue-600 font-medium px-5 py-2 rounded-lg shadow-md hover:bg-blue-50 transition-all mr-3 mb-2 text-sm group"
                 >
-                  浏览题库
+                  <span className="relative z-10">浏览题库</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 via-transparent to-blue-400/20 translate-x-[-100%] group-hover:animate-shimmer"></div>
                 </Link>
                 <Link
                   to="/profile" 
-                  className="bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm"
+                  className="relative overflow-hidden bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm group"
                 >
-                  个人中心
+                  <span className="relative z-10">个人中心</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-white/10 to-white/5 translate-x-[-100%] group-hover:animate-shimmer"></div>
                 </Link>
               </div>
             </div>
             
-            {/* 倒计时组件 - 根据状态显示或隐藏 */}
-            {showCountdownWidget && (
-              <div className="w-full md:w-2/5 flex justify-center">
+            {/* Decorative tech illustration */}
+            <div className="w-full md:w-2/5 flex justify-center items-center">
+              {showCountdownWidget ? (
                 <ExamCountdownWidget />
-              </div>
-            )}
+              ) : (
+                <div className="relative w-64 h-64">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full opacity-20 animate-pulse"></div>
+                  <div className="absolute inset-4 border-4 border-blue-400/30 border-dashed rounded-full animate-spin-slow"></div>
+                  <div className="absolute inset-8 border-2 border-indigo-400/40 rounded-full"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-32 h-32 text-blue-100/80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 4.75V6.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M17.127 6.873L16.073 7.927" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M19.25 12L17.75 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M17.127 17.127L16.073 16.073" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M12 19.25V17.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M7.927 16.073L6.873 17.127" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M6.25 12L4.75 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M7.927 7.927L6.873 6.873" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                      <path d="M12 14.25C13.2426 14.25 14.25 13.2426 14.25 12C14.25 10.7574 13.2426 9.75 12 9.75C10.7574 9.75 9.75 10.7574 9.75 12C9.75 13.2426 10.7574 14.25 12 14.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                    </svg>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-transparent to-blue-900/30 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
                 </div>
-              </div>
-              
+              )}
+            </div>
+          </div>
+        </div>
+        
         {/* 推荐题库 */}
         {recommendedSets.length > 0 && (
           <div className="mb-12">

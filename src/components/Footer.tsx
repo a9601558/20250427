@@ -7,7 +7,7 @@ const Footer: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row justify-between">
           <div className="mb-4 md:mb-0">
-            <h2 className="text-lg font-bold mb-2">ExamTopics</h2>
+            <h2 className="text-lg font-bold mb-2">Exam7</h2>
             <p className="text-gray-400 text-sm">
               提供高质量的模拟练习题和测试，助您备考各类考试
             </p>
@@ -44,7 +44,7 @@ const Footer: React.FC = () => {
         
         <div className="flex flex-col md:flex-row justify-between items-center">
           <p className="text-sm text-gray-400 mb-2 md:mb-0">
-            &copy; {new Date().getFullYear()} ExamTopics. 版权所有
+            &copy; {new Date().getFullYear()} Exam7. 版权所有
           </p>
           <div className="flex space-x-4">
             <a href="#" className="text-gray-400 hover:text-blue-300">

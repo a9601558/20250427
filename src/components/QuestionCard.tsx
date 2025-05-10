@@ -602,7 +602,7 @@ const QuestionCard = ({
         {/* 上一题按钮 */}
           <button 
           onClick={() => onJumpToQuestion && questionNumber > 1 ? onJumpToQuestion(questionNumber - 2) : null}
-          className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors ${
+          className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-2 py-1 rounded-md hover:bg-blue-50 transition-colors ${
             questionNumber <= 1 ? 'opacity-50 cursor-not-allowed' : ''
           }`}
           disabled={questionNumber <= 1}
@@ -613,15 +613,102 @@ const QuestionCard = ({
             上一题
           </button>
         
-        {/* 当前位置显示 */}
-        <div className="text-sm text-gray-500">
-          {questionNumber} / {totalQuestions}
+        {/* 当前位置显示 - 添加数字导航 */}
+        <div className="flex items-center space-x-1">
+          {totalQuestions <= 10 ? (
+            // 当题目数量小于等于10时，显示所有页码
+            Array.from({ length: totalQuestions }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => onJumpToQuestion && onJumpToQuestion(i)}
+                className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
+                  questionNumber === i + 1
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))
+          ) : (
+            // 当题目数量大于10时，使用省略显示
+            <>
+              {/* 前部分页码 */}
+              {Array.from({ length: Math.min(3, totalQuestions) }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => onJumpToQuestion && onJumpToQuestion(i)}
+                  className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
+                    questionNumber === i + 1
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              
+              {/* 省略号 */}
+              {questionNumber > 4 && questionNumber < totalQuestions - 3 && (
+                <span className="text-gray-500 text-xs px-1">...</span>
+              )}
+              
+              {/* 当前页码及其附近 */}
+              {questionNumber > 3 && questionNumber < totalQuestions - 2 && (
+                <>
+                  {questionNumber > 4 && (
+                    <button
+                      onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber - 2)}
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    >
+                      {questionNumber - 1}
+                    </button>
+                  )}
+                  
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-xs bg-blue-600 text-white"
+                  >
+                    {questionNumber}
+                  </button>
+                  
+                  {questionNumber < totalQuestions - 3 && (
+                    <button
+                      onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber)}
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    >
+                      {questionNumber + 1}
+                    </button>
+                  )}
+                </>
+              )}
+              
+              {/* 省略号 */}
+              {questionNumber < totalQuestions - 3 && questionNumber > 3 && (
+                <span className="text-gray-500 text-xs px-1">...</span>
+              )}
+              
+              {/* 末尾页码 */}
+              {Array.from({ length: Math.min(3, totalQuestions) }, (_, i) => (
+                <button
+                  key={totalQuestions - 3 + i}
+                  onClick={() => onJumpToQuestion && onJumpToQuestion(totalQuestions - 3 + i)}
+                  className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
+                    questionNumber === totalQuestions - 2 + i
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {totalQuestions - 2 + i}
+                </button>
+              ))}
+            </>
+          )}
         </div>
         
         {/* 下一题按钮 */}
         <button 
           onClick={() => onJumpToQuestion && questionNumber < totalQuestions ? onJumpToQuestion(questionNumber) : null}
-          className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-3 py-1 rounded-md hover:bg-blue-50 transition-colors ${
+          className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-2 py-1 rounded-md hover:bg-blue-50 transition-colors ${
             questionNumber >= totalQuestions ? 'opacity-50 cursor-not-allowed' : ''
           }`}
           disabled={questionNumber >= totalQuestions}
