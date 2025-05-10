@@ -4,6 +4,7 @@ import { sendResponse, sendError } from '../utils/responseUtils';
 import Option from '../models/Option';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../config/database';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * @route GET /api/v1/questions
@@ -237,6 +238,24 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
       });
     }
     
+    console.log(`[API] 使用题库ID: ${questionSetId}`);
+    
+    // 检查题库是否存在
+    const QuestionSet = sequelize.models.QuestionSet;
+    if (QuestionSet) {
+      const questionSet = await QuestionSet.findByPk(questionSetId);
+      if (!questionSet) {
+        console.log(`[API] QuestionSet not found with ID: ${questionSetId}`);
+        return res.status(404).json({
+          success: false,
+          message: '题库不存在'
+        });
+      }
+      console.log(`[API] 确认题库存在: ${questionSetId}`);
+    } else {
+      console.log(`[API] 警告: 无法获取QuestionSet模型，跳过题库存在性验证`);
+    }
+    
     // 检查上传的文件 - 使用multer中间件处理后的req.file
     if (!req.file) {
       console.log(`[API] No file uploaded in request`);
@@ -263,17 +282,25 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
     let failedCount = 0;
     // 错误信息数组
     const errors: string[] = [];
+    // 成功创建的问题ID集合
+    const createdQuestionIds: string[] = [];
     
     // 处理每一行数据
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
+      const transaction = await sequelize.transaction();
+      let currentQuestionId = '';
+      
       try {
+        console.log(`[API] 处理第 ${lineIndex + 1} 行数据`);
+        
         // 分割数据字段，使用|作为分隔符
         const fields = line.split('|').map((field: string) => field.trim());
         
         if (fields.length < 3) {
           failedCount++;
           errors.push(`行 ${lineIndex + 1}: 格式不正确: ${line.substring(0, 50)}...`);
+          await transaction.rollback();
           continue;
         }
         
@@ -304,6 +331,7 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
           // 不支持的格式
           failedCount++;
           errors.push(`行 ${lineIndex + 1}: 字段数量不足: ${line.substring(0, 50)}...`);
+          await transaction.rollback();
           continue;
         }
         
@@ -329,6 +357,7 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
           failedCount++;
           errors.push(`行 ${lineIndex + 1}: 无效的正确答案 "${correctAnswer}": ${line.substring(0, 50)}...`);
           console.log(`[API] Invalid correct answers: "${correctAnswer}" for question "${questionText.substring(0, 30)}..."`);
+          await transaction.rollback();
           continue;
         }
         
@@ -337,27 +366,39 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
         if (options.length < 2) {
           failedCount++;
           errors.push(`行 ${lineIndex + 1}: 选项不足: ${line.substring(0, 50)}...`);
+          await transaction.rollback();
           continue;
         }
         
         try {
-          // 不使用事务，改用直接创建方式来确保ID正确传递
-          // 1. 首先创建问题
+          // 使用事务并明确指定ID
+          const questionId = uuidv4();
+          currentQuestionId = questionId;
+          console.log(`[API] 为问题生成新ID: ${questionId}`);
+          
+          // 1. 首先创建问题 - 指定ID而不是依赖默认生成的ID
           const question = await Question.create({
+            id: questionId,
             questionSetId,
             text: questionText,
             questionType: isMultipleChoice ? 'multiple' : 'single',
-            explanation,
+            explanation: explanation || '无解析',
             orderIndex: lineIndex // 使用行号作为排序索引
-          });
+          }, { transaction });
           
           // 确保问题正确创建且有ID
-          if (!question || !question.id) {
+          if (!question) {
             throw new Error(`问题创建失败，未能获取问题ID`);
           }
           
-          const questionId = question.id;
-          console.log(`[API] 创建问题成功，ID: ${questionId}`);
+          console.log(`[API] 创建问题成功，ID: ${questionId}, 数据库返回ID: ${question.id}`);
+          
+          // 增加额外验证确保ID匹配
+          if (question.id !== questionId) {
+            console.warn(`[API] 警告: 创建的问题ID ${question.id} 与生成的ID ${questionId} 不匹配`);
+            // 使用数据库返回的ID作为实际ID
+            currentQuestionId = question.id;
+          }
           
           // 2. 然后为每个选项创建记录
           const createdOptions = [];
@@ -366,17 +407,25 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
             const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
             const isCorrect = correctAnswers.includes(optionLetter);
             
-            console.log(`[API] 创建选项: ${optionLetter} - "${optionText}" 正确答案: ${isCorrect}, 问题ID: ${questionId}`);
+            // 创建选项 - 也明确指定ID
+            const optionId = uuidv4();
+            console.log(`[API] 为选项 ${optionLetter} 生成新ID: ${optionId}`);
             
-            // 创建选项
             const option = await Option.create({
-              questionId,  // 确保使用完整的问题ID
+              id: optionId,
+              questionId: currentQuestionId, // 使用确认后的问题ID
               text: optionText,
               isCorrect,
               optionIndex: optionLetter
-            });
+            }, { transaction });
             
             console.log(`[API] 选项创建成功, ID: ${option.id}, 选项: ${option.optionIndex}`);
+            
+            // 额外验证选项ID
+            if (option.id !== optionId) {
+              console.warn(`[API] 警告: 创建的选项ID ${option.id} 与生成的ID ${optionId} 不匹配`);
+            }
+            
             createdOptions.push(option);
           }
           
@@ -391,11 +440,20 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
             throw new Error(`没有正确选项被创建，请检查答案格式是否正确`);
           }
           
-          console.log(`[API] 问题 ID ${questionId} 及其 ${createdOptions.length} 个选项创建成功`);
+          console.log(`[API] 问题 ID ${currentQuestionId} 及其 ${createdOptions.length} 个选项创建成功`);
+          
+          // 添加到成功创建的ID集合
+          createdQuestionIds.push(currentQuestionId);
+          
+          // 提交事务
+          await transaction.commit();
           
           // 更新成功计数
           successCount++;
         } catch (transactionError) {
+          // 事务错误，回滚所有操作
+          await transaction.rollback();
+          
           // 操作失败，计数为失败并记录错误
           failedCount++;
           const errorMessage = transactionError instanceof Error ? transactionError.message : '未知错误';
@@ -403,6 +461,9 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
           console.error(`[API] 第 ${lineIndex + 1} 行处理失败:`, transactionError);
         }
       } catch (parseError) {
+        // 确保事务回滚
+        await transaction.rollback();
+        
         // 解析失败，计数为失败并记录错误
         failedCount++;
         const errorLine = line.substring(0, 50);
@@ -418,6 +479,11 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
       console.log(`[API] 清理临时文件: ${req.file.path}`);
     } catch (cleanupError) {
       console.error(`[API] 清理临时文件失败:`, cleanupError);
+    }
+    
+    console.log(`[API] 批量导入完成. 成功: ${successCount}, 失败: ${failedCount}`);
+    if (createdQuestionIds.length > 0) {
+      console.log(`[API] 创建的问题ID列表:`, createdQuestionIds);
     }
     
     // 导入完成后返回结果
