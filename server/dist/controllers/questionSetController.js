@@ -32,8 +32,24 @@ const sendError = (res, status, message, error) => {
 // @access  Public
 const getAllQuestionSets = async (req, res) => {
     try {
-        // 获取包含问题数量的题库列表
-        const questionSets = await QuestionSet_1.default.findAll();
+        console.log('[QuestionSetController] 开始获取题库列表');
+        // 明确指定要查询的字段，避免 card_image 列不存在的问题
+        const questionSets = await QuestionSet_1.default.findAll({
+            attributes: [
+                'id',
+                'title',
+                'description',
+                'category',
+                'icon',
+                'isPaid',
+                'price',
+                'trialQuestions',
+                'isFeatured',
+                'featuredCategory',
+                'createdAt',
+                'updatedAt'
+            ]
+        });
         // 为每个题库获取准确的问题数量 - 使用更高效的批量查询
         const questionSetIds = questionSets.map(set => set.id);
         console.log(`[QuestionSetController] 正在为 ${questionSetIds.length} 个题库获取问题数量...`);
@@ -70,7 +86,8 @@ const getAllQuestionSets = async (req, res) => {
             const questionCount = questionCountMap.get(set.id) || 0;
             return {
                 ...setJSON,
-                questionCount // 使用查询结果或默认为0
+                questionCount, // 使用查询结果或默认为0
+                cardImage: null // 添加空的 cardImage 字段以保持前端兼容性
             };
         });
         console.log(`[QuestionSetController] 成功获取${enhancedSets.length}个题库，包含问题数量信息`);
@@ -103,6 +120,20 @@ const getQuestionSetById = async (req, res) => {
     try {
         console.log(`尝试获取题库，ID: ${req.params.id}`);
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id, {
+            attributes: [
+                'id',
+                'title',
+                'description',
+                'category',
+                'icon',
+                'isPaid',
+                'price',
+                'trialQuestions',
+                'isFeatured',
+                'featuredCategory',
+                'createdAt',
+                'updatedAt'
+            ],
             include: [{
                     model: Question_1.default,
                     as: 'questionSetQuestions',
@@ -116,8 +147,13 @@ const getQuestionSetById = async (req, res) => {
             console.log(`未找到题库，ID: ${req.params.id}`);
             return sendError(res, 404, '题库不存在');
         }
+        // 添加空的 cardImage 字段以保持前端兼容性
+        const questionSetData = {
+            ...questionSet.toJSON(),
+            cardImage: null
+        };
         console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个问题`);
-        sendResponse(res, 200, questionSet);
+        sendResponse(res, 200, questionSetData);
     }
     catch (error) {
         console.error('Get question set error:', error);
