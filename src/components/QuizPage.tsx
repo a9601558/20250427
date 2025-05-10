@@ -1420,15 +1420,15 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
             </label>
           <input
             type="text"
-              id="redeemCode"
+            id="redeemCode"
             value={code}
-              onChange={handleCodeChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
-              placeholder="例如: EXAM-XXXX-XXXX"
+            onChange={handleCodeChange}
+            className="w-full px-4 py-3 border border-gray-300 text-gray-700 bg-white dark:text-gray-200 dark:bg-gray-700 dark:border-gray-600 rounded-lg focus:ring-green-500 focus:border-green-500"
+            placeholder="例如: EXAM-XXXX-XXXX"
             disabled={isProcessing}
-              autoComplete="off"
-              autoCapitalize="characters"
-              autoFocus
+            autoComplete="off"
+            autoCapitalize="characters"
+            autoFocus
           />
             <p className="mt-2 text-xs text-gray-500">
               兑换码通常由12-16位字母和数字组成，区分大小写

@@ -16,6 +16,7 @@ import { UserProgressProvider } from './contexts/UserProgressContext';
 import { isTokenExpired, performAutoLogin } from './utils/authUtils';
 import { toast } from 'react-toastify';
 import QuestionSetSearchPage from './components/QuestionSetSearchPage';
+import { httpLimiter } from './utils/loopPrevention';
 
 // 创建一个内部组件处理认证逻辑
 const AuthManager: React.FC = () => {
@@ -64,6 +65,43 @@ const App: React.FC = () => {
     };
     
     tryAutoLogin();
+  }, []);
+  
+  // 添加全局fetch拦截器，控制请求频率
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(input, init) {
+      // 忽略静态资源请求
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/i)) {
+        return originalFetch(input, init);
+      }
+      
+      // 检查请求频率限制
+      if (!httpLimiter.canMakeRequest()) {
+        console.warn(`[App] 请求被限制: ${url}`);
+        // 返回模拟的429响应
+        return new Response(JSON.stringify({
+          error: '请求频率过高',
+          message: '请求被限制，请稍后再试'
+        }), {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': '5'
+          }
+        });
+      }
+      
+      // 正常发送请求
+      return originalFetch(input, init);
+    };
+    
+    // 恢复原始fetch
+    return () => {
+      window.fetch = originalFetch;
+    };
   }, []);
   
   return (

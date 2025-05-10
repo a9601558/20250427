@@ -239,7 +239,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
               value={redeemCode}
               onChange={(e) => setRedeemCode(e.target.value)}
               placeholder="请输入有效的兑换码"
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              className="block w-full px-3 py-2 border border-gray-300 text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
               required
               disabled={status === 'loading'}
             />

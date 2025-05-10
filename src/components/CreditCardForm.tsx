@@ -397,7 +397,7 @@ const CreditCardForm: React.FC<CreditCardFormProps> = ({
                     onChange={handleChange}
                     onFocus={() => handleFocus('cardNumber')}
                     onBlur={() => setFocused(null)}
-                    className={`input-focus-ring appearance-none border rounded-lg w-full py-3 px-4 pr-10 text-gray-700 dark:text-gray-200 dark:bg-gray-700 dark:border-gray-600 leading-tight focus:outline-none ${
+                    className={`input-focus-ring appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 dark:text-gray-200 dark:bg-gray-700 dark:border-gray-600 leading-tight focus:outline-none ${
                       errors.cardNumber ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                     }`}
                     maxLength={19}

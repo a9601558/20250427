@@ -7,7 +7,7 @@ import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
-import { throttleContentFetch, detectLoop, isBlocked } from '../utils/loopPrevention';
+import { throttleContentFetch, detectLoop, isBlocked, httpLimiter } from '../utils/loopPrevention';
 
 import { 
   HomeContentData, 
@@ -189,6 +189,25 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   cardImage?: string; // 添加题库卡片图片字段
 }
 
+// 添加全局请求限制变量
+const API_REQUEST_COOLDOWN = 5000; // 5秒冷却时间
+const MAX_REQUESTS_PER_MINUTE = 20; // 每分钟最大请求数
+
+// 添加debounce工具函数
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    
+    timeout = setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
+}
+
 const HomePage = (): JSX.Element => {
   const { user, isAdmin, syncAccessRights } = useUser();
   const { socket } = useSocket();
@@ -204,6 +223,10 @@ const HomePage = (): JSX.Element => {
   const navigate = useNavigate();
   const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
   const [searchTerm, setSearchTerm] = useState<string>('');
+  // 添加API请求计数和限制状态变量
+  const [apiRequestCount, setApiRequestCount] = useState<number>(0);
+  const lastApiRequestTime = useRef<number>(0);
+  const recentRequests = useRef<number[]>([]);
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
@@ -794,14 +817,14 @@ const HomePage = (): JSX.Element => {
   // Replace the above with this effect
   useEffect(() => {
     // Update recommended sets from featured items
-    const featured = questionSets.filter(set => set.isFeatured);
-    setRecommendedSets(featured.slice(0, 3));
+    const featuredSets = questionSets.filter(set => set.isFeatured);
+    setRecommendedSets(featuredSets.slice(0, 3));
     
     // Also update filtered sets based on search and category
     const filtered = getFilteredQuestionSets();
     setFilteredSets(filtered);
     
-    console.log(`[HomePage] Updated sets: ${filtered.length} filtered sets, ${featured.length} featured sets`);
+    console.log(`[HomePage] Updated sets: ${filtered.length} filtered sets, ${featuredSets.length} featured sets`);
   }, [questionSets, searchTerm, activeCategory, getFilteredQuestionSets]);
 
   // 添加API缓存和请求防抖
@@ -810,9 +833,21 @@ const HomePage = (): JSX.Element => {
   const lastSocketUpdateTime = useRef<number>(0);
   const debounceTimerRef = useRef<any>(null);
   
-  // 修改fetchQuestionSets，优先使用用户购买记录，然后才是socket数据和本地缓存
+  // 添加请求限制检查函数
+  const canMakeRequest = useCallback(() => {
+    // 检查API请求限流
+    return httpLimiter.canMakeRequest();
+  }, []);
+
+  // 修改fetchQuestionSets，添加请求限制检查
   const fetchQuestionSets = useCallback(async (options: { forceFresh?: boolean } = {}) => {
     const now = Date.now();
+    
+    // 请求限制检查 - 非强制刷新时检查
+    if (!options.forceFresh && !canMakeRequest()) {
+      console.log('[HomePage] 请求被限制，跳过题库获取');
+      return questionSets;
+    }
     
     // Ensure loading is set to true during fetch
     setLoading(true);
@@ -1156,7 +1191,7 @@ const HomePage = (): JSX.Element => {
     } finally {
       pendingFetchRef.current = false;
     }
-  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories]); // 添加homeContent.featuredCategories作为依赖项
+  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories, canMakeRequest]); // 添加canMakeRequest作为依赖项
   
   // 初始化时获取题库列表 - 修复重复加载问题
   useEffect(() => {
@@ -1307,6 +1342,15 @@ const HomePage = (): JSX.Element => {
       // 重置请求标记
       hasRequestedAccess.current = false;
       
+      // 防止重复请求
+      const lastRequest = parseInt(sessionStorage.getItem('last_socket_reconnect_request') || '0', 10);
+      const now = Date.now();
+      if (now - lastRequest < 10000) { // 10秒内不重复请求
+        console.log('[HomePage] 最近刚重连过，跳过重复请求');
+        return;
+      }
+      sessionStorage.setItem('last_socket_reconnect_request', now.toString());
+      
       // 重新请求权限
       if (questionSets.length > 0) {
         requestAccessStatusForAllQuestionSets();
@@ -1339,18 +1383,27 @@ const HomePage = (): JSX.Element => {
         data.paymentMethod || 'unknown'
       );
       
-      // 检查数据一致性，可选择直接查询数据库
+      // 检查数据一致性，控制请求频率
       if (data.source !== 'db_check' && data.hasAccess) {
-        setTimeout(async () => {
-          try {
-            const dbAccess = await hasAccessInDatabase(data.questionSetId);
-            if (dbAccess !== data.hasAccess) {
-              console.warn(`[HomePage] 权限数据不一致，执行数据库验证 - Socket=${data.hasAccess}, 数据库=${dbAccess}`);
+        const lastDbCheck = parseInt(sessionStorage.getItem(`last_db_check_${data.questionSetId}`) || '0', 10);
+        const now = Date.now();
+        // 每10分钟最多验证一次同一题库的权限
+        if (now - lastDbCheck > 600000) {
+          sessionStorage.setItem(`last_db_check_${data.questionSetId}`, now.toString());
+          
+          setTimeout(async () => {
+            try {
+              const dbAccess = await hasAccessInDatabase(data.questionSetId);
+              if (dbAccess !== data.hasAccess) {
+                console.warn(`[HomePage] 权限数据不一致，执行数据库验证 - Socket=${data.hasAccess}, 数据库=${dbAccess}`);
+              }
+            } catch (error) {
+              console.error('[HomePage] 验证数据库权限失败:', error);
             }
-          } catch (error) {
-            console.error('[HomePage] 验证数据库权限失败:', error);
-          }
-        }, 2000);
+          }, 2000);
+        } else {
+          console.log(`[HomePage] 跳过数据库权限验证，上次验证在 ${Math.floor((now - lastDbCheck)/1000/60)} 分钟前`);
+        }
       }
       
       // 立即更新题库的UI状态
@@ -1380,6 +1433,15 @@ const HomePage = (): JSX.Element => {
       
       console.log("[HomePage] 收到设备同步事件:", data);
       
+      // 限制同步频率
+      const lastSync = parseInt(sessionStorage.getItem('last_device_sync') || '0', 10);
+      const now = Date.now();
+      if (now - lastSync < 60000) { // 1分钟内不重复同步
+        console.log('[HomePage] 最近刚同步过，跳过重复同步');
+        return;
+      }
+      sessionStorage.setItem('last_device_sync', now.toString());
+      
       // 设备同步事件要求完整刷新权限和题库列表
       (async () => {
         try {
@@ -1394,8 +1456,8 @@ const HomePage = (): JSX.Element => {
       })();
     };
     
-    // 监听批量访问检查结果
-    const handleBatchAccessResult = (data: any) => {
+    // 使用防抖动处理批量访问检查结果
+    const handleBatchAccessResult = debounce((data: any) => {
       if (data.userId !== user?.id || !Array.isArray(data.results)) return;
       
       const now = Date.now();
@@ -1563,7 +1625,7 @@ const HomePage = (): JSX.Element => {
           }
         }));
       }
-    };
+    }, 500); // 500ms防抖
     
     // 注册Socket连接状态事件监听
     socket.on('connect', handleConnect);
@@ -1575,13 +1637,15 @@ const HomePage = (): JSX.Element => {
     socket.on('questionSet:batchAccessResult', handleBatchAccessResult);
     
     // 首页内容更新处理 - 在这个useEffect中仅记录事件，实际处理放在专用useEffect中
-    socket.on('admin:homeContent:updated', (data) => {
+    const handleHomeContentUpdate = debounce((data) => {
       console.log('[HomePage] Socket event: admin:homeContent:updated forwarding to custom event');
       // 转发为自定义事件，由专门的处理器处理
       window.dispatchEvent(new CustomEvent('homeContent:updated', {
         detail: data
       }));
-    });
+    }, 1000); // 1秒防抖
+    
+    socket.on('admin:homeContent:updated', handleHomeContentUpdate);
     
     // 发送状态同步请求，确保服务器知道此连接是谁的
     socket.emit('user:identify', {
@@ -1597,6 +1661,7 @@ const HomePage = (): JSX.Element => {
       socket.off('questionSet:accessUpdate', handleAccessUpdate);
       socket.off('user:deviceSync', handleDeviceSync);
       socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
+      socket.off('admin:homeContent:updated', handleHomeContentUpdate);
       
       // 清理定时器
       if (debounceTimerRef.current) {
@@ -1617,6 +1682,22 @@ const HomePage = (): JSX.Element => {
       return;
     }
     
+    // 使用session storage跟踪登录处理，防止重复请求
+    const loginHandled = sessionStorage.getItem(`login_handled_${user.id}`);
+    const loginTime = parseInt(sessionStorage.getItem(`login_time_${user.id}`) || '0', 10);
+    const now = Date.now();
+    
+    // 如果最近10分钟内已处理过登录，且不是页面刷新，跳过
+    const isPageRefresh = !sessionStorage.getItem('page_session_id');
+    if (loginHandled === 'true' && now - loginTime < 600000 && !isPageRefresh) {
+      console.log('[HomePage] 最近已处理过登录流程，跳过重复处理');
+      return;
+    }
+    
+    // 标记页面会话
+    const pageSessionId = Date.now().toString();
+    sessionStorage.setItem('page_session_id', pageSessionId);
+    
     console.log('[HomePage] 用户登录事件触发，开始处理登录流程');
     
     // 防止多次触发 - 使用ref标记代替sessionStorage
@@ -1627,6 +1708,8 @@ const HomePage = (): JSX.Element => {
     
     // 标记为已处理
     hasRequestedAccess.current = true;
+    sessionStorage.setItem(`login_handled_${user.id}`, 'true');
+    sessionStorage.setItem(`login_time_${user.id}`, now.toString());
     
     // Set loading true explicitly when starting login flow
     setLoading(true);
@@ -1646,6 +1729,12 @@ const HomePage = (): JSX.Element => {
       const syncEvent = event as CustomEvent;
       console.log('[HomePage] 接收到权限同步完成事件:', syncEvent.detail);
       
+      // 限制请求频率
+      if (!canMakeRequest()) {
+        console.log('[HomePage] 请求频率受限，暂缓更新');
+        return;
+      }
+      
       // 强制刷新题库列表，以确保显示最新的权限状态
       fetchQuestionSets({ forceFresh: true }).then(() => {
         console.log('[HomePage] 权限同步后题库列表已更新');
@@ -1655,7 +1744,7 @@ const HomePage = (): JSX.Element => {
     // 添加权限同步完成事件监听
     window.addEventListener('accessRights:updated', handleSyncComplete);
     
-    // 登录流程，按顺序执行，避免竞态条件
+    // 登录流程，按顺序执行，避免竞态条件，添加请求限制
     (async () => {
       try {
         // 第1步：通过syncAccessRights同步最新权限数据
@@ -1663,39 +1752,63 @@ const HomePage = (): JSX.Element => {
         await syncAccessRights();
         console.log('[HomePage] 同步访问权限完成，此时用户数据和访问权限已是最新');
         
+        // 等待短暂时间，避免请求过于密集
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // 第2步：使用最新的权限信息，获取并处理题库列表
         console.log('[HomePage] 2. 获取题库列表，强制使用最新数据');
         const freshSets = await fetchQuestionSets({ forceFresh: true });
         console.log('[HomePage] 题库列表获取并处理完成，UI应显示正确的权限状态');
         
         // 第3步：通过socket请求批量权限检查，确保数据一致性
-        if (socket) {
+        // 在socket连接有效时才执行
+        if (socket && socket.connected) {
           console.log('[HomePage] 3. 请求Socket批量权限检查，确保数据一致性');
-          socket.emit('user:syncAccessRights', {
-            userId: user.id,
-            forceRefresh: true,
-            timestamp: Date.now()
-          });
           
-          // 立即触发设备同步事件，确保其他设备也更新
-          socket.emit('user:deviceSync', {
-            userId: user.id,
-            type: 'access_refresh',
-            timestamp: Date.now(),
-            source: 'login_sync'
-          });
+          // 使用限制，避免过多的socket事件
+          const lastSocketSync = parseInt(sessionStorage.getItem('last_socket_sync') || '0', 10);
+          const now = Date.now();
           
-          // 显式针对每个付费题库检查访问权限
-          const paidSets = freshSets.filter(set => set.isPaid === true);
-          if (paidSets.length > 0) {
-            console.log(`[HomePage] 4. 主动检查 ${paidSets.length} 个付费题库的访问权限`);
-            socket.emit('questionSet:checkAccessBatch', {
+          // 确保至少间隔5秒
+          if (now - lastSocketSync > 5000) {
+            sessionStorage.setItem('last_socket_sync', now.toString());
+            
+            socket.emit('user:syncAccessRights', {
               userId: user.id,
-              questionSetIds: paidSets.map(set => String(set.id).trim()),
-              source: 'login_explicit_check',
+              forceRefresh: true,
               timestamp: Date.now()
             });
+            
+            // 等待1秒后再发送设备同步，避免请求密集
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 立即触发设备同步事件，确保其他设备也更新
+            socket.emit('user:deviceSync', {
+              userId: user.id,
+              type: 'access_refresh',
+              timestamp: Date.now(),
+              source: 'login_sync'
+            });
+            
+            // 显式针对每个付费题库检查访问权限
+            const paidSets = freshSets.filter(set => set.isPaid === true);
+            if (paidSets.length > 0) {
+              // 再等待1秒，确保前面的请求已处理
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              console.log(`[HomePage] 4. 主动检查 ${paidSets.length} 个付费题库的访问权限`);
+              socket.emit('questionSet:checkAccessBatch', {
+                userId: user.id,
+                questionSetIds: paidSets.map(set => String(set.id).trim()),
+                source: 'login_explicit_check',
+                timestamp: Date.now()
+              });
+            }
+          } else {
+            console.log(`[HomePage] 跳过socket同步，距离上次同步仅 ${(now - lastSocketSync)/1000} 秒`);
           }
+        } else {
+          console.log('[HomePage] Socket未连接，跳过socket相关操作');
         }
         
         // 设置loading状态为false，表示登录流程完成
@@ -1703,25 +1816,11 @@ const HomePage = (): JSX.Element => {
         clearTimeout(loadingTimeoutRef.current);
       } catch (error) {
         console.error('[HomePage] 登录流程处理出错:', error);
-        // Reset the flag on error so we can try again
-        hasRequestedAccess.current = false;
-        // Ensure loading is set to false even if an error occurs
         setLoading(false);
-        clearTimeout(loadingTimeoutRef.current);
-        
-        // Show error message to user
-        setErrorMessage('登录后加载数据时出错，请刷新页面重试');
+        setErrorMessage('请求失败，请稍后重试');
       }
     })();
-    
-    // Clean up the timeout and event listeners when the component unmounts or when the effect runs again
-    return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-      window.removeEventListener('accessRights:updated', handleSyncComplete);
-    };
-  }, [user?.id, syncAccessRights, fetchQuestionSets, socket]);
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
   useEffect(() => {
@@ -1779,18 +1878,25 @@ const HomePage = (): JSX.Element => {
     }
   }, [user?.id]);
 
-  // 添加监听题库更新的useEffect
+  // 添加监听题库更新的useEffect - 优化减少请求频率
   useEffect(() => {
     if (!isInitialLoad.current) {
       // Only log if we're not already requesting access
       if (!hasRequestedAccess.current) {
         console.log('[HomePage] 题库列表更新，可能需要请求最新权限状态');
         
-        // Only make an access request if all conditions are met and we haven't recently made a request
+        // 添加更严格的请求节流
         const now = Date.now();
+        const lastUpdateRequest = parseInt(sessionStorage.getItem('last_question_sets_update_request') || '0', 10);
+        
+        // 只有距离上次请求超过30秒才允许自动请求
         if (user?.id && socket && questionSets.length > 0 && 
             !hasRequestedAccess.current && 
-            now - lastSocketUpdateTime.current > 15000) { // Add a time threshold (15 seconds)
+            now - lastUpdateRequest > 30000 && 
+            now - lastSocketUpdateTime.current > 15000 && 
+            canMakeRequest()) {
+          
+          sessionStorage.setItem('last_question_sets_update_request', now.toString());
           requestAccessStatusForAllQuestionSets();
         } else {
           console.log('[HomePage] 跳过权限请求: 最近已请求过或条件不满足');
@@ -1802,7 +1908,7 @@ const HomePage = (): JSX.Element => {
       console.log('[HomePage] 初次加载，跳过权限检查');
       isInitialLoad.current = false;
     }
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, canMakeRequest]);
 
   // Add a cleanup effect to clear timeouts when component unmounts
   useEffect(() => {
@@ -1886,6 +1992,12 @@ const HomePage = (): JSX.Element => {
   
   // Clean up the fetchLatestHomeContent implementation
   const fetchLatestHomeContent = useCallback(async (options: HomeContentFetchOptions = {}) => {
+    // 强化请求限制检查 - 除初始加载外都检查
+    if (options.source !== 'initial_load' && !canMakeRequest()) {
+      console.log('[HomePage] 请求被限制，跳过首页内容获取');
+      return;
+    }
+    
     // Add enhanced loop detection at the beginning of the function
     if (detectLoop('homeContent', 3, 8000) || isBlocked('homeContent')) {
       console.error('[HomePage] Detected potential infinite loop in content fetching. Breaking cycle.');
@@ -2319,10 +2431,26 @@ const HomePage = (): JSX.Element => {
       // Release lock
       pendingFetchRef.current = false;
     }
-  }, [fetchQuestionSets, homeContent, setActiveCategory, toast]);
+  }, [fetchQuestionSets, homeContent, setActiveCategory, toast, canMakeRequest]); // 添加canMakeRequest作为依赖项
 
   // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {
+    // 添加防止重复加载的检查
+    const initialLoadAttempt = parseInt(sessionStorage.getItem('initialLoadAttempt') || '0', 10);
+    const now = Date.now();
+    
+    // 如果10秒内尝试过初始加载，则跳过
+    if (initialLoadAttempt && now - initialLoadAttempt < 10000) {
+      console.log('[HomePage] 初始加载过于频繁，跳过');
+      sessionStorage.setItem('initialLoadAttemptCount', 
+        (parseInt(sessionStorage.getItem('initialLoadAttemptCount') || '0', 10) + 1).toString());
+      return;
+    }
+    
+    // 记录当前加载尝试时间
+    sessionStorage.setItem('initialLoadAttempt', now.toString());
+    sessionStorage.setItem('initialLoadAttemptCount', '1');
+    
     // Track initial loading to prevent potential loops
     const alreadyLoaded = sessionStorage.getItem('initialHomeContentLoaded');
     if (alreadyLoaded === 'true') {

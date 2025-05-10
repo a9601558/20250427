@@ -164,7 +164,7 @@ const RedeemCodeAdmin: React.FC = () => {
               <select
                 value={selectedQuestionSetId}
                 onChange={e => setSelectedQuestionSetId(e.target.value)}
-                className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full py-2 px-3 border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               >
                 <option value="">选择题库</option>
@@ -184,7 +184,7 @@ const RedeemCodeAdmin: React.FC = () => {
                 onChange={e => setValidityDays(parseInt(e.target.value))}
                 min="1"
                 max="3650"
-                className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full py-2 px-3 border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               />
             </div>
@@ -199,7 +199,7 @@ const RedeemCodeAdmin: React.FC = () => {
                 onChange={e => setQuantity(parseInt(e.target.value))}
                 min="1"
                 max="100"
-                className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full py-2 px-3 border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               />
             </div>

@@ -7,6 +7,7 @@ import axios from 'axios';  // 添加axios导入
 import Modal from 'react-modal';
 import { Alert, Form, Input, Radio, Button, Checkbox } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { toast } from 'react-hot-toast';
 
 type QuestionType = 'single' | 'multiple';
 
@@ -105,14 +106,19 @@ const AdminQuestionSets = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
+  // 添加图片上传相关状态
+  const [iconImageFile, setIconImageFile] = useState<File | null>(null);
+  const [iconImagePreview, setIconImagePreview] = useState<string | null>(null);
+  const iconImageInputRef = React.useRef<HTMLInputElement>(null);
+  
   // 状态消息
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   // 可选的分类和图标
   const categoryOptions = [
-    '前端开发',
-    '后端开发',
+    'Aws',
+    'Sap',
     '全栈开发',
     '移动开发',
     '数据库',
@@ -223,60 +229,151 @@ const AdminQuestionSets = () => {
     }));
   };
 
+  // 添加图片上传处理函数
+  const handleIconImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
+    }
+    
+    const file = e.target.files[0];
+    
+    // 检查文件类型和大小
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('请选择图片文件');
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB限制
+      setErrorMessage('图片大小不能超过5MB');
+      return;
+    }
+    
+    // 创建预览
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setIconImagePreview(reader.result as string);
+      setIconImageFile(file);
+      
+      // 使用自定义图标时，清除emoji选择
+      setFormData(prev => ({...prev, icon: ''}));
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  // 处理移除图片
+  const handleRemoveIconImage = () => {
+    setIconImagePreview(null);
+    setIconImageFile(null);
+    
+    if (iconImageInputRef.current) {
+      iconImageInputRef.current.value = '';
+    }
+  };
+
   // 创建新题库
-  const handleCreateSubmit = async () => {
-    setLoading(true);
-    setLoadingAction('create');
+  const handleCreateQuestionSet = async () => {
+    // 表单验证
+    if (!formData.title) {
+      toast.error('请输入题库标题');
+      return;
+    }
+    
+    if (!formData.category) {
+      toast.error('请选择题库分类');
+      return;
+    }
+    
+    // 验证图标 - 现在可以是emoji或上传的图片
+    if (!formData.icon && !iconImageFile) {
+      toast.error('请选择题库图标或上传自定义图片');
+      return;
+    }
     
     try {
-      // 创建前校验表单
-      if (!formData.title || !formData.category) {
-        showStatusMessage('error', '题库标题和分类不能为空');
-        setLoading(false);
-        return;
-      }
+      setLoading(true);
+      setLoadingAction('create');
       
-      const newQuestionSet = {
+      // 创建题库基本信息
+      const { questionSetService } = await import('../../services/api');
+      const response = await questionSetService.createQuestionSet({
         title: formData.title,
         description: formData.description,
         category: formData.category,
-        icon: formData.icon || '📝',
+        icon: formData.icon, // 如果使用emoji，保存emoji；如果使用自定义图片，这里暂时为空
         isPaid: formData.isPaid,
-        price: formData.isPaid ? parseFloat(formData.price) : undefined,
-        trialQuestions: formData.isPaid ? parseInt(formData.trialQuestions) : undefined,
+        price: formData.isPaid ? formData.price : undefined,
+        trialQuestions: formData.isPaid ? formData.trialQuestions : undefined,
         isFeatured: formData.isFeatured,
-        featuredCategory: formData.featuredCategory,
-        questions: []
-      };
+        featuredCategory: formData.isFeatured ? formData.featuredCategory : undefined
+      });
       
-      // 调用API创建题库
-      const response = await questionSetApi.createQuestionSet(newQuestionSet);
-      
-      if (response.success && response.data) {
-        showStatusMessage('success', '题库创建成功');
-        setShowCreateForm(false);
-        await loadQuestionSets();  // 重新加载全部题库
-        
-        // 重置表单数据
-        setFormData({
-          id: '',
-          title: '',
-          description: '',
-          category: '',
-          icon: '📝',
-          isPaid: false,
-          price: 29.9,
-          trialQuestions: 0,
-          isFeatured: false,
-          featuredCategory: '',
-          questions: []
-        });
-      } else {
-        showStatusMessage('error', `创建题库失败: ${response.error || '未知错误'}`);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || '创建题库失败');
       }
+      
+      const newSetId = response.data.id;
+      
+      // 如果有自定义图片，上传图片
+      if (iconImageFile) {
+        const formData = new FormData();
+        formData.append('image', iconImageFile);
+        formData.append('questionSetId', newSetId);
+        
+        try {
+          const uploadResponse = await fetch('/api/admin/upload/card-image', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+          
+          if (!uploadResponse.ok) {
+            console.warn('图片上传失败，但题库已创建');
+            toast.warning('题库已创建，但图片上传失败');
+          } else {
+            const uploadData = await uploadResponse.json();
+            if (uploadData.success) {
+              console.log('题库图片上传成功:', uploadData.data.imageUrl);
+              toast.success('题库和自定义图标创建成功');
+            } else {
+              toast.warning('题库已创建，但图片上传失败');
+            }
+          }
+        } catch (uploadError) {
+          console.error('上传图片出错:', uploadError);
+          toast.warning('题库已创建，但图片上传失败');
+        }
+      } else {
+        toast.success('题库创建成功');
+      }
+      
+      console.log('创建题库成功:', response.data);
+      
+      // 重置表单
+      setFormData({
+        title: '',
+        description: '',
+        category: '',
+        icon: '',
+        isPaid: false,
+        price: 0,
+        trialQuestions: 0,
+        isFeatured: false,
+        featuredCategory: ''
+      });
+      
+      // 重置图片相关状态
+      setIconImagePreview(null);
+      setIconImageFile(null);
+      if (iconImageInputRef.current) {
+        iconImageInputRef.current.value = '';
+      }
+      
+      // 刷新题库列表
+      await loadQuestionSets();
+      
     } catch (error) {
-      console.error("创建题库出错:", error);
-      showStatusMessage('error', '创建题库时发生错误');
+      console.error('创建题库出错:', error);
+      toast.error(`创建题库失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setLoading(false);
       setLoadingAction('');
@@ -1319,7 +1416,7 @@ const AdminQuestionSets = () => {
                 onChange={handleFormChange}
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
-                <option value="">选择分类</option>
+                <option value="">请选择分类</option>
                 {categoryOptions.map(category => (
                   <option key={category} value={category}>{category}</option>
                 ))}
@@ -1342,6 +1439,49 @@ const AdminQuestionSets = () => {
                 ))}
               </div>
             </Form.Item>
+            
+            {/* 添加自定义图片上传区域 */}
+            <div className="mb-4">
+              <label className="block mb-2 text-sm font-medium text-gray-700">
+                自定义图标图片 <span className="text-xs text-gray-500">(可选，会替代emoji图标)</span>
+              </label>
+              
+              <div className="flex items-center space-x-4">
+                <div className="flex-grow">
+                  <label className="flex justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+                    <span>{iconImageFile ? '更换图片' : '选择图片'}</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      ref={iconImageInputRef}
+                      onChange={handleIconImageSelect}
+                    />
+                  </label>
+                </div>
+                
+                {iconImagePreview && (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-16 h-16 border rounded-md overflow-hidden">
+                      <img 
+                        src={iconImagePreview} 
+                        alt="图标预览" 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveIconImage}
+                      className="p-1 text-red-600 hover:text-red-800"
+                    >
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             
             <Form.Item 
               label="付费设置" 
@@ -1431,7 +1571,7 @@ const AdminQuestionSets = () => {
               </Button>
               <Button 
                 type="primary" 
-                onClick={handleCreateSubmit}
+                onClick={handleCreateQuestionSet}
                 loading={loading && loadingAction === 'create'}
               >
                 创建题库
