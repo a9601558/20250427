@@ -10,7 +10,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // Initial retry delay in ms
 
 // Get base API URL from environment or use default
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // 添加缓存系统
 const requestCache = {};
@@ -121,13 +121,21 @@ const apiClient = {
     // 通过重试逻辑执行请求
     return retryWithBackoff(async () => {
       try {
+        // 添加认证令牌到请求头
+        const headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...options.headers,
+        };
+        
+        // 如果存在认证令牌，添加到请求头
+        if (this.authToken) {
+          headers['Authorization'] = `Bearer ${this.authToken}`;
+        }
+        
         const response = await fetch(url, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...options.headers,
-          },
+          headers,
           ...options.fetchOptions,
         });
         
@@ -184,13 +192,21 @@ const apiClient = {
     // 通过重试逻辑执行请求
     return retryWithBackoff(async () => {
       try {
+        // 添加认证令牌到请求头
+        const headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...options.headers,
+        };
+        
+        // 如果存在认证令牌，添加到请求头
+        if (this.authToken) {
+          headers['Authorization'] = `Bearer ${this.authToken}`;
+        }
+        
         const response = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...options.headers,
-          },
+          headers,
           body: JSON.stringify(data),
           ...options.fetchOptions,
         });
@@ -241,7 +257,34 @@ const apiClient = {
   clearAllCache() {
     Object.keys(requestCache).forEach(key => delete requestCache[key]);
     console.log('[API-Client] 已清除所有缓存');
+  },
+  
+  /**
+   * 设置认证头部
+   * @param {string|null} token 认证令牌
+   */
+  setAuthHeader(token) {
+    // 存储认证头部的令牌，用于后续请求
+    this.authToken = token;
+    console.log(`[API-Client] ${token ? '设置' : '清除'}认证令牌`);
+  },
+  
+  /**
+   * 设置用户ID
+   * @param {string|null} userId 用户ID
+   */
+  setUserId(userId) {
+    // 存储当前用户ID
+    this.currentUserId = userId;
+    console.log(`[API-Client] ${userId ? '设置' : '清除'}用户ID: ${userId || 'null'}`);
+    
+    // 用户ID变化时清除缓存
+    this.clearAllCache();
   }
 };
+
+// 添加内部属性存储认证令牌和用户ID
+apiClient.authToken = null;
+apiClient.currentUserId = null;
 
 export default apiClient; 
