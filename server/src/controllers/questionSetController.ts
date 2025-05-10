@@ -100,7 +100,7 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
     console.log('[QuestionSetController] 开始获取题库列表');
     
-    // 明确指定要查询的字段，避免 card_image 列不存在的问题
+    // 明确指定要查询的字段，避免 card_image 列不存在的问题，使用正确的snake_case列名
     const questionSets = await QuestionSet.findAll({
       attributes: [
         'id', 
@@ -113,8 +113,8 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
         'trialQuestions', 
         'isFeatured', 
         'featuredCategory',
-        'createdAt', 
-        'updatedAt'
+        ['created_at', 'createdAt'], 
+        ['updated_at', 'updatedAt']
       ]
     });
     
@@ -208,8 +208,8 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
         'trialQuestions', 
         'isFeatured', 
         'featuredCategory',
-        'createdAt', 
-        'updatedAt'
+        ['created_at', 'createdAt'], 
+        ['updated_at', 'updatedAt']
       ],
       include: [{
         model: Question,

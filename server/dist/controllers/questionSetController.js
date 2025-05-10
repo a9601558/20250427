@@ -33,7 +33,7 @@ const sendError = (res, status, message, error) => {
 const getAllQuestionSets = async (req, res) => {
     try {
         console.log('[QuestionSetController] 开始获取题库列表');
-        // 明确指定要查询的字段，避免 card_image 列不存在的问题
+        // 明确指定要查询的字段，避免 card_image 列不存在的问题，使用正确的snake_case列名
         const questionSets = await QuestionSet_1.default.findAll({
             attributes: [
                 'id',
@@ -46,8 +46,8 @@ const getAllQuestionSets = async (req, res) => {
                 'trialQuestions',
                 'isFeatured',
                 'featuredCategory',
-                'createdAt',
-                'updatedAt'
+                ['created_at', 'createdAt'],
+                ['updated_at', 'updatedAt']
             ]
         });
         // 为每个题库获取准确的问题数量 - 使用更高效的批量查询
@@ -131,8 +131,8 @@ const getQuestionSetById = async (req, res) => {
                 'trialQuestions',
                 'isFeatured',
                 'featuredCategory',
-                'createdAt',
-                'updatedAt'
+                ['created_at', 'createdAt'],
+                ['updated_at', 'updatedAt']
             ],
             include: [{
                     model: Question_1.default,
