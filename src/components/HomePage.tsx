@@ -55,6 +55,118 @@ const customStyles = `
     to { transform: translateY(0); }
   }
   
+  @keyframes pulse-border {
+    0% { border-color: rgba(59, 130, 246, 0.3); }
+    50% { border-color: rgba(59, 130, 246, 0.8); }
+    100% { border-color: rgba(59, 130, 246, 0.3); }
+  }
+  
+  @keyframes bounce-subtle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  
+  @keyframes shine {
+    0% {
+      background-position: -100% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  
+  .shine-effect {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .shine-effect::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shine 2s infinite linear;
+    pointer-events: none;
+  }
+  
+  .free-card {
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    animation: pulse-border 2s infinite;
+    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.15);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  .free-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 12px 20px rgba(59, 130, 246, 0.25);
+    border-color: rgba(59, 130, 246, 0.8);
+  }
+  
+  .free-card::before {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      to right,
+      rgba(59, 130, 246, 0) 0%,
+      rgba(59, 130, 246, 0.1) 50%,
+      rgba(59, 130, 246, 0) 100%
+    );
+    transform: rotate(30deg);
+    animation: shimmer 3s infinite linear;
+    z-index: 1;
+  }
+  
+  .free-card .free-badge {
+    animation: bounce-subtle 2s ease-in-out infinite;
+  }
+  
+  .free-star {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: linear-gradient(45deg, #3b82f6, #2563eb);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.5);
+    z-index: 10;
+    transform: rotate(15deg);
+  }
+  
+  .free-ribbon {
+    position: absolute;
+    top: 10px;
+    right: -25px;
+    background: #3b82f6;
+    color: white;
+    padding: 2px 20px;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 10;
+    font-size: 10px;
+    font-weight: bold;
+  }
+  
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -366,9 +478,16 @@ const HomePage = (): JSX.Element => {
     };
 
     return (
-      <div className="relative group h-[180px] rounded-xl transition-all duration-300 bg-white border border-gray-100 shadow hover:shadow-md hover:border-blue-100 transform hover:-translate-y-1 overflow-hidden">
+      <div className={`relative group h-[180px] rounded-xl transition-all duration-300 bg-white border border-gray-100 shadow hover:shadow-md hover:border-blue-100 transform hover:-translate-y-1 overflow-hidden ${isFree ? 'free-card' : ''}`}>
         {/* Subtle accent */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-80"></div>
+        
+        {/* Free star indicator for free question sets */}
+        {isFree && (
+          <div className="free-star">
+            <span>⭐</span>
+          </div>
+        )}
         
         {/* Card Image Background - Add support for card image */}
         {set.cardImage && (
@@ -382,9 +501,25 @@ const HomePage = (): JSX.Element => {
           />
         )}
         
+        {/* Background pattern for free cards */}
+        {isFree && !set.cardImage && (
+          <div 
+            className="absolute inset-0 z-0 opacity-10"
+            style={{ 
+              backgroundImage: `radial-gradient(circle, rgba(59, 130, 246, 0.2) 1px, transparent 1px)`,
+              backgroundSize: '15px 15px'
+            }}
+          />
+        )}
+        
         {/* Subtle decorative elements */}
         <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-400 opacity-5 rounded-full"></div>
         <div className="absolute -left-4 -bottom-4 w-16 h-16 bg-indigo-400 opacity-5 rounded-full"></div>
+        
+        {/* Free ribbon for free question sets */}
+        {isFree && (
+          <div className="free-ribbon">免费</div>
+        )}
         
         {/* Card content */}
         <div className="relative z-10 h-full p-4 flex flex-col justify-between">
@@ -393,23 +528,27 @@ const HomePage = (): JSX.Element => {
             <div className="flex justify-between items-start mb-2">
               {/* Title and icon */}
               <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600 overflow-hidden">
+                <div className={`w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600 overflow-hidden ${isFree ? 'animate-pulse' : ''}`}>
                   {set.icon && (set.icon.startsWith('/') || set.icon.includes('http')) ? (
                     <img src={set.icon} alt={set.title} className="w-full h-full object-cover" />
                   ) : (
                     set.icon || '📚'
                   )}
                 </div>
-                <h3 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2">
+                <h3 className={`text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2 ${isFree ? 'text-blue-700' : ''}`}>
                   {set.title}
                 </h3>
               </div>
               
               {/* Access type badge */}
               <div className="flex-shrink-0">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getAccessTypeBadgeClass()}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                  isFree 
+                    ? 'bg-blue-100 text-blue-800 border border-blue-200 free-badge'
+                    : getAccessTypeBadgeClass()
+                }`}>
                   {getAccessTypeLabel()}
-                  {isFree && <span className="absolute inset-0 rounded-md bg-blue-400 mix-blend-screen opacity-10 animate-pulse hidden group-hover:block"></span>}
+                  {isFree && <span className="absolute inset-0 rounded-md bg-blue-400 mix-blend-screen opacity-10 animate-pulse"></span>}
                 </span>
               </div>
             </div>
@@ -423,7 +562,7 @@ const HomePage = (): JSX.Element => {
             {/* Stats */}
             <div className="flex items-center text-xs text-gray-500 space-x-4">
               <div className="flex items-center">
-                <svg className="w-3.5 h-3.5 mr-1 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={`w-3.5 h-3.5 mr-1 ${isFree ? 'text-blue-500 animate-pulse' : 'text-blue-500'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {getQuestionCount() > 0 ? (
@@ -438,7 +577,7 @@ const HomePage = (): JSX.Element => {
                 )}
               </div>
               <div className="flex items-center">
-                <svg className="w-3.5 h-3.5 mr-1 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={`w-3.5 h-3.5 mr-1 ${isFree ? 'text-indigo-600' : 'text-indigo-500'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                 </svg>
                 <span>{set.category}</span>
@@ -475,19 +614,28 @@ const HomePage = (): JSX.Element => {
                 )}
               </div>
             ) : (
-              <div className="w-full h-[2px] bg-blue-50 rounded-full mt-2"></div>
+              <div className={`w-full h-[2px] rounded-full mt-2 ${isFree ? 'bg-blue-200 animate-pulse' : 'bg-blue-50'}`}></div>
             )}
             
             {/* Action button */}
             <button
               onClick={() => onStartQuiz(set)}
               className={`w-full py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-                hasAccess 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                isFree 
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shine-effect'
+                  : hasAccess 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
               } flex items-center justify-center group-hover:shadow transform group-hover:scale-[1.01]`}
             >
-              {hasAccess ? (
+              {isFree ? (
+                <>
+                  <svg className="w-3.5 h-3.5 mr-1 animate-pulse" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  免费练习
+                </>
+              ) : hasAccess ? (
                 <>
                   <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />

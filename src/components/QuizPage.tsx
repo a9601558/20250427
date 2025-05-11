@@ -74,7 +74,7 @@ const AnswerCard: React.FC<{
       
       {/* 题目状态指示器 - 使用更美观的网格布局，全部显示无需分页 */}
       <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-100">
-        <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+        <div className="grid grid-cols-5 gap-0.5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
           {/* 显示所有题目状态按钮，无需分页 */}
           {Array.from({length: totalQuestions}).map((_, questionIndex) => {
             const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);

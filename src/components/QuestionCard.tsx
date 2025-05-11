@@ -617,36 +617,54 @@ const QuestionCard = ({
         <div className="flex items-center space-x-1">
           {totalQuestions <= 10 ? (
             // 当题目数量小于等于10时，显示所有页码
-            Array.from({ length: totalQuestions }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => onJumpToQuestion && onJumpToQuestion(i)}
-                className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
-                  questionNumber === i + 1
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))
+            Array.from({ length: totalQuestions }, (_, i) => {
+              // 检查是否超出试用限制
+              const trialLimit = trialQuestions || 0;
+              const isDisabled = isPaid && !hasFullAccess && i >= trialLimit;
+              
+              return (
+                <button
+                  key={i}
+                  onClick={() => !isDisabled && onJumpToQuestion && onJumpToQuestion(i)}
+                  className={`w-6 h-6 flex items-center justify-center rounded text-xs ${
+                    questionNumber === i + 1
+                      ? 'bg-blue-600 text-white'
+                      : isDisabled
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  disabled={isDisabled}
+                >
+                  {i + 1}
+                </button>
+              );
+            })
           ) : (
             // 当题目数量大于10时，使用省略显示
             <>
               {/* 前部分页码 */}
-              {Array.from({ length: Math.min(3, totalQuestions) }, (_, i) => (
-                <button
-                  key={i}
-                  onClick={() => onJumpToQuestion && onJumpToQuestion(i)}
-                  className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
-                    questionNumber === i + 1
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
+              {Array.from({ length: Math.min(3, totalQuestions) }, (_, i) => {
+                // 检查是否超出试用限制
+                const trialLimit = trialQuestions || 0;
+                const isDisabled = isPaid && !hasFullAccess && i >= trialLimit;
+                
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !isDisabled && onJumpToQuestion && onJumpToQuestion(i)}
+                    className={`w-6 h-6 flex items-center justify-center rounded text-xs ${
+                      questionNumber === i + 1
+                        ? 'bg-blue-600 text-white'
+                        : isDisabled
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    disabled={isDisabled}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
               
               {/* 省略号 */}
               {questionNumber > 4 && questionNumber < totalQuestions - 3 && (
@@ -656,29 +674,63 @@ const QuestionCard = ({
               {/* 当前页码及其附近 */}
               {questionNumber > 3 && questionNumber < totalQuestions - 2 && (
                 <>
-                  {questionNumber > 4 && (
-                    <button
-                      onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber - 2)}
-                      className="w-6 h-6 flex items-center justify-center rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    >
-                      {questionNumber - 1}
-                    </button>
-                  )}
+                  {questionNumber > 4 && (() => {
+                    const targetIndex = questionNumber - 2;
+                    const trialLimit = trialQuestions || 0;
+                    const isDisabled = isPaid && !hasFullAccess && targetIndex >= trialLimit;
+                    
+                    return (
+                      <button
+                        onClick={() => !isDisabled && onJumpToQuestion && onJumpToQuestion(targetIndex)}
+                        className={`w-6 h-6 flex items-center justify-center rounded text-xs ${
+                          isDisabled
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        disabled={isDisabled}
+                      >
+                        {questionNumber - 1}
+                      </button>
+                    );
+                  })()}
                   
-                  <button
-                    className="w-6 h-6 flex items-center justify-center rounded-full text-xs bg-blue-600 text-white"
-                  >
-                    {questionNumber}
-                  </button>
+                  {(() => {
+                    const trialLimit = trialQuestions || 0;
+                    const isDisabled = isPaid && !hasFullAccess && (questionNumber - 1) >= trialLimit;
+                    
+                    return (
+                      <button
+                        className={`w-6 h-6 flex items-center justify-center rounded text-xs ${
+                          isDisabled
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                            : 'bg-blue-600 text-white'
+                        }`}
+                        disabled={isDisabled}
+                      >
+                        {questionNumber}
+                      </button>
+                    );
+                  })()}
                   
-                  {questionNumber < totalQuestions - 3 && (
-                    <button
-                      onClick={() => onJumpToQuestion && onJumpToQuestion(questionNumber)}
-                      className="w-6 h-6 flex items-center justify-center rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    >
-                      {questionNumber + 1}
-                    </button>
-                  )}
+                  {questionNumber < totalQuestions - 3 && (() => {
+                    const targetIndex = questionNumber;
+                    const trialLimit = trialQuestions || 0;
+                    const isDisabled = isPaid && !hasFullAccess && targetIndex >= trialLimit;
+                    
+                    return (
+                      <button
+                        onClick={() => !isDisabled && onJumpToQuestion && onJumpToQuestion(targetIndex)}
+                        className={`w-6 h-6 flex items-center justify-center rounded text-xs ${
+                          isDisabled
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        disabled={isDisabled}
+                      >
+                        {questionNumber + 1}
+                      </button>
+                    );
+                  })()}
                 </>
               )}
               
@@ -688,19 +740,29 @@ const QuestionCard = ({
               )}
               
               {/* 末尾页码 */}
-              {Array.from({ length: Math.min(3, totalQuestions) }, (_, i) => (
-                <button
-                  key={totalQuestions - 3 + i}
-                  onClick={() => onJumpToQuestion && onJumpToQuestion(totalQuestions - 3 + i)}
-                  className={`w-6 h-6 flex items-center justify-center rounded-full text-xs ${
-                    questionNumber === totalQuestions - 2 + i
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {totalQuestions - 2 + i}
-                </button>
-              ))}
+              {Array.from({ length: Math.min(3, totalQuestions) }, (_, i) => {
+                const pageIndex = totalQuestions - 3 + i;
+                // 检查是否超出试用限制
+                const trialLimit = trialQuestions || 0;
+                const isDisabled = isPaid && !hasFullAccess && pageIndex >= trialLimit;
+                
+                return (
+                  <button
+                    key={pageIndex}
+                    onClick={() => !isDisabled && onJumpToQuestion && onJumpToQuestion(pageIndex)}
+                    className={`w-6 h-6 flex items-center justify-center rounded text-xs ${
+                      questionNumber === totalQuestions - 2 + i
+                        ? 'bg-blue-600 text-white'
+                        : isDisabled
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    disabled={isDisabled}
+                  >
+                    {totalQuestions - 2 + i}
+                  </button>
+                );
+              })}
             </>
           )}
         </div>
@@ -709,9 +771,11 @@ const QuestionCard = ({
         <button 
           onClick={() => onJumpToQuestion && questionNumber < totalQuestions ? onJumpToQuestion(questionNumber) : null}
           className={`text-blue-600 hover:text-blue-800 text-sm flex items-center px-2 py-1 rounded-md hover:bg-blue-50 transition-colors ${
-            questionNumber >= totalQuestions ? 'opacity-50 cursor-not-allowed' : ''
+            questionNumber >= totalQuestions || (isPaid && !hasFullAccess && questionNumber >= (trialQuestions || 0)) 
+              ? 'opacity-50 cursor-not-allowed' 
+              : ''
           }`}
-          disabled={questionNumber >= totalQuestions}
+          disabled={questionNumber >= totalQuestions || (isPaid && !hasFullAccess && questionNumber >= (trialQuestions || 0))}
         >
           下一题
           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

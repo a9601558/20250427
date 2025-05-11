@@ -32,6 +32,25 @@ const AdminQuestionSetInfo: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // 添加一个辅助函数在显示图片前处理URL
+  const getImageUrl = (path: string | null): string => {
+    if (!path) return '';
+    
+    // 如果已经是完整URL，直接返回
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    
+    // 如果是相对路径/uploads/开头，转换为完整路径
+    if (path.startsWith('/uploads/')) {
+      // 获取当前网站的基础URL
+      const baseUrl = window.location.origin;
+      return `${baseUrl}${path}`;
+    }
+    
+    return path;
+  };
+  
   // 可选的分类和图标
   const categoryOptions = [
     '前端开发',
@@ -566,7 +585,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                       <div className="flex items-start">
                         <div className="mr-2 text-xl">
                           {set.icon && set.icon !== 'default' && !set.icon.startsWith('📝') && !set.icon.startsWith('📚') && !set.icon.startsWith('💻') && !set.icon.startsWith('🔍') && !set.icon.startsWith('🧩') && !set.icon.startsWith('⚙️') && !set.icon.startsWith('📊') && !set.icon.startsWith('🔐') && !set.icon.startsWith('📡') && !set.icon.startsWith('🛠️') && !set.icon.startsWith('🧪') && !set.icon.startsWith('🔬') && !set.icon.startsWith('📱') && !set.icon.startsWith('🌐') && !set.icon.startsWith('🤖') && !set.icon.startsWith('🧠') && !set.icon.startsWith('🔥') && !set.icon.startsWith('💾') && !set.icon.startsWith('⚡') && !set.icon.startsWith('☁️') ? (
-                            <img src={set.icon} alt="题库图标" className="h-6 w-6 object-cover rounded" />
+                            <img src={getImageUrl(set.icon)} alt="题库图标" className="h-6 w-6 object-cover rounded" />
                           ) : (
                             set.icon || '📝'
                           )}
@@ -785,7 +804,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                         {imagePreview ? (
                           <img src={imagePreview} alt="预览" className="h-full w-full object-cover" />
                         ) : editFormData.icon && editFormData.icon !== 'default' && editFormData.icon !== 'pending_upload' ? (
-                          <img src={editFormData.icon} alt="当前图片" className="h-full w-full object-cover" />
+                          <img src={getImageUrl(editFormData.icon)} alt="当前图片" className="h-full w-full object-cover" />
                         ) : (
                           <svg className="h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -822,7 +841,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                   <div className="flex items-start">
                     <div className="mr-4 text-4xl">
                       {selectedSet.icon && selectedSet.icon !== 'default' && !selectedSet.icon.startsWith('📝') && !selectedSet.icon.startsWith('📚') && !selectedSet.icon.startsWith('💻') && !selectedSet.icon.startsWith('🔍') && !selectedSet.icon.startsWith('🧩') && !selectedSet.icon.startsWith('⚙️') && !selectedSet.icon.startsWith('📊') && !selectedSet.icon.startsWith('🔐') && !selectedSet.icon.startsWith('📡') && !selectedSet.icon.startsWith('🛠️') && !selectedSet.icon.startsWith('🧪') && !selectedSet.icon.startsWith('🔬') && !selectedSet.icon.startsWith('📱') && !selectedSet.icon.startsWith('🌐') && !selectedSet.icon.startsWith('🤖') && !selectedSet.icon.startsWith('🧠') && !selectedSet.icon.startsWith('🔥') && !selectedSet.icon.startsWith('💾') && !selectedSet.icon.startsWith('⚡') && !selectedSet.icon.startsWith('☁️') ? (
-                        <img src={selectedSet.icon} alt="题库图标" className="h-10 w-10 object-cover rounded" />
+                        <img src={getImageUrl(selectedSet.icon)} alt="题库图标" className="h-10 w-10 object-cover rounded" />
                       ) : (
                         selectedSet.icon || '📝'
                       )}
@@ -843,7 +862,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                     <h4 className="text-sm font-medium text-gray-500 mb-1">题库卡片图片</h4>
                     {selectedSet.icon && selectedSet.icon !== 'default' ? (
                       <div className="mt-1 h-40 w-64 border rounded-md overflow-hidden bg-gray-100">
-                        <img src={selectedSet.icon} alt="题库卡片" className="h-full w-full object-cover" />
+                        <img src={getImageUrl(selectedSet.icon)} alt="题库卡片" className="h-full w-full object-cover" />
                       </div>
                     ) : (
                       <p className="text-gray-500">未设置卡片图片</p>
