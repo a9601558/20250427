@@ -691,7 +691,7 @@ const HomePage = (): JSX.Element => {
   }, [user?.id]);
   
   // 添加请求AccessStatusForAllQuestionSets函数
-  const requestAccessStatusForAllQuestionSets = useCallback(() => {
+  const requestAccessStatusForAllQuestionSets = useCallback((options: { forceRefresh?: boolean } = {}) => {
     if (!user?.id || !socket || questionSets.length === 0) {
       console.log('[HomePage] 无法请求权限: 用户未登录或无题库');
       return;
@@ -699,6 +699,25 @@ const HomePage = (): JSX.Element => {
     
     const now = Date.now();
     console.log(`[HomePage] 请求所有题库的权限状态（${questionSets.length}个题库）`);
+    
+    // Check throttling unless force refresh is requested
+    if (!options.forceRefresh) {
+      const lastUpdateRequest = parseInt(sessionStorage.getItem('last_question_sets_update_request') || '0', 10);
+      
+      // Skip if last request was recent and not forcing refresh
+      if (now - lastUpdateRequest < 15000 && hasRequestedAccess.current) { // 15 seconds cooldown
+        console.log('[HomePage] 跳过权限请求: 最近已请求过 (15秒内)');
+        return;
+      }
+      
+      // Skip if hitting rate limits and not forcing
+      if (!canMakeRequest()) {
+        console.log('[HomePage] 请求被限制，跳过权限获取');
+        return;
+      }
+    } else {
+      console.log('[HomePage] 强制刷新权限状态，忽略节流限制');
+    }
     
     // 只请求付费题库的权限
     const paidQuestionSetIds = questionSets
@@ -718,14 +737,20 @@ const HomePage = (): JSX.Element => {
         userId: user.id,
         questionSetIds: paidQuestionSetIds,
         timestamp: now,
-        source: 'explicit_homepage_check'
+        source: options.forceRefresh ? 'explicit_user_refresh' : 'explicit_homepage_check'
       });
       
       // 更新最后请求时间
       lastSocketUpdateTime.current = now;
       hasRequestedAccess.current = true;
+      sessionStorage.setItem('last_question_sets_update_request', now.toString());
       
       console.log(`[HomePage] 已为${paidQuestionSetIds.length}个付费题库请求权限状态`);
+      
+      // Save the timestamp of the last full refresh
+      if (options.forceRefresh) {
+        sessionStorage.setItem('last_full_refresh_time', now.toString());
+      }
     } else {
       console.log('[HomePage] 没有付费题库需要请求权限');
     }
@@ -1208,7 +1233,7 @@ const HomePage = (): JSX.Element => {
     } finally {
       pendingFetchRef.current = false;
     }
-  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories, canMakeRequest]); // 添加canMakeRequest作为依赖项
+  }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories]); // 添加canMakeRequest作为依赖项
   
   // 初始化时获取题库列表 - 修复重复加载问题
   useEffect(() => {
@@ -1221,6 +1246,37 @@ const HomePage = (): JSX.Element => {
       setLoading(false);
     }
   }, [fetchQuestionSets]); // 移除questionSets.length依赖，避免循环
+
+  // Add this new useEffect for automatic refresh
+  useEffect(() => {
+    // Only run if we have question sets and a user is logged in
+    if (questionSets.length > 0 && user?.id && socket) {
+      console.log('[HomePage] 设置定时刷新检查');
+      
+      // Initialize last refresh time if not set
+      if (!sessionStorage.getItem('last_full_refresh_time')) {
+        sessionStorage.setItem('last_full_refresh_time', Date.now().toString());
+      }
+      
+      // Set up an interval to check for refresh needs
+      const refreshCheckInterval = setInterval(() => {
+        const currentTime = Date.now();
+        const lastRefresh = parseInt(sessionStorage.getItem('last_full_refresh_time') || '0', 10);
+        const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
+        
+        // Only refresh if it's been more than 15 minutes and we're not currently loading
+        if (currentTime - lastRefresh > fifteenMinutes && !loading && !pendingFetchRef.current) {
+          console.log('[HomePage] 定时检查: 超过15分钟未刷新，触发自动刷新');
+          requestAccessStatusForAllQuestionSets({ forceRefresh: true });
+          fetchQuestionSets({ forceFresh: true });
+        }
+      }, 60000); // Check every minute
+      
+      return () => {
+        clearInterval(refreshCheckInterval);
+      };
+    }
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, fetchQuestionSets, loading]);
 
   // 监听来自ProfilePage的刷新通知 - 超简化版本，避免无限循环
   useEffect(() => {
@@ -1277,7 +1333,7 @@ const HomePage = (): JSX.Element => {
             const cacheAge = Date.now() - (record.timestamp || 0);
             
             // 缓存超过2小时视为过期，确保从服务器获取最新状态
-            if (cacheAge > 7200000) {
+            if (cacheAge > 86400000) { // Changed from 7200000 (2h) to 86400000 (24h)
               console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟`);
               delete userCache[qsId];
               hasUpdates = true;
@@ -1925,7 +1981,7 @@ const HomePage = (): JSX.Element => {
       console.log('[HomePage] 初次加载，跳过权限检查');
       isInitialLoad.current = false;
     }
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, canMakeRequest]);
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
 
   // Add a cleanup effect to clear timeouts when component unmounts
   useEffect(() => {
@@ -2448,7 +2504,7 @@ const HomePage = (): JSX.Element => {
       // Release lock
       pendingFetchRef.current = false;
     }
-  }, [fetchQuestionSets, homeContent, setActiveCategory, toast, canMakeRequest]); // 添加canMakeRequest作为依赖项
+  }, [fetchQuestionSets, homeContent, setActiveCategory, toast]); // 添加canMakeRequest作为依赖项
 
   // Replace multiple useEffects with a single consolidated one for initial loading
   useEffect(() => {
@@ -3382,8 +3438,10 @@ const HomePage = (): JSX.Element => {
                     </div>
                     <button 
                       onClick={() => {
-                        const refreshEvent = new CustomEvent('questionSets:refresh');
-                        window.dispatchEvent(refreshEvent);
+                        // Force refresh both access rights and question sets data
+                        requestAccessStatusForAllQuestionSets({ forceRefresh: true });
+                        fetchQuestionSets({ forceFresh: true });
+                        toast.info('正在刷新题库状态...', { position: 'bottom-center' });
                       }}
                       className="ml-auto px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-all duration-300 shadow-sm hover:shadow"
                     >
