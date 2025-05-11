@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import { monitorHttpRequest } from './loopPrevention';
+import axios, { AxiosRequestConfig, AxiosError } from 'axios';
 
 /**
  * 先进的API客户端，提供：
@@ -20,6 +21,20 @@ interface PendingRequest<T = any> {
   timestamp: number;
 }
 
+interface ApiOptions {
+  cacheDuration?: number; // 以毫秒为单位的缓存时间
+  headers?: Record<string, string>;
+  retries?: number; // 失败后的重试次数
+}
+
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  status?: number;
+  [key: string]: any;
+}
+
 class ApiClient {
   private cache: Map<string, CacheItem> = new Map();
   private pendingRequests: Map<string, PendingRequest> = new Map();
@@ -27,13 +42,21 @@ class ApiClient {
   private maxRequestsPerMinute = 50; // 每分钟最大请求数
   private defaultCacheDuration = 60000; // 默认缓存1分钟
   private currentUserId: string | null = null; // 当前用户ID
+  private defaultTimeout = 15000; // 默认请求超时时间：15秒
+  private maxRetries = 5; // 最大重试次数上限
+  private pendingReuseWindow = 10000; // 复用进行中请求的时间窗口（毫秒）
 
   /**
    * 生成请求的缓存键
    */
   private getCacheKey(url: string, config?: AxiosRequestConfig): string {
     const method = config?.method?.toUpperCase() || 'GET';
-    const params = config?.params ? JSON.stringify(config.params) : '';
+    
+    // 对params进行排序后再序列化，避免因参数顺序不同导致缓存失效
+    const params = config?.params 
+      ? JSON.stringify(Object.fromEntries(Object.entries(config.params).sort()))
+      : '';
+      
     const data = config?.data ? JSON.stringify(config.data) : '';
     // 在缓存键中包含当前用户ID
     const userId = this.currentUserId ? `user:${this.currentUserId}:` : '';
@@ -84,11 +107,18 @@ class ApiClient {
     // 默认选项
     const {
       cacheDuration = this.defaultCacheDuration,
-      skipCache = false,
-      retries = 3,
+      skipCache: originalSkipCache = false,
+      retries: originalRetries = 3,
       retryDelay = 300,
       forceRefresh = false
     } = options || {};
+    
+    // 限制最大重试次数
+    const retries = Math.min(originalRetries, this.maxRetries);
+    
+    // 根据请求方法决定是否跳过缓存 - 只有GET方法可以使用缓存
+    const method = config?.method?.toUpperCase() || 'GET';
+    let skipCache = originalSkipCache || method !== 'GET';
     
     // 生成缓存键
     const cacheKey = this.getCacheKey(url, config);
@@ -120,8 +150,8 @@ class ApiClient {
     // 2. 检查是否有相同的请求正在进行中
     if (this.pendingRequests.has(cacheKey)) {
       const pendingRequest = this.pendingRequests.get(cacheKey)!;
-      // 如果请求不超过10秒，复用正在进行的请求
-      if (Date.now() - pendingRequest.timestamp < 10000) {
+      // 使用可配置的时间窗口判断是否复用
+      if (Date.now() - pendingRequest.timestamp < this.pendingReuseWindow) {
         console.log(`[API] Reusing pending request for: ${url}`);
         return pendingRequest.promise;
       } else {
@@ -134,8 +164,25 @@ class ApiClient {
     // 3. 创建新请求
     const controller = new AbortController();
     
+    // 设置请求超时
+    const timeoutId = setTimeout(() => {
+      controller.abort(new Error('Request timeout'));
+    }, this.defaultTimeout);
+    
     const executeRequest = async (attempt: number = 0): Promise<T> => {
       try {
+        // 请求前通过monitorHttpRequest检查是否允许发送请求
+        if (!monitorHttpRequest(url)) {
+          const error = new Error('请求过于频繁，被 limiter 拦截');
+          // 检查是否有可用缓存
+          const cached = this.cache.get(cacheKey);
+          if (cached) {
+            console.log(`[API] Request limited, returning cached data for: ${url}`);
+            return cached.data;
+          }
+          throw error;
+        }
+        
         const axiosConfig: AxiosRequestConfig = {
           ...config,
           signal: controller.signal,
@@ -144,6 +191,9 @@ class ApiClient {
         
         console.log(`[API] Request ${attempt > 0 ? `(attempt ${attempt+1})` : ''} for: ${url}`);
         const response = await axios.request<T>(axiosConfig);
+        
+        // 请求成功，清除超时计时器
+        clearTimeout(timeoutId);
         
         // 缓存响应
         if (!skipCache) {
@@ -156,6 +206,9 @@ class ApiClient {
         
         return response.data;
       } catch (error: any) {
+        // 清除超时计时器
+        clearTimeout(timeoutId);
+        
         // 如果是被我们的控制器中止的请求，不进行重试
         if (error.name === 'CanceledError' || error.name === 'AbortError') {
           throw error;
@@ -165,11 +218,14 @@ class ApiClient {
         const retryAfter = error.response?.headers?.['retry-after'];
         const isTooManyRequestsError = error.response?.status === 429;
         
+        // 安全解析retry-after头部值
+        const retryDelaySeconds = Number(retryAfter);
+        
         // 如果还有重试次数，并且错误是可以重试的
         if (attempt < retries && (error.response?.status >= 500 || isTooManyRequestsError)) {
-          // 计算重试延迟（指数退避）
-          const delay = isTooManyRequestsError && retryAfter
-            ? parseInt(retryAfter, 10) * 1000
+          // 计算重试延迟（指数退避）- 增强了retry-after头部的处理
+          const delay = isTooManyRequestsError && Number.isFinite(retryDelaySeconds)
+            ? retryDelaySeconds * 1000
             : Math.min(retryDelay * Math.pow(2, attempt), 30000); // 最大延迟30秒
             
           console.log(`[API] Retrying ${url} after ${delay}ms (${attempt+1}/${retries})`);
@@ -185,6 +241,7 @@ class ApiClient {
     // 记录正在进行的请求
     const requestPromise = executeRequest().finally(() => {
       this.pendingRequests.delete(cacheKey);
+      clearTimeout(timeoutId);
     });
     
     this.pendingRequests.set(cacheKey, {
@@ -336,4 +393,55 @@ const apiClient = new ApiClient();
 apiClient.addRequestInterceptor();
 apiClient.addResponseInterceptor();
 
-export default apiClient; 
+/**
+ * 使用统一的类实例处理所有请求，不再使用独立的缓存
+ */
+const apiClientMethods = {
+  /**
+   * 发送GET请求
+   * @param url 请求URL
+   * @param params URL参数
+   * @param options 请求选项
+   */
+  get: <T = any>(url: string, params?: Record<string, any>, options?: ApiOptions) =>
+    apiClient.get<T>(url, params || {}, options || {}),
+
+  /**
+   * 发送POST请求
+   * @param url 请求URL
+   * @param data 请求体数据
+   * @param options 请求选项
+   */
+  post: <T = any>(url: string, data?: Record<string, any>, options?: ApiOptions) =>
+    apiClient.post<T>(url, data || {}, options || {}),
+
+  /**
+   * 发送PUT请求
+   * @param url 请求URL
+   * @param data 请求体数据
+   * @param options 请求选项
+   */
+  put: <T = any>(url: string, data?: Record<string, any>, options?: ApiOptions) =>
+    apiClient.put<T>(url, data || {}, options || {}),
+
+  /**
+   * 发送DELETE请求
+   * @param url 请求URL
+   * @param options 请求选项
+   */
+  delete: <T = any>(url: string, options?: ApiOptions) =>
+    apiClient.delete<T>(url, options || {}),
+
+  /**
+   * 清除所有缓存
+   */
+  clearCache: () => apiClient.clearCache(),
+
+  /**
+   * 清除特定URL的缓存
+   * @param url 要清除缓存的URL
+   */
+  clearCacheForUrl: (url: string) => apiClient.clearCacheFor(url)
+};
+
+export default apiClientMethods; 

@@ -77,7 +77,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         // 如果用户已登录，从用户资料获取服务器数据
         if (user && user.id) {
           console.log('从服务器加载考试倒计时数据');
-          const response = await userService.getCurrentUser();
+          const response = await userService.getProfile();
           
           if (response.success && response.data) {
             // 从用户资料中获取倒计时数据
@@ -186,7 +186,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         };
         
         // 调用更新用户API
-        const response = await userService.updateUser(user.id, userData);
+        const response = await userService.updateProfile(userData);
         
         if (response.success) {
           console.log('考试倒计时数据已成功保存到服务器');
@@ -279,7 +279,7 @@ const ExamCountdownWidget: React.FC<ExamCountdownWidgetProps> = ({ theme = 'ligh
         
         try {
           // 调用API保存到服务器
-          const response = await userService.updateUser(user.id, userData);
+          const response = await userService.updateProfile(userData);
           
           if (response.success) {
             console.log('考试倒计时删除操作已同步到服务器');
