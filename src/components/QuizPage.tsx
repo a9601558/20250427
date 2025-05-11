@@ -4245,6 +4245,9 @@ function QuizPage(): JSX.Element {
         setQuizStatus({ ...quizStatus, showPurchasePage: false });
       }
     }
+    
+    // Add empty cleanup function to avoid React error #310
+    return () => {};
   }, [
     questionSet, 
     answeredQuestions.length, 
