@@ -9,7 +9,7 @@ export const API_BASE_URL = process.env.NODE_ENV === 'production'
 export const homepageService = {
   // Get all home content
   getHomeContent: async (params?: any) => {
-    return apiClient.get('/api/homepage/content', params);
+    return apiClient.get('/api/home-content', params);
   },
   
   // Get featured categories
@@ -94,6 +94,31 @@ export const userService = {
   // Change password
   changePassword: async (data: {currentPassword: string, newPassword: string}) => {
     return apiClient.post('/api/users/change-password', data);
+  },
+
+  // Login
+  login: async (username: string, password: string) => {
+    return apiClient.post('/api/users/login', { username, password });
+  },
+  
+  // Register
+  register: async (userData: any) => {
+    return apiClient.post('/api/users/register', userData);
+  },
+  
+  // Get all users (admin only)
+  getAllUsers: async () => {
+    return apiClient.get('/api/users');
+  },
+  
+  // Delete user (admin only)
+  deleteUser: async (userId: string) => {
+    return apiClient.delete(`/api/users/${userId}`);
+  },
+  
+  // Update user (admin only)
+  updateUser: async (userId: string, userData: any) => {
+    return apiClient.put(`/api/users/${userId}`, userData);
   }
 };
 
@@ -107,6 +132,11 @@ export const userProgressService = {
   // Save user progress
   saveProgress: async (data: any) => {
     return apiClient.post('/api/user-progress', data);
+  },
+  
+  // Update user progress
+  updateProgress: async (data: any) => {
+    return apiClient.put('/api/user-progress', data);
   }
 };
 
@@ -149,12 +179,17 @@ export const redeemCodeService = {
   },
   
   // Generate redeem codes (admin)
-  generateCodes: async (data: {questionSetId: string, count: number, expiryDate?: string}) => {
+  generateRedeemCodes: async (data: {questionSetId: string, count: number, expiryDate?: string}) => {
     return apiClient.post('/api/redeem-codes/generate', data);
   },
   
   // Get redeem codes (admin)
   getCodes: async (params?: any) => {
     return apiClient.get('/api/redeem-codes', params);
+  },
+  
+  // Get all redeem codes (admin)
+  getAllRedeemCodes: async () => {
+    return apiClient.get('/api/redeem-codes');
   }
 }; 

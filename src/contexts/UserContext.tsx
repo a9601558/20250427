@@ -305,7 +305,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchCurrentUser = async () => {
     setLoading(true);
     try {
-      const response = await userApi.getCurrentUser();
+      const response = await userApi.getProfile();
       if (response.success && response.data) {
         // 添加特别的调试日志，检查用户数据结构
         console.log('[UserContext] 获取到用户数据:', response.data);
@@ -489,7 +489,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             try {
               // 1. 从服务器重新获取最新的用户数据，确保购买记录是最新的
-              const refreshedUserData = await userApi.getCurrentUser();
+              const refreshedUserData = await userApi.getProfile();
               if (refreshedUserData.success && refreshedUserData.data) {
                 // 使用最新的用户数据更新状态
                 setUser(refreshedUserData.data);
@@ -507,7 +507,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   console.log(`[UserContext] 同步 ${refreshedUserData.data.purchases.length} 条购买记录到本地`);
                   
                   const now = new Date();
-                  refreshedUserData.data.purchases.forEach(purchase => {
+                  refreshedUserData.data.purchases.forEach((purchase: Purchase) => {
                     if (!purchase.questionSetId) return;
                     
                     const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
@@ -535,7 +535,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   // 收集所有已兑换的题库ID
                   const redeemedQuestionSetIds: string[] = [];
                   
-                  refreshedUserData.data.redeemCodes.forEach(code => {
+                  refreshedUserData.data.redeemCodes.forEach((code: RedeemCode) => {
                     if (!code.questionSetId) return;
                     
                     // 添加到已兑换题库ID列表
@@ -629,21 +629,15 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (userData: Partial<User>) => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
     try {
-      const response = await userApi.updateUser(user.id, userData);
-      if (response.success && response.data) {
-        setUser(response.data);
-      } else {
-        setError(response.message || 'Failed to update user');
+      const response = await userApi.updateProfile(userData);
+      if (response.success) {
+        setUser(prev => prev ? { ...prev, ...userData } : null);
       }
+      return response;
     } catch (error) {
       console.error('[UserProvider] Failed to update user:', error);
-      setError('An error occurred while updating user');
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -680,7 +674,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         accuracy: existingProgress.accuracy
       };
 
-      // Sync with backend
+      // Save progress to the backend
       const response = await userProgressApi.updateProgress(updatedProgress);
       if (!response.success) {
         throw new Error(response.message || 'Failed to update progress on server');
@@ -1159,7 +1153,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const generateRedeemCode = async (questionSetId: string, validityDays: number, quantity: number): Promise<{ success: boolean; codes?: RedeemCode[]; message: string }> => {
     if (!isAdmin()) return { success: false, message: '无权限执行此操作' };
     try {
-      const response = await redeemCodeApi.generateRedeemCodes(questionSetId, validityDays, quantity);
+      const response = await redeemCodeApi.generateRedeemCodes({
+        questionSetId,
+        count: quantity,
+        expiryDate: new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString()
+      });
       
       if (response.success && response.data) {
         // Ensure we have a proper array of redeem codes
@@ -1200,22 +1198,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await redeemCodeApi.getAllRedeemCodes();
       
       if (response.success && response.data) {
-        // Ensure we have a proper array of redeem codes
-        if (Array.isArray(response.data)) {
-          return response.data;
-        } else if (typeof response.data === 'object' && response.data !== null && 'list' in response.data && Array.isArray((response.data as any).list)) {
-          return (response.data as any).list;
-        } else if (typeof response.data === 'object' && response.data !== null) {
-          // Try to convert object to array if it's not already an array
-          return Object.values(response.data) as RedeemCode[];
-        }
+        return response.data;
       }
       
       // Fallback to empty array
       console.warn("Unexpected or empty redeem codes data structure:", response.data);
       return [];
     } catch (error) {
-      console.error("Error fetching redeem codes:", error);
+      console.error('[UserProvider] Failed to get redeem codes:', error);
       return [];
     }
   };
@@ -1283,7 +1273,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
       // 1. 首先从服务器获取最新用户数据
-      const freshUserResponse = await userApi.getCurrentUser();
+      const freshUserResponse = await userApi.getProfile();
       if (freshUserResponse.success && freshUserResponse.data) {
         console.log('[UserContext] 成功获取最新用户数据');
         
@@ -1301,7 +1291,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log(`[UserContext] 处理 ${freshUserResponse.data.purchases.length} 条最新购买记录`);
           
           const now = new Date();
-          freshUserResponse.data.purchases.forEach(purchase => {
+          freshUserResponse.data.purchases.forEach((purchase: Purchase) => {
             if (!purchase.questionSetId) return;
             
             const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
@@ -1452,7 +1442,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       apiClient.setUserId(userId);
       
       // 获取用户数据
-      const response = await userApi.getCurrentUser();
+      const response = await userApi.getProfile();
       if (response.success && response.data) {
         setUser(response.data);
         notifyUserChange(response.data);
@@ -1476,7 +1466,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           localStorage.setItem('activeUserId', currentUserId);
           apiClient.setAuthHeader(currentToken);
           apiClient.setUserId(currentUserId);
-          const prevResponse = await userApi.getCurrentUser();
+          const prevResponse = await userApi.getProfile();
           if (prevResponse.success && prevResponse.data) {
             setUser(prevResponse.data);
             notifyUserChange(prevResponse.data);
