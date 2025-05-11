@@ -1744,14 +1744,13 @@ const HomePage = (): JSX.Element => {
       timestamp: Date.now()
     });
     
+    // 返回清理函数，移除所有事件监听
     return () => {
-      // 清理所有事件监听
       socket.off('connect', handleConnect);
       socket.off('connect_error', handleConnectError);
       socket.off('questionSet:accessUpdate', handleAccessUpdate);
       socket.off('user:deviceSync', handleDeviceSync);
       socket.off('questionSet:batchAccessResult', handleBatchAccessResult);
-      socket.off('admin:homeContent:updated', handleHomeContentUpdate);
       
       // 清理定时器
       if (debounceTimerRef.current) {
@@ -1760,7 +1759,16 @@ const HomePage = (): JSX.Element => {
       
       console.log('[HomePage] 已清理所有Socket事件监听');
     };
-  }, [socket, user?.id, syncAccessRights, fetchQuestionSets, saveAccessToLocalStorage, requestAccessStatusForAllQuestionSets, determineAccessStatus, hasAccessInDatabase, questionSets.length]); // 添加了必要的依赖项
+  }, [
+    socket, 
+    user?.id, 
+    questionSets.length, 
+    requestAccessStatusForAllQuestionSets, 
+    syncAccessRights, 
+    fetchQuestionSets, 
+    saveAccessToLocalStorage, 
+    hasAccessInDatabase
+  ]);
 
   // 登录状态变化后重新获取题库数据
   useEffect(() => {
@@ -2007,6 +2015,11 @@ const HomePage = (): JSX.Element => {
     // 清理函数，确保在组件卸载时移除事件监听
     return () => {
       window.removeEventListener('accessRights:updated', handleSyncComplete);
+      
+      // 清理超时定时器
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
     };
   }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, getLocalAccessCache, fetchQuestionSets, syncAccessRights]);
 
