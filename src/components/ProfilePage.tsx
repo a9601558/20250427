@@ -6,7 +6,6 @@ import { userProgressService, questionSetService, purchaseService, wrongAnswerSe
 import { useNavigate } from 'react-router-dom';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { CalendarIcon, CreditCardIcon, ClockIcon, CashIcon } from './Icons';
-import AccountSwitcher from './AccountSwitcher';
 
 // 原始进度记录类型
 interface ProgressRecord {
