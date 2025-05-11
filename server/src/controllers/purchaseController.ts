@@ -88,7 +88,7 @@ export const createPurchase = async (req: Request, res: Response) => {
       status: 'pending',
       paymentMethod,
       purchaseDate: new Date(),
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天有效期
+      expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 180天有效期
       transactionId: paymentIntent.id, // 使用Stripe的paymentIntent ID作为交易ID
       createdAt: new Date(),
       updatedAt: new Date()
@@ -155,7 +155,7 @@ export const getUserPurchases = async (req: Request, res: Response) => {
         // 确保日期字段是有效的
         const now = new Date();
         const purchaseDate = rawPurchase.purchaseDate ? new Date(rawPurchase.purchaseDate) : now;
-        const expiryDate = rawPurchase.expiryDate ? new Date(rawPurchase.expiryDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const expiryDate = rawPurchase.expiryDate ? new Date(rawPurchase.expiryDate) : new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
         
         // 计算剩余天数
         const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
@@ -681,10 +681,10 @@ export const updateAccess = async (req: Request, res: Response) => {
           return sendError(res, 404, '题库不存在');
         }
         
-        // 计算过期时间（1个月后）
+        // 计算过期时间（6个月后）
         const now = new Date();
         const expiryDate = new Date(now);
-        expiryDate.setMonth(expiryDate.getMonth() + 1);
+        expiryDate.setMonth(expiryDate.getMonth() + 6);
         
         // 创建临时访问记录
         const tempPurchase = await Purchase.create({
@@ -708,7 +708,7 @@ export const updateAccess = async (req: Request, res: Response) => {
           questionSetId,
           hasAccess: true,
           expiryDate: expiryDate,
-          remainingDays: 30
+          remainingDays: 180
         }, '临时访问记录创建成功');
       } catch (createError) {
         console.error('[updateAccess] 创建临时访问记录失败:', createError);

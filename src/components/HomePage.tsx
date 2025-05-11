@@ -393,8 +393,12 @@ const HomePage = (): JSX.Element => {
             <div className="flex justify-between items-start mb-2">
               {/* Title and icon */}
               <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600">
-                  {set.icon || '📚'}
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600 overflow-hidden">
+                  {set.icon && (set.icon.startsWith('/') || set.icon.includes('http')) ? (
+                    <img src={set.icon} alt={set.title} className="w-full h-full object-cover" />
+                  ) : (
+                    set.icon || '📚'
+                  )}
                 </div>
                 <h3 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2">
                   {set.title}
@@ -957,6 +961,32 @@ const HomePage = (): JSX.Element => {
           });
         }
         
+        // 获取本地缓存的所有访问记录
+        const localCacheMap = new Map();
+        try {
+          const cache = getLocalAccessCache();
+          if (user?.id && cache[user.id]) {
+            const userCache = cache[user.id];
+            
+            // 遍历用户的所有本地缓存记录
+            Object.keys(userCache).forEach(qsId => {
+              if (userCache[qsId] && userCache[qsId].hasAccess) {
+                localCacheMap.set(qsId, {
+                  hasAccess: true,
+                  accessType: userCache[qsId].paymentMethod === 'redeem' ? 'redeemed' : 'paid',
+                  remainingDays: userCache[qsId].remainingDays,
+                  paymentMethod: userCache[qsId].paymentMethod,
+                  timestamp: userCache[qsId].timestamp
+                });
+              }
+            });
+            
+            console.log(`[HomePage] 从本地缓存加载了 ${localCacheMap.size} 条访问记录`);
+          }
+        } catch (error) {
+          console.error('[HomePage] 获取本地缓存失败:', error);
+        }
+        
         // 处理题库数据，确保包含必要字段
         const preparedSets: PreparedQuestionSet[] = response.data.map((set: BaseQuestionSet) => {
           const setId = String(set.id).trim();
@@ -983,9 +1013,24 @@ const HomePage = (): JSX.Element => {
           let remainingDays: number | null = null;
           let paymentMethod: string | undefined = undefined;
           
-          // 1. 首先优先使用用户的购买记录（这是最高优先级，特别是刚登录时）
-          const userPurchase = userPurchasesMap.get(setId);
-          if (userPurchase) {
+          // 优先顺序:
+          // 1. 先检查现有状态中的已付费题库 (保留已知的付费状态)
+          const existingSet = questionSets.find(s => s.id === setId);
+          if (existingSet && existingSet.hasAccess && (existingSet.accessType === 'paid' || existingSet.accessType === 'redeemed')) {
+            console.log(`[HomePage] 题库"${set.title}"(${setId})在现有状态中已是付费状态，保留当前状态`);
+            hasAccess = true;
+            accessType = existingSet.accessType;
+            remainingDays = existingSet.remainingDays;
+            paymentMethod = existingSet.accessType === 'redeemed' ? 'redeem' : 'paid';
+            
+            // 立即保存到本地缓存以确保状态一致性
+            if (user?.id) {
+              saveAccessToLocalStorage(setId, hasAccess, remainingDays, paymentMethod);
+            }
+          }
+          // 2. 然后优先使用用户的购买记录（服务器数据最可靠）
+          else if (userPurchasesMap.has(setId)) {
+            const userPurchase = userPurchasesMap.get(setId);
             console.log(`[HomePage] 题库"${set.title}"(${setId})找到用户购买/兑换记录, 状态=${userPurchase.hasAccess ? '有效' : '无效'}, 类型=${userPurchase.accessType}`);
             
             if (!userPurchase.isExpired) {
@@ -1010,42 +1055,44 @@ const HomePage = (): JSX.Element => {
               }
             }
           }
-          
-          // 2. 其次检查Socket数据（如果尚未确定访问权限）
-          const socketData = !hasAccess && socketDataRef.current[setId];
-          if (socketData) {
-            console.log(`[HomePage] 题库"${set.title}"(${setId})使用Socket数据更新权限`);
+          // 3. 检查本地缓存里的付费记录（作为服务器数据的补充）
+          else if (localCacheMap.has(setId)) {
+            const cachedData = localCacheMap.get(setId);
+            console.log(`[HomePage] 题库"${set.title}"(${setId})从本地缓存获取付费状态`);
             
-            hasAccess = socketData.hasAccess;
-            remainingDays = socketData.remainingDays;
-            
-            if (socketData.accessType) {
-              accessType = socketData.accessType as AccessType;
-            } else if (hasAccess) {
-              accessType = 'paid';
-              // 检查剩余天数是否为0或负数，如果是则标记为过期
-              if (remainingDays !== null && remainingDays <= 0) {
-                accessType = 'expired';
-                hasAccess = false;
+            // 如果缓存中标记为已付费，则应用该状态
+            if (cachedData.hasAccess) {
+              hasAccess = true;
+              remainingDays = cachedData.remainingDays;
+              
+              // 根据支付方式和剩余天数确定访问类型
+              if (cachedData.paymentMethod === 'redeem' || cachedData.accessType === 'redeemed') {
+                accessType = 'redeemed';
+                paymentMethod = 'redeem';
+              } else {
+                accessType = 'paid';
+                paymentMethod = 'paid';
+                
+                // 检查是否过期
+                if (remainingDays !== null && remainingDays <= 0) {
+                  accessType = 'expired';
+                  hasAccess = false;
+                }
               }
             }
           }
-          
-          // 3. 然后检查本地缓存（如果仍未确定访问权限）
-          const cachedData = !hasAccess && getAccessFromLocalCache(setId, user?.id);
-          if (cachedData && cachedData.hasAccess) {
-            console.log(`[HomePage] 题库"${set.title}"(${setId})从本地缓存获取权限`);
+          // 4. 最后检查Socket数据（实时更新）
+          else if (socketDataRef.current[setId]) {
+            console.log(`[HomePage] 题库"${set.title}"(${setId})使用Socket数据更新权限`);
             
-            hasAccess = true;
-            remainingDays = cachedData.remainingDays;
+            hasAccess = socketDataRef.current[setId].hasAccess;
+            remainingDays = socketDataRef.current[setId].remainingDays;
             
-            // 根据支付方式和剩余天数确定访问类型
-            if (cachedData.paymentMethod === 'redeem' || cachedData.accessType === 'redeemed') {
-              accessType = 'redeemed';
-            } else {
+            if (socketDataRef.current[setId].accessType) {
+              accessType = socketDataRef.current[setId].accessType as AccessType;
+            } else if (hasAccess) {
               accessType = 'paid';
-              
-              // 检查是否过期
+              // 检查剩余天数是否为0或负数，如果是则标记为过期
               if (remainingDays !== null && remainingDays <= 0) {
                 accessType = 'expired';
                 hasAccess = false;
@@ -1076,7 +1123,7 @@ const HomePage = (): JSX.Element => {
             }
           }
           
-          // 确保validityPeriod字段存在，默认为30天
+          // 确保validityPeriod字段存在，默认为180天
           const validityPeriod = set.validityPeriod || 180;
           
           return {
@@ -1236,7 +1283,7 @@ const HomePage = (): JSX.Element => {
   useEffect(() => {
     if (!user?.id) return;
     
-    console.log('[HomePage] 用户登录，清除本地过期缓存');
+    console.log('[HomePage] 用户登录，检查本地缓存');
     
     // 清除过期的访问权限缓存
     try {
@@ -1259,9 +1306,10 @@ const HomePage = (): JSX.Element => {
             const record = userCache[qsId];
             const cacheAge = Date.now() - (record.timestamp || 0);
             
-            // 缓存超过2小时视为过期，确保从服务器获取最新状态
-            if (cacheAge > 7200000) {
-              console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟`);
+            // 只清除非付费状态的过期缓存，保留付费记录
+            // 缓存超过24小时视为过期，确保从服务器获取最新状态
+            if (cacheAge > 86400000 && !record.hasAccess) { // 24小时 = 86400000ms (之前是2小时)
+              console.log(`[HomePage] 清除过期缓存: ${qsId}，缓存时间: ${cacheAge/1000/60}分钟，状态: 未付费`);
               delete userCache[qsId];
               hasUpdates = true;
             }
@@ -1288,7 +1336,7 @@ const HomePage = (): JSX.Element => {
       const questionSetId = customEvent.detail?.questionSetId || customEvent.detail?.quizId;
       
       // 从事件中获取剩余天数，如果不存在则使用默认值
-      const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 30;
+      const remainingDays = customEvent.detail?.remainingDays || customEvent.detail?.validityPeriod || 180;
       
       console.log('[HomePage] 接收到兑换码成功事件:', { questionSetId, remainingDays });
       
@@ -1488,6 +1536,10 @@ const HomePage = (): JSX.Element => {
         console.error('[HomePage] 解析兑换记录出错:', error);
       }
 
+      // 读取本地缓存的权限状态，优先使用已知的付费状态
+      const localAccessCache = getLocalAccessCache();
+      const userCache = user?.id && localAccessCache[user.id] ? localAccessCache[user.id] : {};
+
       // 收集所有需要更新的题库ID及其状态，用于批量更新
       const updatesById = new Map();
       
@@ -1507,6 +1559,34 @@ const HomePage = (): JSX.Element => {
         const paymentMethod = result.paymentMethod || 'unknown';
         const accessType = paymentMethod === 'redeem' ? 'redeemed' : (hasAccess ? 'paid' : 'trial');
         
+        // 检查本地缓存是否有更优先的记录 (已付费的缓存记录优先于未付费的服务器记录)
+        const hasPriorityCacheRecord = userCache[questionSetId] && 
+                                     userCache[questionSetId].hasAccess && 
+                                     !hasAccess;
+        
+        if (hasPriorityCacheRecord) {
+          console.log(`[HomePage] 题库 ${questionSetId} 在本地缓存中已标记为付费，优先使用缓存数据`);
+          // 使用本地缓存数据替代服务器返回的数据
+          const cacheEntry = userCache[questionSetId];
+          
+          // 保存到socketDataRef引用
+          socketDataRef.current[questionSetId] = {
+            hasAccess: true, // 缓存中为付费状态
+            remainingDays: cacheEntry.remainingDays,
+            accessType: cacheEntry.paymentMethod === 'redeem' ? 'redeemed' : 'paid'
+          };
+          
+          // 添加到批量更新映射
+          updatesById.set(questionSetId, {
+            hasAccess: true,
+            remainingDays: cacheEntry.remainingDays,
+            accessType: cacheEntry.paymentMethod === 'redeem' ? 'redeemed' : 'paid',
+            paymentMethod: cacheEntry.paymentMethod
+          });
+          
+          return; // 跳过后续处理
+        }
+        
         console.log(`[HomePage] 题库 ${questionSetId} 权限检查结果: 可访问=${hasAccess}, 剩余天数=${remainingDays}, 支付方式=${paymentMethod}`);
         
         // 保存到socketDataRef引用
@@ -1516,13 +1596,16 @@ const HomePage = (): JSX.Element => {
           accessType
         };
         
-        // 更新本地缓存
-        saveAccessToLocalStorage(
-          questionSetId,
-          hasAccess,
-          remainingDays,
-          paymentMethod
-        );
+        // 如果是付费状态，更新本地缓存
+        if (hasAccess) {
+          // 更新本地缓存
+          saveAccessToLocalStorage(
+            questionSetId,
+            hasAccess,
+            remainingDays,
+            paymentMethod
+          );
+        }
         
         // 添加到批量更新映射
         updatesById.set(questionSetId, {
@@ -1568,6 +1651,12 @@ const HomePage = (): JSX.Element => {
             const updateData = updatesById.get(setId);
             
             if (!updateData) return set;
+            
+            // 检查现有付费状态 - 如果题库已经是付费状态，但更新数据显示为未付费，保留付费状态
+            if (set.hasAccess && (set.accessType === 'paid' || set.accessType === 'redeemed') && !updateData.hasAccess) {
+              console.log(`[HomePage] 题库 "${set.title}" 保留现有付费状态, 忽略服务器的未付费状态更新`);
+              return set;
+            }
             
             // 使用统一函数确定访问状态
             const newStatus = determineAccessStatus(
@@ -1691,6 +1780,54 @@ const HomePage = (): JSX.Element => {
     const isPageRefresh = !sessionStorage.getItem('page_session_id');
     if (loginHandled === 'true' && now - loginTime < 600000 && !isPageRefresh) {
       console.log('[HomePage] 最近已处理过登录流程，跳过重复处理');
+      
+      // 即使跳过完整流程，也尝试从缓存应用付费状态
+      try {
+        const localCache = getLocalAccessCache();
+        if (localCache[user.id]) {
+          console.log('[HomePage] 尝试从本地缓存恢复题库访问状态');
+          
+          // 更新可能过期的题库状态，但要稍作延迟确保questionSets已加载
+          setTimeout(() => {
+            // 只有在题库列表已加载的情况下才应用缓存
+            if (questionSets.length > 0) {
+              let hasUpdated = false;
+              
+              // 创建题库列表副本
+              const updatedSets = [...questionSets];
+              
+              // 遍历本地缓存应用付费状态
+              Object.keys(localCache[user.id]).forEach(qsId => {
+                const cacheEntry = localCache[user.id][qsId];
+                if (!cacheEntry.hasAccess) return; // 只应用已付费的记录
+                
+                // 查找对应题库
+                const index = updatedSets.findIndex(set => set.id === qsId);
+                if (index >= 0 && !updatedSets[index].hasAccess) {
+                  // 只更新未付费的题库
+                  updatedSets[index] = {
+                    ...updatedSets[index],
+                    hasAccess: true,
+                    accessType: cacheEntry.paymentMethod === 'redeem' ? 'redeemed' : 'paid',
+                    remainingDays: cacheEntry.remainingDays
+                  };
+                  hasUpdated = true;
+                  console.log(`[HomePage] 从缓存恢复题库 "${updatedSets[index].title}" 的付费状态`);
+                }
+              });
+              
+              // 如果有更新，应用变更
+              if (hasUpdated) {
+                console.log('[HomePage] 已从缓存恢复题库状态，更新UI');
+                setQuestionSets(updatedSets);
+              }
+            }
+          }, 300);
+        }
+      } catch (error) {
+        console.error('[HomePage] 恢复缓存状态失败:', error);
+      }
+      
       return;
     }
     
@@ -1747,6 +1884,45 @@ const HomePage = (): JSX.Element => {
     // 登录流程，按顺序执行，避免竞态条件，添加请求限制
     (async () => {
       try {
+        // 首先尝试从本地缓存恢复题库状态
+        const localCache = getLocalAccessCache();
+        const hasCachedAccess = user?.id && localCache[user.id] && Object.keys(localCache[user.id]).length > 0;
+        
+        if (hasCachedAccess) {
+          console.log('[HomePage] 发现本地缓存的访问权限记录');
+          
+          // 如果已有题库列表，立即应用缓存状态
+          if (questionSets.length > 0) {
+            let hasUpdated = false;
+            const updatedSets = [...questionSets];
+            
+            Object.keys(localCache[user.id]).forEach(qsId => {
+              const cacheEntry = localCache[user.id][qsId];
+              if (!cacheEntry.hasAccess) return; // 只应用已付费的记录
+              
+              // 查找对应题库
+              const index = updatedSets.findIndex(set => set.id === qsId);
+              if (index >= 0) {
+                // 更新付费状态
+                updatedSets[index] = {
+                  ...updatedSets[index],
+                  hasAccess: true,
+                  accessType: cacheEntry.paymentMethod === 'redeem' ? 'redeemed' : 'paid',
+                  remainingDays: cacheEntry.remainingDays
+                };
+                hasUpdated = true;
+                console.log(`[HomePage] 从缓存恢复题库 "${updatedSets[index].title}" 的付费状态`);
+              }
+            });
+            
+            // 如果有更新，应用变更
+            if (hasUpdated) {
+              console.log('[HomePage] 已从缓存恢复题库状态，更新UI');
+              setQuestionSets(updatedSets);
+            }
+          }
+        }
+        
         // 第1步：通过syncAccessRights同步最新权限数据
         console.log('[HomePage] 1. 开始同步访问权限数据');
         await syncAccessRights();
@@ -1814,13 +1990,24 @@ const HomePage = (): JSX.Element => {
         // 设置loading状态为false，表示登录流程完成
         setLoading(false);
         clearTimeout(loadingTimeoutRef.current);
+        
+        // 清理事件监听
+        window.removeEventListener('accessRights:updated', handleSyncComplete);
       } catch (error) {
         console.error('[HomePage] 登录流程处理出错:', error);
         setLoading(false);
         setErrorMessage('请求失败，请稍后重试');
+        
+        // 清理事件监听
+        window.removeEventListener('accessRights:updated', handleSyncComplete);
       }
     })();
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets]);
+    
+    // 清理函数，确保在组件卸载时移除事件监听
+    return () => {
+      window.removeEventListener('accessRights:updated', handleSyncComplete);
+    };
+  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, getLocalAccessCache, fetchQuestionSets, syncAccessRights]);
 
   // 添加重复请求检测和预防 - 防止组件重渲染引起的重复请求
   useEffect(() => {
