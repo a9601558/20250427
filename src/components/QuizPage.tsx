@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 import { questionSetApi } from '../utils/api';
+import apiClient from '../utils/api-client';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService, wrongAnswerService } from '../services/api';
 import { purchaseService, redeemCodeService, userService } from '../services/api';
@@ -2084,10 +2085,11 @@ function QuizPage(): JSX.Element {
         // 尝试使用 getQuestionSetById 或 getById 方法，根据可用性
         let apiResponse;
         try {
-          // 首先尝试使用 getQuestionSetById 方法
-          apiResponse = await (questionSetApi as any).getQuestionSetById?.(id) || await questionSetApi.getById(id);
+          // 使用标准API端点确保与后端一致 
+          apiResponse = await apiClient.get(`/api/question-sets/${id}`);
         } catch (err) {
-          // 如果第一个方法失败，尝试使用 getById 方法
+          // 如果请求失败，尝试使用备用方法
+          console.error(`[QuizPage] 直接请求题库详情失败:`, err);
           apiResponse = await questionSetApi.getById(id);
         }
         

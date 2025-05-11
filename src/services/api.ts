@@ -9,22 +9,22 @@ export const API_BASE_URL = process.env.NODE_ENV === 'production'
 export const homepageService = {
   // Get all home content
   getHomeContent: async (params?: any) => {
-    return apiClient.get('/api/homepage/content', params);
+    return apiClient.get('/api/home-content', params);
   },
   
   // Get featured categories
   getFeaturedCategories: async () => {
-    return apiClient.get('/api/homepage/featured-categories');
+    return apiClient.get('/api/home-content/featured-categories');
   },
   
   // Update featured categories
   updateFeaturedCategories: async (categories: string[]) => {
-    return apiClient.post('/api/homepage/featured-categories', { categories });
+    return apiClient.post('/api/home-content/featured-categories', { categories });
   },
   
   // Update home content
   updateHomeContent: async (content: any) => {
-    return apiClient.post('/api/homepage/content', content);
+    return apiClient.post('/api/home-content', content);
   }
 };
 
@@ -175,21 +175,21 @@ export const purchaseService = {
 export const redeemCodeService = {
   // Redeem a code
   redeemCode: async (code: string) => {
-    return apiClient.post('/api/redeem-codes/redeem', { code });
+    return apiClient.post('/api/redeem/codes/redeem', { code });
   },
   
   // Generate redeem codes (admin)
   generateRedeemCodes: async (data: {questionSetId: string, count: number, expiryDate?: string}) => {
-    return apiClient.post('/api/redeem-codes/generate', data);
+    return apiClient.post('/api/redeem/codes/generate', data);
   },
   
   // Get redeem codes (admin)
   getCodes: async (params?: any) => {
-    return apiClient.get('/api/redeem-codes', params);
+    return apiClient.get('/api/redeem/codes', params);
   },
   
   // Get all redeem codes (admin)
   getAllRedeemCodes: async () => {
-    return apiClient.get('/api/redeem-codes');
+    return apiClient.get('/api/redeem/codes');
   }
 }; 
