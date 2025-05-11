@@ -247,6 +247,17 @@ const HomePage = (): JSX.Element => {
   // 新增状态 - 控制是否显示倒计时组件
   const [showCountdownWidget, setShowCountdownWidget] = useState<boolean>(false);
   
+  // Add additional refs that were previously declared inside useEffects
+  const initialLoadRef = useRef<boolean>(true);
+  const homeContentInitializedRef = useRef<boolean>(false);
+  const setupRenderRef = useRef<boolean>(false);
+  // Add more refs for other effects
+  const loginEffectExecutedRef = useRef<boolean>(false);
+  const questionCountCheckRef = useRef<boolean>(false);
+  const hasRequestedSyncRef = useRef<boolean>(false);
+  // Add ref for topics monitoring
+  const topicsMonitoringRef = useRef<boolean>(false);
+  
   // 在这里添加BaseCard组件定义（组件内部）
   const BaseCard: React.FC<{
     key: string;
@@ -1773,6 +1784,12 @@ const HomePage = (): JSX.Element => {
       return;
     }
     
+    // Skip if already executed
+    if (loginEffectExecutedRef.current) {
+      return;
+    }
+    loginEffectExecutedRef.current = true;
+    
     // Use session storage to track if this effect has already run
     const effectId = `login_effect_${Date.now()}`;
     const prevEffectId = sessionStorage.getItem('login_effect_id');
@@ -1829,8 +1846,6 @@ const HomePage = (): JSX.Element => {
 
   // Fix initial data loading effect
   useEffect(() => {
-    // Prevent multiple executions with ref
-    const initialLoadRef = useRef(true);
     if (!initialLoadRef.current) return;
     initialLoadRef.current = false;
     
@@ -1921,8 +1936,11 @@ const HomePage = (): JSX.Element => {
 
   // 添加监听题库更新的useEffect - 优化减少请求频率
   useEffect(() => {
-    if (!isInitialLoad.current) {
-      // Only log if we're not already requesting access
+    // Only run this when questionSets changes but prevent loops
+    if (!isInitialLoad.current && questionSets.length > 0 && !topicsMonitoringRef.current) {
+      // Mark as having run
+      topicsMonitoringRef.current = true;
+      
       if (!hasRequestedAccess.current) {
         console.log('[HomePage] 题库列表更新，可能需要请求最新权限状态');
         
@@ -1938,18 +1956,21 @@ const HomePage = (): JSX.Element => {
             canMakeRequest()) {
           
           sessionStorage.setItem('last_question_sets_update_request', now.toString());
-          requestAccessStatusForAllQuestionSets();
+          // Use setTimeout to break potential synchronous loops
+          setTimeout(() => {
+            requestAccessStatusForAllQuestionSets();
+          }, 0);
         } else {
           console.log('[HomePage] 跳过权限请求: 最近已请求过或条件不满足');
         }
       } else {
         console.log('[HomePage] 题库列表更新，但已有请求正在进行，跳过');
       }
-    } else {
+    } else if (isInitialLoad.current) {
       console.log('[HomePage] 初次加载，跳过权限检查');
       isInitialLoad.current = false;
     }
-  }, [questionSets.length, user?.id, socket, requestAccessStatusForAllQuestionSets, canMakeRequest]);
+  }, [questionSets.length, user?.id, socket, canMakeRequest]); // Remove requestAccessStatusForAllQuestionSets dependency
 
   // Add a cleanup effect to clear timeouts when component unmounts
   useEffect(() => {
@@ -2425,7 +2446,9 @@ const HomePage = (): JSX.Element => {
 
   // 在组件挂载和题库列表更新后刷新问题数量
   useEffect(() => {
-    if (questionSets.length > 0) {
+    if (questionSets.length > 0 && !questionCountCheckRef.current) {
+      questionCountCheckRef.current = true;
+      
       const hasZeroCounts = questionSets.some(set => 
         (typeof set.questionCount !== 'number' || set.questionCount === 0) && 
         (!Array.isArray(set.questions) || set.questions.length === 0)
@@ -2441,7 +2464,7 @@ const HomePage = (): JSX.Element => {
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [questionSets.length, refreshQuestionCounts]);
+  }, [questionSets.length]); // Don't add refreshQuestionCounts as dependency
 
   // 添加监听问题数量更新事件，用于实时更新题库卡片显示的问题数量
   useEffect(() => {
