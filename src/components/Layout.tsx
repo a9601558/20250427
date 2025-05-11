@@ -146,7 +146,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { _timestamp: Date.now(), _nocache: true, _footerOnly: true } : 
         { _footerOnly: true };  // Signal we only need footer data
         
-      const response = await homepageService.getHomeContent(params);
+      const response = await homepageService.getHomeContent(params)
+        .catch(err => {
+          console.warn('[Layout] Error fetching footer text, using fallback:', err);
+          return { 
+            success: false, 
+            error: err.message || 'Failed to load footer text'
+          };
+        });
       
       if (response.success && response.data) {
         console.log('[Layout] Footer text fetched successfully');
@@ -158,6 +165,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         // Don't trigger events from Layout to avoid creating loops
         // HomePage is the primary handler of content updates
+      } else {
+        // Use fallback footer text on error
+        console.log('[Layout] Using fallback footer text');
+        setFooterText(`© ${new Date().getFullYear()} Exam7 Online Quiz System. All Rights Reserved.`);
       }
     } catch (error) {
       console.error('[Layout] Failed to fetch footer text:', error);

@@ -325,10 +325,24 @@ export function useHomeContent() {
         params._preventCache = params._timestamp; // Use the same timestamp
       }
       
-      // Add timestamp to prevent caching
-      const response = await homepageService.getHomeContent(params);
+      // Make the API request
+      const response = await homepageService.getHomeContent(params)
+        .catch(err => {
+          console.error('[useHomeContent] Error fetching home content:', err);
+          // Use fallback data from localStorage if API call fails
+          const localContent = getHomeContentFromLocalStorage('frontend') as HomeContentData;
+          if (localContent) {
+            console.log('[useHomeContent] Using cached home content from localStorage');
+            return { success: true, data: localContent };
+          }
+          // If no fallback, return error
+          return { 
+            success: false, 
+            error: err.message || 'Failed to load homepage content' 
+          };
+        });
       
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         console.log('[useHomeContent] Home content loaded successfully from server');
         
         // 处理服务器返回的数据 - 可能是snake_case格式
