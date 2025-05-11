@@ -441,7 +441,19 @@ const apiClientMethods = {
    * 清除特定URL的缓存
    * @param url 要清除缓存的URL
    */
-  clearCacheForUrl: (url: string) => apiClient.clearCacheFor(url)
+  clearCacheForUrl: (url: string) => apiClient.clearCacheFor(url),
+  
+  /**
+   * 设置认证令牌头部
+   * @param token 认证令牌，传入null则清除认证头
+   */
+  setAuthHeader: (token: string | null) => apiClient.setAuthHeader(token),
+  
+  /**
+   * 设置当前用户ID
+   * @param userId 用户ID，传入null则清除
+   */
+  setUserId: (userId: string | null) => apiClient.setUserId(userId)
 };
 
 export default apiClientMethods; 

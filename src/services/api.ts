@@ -9,7 +9,7 @@ export const API_BASE_URL = process.env.NODE_ENV === 'production'
 export const homepageService = {
   // Get all home content
   getHomeContent: async (params?: any) => {
-    return apiClient.get('/api/home-content', params);
+    return apiClient.get('/api/homepage/content', params);
   },
   
   // Get featured categories
