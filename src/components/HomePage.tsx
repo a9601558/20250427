@@ -143,11 +143,11 @@ const HomePage: React.FC = () => {
       // 使用正确的路径格式导航到练习页面，包含试用模式参数
       if (isTrial) {
         navigate({
-          pathname: `/practice/${formattedId}`,
+          pathname: `/quiz/${formattedId}`,
           search: `?mode=trial&t=${Date.now()}`  // 添加试用模式标记和时间戳
         });
       } else {
-        navigate(`/practice/${formattedId}`);
+        navigate(`/quiz/${formattedId}`);
       }
     } else {
       toast.warning('请求过于频繁，请稍后再试');

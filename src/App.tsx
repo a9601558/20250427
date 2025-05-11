@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import './App.css';
 import Layout from './components/Layout';
 import HomePage from './components/HomePage';
@@ -17,6 +17,12 @@ import { isTokenExpired, performAutoLogin } from './utils/authUtils';
 import { toast } from 'react-toastify';
 import QuestionSetSearchPage from './components/QuestionSetSearchPage';
 import { httpLimiter } from './utils/loopPrevention';
+
+// 创建一个重定向组件，从/practice/:id 重定向到 /quiz/:id
+const PracticeToQuizRedirect: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/quiz/${id}`} replace />;
+};
 
 // 创建一个内部组件处理认证逻辑
 const AuthManager: React.FC = () => {
@@ -128,6 +134,7 @@ const App: React.FC = () => {
                   </AdminRoute>
                 } />
                 <Route path="/quiz/:questionSetId" element={<QuizPage />} />
+                <Route path="/practice/:id" element={<PracticeToQuizRedirect />} />
                 <Route path="/payment/:id" element={<Navigate to="/" replace />} />
                 <Route path="/question-sets" element={<QuestionSetSearchPage />} />
               </Routes>
