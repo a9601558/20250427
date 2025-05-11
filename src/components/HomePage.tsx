@@ -855,6 +855,7 @@ const HomePage = (): JSX.Element => {
     
     // Ensure loading is set to true during fetch
     setLoading(true);
+    sessionStorage.setItem('homepage_loading_start', now.toString());
     
     // Set a safety timeout to prevent infinite loading state
     if (loadingTimeoutRef.current) {
@@ -3133,6 +3134,91 @@ const HomePage = (): JSX.Element => {
       </div>
     );
   }
+
+  // 添加页面可见性变化监听，以重置卡住的加载状态
+  useEffect(() => {
+    // 处理页面可见性变化，当从其他页面返回时
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[HomePage] 页面变为可见状态，检查加载状态');
+        
+        // 获取当前加载状态持续时间
+        const loadingStartTime = parseInt(sessionStorage.getItem('homepage_loading_start') || '0', 10);
+        const now = Date.now();
+        
+        // 如果加载状态持续超过5秒，强制重置
+        if (loading && now - loadingStartTime > 5000) {
+          console.log('[HomePage] 检测到加载状态持续时间过长，重置加载状态');
+          setLoading(false);
+          clearTimeout(loadingTimeoutRef.current);
+        }
+      }
+    };
+    
+    // 记录加载开始时间
+    if (loading) {
+      sessionStorage.setItem('homepage_loading_start', Date.now().toString());
+    }
+    
+    // 添加页面可见性变化监听
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // 返回时清理函数
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loading]);
+
+  // 添加路由变化检测逻辑，以重置卡住的加载状态
+  useEffect(() => {
+    // 监听路由变化事件
+    const handleRouteChange = () => {
+      const currentPath = window.location.pathname;
+      
+      // 如果当前路径是首页
+      if (currentPath === '/' || currentPath === '/home') {
+        console.log('[HomePage] 检测到路由变化到首页，检查加载状态');
+        
+        // 如果加载状态持续时间过长，重置它
+        const loadingStartTime = parseInt(sessionStorage.getItem('homepage_loading_start') || '0', 10);
+        const now = Date.now();
+        
+        if (loading && now - loadingStartTime > 3000) {
+          console.log('[HomePage] 路由变化后重置加载状态');
+          setLoading(false);
+          
+          // 如果有题库数据，表示初始化已完成
+          if (questionSets.length > 0) {
+            isInitialLoad.current = false;
+          }
+          
+          // 清除任何加载超时
+          if (loadingTimeoutRef.current) {
+            clearTimeout(loadingTimeoutRef.current);
+          }
+        }
+      }
+    };
+    
+    // 初始检查
+    handleRouteChange();
+    
+    // 监听popstate事件（浏览器前进/后退按钮）
+    window.addEventListener('popstate', handleRouteChange);
+    
+    // 安全机制：确保加载状态不会永久卡住
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.log('[HomePage] 安全机制：强制重置加载状态');
+        setLoading(false);
+      }
+    }, 8000); // 8秒后强制重置，无论如何
+    
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      clearTimeout(safetyTimeout);
+    };
+  }, [loading, questionSets.length]);
 
   // 在页面内容的顶部添加一个条件渲染的通知栏
   return (
