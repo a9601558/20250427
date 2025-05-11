@@ -151,17 +151,26 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitButtonRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    // Create a payment intent when the form loads
-    const createPaymentIntent = async () => {
+  // Create a payment intent when the form loads
+  const createPaymentIntent = async () => {
+    try {
+      if (!amount || amount <= 0) {
+        console.error('[StripePaymentForm] Invalid amount:', amount);
+        setError('Invalid payment amount');
+        return;
+      }
+
+      setIsLoading(true);
+      
       try {
-        if (!amount || amount <= 0) {
-          console.error('[StripePaymentForm] Invalid amount:', amount);
-          setError('Invalid payment amount');
+        // Get fresh token directly
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('认证失败：无法获取有效的登录令牌');
+          setIsLoading(false);
           return;
         }
-
-        setIsLoading(true);
+        
         // 不要转换为分，直接使用原始金额，因为后端会进行转换
         const amountToSend = Math.round(amount);
         console.log(`[StripePaymentForm] Creating payment intent for amount: ${amount} (sending ${amountToSend})`);
@@ -174,7 +183,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           },
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
             }
           }
         );
@@ -186,73 +196,58 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         } else {
           throw new Error(response.data.message || 'Failed to create payment intent');
         }
-      } catch (error) {
-        console.error('[StripePaymentForm] Error creating payment intent:', error);
-        setError(error instanceof Error ? error.message : 'Failed to create payment intent');
-      } finally {
-        setIsLoading(false);
+      } catch (authError: any) {
+        // 处理认证错误
+        if (authError.response && authError.response.status === 403) {
+          console.error('[StripePaymentForm] Authentication error:', authError);
+          setError('认证失败，请刷新页面后重试');
+          // 提示用户刷新页面
+          toast.error('会话已过期，请刷新页面后重试', {
+            position: 'top-center',
+            autoClose: 5000
+          });
+        } else {
+          throw authError; // 重新抛出其他错误
+        }
       }
-    };
+    } catch (error: any) {
+      console.error('[StripePaymentForm] Error creating payment intent:', error);
+      
+      // 检查是否是用户ID不匹配错误
+      if (error.response && error.response.status === 403 && 
+          error.response.data && error.response.data.message && 
+          error.response.data.message.includes('用户ID不匹配')) {
+        setError('会话状态异常，请尝试刷新页面后重试');
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to create payment intent');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  // Use the createPaymentIntent function when the component mounts or amount changes
+  useEffect(() => {
     createPaymentIntent();
   }, [amount]);
 
-  // Create a direct payment intent if the normal flow fails
-  useEffect(() => {
-    // Create a direct payment intent if the normal flow fails
-    const createDirectPaymentIntent = async () => {
-      try {
-        console.log('[StripePaymentForm] Attempting direct payment intent creation...');
-        
-        // Make sure to use the correct amount format (no conversion)
-        if (!amount || amount <= 0) {
-          console.error('[StripePaymentForm] Invalid amount for direct payment:', amount);
-          return;
-        }
-        
-        setIsLoading(true);
-        
-        // Use a different endpoint or add a parameter to handle direct creation
-        const response = await axios.post(
-          `${API_BASE_URL}/payments/direct-intent`,
-          {
-            amount: Math.round(amount), // No conversion to cents
-            currency: 'cny',
-            direct: true // Flag to indicate direct creation
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-          }
-        );
-        
-        if (response.data && response.data.success && response.data.clientSecret) {
-          console.log('[StripePaymentForm] Direct payment intent created successfully');
-          setClientSecret(response.data.clientSecret);
-          setPaymentIntentId(response.data.paymentIntentId || '');
-          return true;
-        }
-        
-        return false;
-      } catch (error) {
-        console.error('[StripePaymentForm] Error creating direct payment intent:', error);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    // If there's no clientSecret after a short delay, attempt direct creation
-    if (!clientSecret && amount > 0) {
-      const timer = setTimeout(async () => {
-        console.log('[StripePaymentForm] No client secret available, attempting direct creation');
-        await createDirectPaymentIntent();
-      }, 2000);
-      
-      return () => clearTimeout(timer);
+  // 支付成功后的处理函数
+  const handlePaymentSuccess = (paymentInfo: any) => {
+    console.log('[StripePaymentForm] Payment success, forwarding to onSubmit:', paymentInfo);
+    // 保存付款记录到本地
+    try {
+      localStorage.setItem(`payment_success_${Date.now()}`, JSON.stringify({
+        paymentIntentId: paymentInfo.paymentIntentId,
+        timestamp: new Date().toISOString(),
+        amount: paymentInfo.amount // Use the amount from the payment info instead of component scope
+      }));
+    } catch (e) {
+      console.error('[StripePaymentForm] Error saving payment record:', e);
     }
-  }, [amount, clientSecret, API_BASE_URL]);
+    
+    // 转发到父组件的提交处理程序
+    onSubmit(paymentInfo);
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -281,109 +276,111 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       setError('Payment system is not ready yet. Please try again.');
       setIsSubmitting(false);
       setIsLoading(false);
+      return;
+    }
+    
+    // 创建记录客户端支付尝试的日志
+    console.log(`[StripePaymentForm] Starting payment confirmation for ${amount} CNY, clientSecret: ${clientSecret?.substring(0, 10)}...`);
+    
+    // 显示处理中提示
+    toast.info(
+      <div className="flex flex-col">
+        <div className="font-medium">正在处理支付请求...</div>
+        <div className="text-xs mt-1">请勿关闭页面或刷新浏览器</div>
+      </div>,
+      { position: 'top-center', autoClose: 6000 }
+    );
+    
+    try {
+      // 调用 Stripe 确认支付
+      const cardElement = elements?.getElement(CardElement);
+      if (!cardElement) {
+        throw new Error('Card element not found');
+      }
+      
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: {
+            name: 'Customer Name',
+          },
+        }
+      });
+      
+      // 支付成功或需处理的情况
+      if (result.error) {
+        console.error('[StripePaymentForm] Payment confirmation error:', result.error);
+        // 如果是网络错误或超时，可能支付已经成功但没有收到确认
+        if (result.error.type === 'api_connection_error' || result.error.type === 'api_error') {
+          console.warn('[StripePaymentForm] Network error during confirmation. Payment may have succeeded.');
+          
+          // 存储可能成功的支付信息，以便稍后恢复
+          localStorage.setItem(`payment_record_${Date.now()}`, JSON.stringify({
+            paymentIntentId: paymentIntentId,
+            timestamp: new Date().toISOString(),
+            amount: amount,
+            status: 'unknown_due_to_network_error'
+          }));
+          
+          // 显示模糊的成功/错误消息
+          toast.warning(
+            <div className="flex flex-col">
+              <div className="font-bold">支付状态未知</div>
+              <div className="text-sm">由于网络问题，我们无法确认支付状态。如果您的卡已扣款，请联系客服确认订单。</div>
+            </div>,
+            { position: 'top-center', autoClose: 8000 }
+          );
+        } else {
+          // 显示实际错误
+          setError(result.error.message || 'Payment confirmation failed');
+        }
+      } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+        console.log('[StripePaymentForm] Payment succeeded:', result.paymentIntent);
+        // 处理支付方法ID，可能是字符串或对象
+        let paymentMethodId: string | null = null;
+        if (result.paymentIntent.payment_method) {
+          paymentMethodId = typeof result.paymentIntent.payment_method === 'string' 
+            ? result.paymentIntent.payment_method 
+            : null;
+        }
+        
+        // 处理支付成功 - 直接调用 onSubmit 而不是通过 handlePaymentSuccess
+        onSubmit({
+          paymentIntentId: paymentIntentId || result.paymentIntent.id,
+          paymentMethodId,
+          amount: amount,
+          status: 'succeeded'
+        });
+      } else if (result.paymentIntent) {
+        console.log('[StripePaymentForm] Payment pending:', result.paymentIntent);
+        // 存储进行中的支付信息
+        localStorage.setItem(`payment_record_${Date.now()}`, JSON.stringify({
+          paymentIntentId: paymentIntentId || result.paymentIntent.id,
+          timestamp: new Date().toISOString(),
+          amount: amount,
+          status: result.paymentIntent.status
+        }));
+        
+        // 显示等待消息
+        toast.info(
+          <div className="flex flex-col">
+            <div className="font-medium">支付处理中...</div>
+            <div className="text-xs mt-1">您的支付正在处理中，这可能需要一些时间。</div>
+          </div>,
+          { position: 'top-center', autoClose: 5000 }
+        );
+      }
+    } catch (error: any) {
+      console.error('[StripePaymentForm] Exception during payment confirmation:', error);
+      setError(error.message || 'An unexpected error occurred during payment');
+    } finally {
+      // 恢复表单状态
+      setIsSubmitting(false);
+      setIsLoading(false);
       if (submitButtonRef.current) {
         submitButtonRef.current.disabled = false;
         submitButtonRef.current.removeAttribute('data-processing');
       }
-      return;
-    }
-    
-    try {
-      console.log('[StripePaymentForm] Processing payment submission...');
-      
-      // Confirm the card payment with proper error handling for 400 errors
-      let retryCount = 0;
-      // Initialize with a safe default value to avoid "undefined" errors
-      let result: { error?: any; paymentIntent?: any } = { error: null, paymentIntent: null };
-      
-      while (retryCount < 2) {
-        try {
-          // Confirm the card payment
-          result = await stripe.confirmCardPayment(clientSecret, {
-            payment_method: {
-              card: elements.getElement(CardElement)!,
-              billing_details: {
-                name: 'Anonymous Customer',
-              },
-            }
-          });
-          
-          // If no error, break the retry loop
-          if (!result.error) {
-            break;
-          }
-          
-          // For 400 errors that might be due to timing issues, retry once
-          if (result.error.type === 'api_error' || result.error.type === 'api_connection_error') {
-            console.log(`[StripePaymentForm] Retrying after ${result.error.type}, attempt ${retryCount + 1}`);
-            retryCount++;
-            // Wait 1 second before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            // For other errors, don't retry
-            break;
-          }
-        } catch (confirmError) {
-          console.error('[StripePaymentForm] Error in confirmCardPayment:', confirmError);
-          // For unexpected errors, retry once
-          if (retryCount === 0) {
-            retryCount++;
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            throw confirmError;
-          }
-        }
-      }
-      
-      // Now process the result
-      if (result.error) {
-        console.error('[StripePaymentForm] Payment confirmation error:', result.error);
-        setError(result.error.message || 'Payment failed');
-      } else if (result.paymentIntent) {
-        // Check for successful payment
-        if (result.paymentIntent.status === 'succeeded') {
-          console.log('[StripePaymentForm] Payment succeeded:', result.paymentIntent);
-          // Handle the payment method which could be a string or an object
-          let paymentMethodId: string | null = null;
-          if (result.paymentIntent.payment_method) {
-            paymentMethodId = typeof result.paymentIntent.payment_method === 'string' 
-              ? result.paymentIntent.payment_method 
-              : null;
-          }
-
-          onSubmit({
-            paymentIntentId: paymentIntentId || result.paymentIntent.id,
-            paymentMethodId,
-            amount: amount,
-            status: 'succeeded'
-          });
-        } else if (result.paymentIntent.status === 'requires_action') {
-          console.log('[StripePaymentForm] Payment requires additional action');
-          // Handle 3D Secure or other authentication requirements
-          setError('您的银行要求额外验证。请按照指示完成支付。');
-        } else {
-          console.warn('[StripePaymentForm] Payment not succeeded:', result.paymentIntent);
-          setError(`Payment status: ${result.paymentIntent.status || 'unknown'}. Please try again.`);
-        }
-      } else {
-        // Handle case where neither error nor paymentIntent is available
-        console.error('[StripePaymentForm] Invalid response from Stripe: no error or paymentIntent');
-        setError('支付处理过程中出现异常，请稍后重试。');
-      }
-    } catch (error) {
-      console.error('[StripePaymentForm] Payment confirmation error:', error);
-      setError('An error occurred while processing your payment. Please try again.');
-    } finally {
-      setIsLoading(false);
-      
-      // 长时间禁用按钮，确保不会发生重复提交
-      setTimeout(() => {
-        setIsSubmitting(false);
-        if (submitButtonRef.current) {
-          submitButtonRef.current.disabled = false;
-          submitButtonRef.current.removeAttribute('data-processing');
-        }
-      }, 3000); // 延长到3秒，确保有足够时间完成操作
     }
   };
 
@@ -737,31 +734,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     setIsProcessing(true);
     
     try {
-      // First, verify the payment status directly with Stripe if possible
-      let verificationSuccess = false;
-      
-      try {
-        // This is an example of additional verification - implement according to your backend API
-        const verifyResponse = await axios.post(
-          `${API_BASE_URL}/payments/verify-payment`,
-          {
-            paymentIntentId: paymentInfo.paymentIntentId
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        
-        if (verifyResponse.data && verifyResponse.data.verified) {
-          console.log('[PaymentModal] Payment verified successfully');
-          verificationSuccess = true;
-        }
-      } catch (verifyError) {
-        console.warn('[PaymentModal] Payment verification failed, continuing with standard process:', verifyError);
-        // Continue with normal flow even if verification fails
+      // 确保获取最新的token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('认证失败：无法获取有效的登录令牌');
+        setIsProcessing(false);
+        return;
       }
       
       // Complete the purchase in your system
@@ -772,11 +750,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
           paymentIntentId: paymentInfo.paymentIntentId,
           paymentMethodId: paymentInfo.paymentMethodId,
           amount: paymentInfo.amount * 100, // Convert to cents for backend
-          verified: verificationSuccess
         },
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         }
@@ -824,64 +801,20 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     } catch (error: any) {
       console.error('[PaymentModal] Error completing purchase:', error);
       
-      // Enhanced error handling with fallback
-      if (error.response && error.response.status === 400) {
-        // Try fallback direct access grant
-        try {
-          console.log('[PaymentModal] Attempting fallback access grant');
-          
-          const fallbackResponse = await axios.post(
-            `${API_BASE_URL}/purchases/grant-access`,
-            {
-              questionSetId: String(questionSet?.id || '').trim(),
-              paymentReference: paymentInfo.paymentIntentId
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          if (fallbackResponse.data && fallbackResponse.data.success) {
-            console.log('[PaymentModal] Fallback access grant successful');
-            
-            // Show success toast
-            toast.success(
-              <div className="flex flex-col">
-                <div className="font-bold">访问权限已授予！</div>
-                <div className="text-sm">尽管支付过程有些问题，但您已获得题库访问权限</div>
-              </div>,
-              {
-                position: 'top-center',
-                autoClose: 4000
-              }
-            );
-            
-            // Mark as success in local storage
-            try {
-              const questionSetId = String(questionSet?.id || '').trim();
-              localStorage.setItem(`quiz_payment_completed_${questionSetId}`, 'true');
-            } catch (storageError) {
-              console.error('[PaymentModal] Error saving payment status to localStorage:', storageError);
-            }
-            
-            // Handle success
-            onSuccess({
-              questionSetId: String(questionSet?.id || '').trim(),
-              purchaseId: fallbackResponse.data.purchaseId || `fallback-${Date.now()}`,
-              remainingDays: fallbackResponse.data.remainingDays || 180
-            });
-            
-            return;
-          }
-        } catch (fallbackError) {
-          console.error('[PaymentModal] Fallback access grant failed:', fallbackError);
-        }
+      // 检查是否是用户ID不匹配错误
+      if (error.response && error.response.status === 403 && 
+          error.response.data && error.response.data.message && 
+          error.response.data.message.includes('用户ID不匹配')) {
+        setError('会话状态异常，请尝试刷新页面后重试');
+        toast.error('会话状态异常，请尝试刷新页面后重试', {
+          position: 'top-center',
+          autoClose: 5000
+        });
+        setIsProcessing(false);
+        return;
       }
       
-      // If we get here, all attempts failed
+      // If we get here, the error wasn't handled above
       setError('支付处理遇到问题，但您的支付可能已成功。请联系客服确认您的订单状态。');
       setIsProcessing(false);
     }
