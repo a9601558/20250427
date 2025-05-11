@@ -352,9 +352,35 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
         {/* 支付卡图标 */}
         <div className="flex items-center justify-center space-x-3 py-2">
-          <div className="w-10 h-7 bg-gray-700 rounded-md opacity-70"></div>
-          <div className="w-10 h-7 bg-gray-700 rounded-md opacity-70"></div>
-          <div className="w-10 h-7 bg-gray-700 rounded-md opacity-70"></div>
+          {/* Visa Card Icon */}
+          <div className="w-12 h-7 bg-blue-50 rounded flex items-center justify-center">
+            <span className="text-blue-800 font-bold text-xs">VISA</span>
+          </div>
+          
+          {/* MasterCard Icon */}
+          <div className="w-12 h-7 bg-red-50 rounded flex items-center justify-center">
+            <span className="text-red-800 font-bold text-xs">MC</span>
+          </div>
+          
+          {/* UnionPay Icon */}
+          <div className="w-12 h-7 bg-green-50 rounded flex items-center justify-center">
+            <span className="text-green-800 font-bold text-xs">银联</span>
+          </div>
+          
+          {/* JCB Card Icon */}
+          <div className="w-12 h-7 bg-yellow-50 rounded flex items-center justify-center">
+            <span className="text-yellow-800 font-bold text-xs">JCB</span>
+          </div>
+        </div>
+
+        {/* 安全提示 */}
+        <div className="text-center text-xs text-gray-400 mb-4">
+          <div className="flex items-center justify-center mb-1">
+            <svg className="w-3 h-3 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            支持Stripe安全支付，确保您的付款安全
+          </div>
         </div>
 
         {/* 按钮组 */}
@@ -658,6 +684,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
     setError('');
 
     try {
+      // 显示正在处理的提示，并提及支持的卡类型
+      toast.info(
+        <div className="flex flex-col">
+          <div className="font-medium">正在处理支付请求...</div>
+          <div className="text-xs mt-1">支持Visa、MasterCard、银联和JCB等安全支付方式</div>
+        </div>, 
+        {
+          autoClose: 3000,
+          position: 'top-center'
+        }
+      );
+
       // 使用真实Stripe支付
       await handleStripePayment();
     } catch (err: any) {
@@ -917,10 +955,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen = true, onClose, que
           onSuccess(purchaseInfo);
           
           // 显示全局提示
-          toast.success('题库购买成功！您现在可以访问完整内容了', {
-            autoClose: 5000,
-            position: 'top-center'
-          });
+          toast.success(
+            <div className="flex flex-col">
+              <div className="font-bold">支付成功！</div>
+              <div className="text-sm">您已获得完整题库的访问权限</div>
+            </div>, 
+            {
+              autoClose: 5000,
+              position: 'top-center',
+              icon: (
+                <div className="bg-green-100 p-2 rounded-full">
+                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              )
+            }
+          );
           
           // 强制关闭支付弹窗 - 延长关闭时间，让用户看到庆祝弹窗
           setTimeout(() => {

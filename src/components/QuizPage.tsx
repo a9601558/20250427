@@ -566,23 +566,47 @@ const PurchasePage: React.FC<{
           </button>
         </div>
         
-        {/* Footer info */}
+        {/* Footer info - Enhanced with credit card options and security message */}
           <div className="text-center relative z-10">
             <div className="flex items-center justify-center mb-3 space-x-2">
-              <div className="h-6 flex items-center space-x-2">
-                {['visa', 'mastercard', 'unionpay'].map(card => (
-                  <div key={card} className="w-8 h-6 bg-gray-700 rounded opacity-70"></div>
-                ))}
+              <div className="flex items-center space-x-2 bg-gray-800 bg-opacity-50 rounded-lg px-3 py-2">
+                {/* Visa Card Icon */}
+                <div className="w-10 h-6 bg-blue-50 rounded flex items-center justify-center">
+                  <span className="text-blue-800 font-bold text-xs">VISA</span>
+                </div>
+                
+                {/* MasterCard Icon */}
+                <div className="w-10 h-6 bg-red-50 rounded flex items-center justify-center">
+                  <span className="text-red-800 font-bold text-xs">MC</span>
+                </div>
+                
+                {/* UnionPay Icon */}
+                <div className="w-10 h-6 bg-green-50 rounded flex items-center justify-center">
+                  <span className="text-green-800 font-bold text-xs">银联</span>
+                </div>
+                
+                {/* JCB Card Icon */}
+                <div className="w-10 h-6 bg-yellow-50 rounded flex items-center justify-center">
+                  <span className="text-yellow-800 font-bold text-xs">JCB</span>
+                </div>
               </div>
             </div>
             <p className="text-xs text-gray-400 mb-2">
           付费后立即获得完整题库的访问权限，内容持续更新
         </p>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            支持Stripe安全支付，确保您的付款安全
+            <div className="flex flex-col items-center justify-center space-y-1">
+              <div className="flex items-center justify-center text-xs text-gray-500">
+                <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                支持Stripe安全支付，确保您的付款安全
+              </div>
+              <div className="flex items-center text-xs text-green-400">
+                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                支持Visa、MasterCard、银联、JCB等多种支付方式
+              </div>
             </div>
           </div>
         </div>
@@ -755,7 +779,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">支付方式</h2>
+        <h2 className="text-xl font-bold text-gray-800">安全支付</h2>
         <button
           onClick={onCancel}
           className="text-gray-400 hover:text-gray-600"
@@ -765,6 +789,16 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
+      </div>
+      
+      {/* Security badge */}
+      <div className="mb-4 flex items-center justify-center">
+        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-full flex items-center">
+          <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="font-medium">Stripe 安全支付</span>
+        </div>
       </div>
       
       {error && (
@@ -795,12 +829,39 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
               }}
             />
           </div>
+          
+          {/* Card types supported */}
+          <div className="flex items-center justify-center mt-3">
+            <div className="flex items-center space-x-2">
+              <div className="w-10 h-6 bg-blue-50 rounded flex items-center justify-center">
+                <span className="text-blue-800 font-bold text-xs">VISA</span>
+              </div>
+              <div className="w-10 h-6 bg-red-50 rounded flex items-center justify-center">
+                <span className="text-red-800 font-bold text-xs">MC</span>
+              </div>
+              <div className="w-10 h-6 bg-green-50 rounded flex items-center justify-center">
+                <span className="text-green-800 font-bold text-xs">银联</span>
+              </div>
+              <div className="w-10 h-6 bg-yellow-50 rounded flex items-center justify-center">
+                <span className="text-yellow-800 font-bold text-xs">JCB</span>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
           <div className="flex justify-between items-center text-lg">
             <span className="text-gray-700">总金额:</span>
             <span className="font-bold text-green-600">¥{amount.toFixed(2)}</span>
+          </div>
+          
+          <div className="mt-3 text-xs text-gray-500">
+            <p className="flex items-center">
+              <svg className="w-3 h-3 mr-1 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              所有交易均通过Stripe加密处理，确保您的支付安全
+            </p>
           </div>
         </div>
         
@@ -816,11 +877,26 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           <button
             type="submit"
             disabled={!stripe || isProcessing || !clientSecret}
-            className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
+            className={`px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center ${
               (!stripe || isProcessing || !clientSecret) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
-            {isProcessing ? '处理中...' : '确认支付'}
+            {isProcessing ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                处理中...
+              </>
+            ) : (
+              <>
+                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                确认支付
+              </>
+            )}
           </button>
         </div>
       </form>
@@ -1042,10 +1118,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           // Save access rights and payment completion status
           saveAccessToLocalStorage(normalizedId, true);
           
-          // 显示成功提示
-          toast.success('支付成功！您现在可以访问完整题库', {
-            autoClose: 3000
-          });
+          // 显示成功提示 - 增强版本
+          toast.success(
+            <div className="flex flex-col">
+              <div className="font-bold">支付成功！</div>
+              <div className="text-sm">您已获得完整题库的访问权限</div>
+            </div>, 
+            {
+              autoClose: 5000,
+              icon: (
+                <div className="bg-green-100 p-2 rounded-full">
+                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              )
+            }
+          );
           
           // 触发购买成功事件
           window.dispatchEvent(
@@ -1316,23 +1405,28 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         console.log('[RedeemCodeModal] Code redemption successful');
         setSuccess(true);
         
-        // Dispatch custom event for system-wide notification
-        window.dispatchEvent(
-          new CustomEvent('redeem:success', { 
-            detail: { 
-              questionSetId: questionSet.id,
-              code,
-              forceRefresh: true
-            } 
-          })
+        // Enhanced success message with icon
+        toast.success(
+          <div className="flex flex-col">
+            <div className="font-bold">兑换成功！</div>
+            <div className="text-sm">您已获得完整题库的访问权限</div>
+          </div>, 
+          {
+            autoClose: 5000,
+            icon: (
+              <div className="bg-green-100 p-2 rounded-full">
+                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            )
+          }
         );
-        
-        toast.success('兑换成功！您现在可以访问完整题库');
         
         // Wait a moment before closing modal to show success state
         setTimeout(() => {
         onRedeemSuccess();
-        }, 1000);
+        }, 1500);
       } else {
         // API returned error
         console.error('[RedeemCodeModal] Code redemption failed:', response);
@@ -3074,29 +3168,46 @@ function QuizPage(): JSX.Element {
   
   // 添加一个新的函数来集中管理试用限制逻辑
   const isTrialLimitReached = useCallback((): boolean => {
-    if (!questionSet) return false;
+    // 如果是免费题库，或者用户有完整访问权限，则没有试用限制
+    if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+      return false;
+    }
     
-    // 如果不是付费题库，永远不会达到限制
-    if (!questionSet.isPaid) return false;
-    
-    // 如果用户有完整访问权限，永远不会达到限制
-    if (checkFullAccessFromAllSources()) return false;
-    
-    // 检查是否已达到试用题目数量
-    const trialLimit = questionSet.trialQuestions || 0;
-    const answeredCount = answeredQuestions.length;
-    
-    console.log(`[QuizPage] 检查试用限制: 已答题=${answeredCount}, 限制=${trialLimit}`);
-    
-    // 已达到或超过试用限制
-    return answeredCount >= trialLimit;
-  }, [answeredQuestions.length, questionSet, checkFullAccessFromAllSources]);
+    // 检查是否达到试用题目数量
+    const trialLimit = questionSet?.trialQuestions || 0;
+    return answeredQuestions.length >= trialLimit;
+  }, [questionSet, quizStatus.hasAccessToFullQuiz, quizStatus.hasRedeemed, answeredQuestions.length]);
 
   // 添加一个函数专门控制是否可以访问特定题目索引
   const canAccessQuestion = useCallback((questionIndex: number): boolean => {
-    // 所有题目都应该可以访问，确保流畅的用户体验
+    // 检查是否为免费题库或者用户有完整访问权限
+    if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+      return true;
+    }
+    
+    // 在试用模式下，检查是否超出试用限制
+    const trialLimit = questionSet?.trialQuestions || 0;
+    
+    // 已回答的题目和当前题目永远可以访问
+    if (questionIndex <= currentQuestionIndex) {
+      return true;
+    }
+    
+    // 超出试用数量的题目不能访问
+    if (answeredQuestions.length >= trialLimit) {
+      console.log(`[canAccessQuestion] 无法访问题目 ${questionIndex + 1}：已达到试用限制 ${answeredQuestions.length}/${trialLimit}`);
+      return false;
+    }
+    
+    // 检查目标题目索引是否在试用范围内
+    const isWithinTrialLimit = questionIndex < trialLimit;
+    if (!isWithinTrialLimit) {
+      console.log(`[canAccessQuestion] 无法访问题目 ${questionIndex + 1}：超出试用范围（试用范围：1-${trialLimit}题）`);
+      return false;
+    }
+    
     return true;
-  }, []);
+  }, [questionSet, quizStatus.hasAccessToFullQuiz, quizStatus.hasRedeemed, currentQuestionIndex, answeredQuestions.length]);
   
   // 修改处理答案提交的函数，确保模态窗口显示
   const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
@@ -4170,12 +4281,12 @@ function QuizPage(): JSX.Element {
             onNext={handleNextQuestion}
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
-            hasFullAccess={true} // 始终允许访问所有题目，确保流畅体验
+            hasFullAccess={quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed} // 使用实际访问权限状态
             questionSetId={questionSetId || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
-            isSubmittingAnswer={false} // 移除提交锁定
-            trialLimitReached={false}  // 移除试用限制检查
+            isSubmittingAnswer={false}
+            trialLimitReached={isTrialLimitReached()} // 使用实际的试用限制状态
           />
         )}
         
