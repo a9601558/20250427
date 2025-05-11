@@ -2891,7 +2891,7 @@ const HomePage = (): JSX.Element => {
       console.log(`[HomePage] Detected ${homeContent.featuredCategories.length} featured categories:`, homeContent.featuredCategories);
       setupRenderEffects();
     }
-  }, [homeContent.featuredCategories, setupRenderEffects, questionSets.length]);
+  }, [homeContent.featuredCategories, questionSets.length]);
 
   // Check for admin content updates specifically
   useEffect(() => {
@@ -3087,7 +3087,7 @@ const HomePage = (): JSX.Element => {
     // 注册事件
     window.addEventListener('questionSet:countUpdate', handleQuestionCountUpdate);
     
-    // 清理事件
+    // 返回清理函数
     return () => {
       window.removeEventListener('questionSet:countUpdate', handleQuestionCountUpdate);
     };
@@ -3163,7 +3163,7 @@ const HomePage = (): JSX.Element => {
     // 添加页面可见性变化监听
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
-    // 返回时清理函数
+    // 返回清理函数
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -3214,6 +3214,7 @@ const HomePage = (): JSX.Element => {
       }
     }, 8000); // 8秒后强制重置，无论如何
     
+    // 返回清理函数，同时清除超时和事件监听
     return () => {
       window.removeEventListener('popstate', handleRouteChange);
       clearTimeout(safetyTimeout);
