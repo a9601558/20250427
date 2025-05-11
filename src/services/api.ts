@@ -9,22 +9,22 @@ export const API_BASE_URL = process.env.NODE_ENV === 'production'
 export const homepageService = {
   // Get all home content
   getHomeContent: async (params?: any) => {
-    return apiClient.get('/api/home-content', params);
+    return apiClient.get('/api/homepage/content', params);
   },
   
   // Get featured categories
   getFeaturedCategories: async () => {
-    return apiClient.get('/api/home-content/featured-categories');
+    return apiClient.get('/api/homepage/featured-categories');
   },
   
   // Update featured categories
   updateFeaturedCategories: async (categories: string[]) => {
-    return apiClient.post('/api/home-content/featured-categories', { categories });
+    return apiClient.post('/api/homepage/featured-categories', { categories });
   },
   
   // Update home content
   updateHomeContent: async (content: any) => {
-    return apiClient.post('/api/home-content', content);
+    return apiClient.post('/api/homepage/content', content);
   }
 };
 
