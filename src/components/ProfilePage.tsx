@@ -1206,7 +1206,7 @@ const ProfilePage: React.FC = () => {
       // 检查是否在登录后短时间内 - 登录后优先使用本地数据
       const lastLoginTime = parseInt(sessionStorage.getItem('last_login_time') || '0', 10);
       const now = Date.now();
-      const isRecentLogin = now - lastLoginTime < 5 * 60 * 1000; // 登录后5分钟内优先使用本地数据
+      const isRecentLogin = now - lastLoginTime < 30 * 60 * 1000; // 登录后30分钟内优先使用本地数据，从5分钟延长到30分钟
       
       if (isRecentLogin) {
         console.log('[ProfilePage] 检测到登录状态，在合并时优先使用本地进度数据');
@@ -1221,19 +1221,27 @@ const ProfilePage: React.FC = () => {
       
       // 处理本地数据，将新的或更新的记录添加到结果中
       Object.entries(localData).forEach(([questionSetId, data]) => {
+        // 检查此题库的本地数据是否被标记为受保护
+        const isProtected = data.protected === true;
+        
         if (data.answeredQuestions && data.answeredQuestions.length > 0) {
           data.answeredQuestions.forEach((answer, index) => {
             const questionId = `question_${answer.index || index}`; // 使用问题索引作为ID
             const key = `${questionSetId}_${questionId}`;
             
-            // 如果本地记录不存在于服务器记录中，或者比服务器记录更新，或者在登录后短时间内，则添加本地记录
+            // 如果本地记录不存在于服务器记录中，或者比服务器记录更新，或者在登录后短时间内，或者数据受保护，则添加本地记录
             const serverRecord = serverRecordMap.get(key);
             const localUpdatedAt = new Date(data.lastUpdated || 0);
             
-            // 登录后优先使用本地数据 或 本地数据比服务器新
+            // 使用本地数据的条件：
+            // 1. 登录后优先使用本地数据
+            // 2. 本地数据比服务器新
+            // 3. 服务器没有此记录
+            // 4. 本地数据被标记为受保护
             if (!serverRecord || 
                 (serverRecord.createdAt && localUpdatedAt > new Date(serverRecord.createdAt)) ||
-                (isRecentLogin && data.lastUpdated)) {
+                isRecentLogin ||
+                isProtected) {
               
               // 创建一个新记录替换或添加到结果中
               const newRecord: ProgressRecord = {
@@ -1247,6 +1255,10 @@ const ProfilePage: React.FC = () => {
               };
               
               serverRecordMap.set(key, newRecord);
+              
+              if (isProtected) {
+                console.log(`[ProfilePage] 使用受保护的本地数据 ${key}`);
+              }
             }
           });
         }
@@ -1268,10 +1280,107 @@ const ProfilePage: React.FC = () => {
       setIsLoading(true);
       console.log('[ProfilePage] 开始获取用户进度数据 - 用户ID:', user.id);
       
+      // 强化保护机制 - 尝试从备份中恢复任何丢失的进度数据
+      try {
+        const protectionKey = `protected_progress_${user.id}`;
+        const backupKey = `progress_backup_${user.id}`;
+        
+        const protectionDataStr = localStorage.getItem(protectionKey);
+        const backupDataStr = localStorage.getItem(backupKey);
+        
+        if (protectionDataStr && backupDataStr) {
+          const protectionData = JSON.parse(protectionDataStr);
+          const backupData = JSON.parse(backupDataStr);
+          
+          if (protectionData.protectedKeys && Array.isArray(protectionData.protectedKeys)) {
+            // 检查哪些进度数据丢失了
+            const missingKeys = protectionData.protectedKeys.filter(
+              (key: string) => !localStorage.getItem(key) && backupData[key]
+            );
+            
+            if (missingKeys.length > 0) {
+              console.log(`[ProfilePage] 发现 ${missingKeys.length} 条丢失的进度数据，正在恢复`);
+              let restored = 0;
+              
+              missingKeys.forEach((key: string) => {
+                if (backupData[key]) {
+                  localStorage.setItem(key, JSON.stringify(backupData[key]));
+                  restored++;
+                }
+              });
+              
+              if (restored > 0) {
+                console.log(`[ProfilePage] 已恢复 ${restored} 条丢失的进度数据`);
+                toast.success(`找回了${restored}条丢失的学习进度`);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[ProfilePage] 检查备份进度数据出错:', error);
+      }
+      
       // 1. 从localStorage读取本地进度数据
       const localProgressData = getLocalProgressData();
       console.log('[ProfilePage] 从本地存储获取到进度数据:', 
         localProgressData ? Object.keys(localProgressData).length + '个题库' : '无');
+      
+      // 如果有本地数据，立即显示本地数据，不等待API响应
+      if (localProgressData && Object.keys(localProgressData).length > 0) {
+        console.log('[ProfilePage] 发现本地进度数据，优先显示');
+        displayLocalProgressData(localProgressData);
+        
+        // 确保添加保护标记
+        Object.keys(localProgressData).forEach(questionSetId => {
+          try {
+            const key = `quiz_progress_${questionSetId}`;
+            const data = localStorage.getItem(key);
+            if (data) {
+              const parsed = JSON.parse(data);
+              parsed.protected = true;
+              parsed.protectedAt = Date.now();
+              localStorage.setItem(key, JSON.stringify(parsed));
+            }
+          } catch (e) {
+            console.error(`[ProfilePage] 保护进度数据失败: ${questionSetId}`, e);
+          }
+        });
+        
+        // 创建备份
+        try {
+          const backupData: Record<string, any> = {};
+          const protectedKeys: string[] = [];
+          
+          Object.keys(localProgressData).forEach(questionSetId => {
+            const key = `quiz_progress_${questionSetId}`;
+            const data = localStorage.getItem(key);
+            if (data) {
+              try {
+                backupData[key] = JSON.parse(data);
+                protectedKeys.push(key);
+              } catch (e) {}
+            }
+          });
+          
+          if (protectedKeys.length > 0) {
+            // 保存保护列表
+            const protectionKey = `protected_progress_${user.id}`;
+            localStorage.setItem(protectionKey, JSON.stringify({
+              userId: user.id,
+              protectedKeys,
+              timestamp: Date.now()
+            }));
+            
+            // 保存备份
+            const backupKey = `progress_backup_${user.id}`;
+            localStorage.setItem(backupKey, JSON.stringify(backupData));
+            
+            console.log(`[ProfilePage] 已创建 ${protectedKeys.length} 条进度数据的备份`);
+          }
+        } catch (e) {
+          console.error('[ProfilePage] 创建进度数据备份失败:', e);
+        }
+      }
       
       // 2. 直接从API获取详细记录数据
       const recordsResponse = await userProgressService.getUserProgressRecords();
@@ -1288,6 +1397,13 @@ const ProfilePage: React.FC = () => {
           console.log('[ProfilePage] 进度记录示例:', recordsResponse.data[0]);
         } else {
           console.warn('[ProfilePage] 进度记录为空数组 - 用户没有任何进度记录');
+          // 如果服务器没有数据但有本地数据，继续使用本地数据
+          if (localProgressData && Object.keys(localProgressData).length > 0) {
+            console.log('[ProfilePage] 服务器无数据，继续使用本地数据');
+            // 已经显示了本地数据，无需再次处理
+            setIsLoading(false);
+            return;
+          }
         }
         
         // 3. 获取题库信息
@@ -1319,31 +1435,45 @@ const ProfilePage: React.FC = () => {
             setProgressStats(stats);
           } else {
             console.warn('[ProfilePage] 计算后没有进度统计数据');
-            setProgressStats([]); 
+            // 如果没有处理出有效的进度统计，但有本地数据，保留本地数据显示
+            if (localProgressData && Object.keys(localProgressData).length > 0) {
+              console.log('[ProfilePage] 无法生成有效的进度统计，继续显示本地数据');
+              // 不设置空数组，保留之前的显示
+            } else {
+              setProgressStats([]); 
+            }
           }
         } else {
           console.error('[ProfilePage] 未找到任何题库信息');
           setError('找不到题库信息');
+          
+          // 如果没有题库信息但有本地数据，继续显示本地数据
+          if (localProgressData && Object.keys(localProgressData).length > 0) {
+            console.log('[ProfilePage] 无题库信息，继续显示本地数据');
+          }
         }
       } else {
         console.error('[ProfilePage] 获取进度记录失败:', recordsResponse.message);
         setError(recordsResponse.message || '获取进度数据失败');
         
-        // 如果API获取失败但有本地数据，使用本地数据显示
+        // 如果API获取失败但有本地数据，继续使用本地数据显示
         if (localProgressData && Object.keys(localProgressData).length > 0) {
-          console.log('[ProfilePage] API获取失败，尝试使用本地存储数据');
-          displayLocalProgressData(localProgressData);
+          console.log('[ProfilePage] API获取失败，继续使用本地存储数据');
+          // 已经显示了本地数据，无需再次处理
         }
       }
     } catch (error) {
       console.error('[ProfilePage] 加载进度数据异常:', error);
       setError('加载进度数据失败，请刷新页面重试');
       
-      // 如果出现异常但有本地数据，使用本地数据显示
+      // 如果出现异常但有本地数据，继续使用本地数据显示
       const localProgressData = getLocalProgressData();
       if (localProgressData && Object.keys(localProgressData).length > 0) {
-        console.log('[ProfilePage] 处理异常，尝试使用本地存储数据');
-        displayLocalProgressData(localProgressData);
+        console.log('[ProfilePage] 处理异常，继续使用本地存储数据');
+        // 如果之前没有显示过本地数据，现在显示
+        if (progressStats.length === 0) {
+          displayLocalProgressData(localProgressData);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -1647,6 +1777,141 @@ const ProfilePage: React.FC = () => {
     }
   }, [fetchProgressData, fetchPurchases, fetchRedeemCodes, fetchWrongAnswers]);
 
+  // 添加函数恢复可能被意外删除的进度数据
+  const attemptToRestoreDeletedProgress = useCallback(() => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('[ProfilePage] 检查是否有可恢复的进度数据');
+      
+      // 检查保护列表
+      const protectionKey = `protected_progress_${user.id}`;
+      const protectionDataStr = localStorage.getItem(protectionKey);
+      
+      if (!protectionDataStr) {
+        console.log('[ProfilePage] 没有找到保护的进度数据记录');
+        return;
+      }
+      
+      const protectionData = JSON.parse(protectionDataStr);
+      const protectedKeys = protectionData.protectedKeys || [];
+      
+      if (!protectedKeys.length) {
+        console.log('[ProfilePage] 保护列表为空');
+        return;
+      }
+      
+      // 检查哪些受保护的键已经丢失
+      const missingKeys: string[] = [];
+      protectedKeys.forEach((key: string) => {
+        if (!localStorage.getItem(key)) {
+          missingKeys.push(key);
+        }
+      });
+      
+      if (!missingKeys.length) {
+        console.log('[ProfilePage] 所有受保护的进度数据都存在，无需恢复');
+        return;
+      }
+      
+      console.log(`[ProfilePage] 发现 ${missingKeys.length} 条丢失的进度数据，尝试恢复`);
+      
+      // 尝试从备份恢复数据
+      const backupKey = `progress_backup_${user.id}`;
+      const backupDataStr = localStorage.getItem(backupKey);
+      
+      if (!backupDataStr) {
+        console.log('[ProfilePage] 没有找到备份数据，无法恢复');
+        return;
+      }
+      
+      try {
+        const backupData = JSON.parse(backupDataStr);
+        let restoredCount = 0;
+        
+        // 尝试恢复每个丢失的键
+        missingKeys.forEach((key: string) => {
+          if (backupData[key]) {
+            localStorage.setItem(key, JSON.stringify(backupData[key]));
+            restoredCount++;
+          }
+        });
+        
+        if (restoredCount > 0) {
+          console.log(`[ProfilePage] 已成功恢复 ${restoredCount} 条进度数据`);
+          // 显示一条恢复成功的提示
+          toast.success(`已恢复${restoredCount}条学习进度`);
+          
+          // 刷新显示的进度数据
+          fetchProgressData();
+        } else {
+          console.log('[ProfilePage] 未能恢复任何数据');
+        }
+      } catch (e) {
+        console.error('[ProfilePage] 恢复备份数据时出错:', e);
+      }
+    } catch (e) {
+      console.error('[ProfilePage] 检查/恢复进度数据时出错:', e);
+    }
+  }, [user?.id, fetchProgressData]);
+
+  // 添加一个新函数，确保学习进度数据不会被意外删除
+  const protectLearningProgressData = useCallback(() => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('[ProfilePage] 检查并保护学习进度数据');
+      
+      // 获取所有localStorage中的进度数据
+      const progressData: Record<string, any> = {};
+      const keysToProtect: string[] = [];
+      
+      // 遍历localStorage中的所有键，找出学习进度数据
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('quiz_progress_')) {
+          try {
+            const data = localStorage.getItem(key);
+            if (data) {
+              const parsed = JSON.parse(data);
+              // 检查数据是否有效
+              if (parsed && parsed.answeredQuestions && parsed.answeredQuestions.length > 0) {
+                progressData[key] = parsed;
+                keysToProtect.push(key);
+                
+                // 设置或更新保护标记和时间戳
+                parsed.protected = true;
+                parsed.protectedAt = Date.now();
+                // 保存回localStorage
+                localStorage.setItem(key, JSON.stringify(parsed));
+              }
+            }
+          } catch (e) {
+            console.error(`[ProfilePage] 解析进度数据失败: ${key}`, e);
+          }
+        }
+      }
+      
+      // 将要保护的键列表存储在单独的存储位置
+      if (keysToProtect.length > 0) {
+        const protectionKey = `protected_progress_${user.id}`;
+        localStorage.setItem(protectionKey, JSON.stringify({
+          userId: user.id,
+          protectedKeys: keysToProtect,
+          timestamp: Date.now()
+        }));
+        console.log(`[ProfilePage] 已保护 ${keysToProtect.length} 条学习进度数据`);
+        
+        // 创建备份
+        const backupKey = `progress_backup_${user.id}`;
+        localStorage.setItem(backupKey, JSON.stringify(progressData));
+        console.log(`[ProfilePage] 已备份 ${Object.keys(progressData).length} 条学习进度数据`);
+      }
+    } catch (error) {
+      console.error('[ProfilePage] 保护学习进度数据失败:', error);
+    }
+  }, [user?.id]);
+
   // 优化的useEffect - 现在所有依赖都已经定义
   useEffect(() => {
     if (!user || !socket) return;
@@ -1671,6 +1936,17 @@ const ProfilePage: React.FC = () => {
     
     // 执行数据加载
     loadAllData();
+    
+    // 在数据加载完成后保护本地进度数据
+    setTimeout(() => {
+      try {
+        if (typeof protectLearningProgressData === 'function') {
+          protectLearningProgressData();
+        }
+      } catch (e) {
+        console.error('[ProfilePage] 保护进度数据时出错:', e);
+      }
+    }, 1000);
     
     // 设置Socket重连后的数据重载
     socket.on('connect', () => {
@@ -1810,25 +2086,28 @@ const ProfilePage: React.FC = () => {
         return;
       }
       
+      // 重要：不要清理学习进度数据，只清理题库访问权限缓存
+      // 学习进度数据使用 quiz_progress_ 前缀的键存储，这些应该保留
+      
       let hasUpdates = false;
       const userCache = cacheData[user.id];
       
-      // 检查每个题库的缓存是否过期
+      // 仅检查题库访问权限缓存
       Object.keys(userCache).forEach(questionSetId => {
         const record = userCache[questionSetId];
         const cacheAge = Date.now() - record.timestamp;
         
-        // 修改缓存失效条件，增加保留期：
-        // 1. 只有缓存超过7天(604800000毫秒)才清除
-        // 2. 题库已过期（剩余天数 <= 0）且过期超过24小时
-        const isExcessivelyOld = cacheAge > 604800000; // 7天
+        // 修改缓存失效条件，仅针对访问权限缓存：
+        // 1. 缓存超过30天(2592000000毫秒)才清除，从7天延长到30天
+        // 2. 题库已过期（剩余天数 <= 0）且过期超过7天，从24小时延长到7天
+        const isExcessivelyOld = cacheAge > 2592000000; // 30天
         const isExpiredLongAgo = record.remainingDays !== null && 
                                record.remainingDays <= 0 && 
-                               cacheAge > 86400000; // 过期且超过24小时
+                               cacheAge > 604800000; // 过期且超过7天
         
         if (isExcessivelyOld || isExpiredLongAgo) {
-          console.log(`[ProfilePage] 清理过期缓存 ${questionSetId}`, 
-            isExcessivelyOld ? '缓存超时(7天)' : '题库已过期且超过24小时');
+          console.log(`[ProfilePage] 清理过期访问权限缓存 ${questionSetId}`, 
+            isExcessivelyOld ? '缓存超时(30天)' : '题库已过期且超过7天');
           delete userCache[questionSetId];
           hasUpdates = true;
         }
@@ -1838,7 +2117,7 @@ const ProfilePage: React.FC = () => {
       if (hasUpdates) {
         cacheData[user.id] = userCache;
         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        console.log('[ProfilePage] 已清理过期缓存');
+        console.log('[ProfilePage] 已清理过期访问权限缓存');
       }
     } catch (error) {
       console.error('[ProfilePage] 检查缓存有效期失败:', error);
@@ -1860,6 +2139,64 @@ const ProfilePage: React.FC = () => {
     
     return () => clearInterval(timer);
   }, [user?.id, checkAndCleanExpiredCache]);
+  
+  // 设置定期保护进度数据
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // 每天检查并保护一次进度数据
+    const protectionTimer = setInterval(() => {
+      try {
+        // 查找所有的进度数据并添加保护标记
+        const progressDataKeys: string[] = [];
+        const progressDataMap: Record<string, any> = {};
+        
+        // 遍历localStorage中的所有键，找出学习进度数据
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('quiz_progress_')) {
+            try {
+              const data = localStorage.getItem(key);
+              if (data) {
+                const parsed = JSON.parse(data);
+                if (parsed && parsed.answeredQuestions && parsed.answeredQuestions.length > 0) {
+                  // 标记为受保护
+                  parsed.protected = true;
+                  parsed.protectedAt = Date.now();
+                  localStorage.setItem(key, JSON.stringify(parsed));
+                  
+                  progressDataKeys.push(key);
+                  progressDataMap[key] = parsed;
+                }
+              }
+            } catch (e) {
+              console.error(`[ProfilePage] 保护进度数据失败: ${key}`, e);
+            }
+          }
+        }
+        
+        // 保存保护列表和备份
+        if (progressDataKeys.length > 0) {
+          const protectionKey = `protected_progress_${user.id}`;
+          localStorage.setItem(protectionKey, JSON.stringify({
+            userId: user.id,
+            protectedKeys: progressDataKeys,
+            timestamp: Date.now()
+          }));
+          
+          // 创建备份
+          const backupKey = `progress_backup_${user.id}`;
+          localStorage.setItem(backupKey, JSON.stringify(progressDataMap));
+          
+          console.log(`[ProfilePage] 定期任务：已保护并备份 ${progressDataKeys.length} 条学习进度数据`);
+        }
+      } catch (error) {
+        console.error('[ProfilePage] 定期保护数据任务失败:', error);
+      }
+    }, 86400000); // 24小时
+    
+    return () => clearInterval(protectionTimer);
+  }, [user?.id]);
 
   // 切换标签页
   const handleTabChange = (tab: 'progress' | 'purchases' | 'redeemed' | 'wrong-answers') => {
@@ -2364,6 +2701,26 @@ const ProfilePage: React.FC = () => {
       navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
     }
   };
+
+  // 在组件挂载时尝试恢复数据
+  useEffect(() => {
+    if (user?.id) {
+      // 先尝试恢复数据
+      attemptToRestoreDeletedProgress();
+      
+      // 然后保护现有数据
+      setTimeout(() => {
+        protectLearningProgressData();
+      }, 1000);
+      
+      // 每天检查并保护一次进度数据
+      const protectionTimer = setInterval(() => {
+        protectLearningProgressData();
+      }, 86400000); // 24小时
+      
+      return () => clearInterval(protectionTimer);
+    }
+  }, [user?.id]); // Remove attemptToRestoreDeletedProgress and protectLearningProgressData from dependencies
 
   return (
     <div className="min-h-screen bg-gray-50">

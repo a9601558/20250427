@@ -564,7 +564,13 @@ const AdminQuestionSetInfo: React.FC = () => {
                       onClick={() => handleSelectSet(set)}
                     >
                       <div className="flex items-start">
-                        <div className="mr-2 text-xl">{set.icon || '📝'}</div>
+                        <div className="mr-2 text-xl">
+                          {set.icon && set.icon !== 'default' && !set.icon.startsWith('📝') && !set.icon.startsWith('📚') && !set.icon.startsWith('💻') && !set.icon.startsWith('🔍') && !set.icon.startsWith('🧩') && !set.icon.startsWith('⚙️') && !set.icon.startsWith('📊') && !set.icon.startsWith('🔐') && !set.icon.startsWith('📡') && !set.icon.startsWith('🛠️') && !set.icon.startsWith('🧪') && !set.icon.startsWith('🔬') && !set.icon.startsWith('📱') && !set.icon.startsWith('🌐') && !set.icon.startsWith('🤖') && !set.icon.startsWith('🧠') && !set.icon.startsWith('🔥') && !set.icon.startsWith('💾') && !set.icon.startsWith('⚡') && !set.icon.startsWith('☁️') ? (
+                            <img src={set.icon} alt="题库图标" className="h-6 w-6 object-cover rounded" />
+                          ) : (
+                            set.icon || '📝'
+                          )}
+                        </div>
                         <div className="flex-grow">
                           <h3 className="font-medium text-gray-900 truncate">{set.title}</h3>
                           <p className="text-sm text-gray-500 truncate">{set.category}</p>
@@ -814,7 +820,13 @@ const AdminQuestionSetInfo: React.FC = () => {
               ) : (
                 <div className="space-y-6">
                   <div className="flex items-start">
-                    <div className="mr-4 text-4xl">{selectedSet.icon || '📝'}</div>
+                    <div className="mr-4 text-4xl">
+                      {selectedSet.icon && selectedSet.icon !== 'default' && !selectedSet.icon.startsWith('📝') && !selectedSet.icon.startsWith('📚') && !selectedSet.icon.startsWith('💻') && !selectedSet.icon.startsWith('🔍') && !selectedSet.icon.startsWith('🧩') && !selectedSet.icon.startsWith('⚙️') && !selectedSet.icon.startsWith('📊') && !selectedSet.icon.startsWith('🔐') && !selectedSet.icon.startsWith('📡') && !selectedSet.icon.startsWith('🛠️') && !selectedSet.icon.startsWith('🧪') && !selectedSet.icon.startsWith('🔬') && !selectedSet.icon.startsWith('📱') && !selectedSet.icon.startsWith('🌐') && !selectedSet.icon.startsWith('🤖') && !selectedSet.icon.startsWith('🧠') && !selectedSet.icon.startsWith('🔥') && !selectedSet.icon.startsWith('💾') && !selectedSet.icon.startsWith('⚡') && !selectedSet.icon.startsWith('☁️') ? (
+                        <img src={selectedSet.icon} alt="题库图标" className="h-10 w-10 object-cover rounded" />
+                      ) : (
+                        selectedSet.icon || '📝'
+                      )}
+                    </div>
                     <div>
                       <h3 className="text-xl font-medium text-gray-900">{selectedSet.title}</h3>
                       <p className="text-sm text-gray-500">{selectedSet.category}</p>
