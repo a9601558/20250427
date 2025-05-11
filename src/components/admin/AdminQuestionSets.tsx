@@ -383,12 +383,24 @@ const AdminQuestionSets = () => {
   // 点击编辑题库按钮
   const handleEditClick = (questionSet) => {
     setCurrentQuestionSet(questionSet);
+    
+    // 检查图标是否为图片URL
+    const isIconImage = questionSet.icon && (questionSet.icon.startsWith('/') || questionSet.icon.includes('http'));
+    
+    // 如果图标是图片URL，设置预览
+    if (isIconImage) {
+      setIconImagePreview(questionSet.icon);
+      // 不设置iconImageFile，因为这是一个已存在的图片URL
+    } else {
+      setIconImagePreview(null);
+    }
+    
     setFormData({
       id: questionSet.id,
       title: questionSet.title,
       description: questionSet.description || '',
       category: questionSet.category,
-      icon: questionSet.icon || '📝',
+      icon: isIconImage ? '' : (questionSet.icon || '📝'), // 如果是图片URL，不设置emoji图标
       isPaid: questionSet.isPaid || false,
       price: questionSet.price || 29.9,
       trialQuestions: questionSet.trialQuestions || 0,
@@ -447,11 +459,52 @@ const AdminQuestionSets = () => {
       const response = await questionSetApi.updateQuestionSet(formData.id, updatedQuestionSet);
       
       if (response.success && response.data) {
+        // 如果有上传新图片，处理图片上传
+        if (iconImageFile) {
+          try {
+            const imageFormData = new FormData();
+            imageFormData.append('image', iconImageFile);
+            imageFormData.append('questionSetId', formData.id);
+            
+            const uploadResponse = await fetch('/api/admin/upload/card-image', {
+              method: 'POST',
+              body: imageFormData,
+              credentials: 'include'
+            });
+            
+            if (!uploadResponse.ok) {
+              console.warn('图片上传失败，但题库已更新');
+              showStatusMessage('warning', '题库已更新，但图片上传失败');
+            } else {
+              const uploadData = await uploadResponse.json();
+              if (uploadData.success) {
+                console.log('题库图片上传成功:', uploadData.data.imageUrl);
+                showStatusMessage('success', '题库和图标更新成功');
+              } else {
+                showStatusMessage('warning', '题库已更新，但图片上传失败');
+              }
+            }
+          } catch (uploadError) {
+            console.error('上传图片出错:', uploadError);
+            showStatusMessage('warning', '题库已更新，但图片上传失败');
+          }
+        } else {
+          // 没有上传新图片，正常更新成功
+          showStatusMessage('success', '题库更新成功');
+        }
+        
         // 更新题目数量
         await updateQuestionCount(formData.id);
         
-        showStatusMessage('success', '题库更新成功');
         setShowEditForm(false);
+        
+        // 重置图片相关状态
+        setIconImagePreview(null);
+        setIconImageFile(null);
+        if (iconImageInputRef.current) {
+          iconImageInputRef.current.value = '';
+        }
+        
         await loadQuestionSets();  // 重新加载全部题库
       } else {
         showStatusMessage('error', `更新题库失败: ${response.error || '未知错误'}`);
@@ -933,7 +986,13 @@ const AdminQuestionSets = () => {
           >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center">
-                <span className="text-2xl mr-2">{questionSet.icon || '📝'}</span>
+                <div className="w-8 h-8 mr-2 flex items-center justify-center text-2xl overflow-hidden">
+                  {questionSet.icon && (questionSet.icon.startsWith('/') || questionSet.icon.includes('http')) ? (
+                    <img src={questionSet.icon} alt={questionSet.title} className="w-full h-full object-cover rounded-md" />
+                  ) : (
+                    <span>{questionSet.icon || '📝'}</span>
+                  )}
+                </div>
                 <h3 className="text-lg font-medium">{questionSet.title}</h3>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -1449,7 +1508,7 @@ const AdminQuestionSets = () => {
               <div className="flex items-center space-x-4">
                 <div className="flex-grow">
                   <label className="flex justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
-                    <span>{iconImageFile ? '更换图片' : '选择图片'}</span>
+                    <span>{iconImageFile ? '更换图片' : (iconImagePreview ? '更换图片' : '选择图片')}</span>
                     <input
                       type="file"
                       className="sr-only"
@@ -1667,6 +1726,49 @@ const AdminQuestionSets = () => {
                 ))}
               </div>
             </Form.Item>
+            
+            {/* 添加自定义图片上传区域 */}
+            <div className="mb-4">
+              <label className="block mb-2 text-sm font-medium text-gray-700">
+                自定义图标图片 <span className="text-xs text-gray-500">(可选，会替代emoji图标)</span>
+              </label>
+              
+              <div className="flex items-center space-x-4">
+                <div className="flex-grow">
+                  <label className="flex justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
+                    <span>{iconImageFile ? '更换图片' : (iconImagePreview ? '更换图片' : '选择图片')}</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      ref={iconImageInputRef}
+                      onChange={handleIconImageSelect}
+                    />
+                  </label>
+                </div>
+                
+                {iconImagePreview && (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-16 h-16 border rounded-md overflow-hidden">
+                      <img 
+                        src={iconImagePreview} 
+                        alt="图标预览" 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveIconImage}
+                      className="p-1 text-red-600 hover:text-red-800"
+                    >
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             
             <Form.Item 
               label="付费设置" 

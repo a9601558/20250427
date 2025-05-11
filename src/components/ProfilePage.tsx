@@ -1203,6 +1203,15 @@ const ProfilePage: React.FC = () => {
     try {
       console.log('[ProfilePage] 开始合并本地和服务器进度数据');
       
+      // 检查是否在登录后短时间内 - 登录后优先使用本地数据
+      const lastLoginTime = parseInt(sessionStorage.getItem('last_login_time') || '0', 10);
+      const now = Date.now();
+      const isRecentLogin = now - lastLoginTime < 5 * 60 * 1000; // 登录后5分钟内优先使用本地数据
+      
+      if (isRecentLogin) {
+        console.log('[ProfilePage] 检测到登录状态，在合并时优先使用本地进度数据');
+      }
+      
       // 创建服务器记录的映射（按题库ID和问题ID）
       const serverRecordMap = new Map<string, ProgressRecord>();
       serverRecords.forEach(record => {
@@ -1217,11 +1226,15 @@ const ProfilePage: React.FC = () => {
             const questionId = `question_${answer.index || index}`; // 使用问题索引作为ID
             const key = `${questionSetId}_${questionId}`;
             
-            // 如果本地记录不存在于服务器记录中，或者比服务器记录更新，则添加
+            // 如果本地记录不存在于服务器记录中，或者比服务器记录更新，或者在登录后短时间内，则添加本地记录
             const serverRecord = serverRecordMap.get(key);
             const localUpdatedAt = new Date(data.lastUpdated || 0);
             
-            if (!serverRecord || (serverRecord.createdAt && localUpdatedAt > new Date(serverRecord.createdAt))) {
+            // 登录后优先使用本地数据 或 本地数据比服务器新
+            if (!serverRecord || 
+                (serverRecord.createdAt && localUpdatedAt > new Date(serverRecord.createdAt)) ||
+                (isRecentLogin && data.lastUpdated)) {
+              
               // 创建一个新记录替换或添加到结果中
               const newRecord: ProgressRecord = {
                 id: serverRecord?.id || `local_${key}`,
@@ -1640,6 +1653,11 @@ const ProfilePage: React.FC = () => {
     
     console.log('[ProfilePage] 用户ID:', user.id, '，Socket已连接:', socket.connected);
     
+    // 记录登录时间，用于保护缓存清理
+    const now = Date.now();
+    sessionStorage.setItem('last_login_time', now.toString());
+    console.log('[ProfilePage] 记录登录时间:', new Date(now).toLocaleTimeString());
+    
     // 使用ref避免重复加载
     if (initialDataLoadRef.current) {
       console.log('[ProfilePage] 初始数据已加载，跳过');
@@ -1678,11 +1696,11 @@ const ProfilePage: React.FC = () => {
   const handleProgressUpdate = useCallback((data: ProgressData) => {
     console.log('[ProfilePage] 收到进度更新:', data);
     
-    // 使用节流控制更新频率 - 10秒内不重复触发完整刷新
+    // 使用节流控制更新频率 - 60秒内不重复触发完整刷新
     const now = Date.now();
     const lastUpdate = lastProgressUpdateTimeRef.current;
     
-    if (now - lastUpdate < 10000) { // 10秒内不重复刷新
+    if (now - lastUpdate < 60000) { // 60秒内不重复刷新，从10秒延长到60秒
       console.log('[ProfilePage] 进度更新过于频繁，仅更新本地数据');
       // 仅更新当前进度数据，不触发完整数据重新加载
       setProgress(prevProgress => {
@@ -1782,6 +1800,16 @@ const ProfilePage: React.FC = () => {
       const cacheData = JSON.parse(cache);
       if (!cacheData[user.id]) return;
       
+      // 检查是否正在登录中 - 添加登录保护机制
+      const lastLoginTime = parseInt(sessionStorage.getItem('last_login_time') || '0', 10);
+      const now = Date.now();
+      const isRecentLogin = now - lastLoginTime < 5 * 60 * 1000; // 登录后5分钟内不清理缓存
+      
+      if (isRecentLogin) {
+        console.log('[ProfilePage] 检测到最近登录，跳过缓存清理以保护学习进度');
+        return;
+      }
+      
       let hasUpdates = false;
       const userCache = cacheData[user.id];
       
@@ -1790,12 +1818,17 @@ const ProfilePage: React.FC = () => {
         const record = userCache[questionSetId];
         const cacheAge = Date.now() - record.timestamp;
         
-        // 缓存失效条件：
-        // 1. 缓存超过24小时
-        // 2. 题库已过期（剩余天数 <= 0）
-        if (cacheAge > 86400000 || (record.remainingDays !== null && record.remainingDays <= 0)) {
+        // 修改缓存失效条件，增加保留期：
+        // 1. 只有缓存超过7天(604800000毫秒)才清除
+        // 2. 题库已过期（剩余天数 <= 0）且过期超过24小时
+        const isExcessivelyOld = cacheAge > 604800000; // 7天
+        const isExpiredLongAgo = record.remainingDays !== null && 
+                               record.remainingDays <= 0 && 
+                               cacheAge > 86400000; // 过期且超过24小时
+        
+        if (isExcessivelyOld || isExpiredLongAgo) {
           console.log(`[ProfilePage] 清理过期缓存 ${questionSetId}`, 
-            cacheAge > 86400000 ? '缓存超时' : '题库已过期');
+            isExcessivelyOld ? '缓存超时(7天)' : '题库已过期且超过24小时');
           delete userCache[questionSetId];
           hasUpdates = true;
         }
