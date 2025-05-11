@@ -132,8 +132,23 @@ const HomePage: React.FC = () => {
   // 处理题库卡片点击，开始练习
   const handleStartQuiz = useCallback((set: PreparedQuestionSet) => {
     if (canMakeRequest()) {
-      // 导航到练习页面
-      navigate(`/practice/${set.id}`);
+      // 确保ID格式正确
+      const formattedId = set.id.trim();
+      
+      // 检查是否是试用模式（没有完全访问权限）
+      const isTrial = !set.hasAccess && set.isPaid && set.trialQuestions && set.trialQuestions > 0;
+      
+      console.log(`[HomePage] 导航到练习页面: ${formattedId}, 模式: ${isTrial ? '试用' : '正常'}`);
+      
+      // 使用正确的路径格式导航到练习页面，包含试用模式参数
+      if (isTrial) {
+        navigate({
+          pathname: `/practice/${formattedId}`,
+          search: `?mode=trial&t=${Date.now()}`  // 添加试用模式标记和时间戳
+        });
+      } else {
+        navigate(`/practice/${formattedId}`);
+      }
     } else {
       toast.warning('请求过于频繁，请稍后再试');
     }
@@ -283,14 +298,19 @@ const HomePage: React.FC = () => {
     if (!showWelcome) return null;
     
     return (
-      <div className="mb-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl text-white p-6 shadow-md relative overflow-hidden">
-        {/* Background decoration */}
-        <div className="absolute right-0 top-0 -mt-4 -mr-4 w-24 h-24 rounded-full bg-white opacity-10"></div>
+      <div className="mb-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl text-white p-6 shadow-lg relative overflow-hidden">
+        {/* Enhanced background decorations */}
+        <div className="absolute right-0 top-0 -mt-4 -mr-4 w-24 h-24 rounded-full bg-white opacity-10 animate-pulse"></div>
         <div className="absolute left-0 bottom-0 -mb-8 -ml-8 w-32 h-32 rounded-full bg-white opacity-10"></div>
+        <div className="absolute right-1/4 bottom-0 w-40 h-40 rounded-full bg-blue-400 opacity-5 blur-2xl"></div>
+        
+        {/* Decorative elements */}
+        <div className="absolute top-1/2 left-3/4 w-20 h-20 rounded-full bg-indigo-300 opacity-10 blur-xl"></div>
+        <div className="absolute bottom-1/3 right-1/3 w-16 h-16 rounded-full bg-blue-200 opacity-20 blur-md animate-pulse"></div>
         
         <button 
           onClick={() => setShowWelcome(false)} 
-          className="absolute top-2 right-2 text-white/80 hover:text-white"
+          className="absolute top-2 right-2 text-white/80 hover:text-white transition-colors z-10"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -298,18 +318,22 @@ const HomePage: React.FC = () => {
         </button>
             
         <div className="relative z-10">
-          <h1 className="text-2xl font-bold mb-2">{homeContent.welcomeTitle}</h1>
-          <p className="text-blue-100 max-w-2xl mb-4">{homeContent.welcomeDescription}</p>
+          <h1 className="text-2xl font-bold mb-2 text-shadow">
+            {homeContent.welcomeTitle || "欢迎来到在线题库"}
+          </h1>
+          <p className="text-blue-100 max-w-2xl mb-4">
+            {homeContent.welcomeDescription || "选择下方题库开始练习，提高您的知识水平"}
+          </p>
           
           {recommendedSets.length > 0 && (
-            <div>
+            <div className="animate-fadeIn">
               <h3 className="text-sm font-semibold text-blue-200 mb-3">精选题库</h3>
               <div className="flex flex-wrap gap-2">
                 {recommendedSets.map(set => (
                   <button 
                     key={set.id}
                     onClick={() => handleStartQuiz(set)}
-                    className="bg-white/20 hover:bg-white/30 text-white rounded-lg px-3 py-2 text-sm transition-colors"
+                    className="bg-white/20 hover:bg-white/30 text-white rounded-lg px-3 py-2 text-sm transition-colors transform hover:scale-105"
                   >
                     {set.title}
                   </button>
@@ -318,6 +342,9 @@ const HomePage: React.FC = () => {
             </div>
           )}
         </div>
+        
+        {/* Animated highlight effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-shimmer"></div>
       </div>
     );
   };

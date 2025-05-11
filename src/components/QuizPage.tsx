@@ -1566,7 +1566,7 @@ interface IQuestionSet {
 }
 
 function QuizPage(): JSX.Element {
-  const { questionSetId } = useParams<{ questionSetId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, hasAccessToQuestionSet, syncAccessRights, updateUser } = useUser();
@@ -1710,10 +1710,10 @@ function QuizPage(): JSX.Element {
         const newAccessRights: AccessRights = {};
         
         // 如果questionSetId存在，则检查当前题库
-        if (questionSetId) {
+        if (id) {
           // 保留当前题库的权限，后续会重新检查
-          if (accessRights && accessRights[questionSetId]) {
-            newAccessRights[questionSetId] = accessRights[questionSetId];
+          if (accessRights && accessRights[id]) {
+            newAccessRights[id] = accessRights[id];
           }
         }
         
@@ -1723,7 +1723,7 @@ function QuizPage(): JSX.Element {
     } catch (e) {
       console.error('[QuizPage] 清除权限缓存出错:', e);
     }
-  }, [questionSetId]);
+  }, [id]);
   
   // 修改保存权限函数，确保准确保存
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
@@ -2052,7 +2052,7 @@ function QuizPage(): JSX.Element {
   
   // 获取题库和题目数据
   useEffect(() => {
-    if (!questionSetId) return;
+    if (!id) return;
     
     const fetchQuestionSet = async () => {
       setQuizStatus({ ...quizStatus, loading: true });
@@ -2067,7 +2067,7 @@ function QuizPage(): JSX.Element {
         
         // 检查URL中的trial参数，支持两种形式："?mode=trial" 或 "?trial=true"
         // 这样可以确保向后兼容性
-        const isExplicitTrialMode = mode === 'trial' || urlParams.get('trial') === 'true';
+        const isExplicitTrialMode = mode === 'trial' || urlParams.get('trial') === 'true' || urlParams.get('mode') === 'trial';
         
         // 增强调试日志
         console.log('[QuizPage] URL 参数解析:', {
@@ -2081,28 +2081,36 @@ function QuizPage(): JSX.Element {
         });
         
         // 获取题库详情 - 先从API缓存获取
-        const response = await questionSetApi.getQuestionSetById(questionSetId);
+        // 尝试使用 getQuestionSetById 或 getById 方法，根据可用性
+        let apiResponse;
+        try {
+          // 首先尝试使用 getQuestionSetById 方法
+          apiResponse = await (questionSetApi as any).getQuestionSetById?.(id) || await questionSetApi.getById(id);
+        } catch (err) {
+          // 如果第一个方法失败，尝试使用 getById 方法
+          apiResponse = await questionSetApi.getById(id);
+        }
         
         // 检查是否有疑似数据问题
         let questionSetData: IQuestionSet | null = null;
         let directApiData = null;
         
-        if (response.success && response.data) {
+        if (apiResponse.success && apiResponse.data) {
           // 初步处理题库数据
           questionSetData = {
-            id: response.data.id,
-            title: response.data.title,
-            description: response.data.description,
-            category: response.data.category,
-            icon: response.data.icon,
-            questions: getQuestions(response.data),
-            isPaid: response.data.isPaid || false,
-            price: response.data.price || 0,
-            isFeatured: response.data.isFeatured || false,
-            featuredCategory: response.data.featuredCategory,
+            id: apiResponse.data.id,
+            title: apiResponse.data.title,
+            description: apiResponse.data.description,
+            category: apiResponse.data.category,
+            icon: apiResponse.data.icon,
+            questions: getQuestions(apiResponse.data),
+            isPaid: apiResponse.data.isPaid || false,
+            price: apiResponse.data.price || 0,
+            isFeatured: apiResponse.data.isFeatured || false,
+            featuredCategory: apiResponse.data.featuredCategory,
             hasAccess: false,
             trialQuestions: 0, // 先初始化为0，后面再设置
-            questionCount: getQuestions(response.data).length,
+            questionCount: getQuestions(apiResponse.data).length,
             createdAt: new Date(),
             updatedAt: new Date()
           };
@@ -2118,7 +2126,7 @@ function QuizPage(): JSX.Element {
               // 直接从API获取最新数据，绕过可能的缓存
               const timestamp = new Date().getTime();
               const directResponse = await axios.get(
-                `${API_BASE_URL}/question-sets/${questionSetId}?t=${timestamp}`, 
+                `${API_BASE_URL}/question-sets/${id}?t=${timestamp}`, 
                 { 
                   headers: { 
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -2154,7 +2162,7 @@ function QuizPage(): JSX.Element {
           setQuizStatus({ ...quizStatus, isInTrialMode: isExplicitTrialMode });
           
           // 改进对试用题目数量的确定逻辑
-          const trialQuestionsFromApi = directApiData?.trialQuestions || response.data.trialQuestions;
+          const trialQuestionsFromApi = directApiData?.trialQuestions || apiResponse.data.trialQuestions;
           let determinedTrialCount: number;
           
           if (isExplicitTrialMode) {
@@ -2222,9 +2230,9 @@ function QuizPage(): JSX.Element {
               document.title = `${questionSetData.title} (试用模式) - 答题系统`;
               
               // 保存试用模式状态
-              sessionStorage.setItem(`quiz_${questionSetId}_trial_mode`, 'true');
+              sessionStorage.setItem(`quiz_${id}_trial_mode`, 'true');
               if (determinedTrialCount > 0) {
-                sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(determinedTrialCount));
+                sessionStorage.setItem(`quiz_${id}_trial_limit`, String(determinedTrialCount));
               }
               
               // 只显示提示，不显示购买窗口
@@ -2236,7 +2244,7 @@ function QuizPage(): JSX.Element {
           }
 
           // 使用题库中包含的题目数据
-          const questionsData = getQuestions(response.data);
+          const questionsData = getQuestions(apiResponse.data);
           if (questionsData.length > 0) {
             console.log("获取到题目:", questionsData.length);
             
@@ -2320,7 +2328,7 @@ function QuizPage(): JSX.Element {
             try {
               // 使用更持久的key格式，包含用户ID以便在用户退出登录后仍能识别
               const userIdStr = user?.id ? `_${user.id}` : '';
-              const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
+              const localProgressKey = `quiz_progress${userIdStr}_${id}`;
               const savedProgressStr = localStorage.getItem(localProgressKey);
               
               if (savedProgressStr) {
@@ -2382,7 +2390,7 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 恢复本地进度后，请求服务器进度以确保最新');
                     socket.emit('progress:get', {
                       userId: user.id,
-                      questionSetId
+                      questionSetId: id
                     });
                   }
                 } else {
@@ -2396,7 +2404,7 @@ function QuizPage(): JSX.Element {
                     console.log('[QuizPage] 请求服务器进度数据');
                     socket.emit('progress:get', {
                       userId: user.id,
-                      questionSetId
+                      questionSetId: id
                     });
                   }
                 }
@@ -2411,7 +2419,7 @@ function QuizPage(): JSX.Element {
                   console.log('[QuizPage] 请求服务器进度数据');
                   socket.emit('progress:get', {
                     userId: user.id,
-                    questionSetId
+                    questionSetId: id
                   });
                 }
               }
@@ -2438,7 +2446,7 @@ function QuizPage(): JSX.Element {
     };
     
     fetchQuestionSet();
-  }, [questionSetId, socket, user]);
+  }, [id, socket, user]);
   
   // 在加载完题目数据后设置questionStartTime
   useEffect(() => {
@@ -2505,7 +2513,7 @@ function QuizPage(): JSX.Element {
     // 添加进度删除事件处理
     const handleProgressDelete = (data: {questionSetId: string}) => {
       console.log('[QuizPage] 收到progress:delete事件:', data);
-      if (data.questionSetId === questionSetId) {
+      if (data.questionSetId === id) {
         // 如果删除的是当前题库的进度，重置本地状态
         console.log('[QuizPage] 当前题库进度被删除，重置状态');
         setAnsweredQuestions([]);
@@ -2520,7 +2528,7 @@ function QuizPage(): JSX.Element {
         // 如果有本地存储，也清除
         // 使用带用户ID的key查找本地进度
         const userIdStr = user?.id ? `_${user.id}` : '';
-        const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
+        const localProgressKey = `quiz_progress${userIdStr}_${id}`;
         localStorage.removeItem(localProgressKey);
         
         // 通知用户
@@ -2540,7 +2548,7 @@ function QuizPage(): JSX.Element {
       (socket as Socket).off('progress:data', handleProgressData);
       (socket as Socket).off('progress:delete', handleProgressDelete);
     };
-  }, [socket, user?.id, questionSetId]);
+  }, [socket, user?.id, id]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
@@ -2910,7 +2918,7 @@ function QuizPage(): JSX.Element {
   
   // 修改syncProgressToServer函数为手动保存函数
   const saveProgressManually = useCallback(async () => {
-    if (!user?.id || !questionSetId || !socket) {
+    if (!user?.id || !id || !socket) {
       toast.error('保存失败，请确认您已登录');
       return;
     }
@@ -2923,7 +2931,7 @@ function QuizPage(): JSX.Element {
       // 准备要发送的进度数据包
       const progressBundle = {
         userId: user.id,
-        questionSetId,
+        questionSetId: id,
         lastQuestionIndex: currentQuestionIndex,
         answeredQuestions,
         timeSpent: quizTotalTime,
@@ -2955,7 +2963,7 @@ function QuizPage(): JSX.Element {
       try {
         // 使用更持久的key格式，包含用户ID以便在用户退出登录后仍能识别
         const userIdStr = user?.id ? `_${user.id}` : '';
-        const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
+        const localProgressKey = `quiz_progress${userIdStr}_${id}`;
         const localProgressUpdate = {
           lastQuestionIndex: currentQuestionIndex,
           answeredQuestions,
@@ -2985,7 +2993,7 @@ function QuizPage(): JSX.Element {
     } finally {
       setIsSaving(false);
     }
-  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, correctAnswers, questions.length]);
+  }, [user?.id, id, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, correctAnswers, questions.length]);
   
   // 修改handleAnswerSubmit函数，不再自动同步，移除阻塞行为
   const handleAnswerSubmit = useCallback(async (
@@ -2997,7 +3005,7 @@ function QuizPage(): JSX.Element {
     console.log(`[QuizPage] handleAnswerSubmit: 开始处理答案提交 - 题目ID=${question.id}, 索引=${questionIndex}`);
     
     try {
-      if (!questionSetId || !question.id) {
+      if (!id || !question.id) {
         console.error('[QuizPage] 题目ID或题库ID缺失');
         return;
       }
@@ -3038,7 +3046,7 @@ function QuizPage(): JSX.Element {
       
       // 更新本地存储
       if (questionSet) {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const localProgressKey = `quiz_progress_${id}`;
         const localProgressUpdate = {
           lastQuestionIndex: questionIndex,
           answeredQuestions: updatedAnsweredQuestions,
@@ -3066,7 +3074,7 @@ function QuizPage(): JSX.Element {
     }
   }, [
     answeredQuestions, 
-    questionSetId, 
+    id, 
     questionStartTime, 
     questions.length, 
     questionSet
@@ -3404,7 +3412,7 @@ function QuizPage(): JSX.Element {
     }
   }, [
     questionSet, 
-    questionSetId, 
+    id, 
     originalQuestions, 
     saveProgressManually, 
     navigate,
@@ -4171,7 +4179,7 @@ function QuizPage(): JSX.Element {
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
             hasFullAccess={true} // 始终允许访问所有题目，确保流畅体验
-            questionSetId={questionSetId || ''}
+            questionSetId={id || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
             isSubmittingAnswer={false} // 移除提交锁定

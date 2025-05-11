@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './src/**/*.{js,jsx,ts,tsx}',
+    './public/index.html',
   ],
   theme: {
     extend: {
@@ -34,7 +34,37 @@ export default {
           700: '#1d4ed8',
         },
       },
+      animation: {
+        'shimmer': 'shimmer 2s infinite',
+        'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fadeIn': 'fadeIn 0.5s ease-in-out',
+      },
+      keyframes: {
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
+        fadeIn: {
+          '0%': { opacity: 0 },
+          '100%': { opacity: 1 },
+        }
+      },
+      textShadow: {
+        DEFAULT: '0 2px 4px rgba(0, 0, 0, 0.25)',
+      },
     },
   },
-  plugins: [],
-} 
+  plugins: [
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.text-shadow': {
+          'text-shadow': '0 2px 4px rgba(0, 0, 0, 0.25)',
+        },
+        '.text-shadow-lg': {
+          'text-shadow': '0 4px 8px rgba(0, 0, 0, 0.3)',
+        },
+      };
+      addUtilities(newUtilities);
+    },
+  ],
+}; 
