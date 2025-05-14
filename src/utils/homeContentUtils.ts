@@ -48,6 +48,15 @@ export const defaultHomeContent: HomeContentData = {
 };
 
 /**
+ * 获取当前用户的存储前缀
+ * 为每个用户数据创建隔离的命名空间
+ */
+export const getUserStoragePrefix = (): string => {
+  const activeUserId = localStorage.getItem('activeUserId');
+  return activeUserId ? `user_${activeUserId}_` : '';
+};
+
+/**
  * 将数据库格式转换为前端格式
  */
 export const convertDbToFrontend = (dbData: HomeContentDataDB): HomeContentData => {
@@ -115,14 +124,20 @@ export const saveHomeContentToLocalStorage = (
       dbFormat._savedByAdmin = true;
     }
     
-    // 保存到localStorage
-    localStorage.setItem('home_content_data', JSON.stringify(dbFormat));
-    localStorage.setItem('home_content_updated', String(Date.now()));
+    // 获取用户存储前缀
+    const userPrefix = getUserStoragePrefix();
+    
+    // 保存到localStorage，使用用户前缀隔离数据
+    localStorage.setItem(`${userPrefix}home_content_data`, JSON.stringify(dbFormat));
+    localStorage.setItem(`${userPrefix}home_content_updated`, String(Date.now()));
+    
+    // 全局缓存，用于跨组件共享最新更新
+    localStorage.setItem('global_home_content_last_update', String(Date.now()));
     
     // 设置会话标记，便于其他页面检测更改
     sessionStorage.setItem('adminSavedContentTimestamp', String(Date.now()));
     
-    console.log('[HomeContentUtils] 内容已保存到localStorage:', dbFormat);
+    console.log('[HomeContentUtils] 内容已保存到localStorage，用户前缀:', userPrefix);
   } catch (e) {
     console.error('[HomeContentUtils] 保存内容到localStorage失败:', e);
   }
@@ -136,7 +151,28 @@ export const getHomeContentFromLocalStorage = (
   format: 'frontend' | 'db' = 'frontend'
 ): HomeContentData | HomeContentDataDB | null => {
   try {
-    const storedContent = localStorage.getItem('home_content_data');
+    // 获取用户存储前缀
+    const userPrefix = getUserStoragePrefix();
+    
+    // 尝试从用户特定存储中获取内容
+    let storedContent = localStorage.getItem(`${userPrefix}home_content_data`);
+    
+    // 如果用户特定内容不存在，则尝试获取通用内容（向后兼容）
+    if (!storedContent) {
+      console.log('[HomeContentUtils] 未找到用户特定内容，尝试获取通用内容');
+      storedContent = localStorage.getItem('home_content_data');
+      
+      // 如果找到通用内容，将其保存为用户特定内容
+      if (storedContent && userPrefix) {
+        localStorage.setItem(`${userPrefix}home_content_data`, storedContent);
+        const updateTime = localStorage.getItem('home_content_updated');
+        if (updateTime) {
+          localStorage.setItem(`${userPrefix}home_content_updated`, updateTime);
+        }
+        console.log('[HomeContentUtils] 已将通用内容迁移到用户特定存储');
+      }
+    }
+    
     if (!storedContent) return null;
     
     const parsedContent = JSON.parse(storedContent);

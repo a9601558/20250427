@@ -17,7 +17,8 @@ import {
   convertFrontendToDb,
   getHomeContentFromLocalStorage,
   saveHomeContentToLocalStorage,
-  triggerHomeContentUpdateEvent
+  triggerHomeContentUpdateEvent,
+  getUserStoragePrefix
 } from '../utils/homeContentUtils';
 
 // 添加自定义样式
@@ -716,18 +717,41 @@ const HomePage = (): JSX.Element => {
     }
   }, [navigate, setErrorMessage, socket, user]);
 
-  // Add getLocalAccessCache function before it's used
-  const getLocalAccessCache = useCallback(() => {
+  // Update getLocalAccessCache function to use user-specific prefix
+  const getLocalAccessCache = useCallback((): Record<string, any> => {
     try {
-      const cachedData = localStorage.getItem('question_set_access');
+      // Get user-specific prefix for storage
+      const userPrefix = getUserStoragePrefix();
+      const cacheKey = `${userPrefix}questionSetAccessCache`;
+      
+      // Try to get user-specific cache first
+      const cachedData = localStorage.getItem(cacheKey);
       if (cachedData) {
         return JSON.parse(cachedData) || {};
+      }
+      
+      // For backward compatibility, try the old global cache
+      const oldCachedData = localStorage.getItem('question_set_access');
+      if (oldCachedData && user?.id) {
+        try {
+          const oldCache = JSON.parse(oldCachedData);
+          // Extract just this user's data from the old format
+          if (oldCache[user.id]) {
+            // Migrate the old data to the new format
+            const newCache = oldCache[user.id];
+            localStorage.setItem(cacheKey, JSON.stringify(newCache));
+            console.log('[HomePage] 已将旧格式的缓存数据迁移到用户特定存储');
+            return newCache;
+          }
+        } catch (migrationError) {
+          console.error('[HomePage] 迁移旧缓存数据失败', migrationError);
+        }
       }
     } catch (error) {
       console.error('[HomePage] 读取本地缓存失败', error);
     }
     return {};
-  }, []);
+  }, [user?.id]);
 
   // 将 getCategorizedQuestionSets 函数移到组件内部，这样它可以访问 questionSets 状态
   const getCategorizedQuestionSets = useCallback(() => {
@@ -752,47 +776,74 @@ const HomePage = (): JSX.Element => {
   }, [filteredSets]);
 
   // Save access info to local storage
-  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string) => {
-    if (!user?.id) return;
-    
+  const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean, remainingDays: number | null, paymentMethod?: string): void => {
     try {
-      const cache = getLocalAccessCache();
-      const userId = user.id;
+      // Get user-specific prefix for storage
+      const userPrefix = getUserStoragePrefix();
+      const cacheKey = `${userPrefix}questionSetAccessCache`;
       
-      // 确保用户ID索引存在
-      if (!cache[userId]) {
-        cache[userId] = {};
+      // Get current cache
+      const cachedData = localStorage.getItem(cacheKey);
+      let cache: Record<string, any> = {};
+      
+      if (cachedData) {
+        try {
+          cache = JSON.parse(cachedData);
+        } catch (error) {
+          console.error('[HomePage] 解析缓存数据失败:', error);
+          cache = {};
+        }
       }
       
-      // 更新题库的访问信息
-      cache[userId][questionSetId] = {
+      // Update cache with new access information
+      cache[questionSetId] = {
         hasAccess,
         remainingDays,
         paymentMethod,
         timestamp: Date.now()
       };
       
-      // 保存回本地存储
-      localStorage.setItem('question_set_access', JSON.stringify(cache));
+      // Save back to localStorage with user prefix
+      localStorage.setItem(cacheKey, JSON.stringify(cache));
+      
+      console.log(`[HomePage] 已更新本地访问权限缓存: ${questionSetId}, 有权限: ${hasAccess}, 剩余天数: ${remainingDays}`);
     } catch (error) {
-      console.error('[HomePage] 保存本地缓存失败', error);
+      console.error('[HomePage] 保存访问权限到本地存储失败:', error);
     }
-  }, [user?.id, getLocalAccessCache]);
+  }, []);
   
   // 辅助函数：读取本地缓存的访问状态
-  const getAccessFromLocalCache = useCallback((questionSetId: string, userId: string | undefined) => {
-    if (!questionSetId || !userId) return null;
-    
+  const getAccessFromLocalCache = useCallback((questionSetId: string): { hasAccess: boolean, remainingDays: number | null, paymentMethod?: string } | null => {
     try {
-      const cache = getLocalAccessCache();
-      if (cache[userId] && cache[userId][questionSetId]) {
-        return cache[userId][questionSetId];
+      // Get user-specific prefix for storage
+      const userPrefix = getUserStoragePrefix();
+      const cacheKey = `${userPrefix}questionSetAccessCache`;
+      
+      const cachedData = localStorage.getItem(cacheKey);
+      if (!cachedData) return null;
+      
+      const cache = JSON.parse(cachedData);
+      const accessData = cache[questionSetId];
+      
+      if (!accessData) return null;
+      
+      // Verify data is not too old (24 hours max)
+      const now = Date.now();
+      if (accessData.timestamp && (now - accessData.timestamp) > 24 * 60 * 60 * 1000) {
+        console.log(`[HomePage] 缓存的访问权限数据已过期: ${questionSetId}`);
+        return null;
       }
-    } catch (e) {
-      console.error('[HomePage] 读取本地缓存失败:', e);
+      
+      return {
+        hasAccess: accessData.hasAccess,
+        remainingDays: accessData.remainingDays,
+        paymentMethod: accessData.paymentMethod
+      };
+    } catch (error) {
+      console.error('[HomePage] 从本地缓存获取访问权限失败:', error);
+      return null;
     }
-    return null;
-  }, [getLocalAccessCache]);
+  }, []);
   
   // 请求数据库直接检查权限 - 添加更强的验证机制
   const hasAccessInDatabase = useCallback(async (questionSetId: string): Promise<boolean> => {

@@ -7,6 +7,7 @@ import { useUser } from '../contexts/UserContext';
 import { homepageService } from '../services/api';
 import { HomeContent } from '../types';
 import { useSocket } from '../contexts/SocketContext';
+import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -148,18 +149,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Simplified footer text fetching that checks if HomePage has already fetched content
   const fetchFooterText = useCallback(async (forceRefresh = false) => {
     try {
+      // Get user-specific prefix
+      const userPrefix = getUserStoragePrefix();
+      
       // First check if HomePage has already fetched the content
       const homePageContentTimestamp = localStorage.getItem('global_home_content_last_update');
-      const cachedContent = localStorage.getItem('home_content_data');
+      // Use user-specific cache or fallback to global cache
+      const cachedContent = getHomeContentFromLocalStorage('frontend');
       
       // If we have recent cache and it contains footer text, use it
       if (!forceRefresh && homePageContentTimestamp && cachedContent) {
         try {
-          const parsedContent = JSON.parse(cachedContent);
-          if (parsedContent && parsedContent.footerText) {
-            console.log('[Layout] Using footer text from HomePage cache');
-            if (parsedContent.footerText !== footerText) {
-              setFooterText(parsedContent.footerText);
+          if (cachedContent && 'footerText' in cachedContent) {
+            console.log('[Layout] Using footer text from user-specific HomePage cache');
+            if (cachedContent.footerText !== footerText) {
+              setFooterText(cachedContent.footerText);
             }
             return;
           }
@@ -170,7 +174,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       // Prevent too frequent direct API requests
       if (!forceRefresh) {
-        const lastFetchTime = parseInt(sessionStorage.getItem('lastLayoutContentFetch') || '0');
+        const lastFetchKey = `${userPrefix}lastLayoutContentFetch`;
+        const lastFetchTime = parseInt(sessionStorage.getItem(lastFetchKey) || '0');
         const now = Date.now();
         
         // If HomePage has fetched within last 10 seconds or Layout has fetched within last 3 seconds, debounce
@@ -181,8 +186,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
       }
       
-      // Track this request
-      sessionStorage.setItem('lastLayoutContentFetch', Date.now().toString());
+      // Track this request with user-specific key
+      sessionStorage.setItem(`${userPrefix}lastLayoutContentFetch`, Date.now().toString());
       
       console.log('[Layout] Fetching footer text' + (forceRefresh ? ' (forced refresh)' : ''));
       

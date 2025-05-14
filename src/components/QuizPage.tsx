@@ -2158,6 +2158,7 @@ function QuizPage(): JSX.Element {
         const mode = urlParams.get('mode');
         const trialLimitParam = urlParams.get('trialLimit');
         const specificQuestions = urlParams.get('questions');
+        const lastQuestionParam = urlParams.get('lastQuestion'); // 添加对 lastQuestion 参数的解析
         
         // 检查URL中的trial参数，支持两种形式："?mode=trial" 或 "?trial=true"
         // 这样可以确保向后兼容性
@@ -2170,6 +2171,7 @@ function QuizPage(): JSX.Element {
           mode,
           trialLimitParam,
           specificQuestions,
+          lastQuestionParam, // 记录解析出的 lastQuestion 参数
           isExplicitTrialMode,
           rawParams: Array.from(urlParams.entries())
         });
@@ -2416,6 +2418,46 @@ function QuizPage(): JSX.Element {
               const userIdStr = user?.id ? `_${user.id}` : '';
               const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
               const savedProgressStr = localStorage.getItem(localProgressKey);
+              
+              // 优先检查URL参数中的lastQuestion
+              if (lastQuestionParam !== null) {
+                const lastQuestionIndex = parseInt(lastQuestionParam, 10);
+                if (!isNaN(lastQuestionIndex) && lastQuestionIndex >= 0 && lastQuestionIndex < processedQuestions.length) {
+                  console.log(`[QuizPage] 从URL参数 lastQuestion 获取起始题目: ${lastQuestionIndex + 1}`);
+                  setCurrentQuestionIndex(lastQuestionIndex);
+                  
+                  // 如果同时有本地进度，只用其回答记录，不使用其索引信息
+                  if (savedProgressStr) {
+                    try {
+                      const savedProgress = JSON.parse(savedProgressStr);
+                      if (savedProgress.answeredQuestions && Array.isArray(savedProgress.answeredQuestions)) {
+                        // 恢复已回答问题列表
+                        const validAnsweredQuestions = savedProgress.answeredQuestions
+                          .filter((q: any) => q.questionIndex !== undefined && q.questionIndex < processedQuestions.length)
+                          .map((q: any) => ({
+                            index: q.index || 0,
+                            questionIndex: q.questionIndex,
+                            isCorrect: q.isCorrect || false,
+                            selectedOption: q.selectedOption || ''
+                          }));
+                        
+                        console.log('[QuizPage] 将URL索引与本地回答记录合并:', validAnsweredQuestions.length, '道题');
+                        setAnsweredQuestions(validAnsweredQuestions);
+                        
+                        // 计算正确答题数
+                        const correctCount = validAnsweredQuestions.filter((q: any) => q.isCorrect).length;
+                        setCorrectAnswers(correctCount);
+                      }
+                    } catch (e) {
+                      console.error('[QuizPage] 解析本地进度失败:', e);
+                    }
+                  }
+                  
+                  return; // 已设置起始题目，无需继续处理本地存储逻辑
+                } else {
+                  console.warn(`[QuizPage] URL参数 lastQuestion 无效或超出范围: ${lastQuestionParam}`);
+                }
+              }
               
               if (savedProgressStr) {
                 const savedProgress = JSON.parse(savedProgressStr);

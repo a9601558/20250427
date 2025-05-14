@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import { refreshUserPurchases } from '../utils/paymentUtils';
 import { refreshTokenExpiry } from '../utils/authUtils';
 import { Socket } from 'socket.io-client';
+import { getUserStoragePrefix } from '../utils/homeContentUtils';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -771,7 +772,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!user?.id) return {};
       
       // 使用用户ID作为前缀获取特定用户的缓存
-      const userPrefix = `user_${user.id}_`;
+      const userPrefix = getUserStoragePrefix();
       const raw = localStorage.getItem(`${userPrefix}questionSetAccessCache`) || '{}';
       return JSON.parse(raw);
     } catch (e) {
@@ -787,7 +788,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!user?.id || !questionSetId) return;
       
       // 使用用户ID作为前缀
-      const userPrefix = `user_${user.id}_`;
+      const userPrefix = getUserStoragePrefix();
       const cache = getLocalAccessCache();
       
       // 直接存储访问信息，无需再按用户ID嵌套
@@ -827,125 +828,71 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // 增强的访问权限检查函数
   const hasAccessToQuestionSet = useCallback(async (questionSetId: string): Promise<boolean> => {
-    if (!user || !questionSetId) return false;
+    if (!user?.id) return false;
     
-    // 记录函数调用
-    console.log(`[hasAccessToQuestionSet] 检查题库权限: ${questionSetId}`);
-    
-    // 1. 首先检查本地缓存 (最快)
     try {
-      const cache = getLocalAccessCache();
-      if (cache[questionSetId]) {
-        const accessInfo = cache[questionSetId];
-        
-        // 检查缓存是否较新 (30分钟内)
-        const isCacheRecent = (Date.now() - accessInfo.timestamp) < 1800000;
-        
-        if (isCacheRecent && accessInfo.hasAccess) {
-          console.log(`[hasAccessToQuestionSet] 本地缓存显示有权限`);
-          return true;
-        }
-      }
-    } catch (error) {
-      console.error('[hasAccessToQuestionSet] 检查本地缓存出错:', error);
-    }
-    
-    // 2. 然后检查用户对象中的购买记录
-    if (user.purchases && user.purchases.length > 0) {
-      const purchase = user.purchases.find(p => {
-        // 标准化ID进行比较
-        const purchaseId = String(p.questionSetId || '').trim();
-        const targetId = String(questionSetId).trim();
-        
-        // 检查精确匹配或相似匹配
-        const exactMatch = purchaseId === targetId;
-        const partialMatch = (purchaseId.includes(targetId) || targetId.includes(purchaseId)) 
-          && Math.abs(purchaseId.length - targetId.length) <= 3
-          && purchaseId.length > 5 && targetId.length > 5;
-        
-        return exactMatch || partialMatch;
-      });
+      // Check local user-specific cache first
+      const userPrefix = getUserStoragePrefix();
+      const cacheKey = `${userPrefix}questionSetAccessCache`;
+      const cachedData = localStorage.getItem(cacheKey);
       
-      if (purchase) {
-        const now = new Date();
-        const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-        const isExpired = expiryDate && expiryDate <= now;
-        const isActive = purchase.status === 'active' || purchase.status === 'completed' || !purchase.status;
-        
-        const hasAccess = !isExpired && isActive;
-        if (hasAccess) {
-          console.log(`[hasAccessToQuestionSet] 用户购买记录显示有权限`);
-          
-          // 更新本地缓存
-          try {
-            let remainingDays = null;
-            if (expiryDate) {
-              const diffTime = expiryDate.getTime() - now.getTime();
-              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (cachedData) {
+        try {
+          const cache = JSON.parse(cachedData);
+          if (cache[questionSetId] && cache[questionSetId].hasAccess) {
+            // Check if the cached data is not too old (24 hours max)
+            const now = Date.now();
+            if (cache[questionSetId].timestamp && (now - cache[questionSetId].timestamp) <= 24 * 60 * 60 * 1000) {
+              console.log(`[UserContext] 本地缓存表明用户有 ${questionSetId} 的访问权限`);
+              return true;
             }
-            
-            saveAccessToLocalStorage(questionSetId, true, remainingDays);
-          } catch (error) {
-            console.error('[hasAccessToQuestionSet] 更新缓存出错:', error);
           }
-          
-          return true;
+        } catch (e) {
+          console.error('[UserContext] 解析缓存数据失败:', e);
         }
       }
-    }
-    
-    // 3. 检查已兑换题库的本地存储
-    try {
-      const userPrefix = `user_${user.id}_`;
-      const redeemedStr = localStorage.getItem(`${userPrefix}redeemedQuestionSetIds`);
-      if (redeemedStr) {
-        const redeemedIds = JSON.parse(redeemedStr);
-        if (Array.isArray(redeemedIds)) {
-          const normalizedId = String(questionSetId).trim();
-          const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedId);
-          
-          if (isRedeemed) {
-            console.log(`[hasAccessToQuestionSet] 本地兑换记录显示有权限`);
-            
-            // 更新本地缓存
-            saveAccessToLocalStorage(questionSetId, true, null);
+      
+      // If not in cache, check purchases from user object
+      if (user.purchases && user.purchases.length > 0) {
+        const purchase = user.purchases.find(p => 
+          String(p.questionSetId) === String(questionSetId) && 
+          (p.status === 'active' || p.status === 'completed')
+        );
+        
+        if (purchase) {
+          // Check expiry if exists
+          if (purchase.expiryDate) {
+            const expiryDate = new Date(purchase.expiryDate);
+            const now = new Date();
+            if (expiryDate > now) {
+              console.log(`[UserContext] 用户购买记录包含有效的 ${questionSetId} 访问权限`);
+              return true;
+            }
+          } else {
+            // No expiry date means unlimited access
+            console.log(`[UserContext] 用户购买记录包含 ${questionSetId} 的无限期访问权限`);
             return true;
           }
         }
       }
-    } catch (error) {
-      console.error('[hasAccessToQuestionSet] 检查兑换记录出错:', error);
-    }
-    
-    // 4. 最后，如果本地检查都失败，则直接检查数据库
-    try {
-      const dbAccess = await hasAccessInDatabase(questionSetId);
-      if (dbAccess) {
-        console.log(`[hasAccessToQuestionSet] 数据库显示有权限`);
-        
-        // 同步更新缓存和状态
-        saveAccessToLocalStorage(questionSetId, true, null);
-        
-        // 同步其他设备
-        if (socket) {
-          socket.emit('questionSet:accessUpdate', {
-            userId: user.id,
-            questionSetId: questionSetId,
-            hasAccess: true,
-            source: 'db_check'
-          });
+      
+      // For redeemed question sets
+      if (user.redeemCodes && user.redeemCodes.length > 0) {
+        const redeemCode = user.redeemCodes.find(r => String(r.questionSetId) === String(questionSetId));
+        if (redeemCode) {
+          console.log(`[UserContext] 用户已兑换 ${questionSetId} 的访问权限`);
+          return true;
         }
-        
-        return true;
       }
+      
+      // As a last resort, check with API
+      const response = await apiClient.get(`/api/purchases/check/${questionSetId}`, { userId: user.id });
+      return response?.success && response?.data?.hasAccess === true;
     } catch (error) {
-      console.error('[hasAccessToQuestionSet] 检查数据库出错:', error);
+      console.error('[UserContext] 检查题库访问权限时出错:', error);
+      return false;
     }
-    
-    // 所有检查都失败，无权限
-    console.log(`[hasAccessToQuestionSet] 无权限访问`);
-    return false;
-  }, [user, socket, hasAccessInDatabase]);
+  }, [user]);
 
   const getRemainingAccessDays = useCallback((questionSetId: string): number | null => {
     if (!user || !user.purchases) return null;
