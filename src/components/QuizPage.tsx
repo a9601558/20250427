@@ -9,6 +9,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { userProgressService, wrongAnswerService } from '../services/api';
 import { purchaseService, redeemCodeService, userService } from '../services/api';
 import { useUserProgress } from '../contexts/UserProgressContext';
+import { detectLoop, isBlocked } from '../utils/loopPrevention';
 import QuestionCard from './QuestionCard';
 import { toast } from 'react-toastify';
 import { Socket } from 'socket.io-client';
@@ -2222,31 +2223,34 @@ function QuizPage(): JSX.Element {
         showPurchasePage: false
       }));
     } else {
-      console.log(`[checkAccess] 用户无访问权限，检查试用状态`);
+      console.log(`[checkAccess] 用户无访问权限，设置基础试用状态`);
       saveAccessToLocalStorage(questionSet.id, false);
       
-      // 检查是否已达试用限制
-      const isTrialEnded = questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions;
-      console.log(`[checkAccess] 试用状态检查: 已答题=${answeredQuestions.length}, 试用限制=${questionSet.trialQuestions}, 试用结束=${isTrialEnded}`);
-      
-      // 一次性更新所有状态，避免竞争条件
+      // 只设置基础状态，试用结束状态由答题时动态检查
       setQuizStatus(prev => ({
         ...prev,
-        hasAccessToFullQuiz: false,
-        trialEnded: Boolean(isTrialEnded)
+        hasAccessToFullQuiz: false
+        // 不在这里设置trialEnded，让它由实际答题触发
       }));
     }
     
-    // 同步服务器检查
-    if (socket && user) {
-      socket.emit('questionSet:checkAccess', {
-        userId: user.id,
-        questionSetId: String(questionSet.id).trim()
-      });
+    // 同步服务器检查 - 添加防抖避免频繁socket通信
+    if (socket && user && !hasFullAccess) {
+      // 只有在没有完整访问权限时才发送socket检查，减少不必要的通信
+      const checkKey = `access_check_${questionSet.id}_${user.id}`;
+      if (!isBlocked(checkKey)) {
+        socket.emit('questionSet:checkAccess', {
+          userId: user.id,
+          questionSetId: String(questionSet.id).trim()
+        });
+        
+        // 记录这次检查，避免短时间内重复检查
+        detectLoop(checkKey, 1, 5000); // 5秒内最多1次检查
+      }
     }
   };
   
-  // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查
+  // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查 (优化：移除answeredQuestions.length避免频繁触发)
   useEffect(() => {
     console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${quizStatus.hasRedeemed}`);
     if (user && user.purchases) {
@@ -2263,7 +2267,7 @@ function QuizPage(): JSX.Element {
     }
     
     checkAccess();
-  }, [questionSet, user, answeredQuestions.length, user?.purchases?.length, quizStatus.hasRedeemed]);
+  }, [questionSet, user, user?.purchases?.length, quizStatus.hasRedeemed]); // 移除 answeredQuestions.length 避免每次答题时都触发
   
   // 修改trialEnded的判定逻辑，避免错误提示购买
   useEffect(() => {
@@ -3453,6 +3457,18 @@ function QuizPage(): JSX.Element {
         setHasUnsavedChanges(true);
       }
       
+      // 在答题后检查是否达到试用限制（仅对付费题库）
+      if (questionSet && isPaidQuiz(questionSet)) {
+        const hasRealTimeAccess = checkFullAccessFromAllSources();
+        if (!hasRealTimeAccess && !quizStatus.hasRedeemed) {
+          const isTrialEnded = questionSet.trialQuestions && updatedAnsweredQuestions.length >= questionSet.trialQuestions;
+          if (isTrialEnded) {
+            console.log(`[handleAnswerSubmit] 试用结束: 已答题=${updatedAnsweredQuestions.length}, 试用限制=${questionSet.trialQuestions}`);
+            setQuizStatus(prev => ({ ...prev, trialEnded: true }));
+          }
+        }
+      }
+
       console.log('[QuizPage] 答案提交处理完成');
     } catch (error) {
       console.error('[QuizPage] 提交答案出错:', error);
@@ -3462,7 +3478,9 @@ function QuizPage(): JSX.Element {
     questionSetId, 
     questionStartTime, 
     questions.length, 
-    questionSet
+    questionSet,
+    quizStatus.hasRedeemed,
+    checkFullAccessFromAllSources
   ]);
   
   // 添加一个新的函数来集中管理试用限制逻辑
