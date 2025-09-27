@@ -1,24 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
 import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
-import { throttleContentFetch, detectLoop, isBlocked, httpLimiter } from '../utils/loopPrevention';
+import { httpRateLimiter, detectLoop, isBlocked } from '../utils/loopPrevention';
 
 import { 
   HomeContentData, 
   HomeContentDataDB, 
   defaultHomeContent, 
   convertDbToFrontend, 
-  convertFrontendToDb,
   getHomeContentFromLocalStorage,
   saveHomeContentToLocalStorage,
-  triggerHomeContentUpdateEvent,
   getUserStoragePrefix
 } from '../utils/homeContentUtils';
 
@@ -268,7 +265,7 @@ const customStyles = `
 `;
 
 // 题库访问类型
-type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
+type AccessType = 'free' | 'trial' | 'paid' | 'expired' | 'redeemed';
 
 // 基础题库类型
 interface BaseQuestionSet {
@@ -303,9 +300,7 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   cardImage?: string; // 添加题库卡片图片字段
 }
 
-// 添加全局请求限制变量
-const API_REQUEST_COOLDOWN = 5000; // 5秒冷却时间
-const MAX_REQUESTS_PER_MINUTE = 20; // 每分钟最大请求数
+// 添加全局请求限制变量 - 实际使用httpRateLimiter
 
 // 添加debounce工具函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
@@ -322,8 +317,8 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (..
   };
 }
 
-const HomePage = (): JSX.Element => {
-  const { user, isAdmin, syncAccessRights } = useUser();
+const HomePage = () => {
+  const { user, syncAccessRights } = useUser();
 
   const { socket } = useSocket();
   // Remove unused destructured variables
@@ -333,15 +328,10 @@ const HomePage = (): JSX.Element => {
   const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [homeContent, setHomeContent] = useState<HomeContentData>(defaultHomeContent);
+  const [homeContent, setHomeContent] = useState(defaultHomeContent);
   const navigate = useNavigate();
-  const [recentlyUpdatedSets, setRecentlyUpdatedSets] = useState<{[key: string]: number}>({});
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  // 添加API请求计数和限制状态变量
-  const [apiRequestCount, setApiRequestCount] = useState<number>(0);
-  const lastApiRequestTime = useRef<number>(0);
-  const recentRequests = useRef<number[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCountdownWidget, setShowCountdownWidget] = useState(false);
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
@@ -355,12 +345,9 @@ const HomePage = (): JSX.Element => {
   const bgClass = "bg-gray-50 dark:bg-gray-900 py-0 relative"; // 移除min-h-screen和pt-20, 设置py-0完全移除上下间距
   
   // Add notification state variables
-  const [showUpdateNotification, setShowUpdateNotification] = useState<boolean>(false);
-  const [notificationMessage, setNotificationMessage] = useState<string>('');
+  const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
   const notificationTimeoutRef = useRef<any>(null);
-  
-  // 新增状态 - 控制是否显示倒计时组件
-  const [showCountdownWidget, setShowCountdownWidget] = useState<boolean>(false);
   
   // 在这里添加BaseCard组件定义（组件内部）
   const BaseCard: React.FC<{
@@ -464,19 +451,23 @@ const HomePage = (): JSX.Element => {
     
     // 确定卡片的访问类型标签
     const getAccessTypeLabel = () => {
-      if (!set.isPaid) return '免费';
+      if (set.accessType === 'free') return '免费';
+      if (!set.isPaid) return '免费';  // 备用检查
       if (set.accessType === 'paid') return hasAccess ? '已购买' : '付费';
       if (set.accessType === 'redeemed') return '已兑换';
       if (set.accessType === 'expired') return '已过期';
+      if (set.accessType === 'trial') return '试用';
       return '付费';
     };
     
     // 确定标签的颜色
     const getAccessTypeBadgeClass = () => {
-      if (!set.isPaid) return 'bg-blue-100 text-blue-800 border border-blue-200';
+      if (set.accessType === 'free') return 'bg-blue-100 text-blue-800 border border-blue-200';
+      if (!set.isPaid) return 'bg-blue-100 text-blue-800 border border-blue-200';  // 备用检查
       if (set.accessType === 'paid') return hasAccess ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200';
       if (set.accessType === 'redeemed') return 'bg-purple-100 text-purple-800 border border-purple-200';
       if (set.accessType === 'expired') return 'bg-red-100 text-red-800 border border-red-200';
+      if (set.accessType === 'trial') return 'bg-gray-100 text-gray-800 border border-gray-200';
       return 'bg-amber-100 text-amber-800 border border-amber-200';
     };
 
@@ -670,7 +661,7 @@ const HomePage = (): JSX.Element => {
     // 防御性检查：确保题库数据有效
     if (!set || !set.id || !set.title) {
       console.error('[handleStartQuiz] 无效题库数据:', set);
-      setErrorMessage('无法访问题库：数据无效');
+      toast.error('无法访问题库：数据无效');
       return;
     }
     
@@ -717,7 +708,7 @@ const HomePage = (): JSX.Element => {
         timestamp: Date.now()
       });
     }
-  }, [navigate, setErrorMessage, socket, user]);
+  }, [navigate, socket, user]);
 
   // Update getLocalAccessCache function to use user-specific prefix
   const getLocalAccessCache = useCallback((): Record<string, any> => {
@@ -926,12 +917,12 @@ const HomePage = (): JSX.Element => {
     remainingDays: number | null,
     paymentMethod?: string
   ) => {
-    // 如果是免费题库，始终可访问且类型为trial
+    // 如果是免费题库，始终可访问且类型为free
     if (!set.isPaid) {
       console.log(`[determineAccessStatus] 题库ID=${set.id} 免费题库，自动授予访问权限`);
       return {
         hasAccess: true,
-        accessType: 'trial' as AccessType,
+        accessType: 'free' as AccessType,
         remainingDays: null
       };
     }
@@ -1041,7 +1032,19 @@ const HomePage = (): JSX.Element => {
   // 添加请求限制检查函数
   const canMakeRequest = useCallback(() => {
     // 检查API请求限流
-    return httpLimiter.canMakeRequest();
+    return httpRateLimiter.canMakeRequest();
+  }, []);
+
+  // 添加内容获取节流函数
+  const throttleContentFetch = useCallback((key: string, interval: number) => {
+    const now = Date.now();
+    const lastFetch = parseInt(localStorage.getItem(`throttle_${key}`) || '0');
+    if (now - lastFetch < interval) {
+      console.log(`[throttleContentFetch] 跳过请求 ${key}，距离上次请求仅 ${now - lastFetch}ms`);
+      return false;
+    }
+    localStorage.setItem(`throttle_${key}`, now.toString());
+    return true;
   }, []);
 
   // 修改fetchQuestionSets，添加请求限制检查
@@ -1208,8 +1211,8 @@ const HomePage = (): JSX.Element => {
             console.log(`[HomePage] Using questionSetQuestions array length for count: ${set.title} - ${questionCount}`);
           }
           
-          // 默认为试用状态
-          let accessType: AccessType = 'trial';
+          // 根据题库类型设置初始状态
+          let accessType: AccessType = isPaid ? 'trial' : 'free';
           let hasAccess = !isPaid; // 免费题库自动有访问权限
           let remainingDays: number | null = null;
           let paymentMethod: string | undefined = undefined;
@@ -1304,7 +1307,7 @@ const HomePage = (): JSX.Element => {
           // 确保免费题库始终可访问
           if (!isPaid) {
             hasAccess = true;
-            accessType = 'trial';
+            accessType = 'free';
             remainingDays = null;
           }
           
@@ -1424,7 +1427,7 @@ const HomePage = (): JSX.Element => {
         clearTimeout(loadingTimeoutRef.current);
         
         // Show error message to user
-        setErrorMessage('获取题库数据失败，请稍后重试');
+        toast.error('获取题库数据失败，请稍后重试');
         return questionSets;
       }
     } catch (error) {
@@ -1434,7 +1437,7 @@ const HomePage = (): JSX.Element => {
       clearTimeout(loadingTimeoutRef.current);
       
       // Show error message to user
-      setErrorMessage('获取题库时发生错误，请刷新页面重试');
+      toast.error('获取题库时发生错误，请刷新页面重试');
       return questionSets;
     } finally {
       pendingFetchRef.current = false;
@@ -1552,11 +1555,8 @@ const HomePage = (): JSX.Element => {
                 saveAccessToLocalStorage(questionSetId, true, remainingDays);
               }
               
-              // Add to recently updated sets for animation
-              setRecentlyUpdatedSets(prev => ({
-                ...prev,
-                [questionSetId]: Date.now() 
-              }));
+              // Updated sets tracking (removed for cleanup)
+              console.log('[handleRedeemSuccess] 兑换成功:', questionSetId);
               
               return {
                 ...set,
@@ -1662,18 +1662,20 @@ const HomePage = (): JSX.Element => {
             ? {
                 ...set,
                 hasAccess: data.hasAccess,
-                accessType: data.accessType || (data.hasAccess ? (data.paymentMethod === 'redeem' ? 'redeemed' : 'paid') : 'trial'),
+                accessType: data.accessType || (
+                  !set.isPaid ? 'free' : 
+                  data.hasAccess ? 
+                    (data.paymentMethod === 'redeem' ? 'redeemed' : 'paid') : 
+                    'trial'
+                ),
                 remainingDays: data.remainingDays
               }
             : set
         )
       );
       
-      // 标记为最近更新
-      setRecentlyUpdatedSets(prev => ({
-        ...prev,
-        [data.questionSetId]: Date.now()
-      }));
+      // Recently updated sets tracking (removed for cleanup)
+      console.log('[handleAccessUpdate] 访问状态已更新:', data.questionSetId);
     };
     
     // 监听设备同步事件
@@ -1758,7 +1760,14 @@ const HomePage = (): JSX.Element => {
         const hasAccess = Boolean(result.hasAccess);
         const remainingDays = result.remainingDays !== undefined ? Number(result.remainingDays) : null;
         const paymentMethod = result.paymentMethod || 'unknown';
-        const accessType = paymentMethod === 'redeem' ? 'redeemed' : (hasAccess ? 'paid' : 'trial');
+        
+        // 查找对应的题库以确定是否为免费题库
+        const correspondingSet = questionSets.find(set => set.id === questionSetId);
+        const isFreeQuestionSet = correspondingSet && !correspondingSet.isPaid;
+        
+        const accessType = isFreeQuestionSet ? 'free' : 
+                          paymentMethod === 'redeem' ? 'redeemed' : 
+                          (hasAccess ? 'paid' : 'trial');
         
         // 检查本地缓存是否有更优先的记录 (已付费的缓存记录优先于未付费的服务器记录)
         const hasPriorityCacheRecord = userCache[questionSetId] && 
@@ -1876,11 +1885,8 @@ const HomePage = (): JSX.Element => {
               hasChanged = true;
               updatedCount++;
               
-              // 标记为最近更新
-              setRecentlyUpdatedSets(prev => ({
-                ...prev,
-                [set.id]: Date.now()
-              }));
+              // Recently updated sets tracking (removed for cleanup)
+              console.log('[handleBatchAccessResult] 批量访问结果已更新:', set.id);
               
               // 返回更新后的题库对象
               return {
@@ -2197,7 +2203,7 @@ const HomePage = (): JSX.Element => {
       } catch (error) {
         console.error('[HomePage] 登录流程处理出错:', error);
         setLoading(false);
-        setErrorMessage('请求失败，请稍后重试');
+        toast.error('请求失败，请稍后重试');
         
         // 清理事件监听
         window.removeEventListener('accessRights:updated', handleSyncComplete);
@@ -2396,7 +2402,6 @@ const HomePage = (): JSX.Element => {
     // Special handling for admin-triggered forced reloads
     const forceFullContentRefresh = sessionStorage.getItem('forceFullContentRefresh') === 'true';
     const forceReloadTimestamp = localStorage.getItem('home_content_force_reload');
-    const adminSavedTimestamp = sessionStorage.getItem('adminSavedContentTimestamp');
     
     // STRONG INFINITE LOOP PREVENTION - Global cooldown tracking
     const globalLastUpdate = parseInt(localStorage.getItem('global_home_content_last_update') || '0');

@@ -1,5 +1,5 @@
 // Import the HTTP limiter
-import { httpLimiter, monitorHttpRequest } from './loopPrevention';
+import { httpRateLimiter } from './loopPrevention';
 
 // 添加全局请求计数和限制
 let requestsInLastMinute = 0;
@@ -38,7 +38,7 @@ function canMakeRequest() {
   }
   
   // 检查是否超过限制
-  if (requestsInLastMinute >= 60) { // 每分钟最多60个请求
+  if (requestsInLastMinute >= 1600) { // 每分钟最多1600个请求
     console.warn('[API-Client] 请求频率过高，限制请求');
     return false;
   }
@@ -92,7 +92,7 @@ const apiClient = {
    */
   async get(endpoint, params = {}, options = {}) {
     // 检查请求限制
-    if (!httpLimiter.canMakeRequest() && !options.bypassRateLimit) {
+    if (!httpRateLimiter.canMakeRequest() && !options.bypassRateLimit) {
       console.warn(`[API-Client] 请求被限制: ${endpoint}`);
       return { success: false, message: '请求过于频繁，请稍后再试' };
     }
@@ -181,7 +181,7 @@ const apiClient = {
    */
   async post(endpoint, data = {}, options = {}) {
     // 检查请求限制 - POST请求更可能修改数据，应该更严格控制
-    if (!httpLimiter.canMakeRequest() && !options.bypassRateLimit) {
+    if (!httpRateLimiter.canMakeRequest() && !options.bypassRateLimit) {
       console.warn(`[API-Client] 请求被限制: ${endpoint}`);
       return { success: false, message: '请求过于频繁，请稍后再试' };
     }

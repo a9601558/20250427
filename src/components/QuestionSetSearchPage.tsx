@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import { questionService } from '../services/api';
 
 // 复用HomePage.tsx中的类型定义
-type AccessType = 'trial' | 'paid' | 'expired' | 'redeemed';
+type AccessType = 'free' | 'trial' | 'paid' | 'expired' | 'redeemed';
 
 interface QuestionSet {
   id: string;

@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosRequestConfig, AxiosError } from 'axios';
 
 /**
  * 先进的API客户端，提供：
@@ -24,7 +24,7 @@ class ApiClient {
   private cache: Map<string, CacheItem> = new Map();
   private pendingRequests: Map<string, PendingRequest> = new Map();
   private requestsPerMinute: Map<string, number[]> = new Map();
-  private maxRequestsPerMinute = 50; // 每分钟最大请求数
+  private maxRequestsPerMinute = 1600; // 每分钟最大请求数
   private defaultCacheDuration = 60000; // 默认缓存1分钟
   private currentUserId: string | null = null; // 当前用户ID
 

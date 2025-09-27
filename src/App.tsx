@@ -16,7 +16,7 @@ import { UserProgressProvider } from './contexts/UserProgressContext';
 import { isTokenExpired, performAutoLogin } from './utils/authUtils';
 import { toast } from 'react-toastify';
 import QuestionSetSearchPage from './components/QuestionSetSearchPage';
-import { httpLimiter } from './utils/loopPrevention';
+import { httpRateLimiter } from './utils/loopPrevention';
 
 // 创建一个内部组件处理认证逻辑
 const AuthManager: React.FC = () => {
@@ -79,7 +79,7 @@ const App: React.FC = () => {
       }
       
       // 检查请求频率限制
-      if (!httpLimiter.canMakeRequest()) {
+      if (!httpRateLimiter.canMakeRequest()) {
         console.warn(`[App] 请求被限制: ${url}`);
         // 返回模拟的429响应
         return new Response(JSON.stringify({
