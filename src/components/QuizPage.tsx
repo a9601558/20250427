@@ -2006,49 +2006,79 @@ function QuizPage(): JSX.Element {
           }
         }
         
-        // 更宽松的过期检查：如果没有有效的过期时间，视为永久有效
-        const isExpired = expiryDate ? expiryDate <= now : false;
-        
         // 仅接受明确的active或completed状态
         const validStates = ['active', 'completed', 'success'];
         const isActive = validStates.includes(purchase.status || '');
         
-        // 计算剩余时间（毫秒）
-        const remainingTime = expiryDate ? (expiryDate.getTime() - now.getTime()) : null;
-        const remainingDays = remainingTime ? Math.ceil(remainingTime / (1000 * 60 * 60 * 24)) : null;
-        
-        // 临时修复：对于非常接近过期时间的情况，给予1天的宽限期
-        const gracePeriodMs = 24 * 60 * 60 * 1000; // 24小时
-        const isWithinGracePeriod = remainingTime !== null && remainingTime > -gracePeriodMs;
-        
-        // 修正的过期检查逻辑
-        const isActuallyExpired = expiryDate ? (now.getTime() - expiryDate.getTime() > gracePeriodMs) : false;
-        
-        const purchaseHasAccess = !isActuallyExpired && isActive;
-        
-        // 如果是宽限期内，添加警告
-        if (purchaseHasAccess && remainingTime !== null && remainingTime < gracePeriodMs && remainingTime > -gracePeriodMs) {
-          console.warn(`[QuizPage] 购买记录在宽限期内，剩余时间: ${Math.round(remainingTime / (1000 * 60 * 60))}小时`);
-        }
-        
-        // 详细的过期时间调试
-        console.log(`[QuizPage] 购买记录详细检查:`, {
-          purchaseId: purchase.id,
-          purchaseStatus: purchase.status,
-          expiryDateRaw: purchase.expiryDate,
-          expiryDateParsed: expiryDate,
-          currentTime: now,
-          isExpired,
-          isActive,
-          finalResult: purchaseHasAccess,
-          timeDiff: expiryDate ? (expiryDate.getTime() - now.getTime()) : null,
-          remainingDays: expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
-        });
-        
-        console.log(`[QuizPage] 购买记录检查: 已过期=${isExpired}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
-        
-        if (purchaseHasAccess) {
-          return true;
+        // 优先检查服务器返回的hasAccess字段（如果存在）
+        if (purchase.hasAccess !== undefined) {
+          console.log(`[QuizPage] 使用服务器返回的hasAccess字段: ${purchase.hasAccess}`);
+          
+          // 详细的调试信息
+          console.log(`[QuizPage] 购买记录详细检查:`, {
+            purchaseId: purchase.id,
+            purchaseStatus: purchase.status,
+            expiryDateRaw: purchase.expiryDate,
+            serverHasAccess: purchase.hasAccess,
+            serverRemainingDays: purchase.remainingDays,
+            isActive,
+            finalResult: purchase.hasAccess && isActive
+          });
+          
+          const purchaseHasAccess = purchase.hasAccess && isActive;
+          console.log(`[QuizPage] 购买记录检查: 服务器hasAccess=${purchase.hasAccess}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
+          
+          if (purchaseHasAccess) {
+            return true;
+          }
+        } else {
+          // 如果服务器没有返回hasAccess，使用客户端逻辑
+          console.log(`[QuizPage] 服务器未返回hasAccess，使用客户端逻辑检查`);
+          
+          // 紧急修复：对于active状态的购买记录，直接给予访问权限
+          if (purchase.status === 'active') {
+            console.log(`[QuizPage] 紧急修复：active状态购买记录直接授予访问权限`);
+            
+            // 详细的调试信息
+            console.log(`[QuizPage] 购买记录详细检查:`, {
+              purchaseId: purchase.id,
+              purchaseStatus: purchase.status,
+              expiryDateRaw: purchase.expiryDate,
+              expiryDateParsed: expiryDate,
+              currentTime: now,
+              emergencyFixApplied: true,
+              finalResult: true
+            });
+            
+            console.log(`[QuizPage] 购买记录检查: 状态=active, 紧急修复=true, 最终结果=true`);
+            
+            return true;
+          }
+          
+          // 常规的客户端逻辑（作为备份）
+          const remainingTime = expiryDate ? (expiryDate.getTime() - now.getTime()) : null;
+          const gracePeriodMs = 2 * 60 * 60 * 1000; // 2小时宽限期
+          const isExpired = expiryDate ? (now.getTime() - expiryDate.getTime() > gracePeriodMs) : false;
+          const purchaseHasAccess = !isExpired && isActive;
+          
+          console.log(`[QuizPage] 购买记录详细检查 (备份逻辑):`, {
+            purchaseId: purchase.id,
+            purchaseStatus: purchase.status,
+            expiryDateRaw: purchase.expiryDate,
+            expiryDateParsed: expiryDate,
+            currentTime: now,
+            timeDiff: remainingTime,
+            gracePeriodMs,
+            isExpired,
+            isActive,
+            finalResult: purchaseHasAccess
+          });
+          
+          console.log(`[QuizPage] 购买记录检查 (备份): 已过期=${isExpired}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
+          
+          if (purchaseHasAccess) {
+            return true;
+          }
         }
       } else {
         console.log(`[QuizPage] 未找到匹配的购买记录`);

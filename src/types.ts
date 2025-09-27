@@ -87,6 +87,8 @@ export interface Purchase {
   status?: string;
   paymentMethod?: string;
   purchaseQuestionSet?: QuestionSet;
+  hasAccess?: boolean;
+  remainingDays?: number;
 }
 
 export interface RedeemCode {
