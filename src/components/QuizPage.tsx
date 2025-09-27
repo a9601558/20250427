@@ -2042,8 +2042,24 @@ function QuizPage(): JSX.Element {
             // 计算剩余天数（与服务器端逻辑保持一致）
             const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
             
-            // 严格按照服务器端逻辑：status === 'active' && remainingDays > 0
-            const purchaseHasAccess = purchase.status === 'active' && remainingDays > 0;
+            // 修改逻辑：对于兑换码获得的访问权限，给予更宽松的检查
+            // 检查是否为兑换码购买（通过 paymentMethod 或者 type 字段判断）
+            const isRedeemPurchase = purchase.paymentMethod === 'redeem' || 
+                                   purchase.type === 'redeem' || 
+                                   purchase.method === 'redeem';
+            
+            let purchaseHasAccess: boolean;
+            
+            if (isRedeemPurchase) {
+              // 对于兑换码购买，只要状态为 active 就认为有效，不严格检查过期时间
+              // 因为很多兑换码设计为长期有效或者永久有效
+              purchaseHasAccess = purchase.status === 'active';
+              console.log(`[QuizPage] 兑换码购买检查（宽松规则）: 状态=${purchase.status}, 结果=${purchaseHasAccess}`);
+            } else {
+              // 对于常规购买，使用严格的过期时间检查
+              purchaseHasAccess = purchase.status === 'active' && remainingDays > 0;
+              console.log(`[QuizPage] 常规购买检查（严格规则）: 状态=${purchase.status}, 剩余天数=${remainingDays}, 结果=${purchaseHasAccess}`);
+            }
             
             console.log(`[QuizPage] 购买记录详细检查 (严格逻辑):`, {
               purchaseId: purchase.id,
@@ -2092,44 +2108,64 @@ function QuizPage(): JSX.Element {
           console.log(`[QuizPage] 本地兑换记录检查: ${isRedeemed}`);
           
           if (isRedeemed) {
-            // 额外验证：检查用户的兑换记录是否仍然有效
-            const hasValidRedeemCode = user?.redeemCodes?.some(code => {
-              if (code.questionSetId !== questionSetId) return false;
-              
-              // 检查兑换记录的有效性
-              if (code.expiryDate) {
-                const expiryDate = new Date(code.expiryDate);
-                const now = new Date();
-                const isExpired = expiryDate <= now;
-                
-                console.log(`[QuizPage] 兑换记录时效检查: 过期时间=${code.expiryDate}, 当前时间=${now.toISOString()}, 已过期=${isExpired}`);
-                
-                return !isExpired;
-              }
-              
-              // 如果没有过期时间，检查使用时间和有效天数
-              if (code.usedAt && code.validityDays) {
-                const usedDate = new Date(code.usedAt);
-                const expiryDate = new Date(usedDate.getTime() + code.validityDays * 24 * 60 * 60 * 1000);
-                const now = new Date();
-                const isExpired = expiryDate <= now;
-                
-                console.log(`[QuizPage] 兑换记录有效期检查: 使用时间=${code.usedAt}, 有效天数=${code.validityDays}, 已过期=${isExpired}`);
-                
-                return !isExpired;
-              }
-              
-              // 如果既没有过期时间也没有使用时间信息，默认认为有效（但记录警告）
-              console.warn(`[QuizPage] 兑换记录缺少时效信息，默认认为有效: ${code.code}`);
-              return true;
+            // 宽松验证：对于本地已记录的兑换记录，采用更宽松的检查规则
+            console.log(`[QuizPage] 发现本地兑换记录，开始宽松验证`);
+            
+            // 首先检查用户是否有此题库的兑换记录
+            const hasAnyRedeemCode = user?.redeemCodes?.some(code => {
+              return code.questionSetId === questionSetId;
             });
             
-            if (hasValidRedeemCode) {
-              console.log(`[QuizPage] 兑换记录验证通过，仍然有效`);
-              return true;
+            if (hasAnyRedeemCode) {
+              // 如果用户确实有此题库的兑换记录，采用宽松的时效检查
+              const hasValidRedeemCode = user?.redeemCodes?.some(code => {
+                if (code.questionSetId !== questionSetId) return false;
+                
+                // 宽松检查：如果没有明确的过期时间，默认认为有效
+                if (!code.expiryDate && !code.usedAt) {
+                  console.log(`[QuizPage] 兑换记录无时效限制，默认有效`);
+                  return true;
+                }
+                
+                // 检查兑换记录的有效性（原有逻辑保留）
+                if (code.expiryDate) {
+                  const expiryDate = new Date(code.expiryDate);
+                  const now = new Date();
+                  const isExpired = expiryDate <= now;
+                  
+                  console.log(`[QuizPage] 兑换记录时效检查: 过期时间=${code.expiryDate}, 当前时间=${now.toISOString()}, 已过期=${isExpired}`);
+                  
+                  return !isExpired;
+                }
+                
+                // 如果没有过期时间，检查使用时间和有效天数
+                if (code.usedAt && code.validityDays) {
+                  const usedDate = new Date(code.usedAt);
+                  const expiryDate = new Date(usedDate.getTime() + code.validityDays * 24 * 60 * 60 * 1000);
+                  const now = new Date();
+                  const isExpired = expiryDate <= now;
+                  
+                  console.log(`[QuizPage] 兑换记录有效期检查: 使用时间=${code.usedAt}, 有效天数=${code.validityDays}, 已过期=${isExpired}`);
+                  
+                  return !isExpired;
+                }
+                
+                // 如果既没有过期时间也没有使用时间信息，默认认为有效（但记录警告）
+                console.warn(`[QuizPage] 兑换记录缺少时效信息，默认认为有效: ${code.code}`);
+                return true;
+              });
+              
+              if (hasValidRedeemCode) {
+                console.log(`[QuizPage] 兑换记录验证通过，仍然有效`);
+                return true;
+              } else {
+                console.warn(`[QuizPage] 兑换记录已过期但用户有兑换记录，给予访问权限`);
+                // 对于有兑换记录但过期的情况，仍然给予访问权限（宽松处理）
+                return true;
+              }
             } else {
-              console.warn(`[QuizPage] 兑换记录已过期或无效，清除本地记录`);
-              // 清除过期的兑换记录
+              // 如果用户没有此题库的兑换记录，但本地有记录，可能是数据不同步
+              console.warn(`[QuizPage] 本地有兑换记录但用户数据中无对应记录，清除本地记录`);
               const validIds = redeemedIds.filter((id: string) => String(id || '').trim() !== questionSetId);
               localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(validIds));
             }
