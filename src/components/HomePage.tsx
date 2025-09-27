@@ -18,34 +18,80 @@ import {
   getUserStoragePrefix
 } from '../utils/homeContentUtils';
 
-// 添加自定义样式
+// Apple风格自定义样式
 const customStyles = `
-  @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  
+  .apple-card {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.9);
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+  .apple-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(59, 130, 246, 0.2);
   }
   
-  @keyframes glow {
-    0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
-    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
-    100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+  .apple-button {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 500;
+    border-radius: 12px;
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+  .apple-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
   }
-
-  @keyframes gradientBg {
+  
+  .apple-text {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+  
+  .apple-title {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  
+  .apple-hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+  }
+  
+  @keyframes gradientShift {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
+  }
+  
+  .apple-badge {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .apple-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 24px;
+    padding: 0;
+  }
+  
+  @media (max-width: 768px) {
+    .apple-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
   }
   
   @keyframes scan {
@@ -470,178 +516,131 @@ const HomePage = () => {
     };
 
     return (
-      <div className={`relative group h-[180px] rounded-xl transition-all duration-300 bg-white border border-gray-100 shadow hover:shadow-md hover:border-blue-100 transform hover:-translate-y-1 overflow-hidden ${isFree ? 'free-card' : ''}`}>
-        {/* Subtle accent */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-400 opacity-80"></div>
+      <div className={`apple-card relative group rounded-2xl overflow-hidden cursor-pointer ${isFree ? 'border-blue-100' : ''}`}
+           style={{ height: '280px' }}>
         
-        {/* Free star indicator for free question sets */}
-        {isFree && (
-          <div className="free-star">
-            <span>⭐</span>
-          </div>
-        )}
-        
-        {/* Card Image Background - Add support for card image */}
-        {set.cardImage && (
-          <div 
-            className="absolute inset-0 z-0 opacity-5"
-            style={{ 
-              backgroundImage: `url(${set.cardImage})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          />
-        )}
-        
-        {/* Background pattern for free cards */}
-        {isFree && !set.cardImage && (
-          <div 
-            className="absolute inset-0 z-0 opacity-10"
-            style={{ 
-              backgroundImage: `radial-gradient(circle, rgba(59, 130, 246, 0.2) 1px, transparent 1px)`,
-              backgroundSize: '15px 15px'
-            }}
-          />
-        )}
-        
-        {/* Subtle decorative elements */}
-        <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-400 opacity-5 rounded-full"></div>
-        <div className="absolute -left-4 -bottom-4 w-16 h-16 bg-indigo-400 opacity-5 rounded-full"></div>
-        
-        {/* Free ribbon for free question sets */}
-        {isFree && (
-          <div className="free-ribbon">免费</div>
-        )}
-        
-        {/* Card content */}
-        <div className="relative z-10 h-full p-4 flex flex-col justify-between">
-          {/* Header */}
-          <div>
-            <div className="flex justify-between items-start mb-2">
-              {/* Title and icon */}
-              <div className="flex items-center">
-                <div className={`w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-lg mr-2 flex-shrink-0 text-blue-600 overflow-hidden ${isFree ? 'animate-pulse' : ''}`}>
+        {/* 背景图片或渐变 */}
+        <div className="absolute inset-0 z-0">
+          {set.cardImage ? (
+            <img 
+              src={set.cardImage} 
+              alt={set.title}
+              className="w-full h-32 object-cover"
+            />
+          ) : (
+            <div className={`w-full h-32 ${isFree 
+              ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
+              : 'bg-gradient-to-br from-gray-100 to-gray-200'
+            }`}>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl ${
+                  isFree ? 'bg-white/20 text-white' : 'bg-white/60 text-gray-600'
+                }`}>
                   {set.icon && (set.icon.startsWith('/') || set.icon.includes('http')) ? (
-                    <img src={set.icon} alt={set.title} className="w-full h-full object-cover" />
+                    <img src={set.icon} alt={set.title} className="w-10 h-10 object-cover rounded-full" />
                   ) : (
                     set.icon || '📚'
                   )}
                 </div>
-                <h3 className={`text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1 pr-2 ${isFree ? 'text-blue-700' : ''}`}>
-                  {set.title}
-                </h3>
-              </div>
-              
-              {/* Access type badge */}
-              <div className="flex-shrink-0">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
-                  isFree 
-                    ? 'bg-blue-100 text-blue-800 border border-blue-200 free-badge'
-                    : getAccessTypeBadgeClass()
-                }`}>
-                  {getAccessTypeLabel()}
-                  {isFree && <span className="absolute inset-0 rounded-md bg-blue-400 mix-blend-screen opacity-10 animate-pulse"></span>}
-                </span>
               </div>
             </div>
-            
-            {/* Description */}
-            <p className="text-xs text-gray-500 mb-3 line-clamp-1">{set.description}</p>
+          )}
+        </div>
+        
+        {/* 免费标签 */}
+        {isFree && (
+          <div className="absolute top-3 left-3 z-20">
+            <div className="apple-badge px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-blue-600">免费</span>
+            </div>
           </div>
+        )}
+        
+        {/* 访问类型标签 */}
+        {!isFree && (
+          <div className="absolute top-3 right-3 z-20">
+            <div className={`apple-badge px-2 py-1 rounded-full text-xs font-medium ${
+              set.accessType === 'paid' && hasAccess ? 'text-green-600' :
+              set.accessType === 'redeemed' ? 'text-purple-600' :
+              set.accessType === 'expired' ? 'text-red-600' :
+              'text-amber-600'
+            }`}>
+              {getAccessTypeLabel()}
+            </div>
+          </div>
+        )}
+
+        {/* 内容区域 */}
+        <div className="relative z-10 h-full flex flex-col">
+          {/* 顶部空间（图片区域） */}
+          <div className="h-32"></div>
           
-          {/* Info section */}
-          <div className="space-y-3">
-            {/* Stats */}
-            <div className="flex items-center text-xs text-gray-500 space-x-4">
+          {/* 内容区域 */}
+          <div className="flex-1 p-6 bg-white">
+            {/* 标题 */}
+            <h3 className="apple-title text-xl text-gray-900 mb-2 line-clamp-2">
+              {set.title}
+            </h3>
+            
+            {/* 统计信息 */}
+            <div className="flex items-center apple-text text-sm text-gray-600 space-x-4 mb-4">
               <div className="flex items-center">
-                <svg className={`w-3.5 h-3.5 mr-1 ${isFree ? 'text-blue-500 animate-pulse' : 'text-blue-500'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {getQuestionCount() > 0 ? (
-                  <span>{getQuestionCount()}题</span>
-                ) : (
-                  <span className="text-red-500 flex items-center">
-                    <span>0题</span>
-                    <svg className="w-3 h-3 ml-1 animate-pulse text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </span>
-                )}
+                <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
+                <span>{getQuestionCount()}题</span>
               </div>
               <div className="flex items-center">
-                <svg className={`w-3.5 h-3.5 mr-1 ${isFree ? 'text-indigo-600' : 'text-indigo-500'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                </svg>
+                <span className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span>
                 <span>{set.category}</span>
               </div>
             </div>
-            
-            {/* Validity period or price */}
-            {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
-              <div className="w-full">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-500">有效期</span>
-                  <span className={`font-medium ${
-                    percent < 20 ? 'text-red-600' : 
-                    percent < 50 ? 'text-amber-600' : 
-                    'text-green-600'
-                  }`}>
-                    {formatRemainingDays(set.remainingDays)}
-                  </span>
+
+            {/* 价格或有效期 */}
+            <div className="mb-4 flex-grow">
+              {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
+                <div className="w-full">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="apple-text text-gray-500">有效期</span>
+                    <span className={`apple-text font-medium ${
+                      percent < 20 ? 'text-red-600' : 
+                      percent < 50 ? 'text-amber-600' : 
+                      'text-green-600'
+                    }`}>
+                      {formatRemainingDays(set.remainingDays)}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${color} transition-all duration-500 rounded-full`}
+                      style={{ width: `${percent}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${color} transition-all duration-500`}
-                    style={{ width: `${percent}%` }}
-                  ></div>
+              ) : set.isPaid && !hasAccess ? (
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <span className="apple-title text-2xl text-gray-900">¥{set.price}</span>
+                    {set.trialQuestions && (
+                      <div className="apple-text text-xs text-gray-500 mt-1">
+                        可试用{set.trialQuestions}题
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ) : set.isPaid && !hasAccess ? (
-              <div className="flex items-baseline">
-                <span className="text-base font-bold text-blue-600">¥{set.price}</span>
-                {set.trialQuestions && (
-                  <span className="ml-2 text-xs text-gray-500">
-                    可试用{set.trialQuestions}题
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className={`w-full h-[2px] rounded-full mt-2 ${isFree ? 'bg-blue-200 animate-pulse' : 'bg-blue-50'}`}></div>
-            )}
-            
-            {/* Action button */}
+              ) : null}
+            </div>
+
+            {/* 按钮 */}
             <button
               onClick={() => onStartQuiz(set)}
-              className={`w-full py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+              className={`apple-button w-full py-3 text-sm font-medium ${
                 isFree 
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shine-effect'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
                   : hasAccess 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              } flex items-center justify-center group-hover:shadow transform group-hover:scale-[1.01]`}
+                    ? 'bg-gray-900 hover:bg-gray-800 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
             >
-              {isFree ? (
-                <>
-                  <svg className="w-3.5 h-3.5 mr-1 animate-pulse" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  免费练习
-                </>
-              ) : hasAccess ? (
-                <>
-                  <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  </svg>
-                  开始练习
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-                  </svg>
-                  试用练习
-                </>
-              )}
+              {isFree ? '免费开始' : hasAccess ? '开始练习' : '试用练习'}
             </button>
           </div>
         </div>

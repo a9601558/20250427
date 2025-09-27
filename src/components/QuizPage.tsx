@@ -1906,6 +1906,40 @@ function QuizPage(): JSX.Element {
     }
   }, [questionSetId]);
   
+  // 验证和清理questionSetId的函数
+  const validateAndCleanQuestionSetId = (questionSetId: string): string | null => {
+    if (!questionSetId) return null;
+    
+    // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (uuidRegex.test(questionSetId)) {
+      return questionSetId; // 已经是正确格式
+    }
+    
+    // 如果包含下划线，可能是两个UUID连接，尝试提取第一个
+    if (questionSetId.includes('_')) {
+      const parts = questionSetId.split('_');
+      const firstPart = parts[0];
+      
+      console.warn('[QuizPage] 检测到异常ID格式:', questionSetId, '尝试使用第一部分:', firstPart);
+      
+      if (uuidRegex.test(firstPart)) {
+        return firstPart;
+      }
+      
+      // 尝试第二部分
+      const secondPart = parts[1];
+      if (secondPart && uuidRegex.test(secondPart)) {
+        console.warn('[QuizPage] 第一部分无效，尝试第二部分:', secondPart);
+        return secondPart;
+      }
+    }
+    
+    console.error('[QuizPage] 无法清理异常的questionSetId:', questionSetId);
+    return null;
+  };
+  
   // 修改保存权限函数，确保准确保存
   const saveAccessToLocalStorage = useCallback((questionSetId: string, hasAccess: boolean) => {
     if (!questionSetId) return;
