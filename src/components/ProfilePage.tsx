@@ -193,22 +193,24 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
       return questionSetId; // 已经是正确格式
     }
     
-    // 如果包含下划线，可能是两个UUID连接，尝试提取第一个
+    // 如果包含下划线，可能是复合ID格式（用户ID_题库ID），优先提取题库ID（第二部分）
     if (questionSetId.includes('_')) {
       const parts = questionSetId.split('_');
-      const firstPart = parts[0];
       
-      console.warn('[ProfilePage] 检测到异常ID格式:', questionSetId, '尝试使用第一部分:', firstPart);
+      console.warn('[ProfilePage] 检测到复合ID格式:', questionSetId);
       
-      if (uuidRegex.test(firstPart)) {
-        return firstPart;
-      }
-      
-      // 尝试第二部分
+      // 优先尝试第二部分（题库ID）
       const secondPart = parts[1];
       if (secondPart && uuidRegex.test(secondPart)) {
-        console.warn('[ProfilePage] 第一部分无效，尝试第二部分:', secondPart);
+        console.log('[ProfilePage] 成功提取题库ID（第二部分）:', secondPart);
         return secondPart;
+      }
+      
+      // 如果第二部分无效，尝试第一部分
+      const firstPart = parts[0];
+      if (uuidRegex.test(firstPart)) {
+        console.warn('[ProfilePage] 第二部分无效，使用第一部分:', firstPart);
+        return firstPart;
       }
     }
     

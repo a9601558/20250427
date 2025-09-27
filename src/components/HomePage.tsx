@@ -516,8 +516,17 @@ const HomePage = () => {
     };
 
     return (
-      <div className={`apple-card relative group rounded-2xl overflow-hidden cursor-pointer ${isFree ? 'border-blue-100' : ''}`}
+      <div className={`apple-card relative group rounded-2xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] ${
+        isFree 
+          ? 'border-2 border-gradient-to-r from-blue-300 to-indigo-300 shadow-lg hover:shadow-2xl ring-2 ring-blue-100 hover:ring-blue-200' 
+          : 'hover:shadow-lg'
+      }`}
            style={{ height: '280px' }}>
+        
+        {/* 免费题库专属光晕效果 */}
+        {isFree && (
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 rounded-2xl opacity-20 blur-sm group-hover:opacity-40 transition-opacity duration-300"></div>
+        )}
         
         {/* 背景图片或渐变 */}
         <div className="absolute inset-0 z-0">
@@ -528,10 +537,22 @@ const HomePage = () => {
               className="w-full h-32 object-cover"
             />
           ) : (
-            <div className={`w-full h-32 ${isFree 
-              ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
+            <div className={`w-full h-32 relative overflow-hidden ${isFree 
+              ? 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600' 
               : 'bg-gradient-to-br from-gray-100 to-gray-200'
             }`}>
+              {/* 免费题库专属动画背景 */}
+              {isFree && (
+                <>
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 via-transparent to-purple-400/20 animate-pulse"></div>
+                  <div className="absolute top-0 left-0 w-full h-full">
+                    <div className="absolute top-2 left-4 w-3 h-3 bg-white/30 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+                    <div className="absolute top-6 right-8 w-2 h-2 bg-white/40 rounded-full animate-bounce" style={{animationDelay: '0.5s'}}></div>
+                    <div className="absolute bottom-4 left-8 w-4 h-4 bg-white/20 rounded-full animate-bounce" style={{animationDelay: '1s'}}></div>
+                    <div className="absolute bottom-8 right-4 w-2 h-2 bg-white/35 rounded-full animate-bounce" style={{animationDelay: '1.5s'}}></div>
+                  </div>
+                </>
+              )}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl ${
                   isFree ? 'bg-white/20 text-white' : 'bg-white/60 text-gray-600'
@@ -550,8 +571,17 @@ const HomePage = () => {
         {/* 免费标签 */}
         {isFree && (
           <div className="absolute top-3 left-3 z-20">
-            <div className="apple-badge px-2 py-1 rounded-full">
-              <span className="text-xs font-medium text-blue-600">免费</span>
+            <div className="relative overflow-hidden">
+              <div className="apple-badge px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 shadow-lg">
+                <span className="text-xs font-bold text-white flex items-center">
+                  <svg className="w-3 h-3 mr-1 animate-spin" style={{animationDuration: '3s'}} fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                  </svg>
+                  免费
+                </span>
+              </div>
+              {/* 闪光效果 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -translate-x-full animate-pulse" style={{animationDuration: '2s'}}></div>
             </div>
           </div>
         )}
@@ -632,21 +662,47 @@ const HomePage = () => {
             {/* 按钮 */}
             <button
               onClick={() => onStartQuiz(set)}
-              className={`apple-button w-full py-3 text-sm font-medium ${
+              className={`apple-button w-full py-3 text-sm font-medium relative overflow-hidden group ${
                 isFree 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300'
                   : hasAccess 
                     ? 'bg-gray-900 hover:bg-gray-800 text-white'
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              {isFree ? '免费开始' : hasAccess ? '开始练习' : '试用练习'}
+              {isFree && (
+                <>
+                  {/* 按钮光泽效果 */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
+                  {/* 脉冲背景 */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/50 to-indigo-500/50 animate-pulse"></div>
+                </>
+              )}
+              <span className="relative z-10 flex items-center justify-center">
+                {isFree && (
+                  <svg className="w-4 h-4 mr-2 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {isFree ? '免费开始' : hasAccess ? '开始练习' : '试用练习'}
+              </span>
             </button>
           </div>
         </div>
         
         {/* Hover effects */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100 to-transparent opacity-0 group-hover:opacity-10 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out"></div>
+        <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out ${
+          isFree 
+            ? 'bg-gradient-to-r from-transparent via-blue-200 to-purple-200'
+            : 'bg-gradient-to-r from-transparent via-blue-100 to-transparent'
+        }`}></div>
+        
+        {/* 免费题库专属边框光效 */}
+        {isFree && (
+          <div className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300" style={{padding: '1px'}}>
+            <div className="w-full h-full bg-white rounded-2xl"></div>
+          </div>
+        )}
       </div>
     );
   };
