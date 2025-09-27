@@ -1951,6 +1951,13 @@ function QuizPage(): JSX.Element {
     const questionSetId = String(questionSet.id).trim();
     console.log(`[QuizPage] 检查题库ID "${questionSetId}" 的访问权限`);
     
+    // 步骤0：临时管理员覆盖功能（用于调试）
+    const adminOverride = localStorage.getItem('admin_access_override');
+    if (adminOverride === 'true' && user?.email?.includes('@admin.')) {
+      console.log(`[QuizPage] 管理员覆盖访问权限激活`);
+      return true;
+    }
+    
     // 步骤1：免费题库检查（最高优先级）
     if (!isPaidQuiz(questionSet)) {
       console.log('[QuizPage] 免费题库，直接返回true');
@@ -1980,14 +1987,63 @@ function QuizPage(): JSX.Element {
       if (purchase) {
         // 检查购买记录是否有效（未过期且状态正确）
         const now = new Date();
-        const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-        const isExpired = expiryDate && expiryDate <= now;
+        
+        // 改进的过期时间处理，考虑各种可能的时间格式
+        let expiryDate: Date | null = null;
+        if (purchase.expiryDate) {
+          try {
+            // 尝试解析过期时间，处理可能的时区问题
+            expiryDate = new Date(purchase.expiryDate);
+            
+            // 检查日期是否有效
+            if (isNaN(expiryDate.getTime())) {
+              console.error('[QuizPage] 无效的过期日期格式:', purchase.expiryDate);
+              expiryDate = null;
+            }
+          } catch (error) {
+            console.error('[QuizPage] 解析过期日期时出错:', error, purchase.expiryDate);
+            expiryDate = null;
+          }
+        }
+        
+        // 更宽松的过期检查：如果没有有效的过期时间，视为永久有效
+        const isExpired = expiryDate ? expiryDate <= now : false;
         
         // 仅接受明确的active或completed状态
         const validStates = ['active', 'completed', 'success'];
         const isActive = validStates.includes(purchase.status || '');
         
-        const purchaseHasAccess = !isExpired && isActive;
+        // 计算剩余时间（毫秒）
+        const remainingTime = expiryDate ? (expiryDate.getTime() - now.getTime()) : null;
+        const remainingDays = remainingTime ? Math.ceil(remainingTime / (1000 * 60 * 60 * 24)) : null;
+        
+        // 临时修复：对于非常接近过期时间的情况，给予1天的宽限期
+        const gracePeriodMs = 24 * 60 * 60 * 1000; // 24小时
+        const isWithinGracePeriod = remainingTime !== null && remainingTime > -gracePeriodMs;
+        
+        // 修正的过期检查逻辑
+        const isActuallyExpired = expiryDate ? (now.getTime() - expiryDate.getTime() > gracePeriodMs) : false;
+        
+        const purchaseHasAccess = !isActuallyExpired && isActive;
+        
+        // 如果是宽限期内，添加警告
+        if (purchaseHasAccess && remainingTime !== null && remainingTime < gracePeriodMs && remainingTime > -gracePeriodMs) {
+          console.warn(`[QuizPage] 购买记录在宽限期内，剩余时间: ${Math.round(remainingTime / (1000 * 60 * 60))}小时`);
+        }
+        
+        // 详细的过期时间调试
+        console.log(`[QuizPage] 购买记录详细检查:`, {
+          purchaseId: purchase.id,
+          purchaseStatus: purchase.status,
+          expiryDateRaw: purchase.expiryDate,
+          expiryDateParsed: expiryDate,
+          currentTime: now,
+          isExpired,
+          isActive,
+          finalResult: purchaseHasAccess,
+          timeDiff: expiryDate ? (expiryDate.getTime() - now.getTime()) : null,
+          remainingDays: expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+        });
         
         console.log(`[QuizPage] 购买记录检查: 已过期=${isExpired}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
         
@@ -2070,26 +2126,32 @@ function QuizPage(): JSX.Element {
     const hasFullAccess = checkFullAccessFromAllSources();
     console.log(`[checkAccess] 重新检查权限: ${hasFullAccess}`);
     
-    // 更新访问权限状态
-    setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: hasFullAccess });
-    
-    // 根据检查结果更新本地存储
+    // 根据检查结果一次性更新所有相关状态
     if (hasFullAccess) {
       console.log(`[checkAccess] 用户有访问权限，保存到本地缓存并重置试用结束状态`);
       saveAccessToLocalStorage(questionSet.id, true);
-      setQuizStatus({ ...quizStatus, trialEnded: false });
-      setQuizStatus({ ...quizStatus, showPurchasePage: false });
+      
+      // 一次性更新所有状态，避免竞争条件
+      setQuizStatus(prev => ({
+        ...prev,
+        hasAccessToFullQuiz: true,
+        trialEnded: false,
+        showPurchasePage: false
+      }));
     } else {
       console.log(`[checkAccess] 用户无访问权限，检查试用状态`);
       saveAccessToLocalStorage(questionSet.id, false);
       
       // 检查是否已达试用限制
-      if (questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions) {
-        console.log(`[checkAccess] 已达到试用限制：${answeredQuestions.length}/${questionSet.trialQuestions}`);
-        setQuizStatus({ ...quizStatus, trialEnded: true });
-      } else {
-        setQuizStatus({ ...quizStatus, trialEnded: false });
-      }
+      const isTrialEnded = questionSet.trialQuestions && answeredQuestions.length >= questionSet.trialQuestions;
+      console.log(`[checkAccess] 试用状态检查: 已答题=${answeredQuestions.length}, 试用限制=${questionSet.trialQuestions}, 试用结束=${isTrialEnded}`);
+      
+      // 一次性更新所有状态，避免竞争条件
+      setQuizStatus(prev => ({
+        ...prev,
+        hasAccessToFullQuiz: false,
+        trialEnded: Boolean(isTrialEnded)
+      }));
     }
     
     // 同步服务器检查
@@ -2611,6 +2673,35 @@ function QuizPage(): JSX.Element {
     fetchQuestionSet();
   }, [questionSetId, socket, user]);
   
+  // 在题库加载完成后进行权限同步检查
+  useEffect(() => {
+    if (questionSet && !quizStatus.loading) {
+      console.log(`[QuizPage] 题库加载完成，开始权限同步检查`);
+      
+      // 实时检查用户的真实访问权限
+      const hasRealAccess = checkFullAccessFromAllSources();
+      
+      // 如果实际权限与状态不一致，进行同步
+      if (hasRealAccess !== quizStatus.hasAccessToFullQuiz) {
+        console.log(`[QuizPage] 发现权限状态不一致: 实际权限=${hasRealAccess}, 状态权限=${quizStatus.hasAccessToFullQuiz}`);
+        
+        setQuizStatus(prev => ({
+          ...prev,
+          hasAccessToFullQuiz: hasRealAccess,
+          trialEnded: hasRealAccess ? false : prev.trialEnded,
+          showPurchasePage: hasRealAccess ? false : prev.showPurchasePage
+        }));
+        
+        // 更新本地存储
+        saveAccessToLocalStorage(questionSet.id, hasRealAccess);
+        
+        console.log(`[QuizPage] 权限状态已同步: ${hasRealAccess}`);
+      } else {
+        console.log(`[QuizPage] 权限状态一致，无需同步`);
+      }
+    }
+  }, [questionSet, quizStatus.loading, quizStatus.hasAccessToFullQuiz, checkFullAccessFromAllSources]);
+  
   // 在加载完题目数据后设置questionStartTime
   useEffect(() => {
     if (questions.length > 0 && !quizStatus.loading) {
@@ -2727,6 +2818,38 @@ function QuizPage(): JSX.Element {
       (socket as Socket).off('progress:delete', handleProgressDelete);
     };
   }, [socket, user?.id, questionSetId]);
+  
+  // 监听用户购买记录变化，实时同步权限状态
+  useEffect(() => {
+    if (!questionSet || !user) return;
+    
+    console.log(`[QuizPage] 监听到用户购买记录变化，重新同步权限`);
+    
+    // 重新检查权限
+    const hasRealAccess = checkFullAccessFromAllSources();
+    
+    // 如果获得了访问权限，立即更新状态
+    if (hasRealAccess && !quizStatus.hasAccessToFullQuiz) {
+      console.log(`[QuizPage] 检测到新的访问权限，更新状态`);
+      
+      setQuizStatus(prev => ({
+        ...prev,
+        hasAccessToFullQuiz: true,
+        trialEnded: false,
+        showPurchasePage: false,
+        showPaymentModal: false
+      }));
+      
+      // 更新本地存储
+      saveAccessToLocalStorage(questionSet.id, true);
+      
+      // 显示成功消息
+      toast.success('访问权限已激活！', {
+        position: 'top-center',
+        autoClose: 2000
+      });
+    }
+  }, [user?.purchases, questionSet, checkFullAccessFromAllSources]);
   
   // 处理选择选项
   const handleOptionSelect = (optionId: string) => {
@@ -3261,20 +3384,41 @@ function QuizPage(): JSX.Element {
   
   // 添加一个新的函数来集中管理试用限制逻辑
   const isTrialLimitReached = useCallback((): boolean => {
-    // 如果是免费题库，或者用户有完整访问权限，则没有试用限制
-    if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+    // 如果是免费题库，则没有试用限制
+    if (!questionSet?.isPaid) {
+      return false;
+    }
+    
+    // 实时检查用户的访问权限，而不是依赖状态变量
+    const hasRealTimeAccess = checkFullAccessFromAllSources();
+    
+    // 如果用户有完整访问权限或已兑换，则没有试用限制
+    if (hasRealTimeAccess || quizStatus.hasRedeemed) {
+      console.log(`[isTrialLimitReached] 用户有访问权限或已兑换，无试用限制`);
       return false;
     }
     
     // 检查是否达到试用题目数量
     const trialLimit = questionSet?.trialQuestions || 0;
-    return answeredQuestions.length >= trialLimit;
-  }, [questionSet, quizStatus.hasAccessToFullQuiz, quizStatus.hasRedeemed, answeredQuestions.length]);
+    const limitReached = answeredQuestions.length >= trialLimit;
+    
+    console.log(`[isTrialLimitReached] 试用状态: 已答题=${answeredQuestions.length}, 限制=${trialLimit}, 达到限制=${limitReached}, 有访问权限=${hasRealTimeAccess}`);
+    
+    return limitReached;
+  }, [questionSet, quizStatus.hasRedeemed, answeredQuestions.length, checkFullAccessFromAllSources]);
 
   // 添加一个函数专门控制是否可以访问特定题目索引
   const canAccessQuestion = useCallback((questionIndex: number): boolean => {
-    // 检查是否为免费题库或者用户有完整访问权限
-    if (!questionSet?.isPaid || quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
+    // 检查是否为免费题库
+    if (!questionSet?.isPaid) {
+      return true;
+    }
+    
+    // 实时检查用户的访问权限
+    const hasRealTimeAccess = checkFullAccessFromAllSources();
+    
+    // 如果用户有完整访问权限或已兑换，可以访问所有题目
+    if (hasRealTimeAccess || quizStatus.hasRedeemed) {
       return true;
     }
     
@@ -4616,6 +4760,31 @@ function QuizPage(): JSX.Element {
     <div className="min-h-screen bg-gray-50 py-8 pb-20">
       {/* 添加StyleInjector组件 */}
       <StyleInjector />
+      
+      {/* 调试工具区域 */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {/* 管理员覆盖按钮 */}
+        {user?.email?.includes('@admin.') && (
+          <button
+            onClick={() => {
+              const current = localStorage.getItem('admin_access_override');
+              const newValue = current === 'true' ? 'false' : 'true';
+              localStorage.setItem('admin_access_override', newValue);
+              toast.success(`管理员覆盖: ${newValue === 'true' ? '启用' : '禁用'}`);
+              // 强制重新检查权限
+              window.location.reload();
+            }}
+            className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            管理员覆盖 {localStorage.getItem('admin_access_override') === 'true' ? '✓' : '✗'}
+          </button>
+        )}
+        
+        {/* 访问权限状态显示 */}
+        <div className="px-3 py-1 text-xs bg-blue-500 text-white rounded">
+          访问权限: {checkFullAccessFromAllSources() ? '✓' : '✗'}
+        </div>
+      </div>
       
       {/* 添加DirectPurchaseDebugButton组件 */}
       {questionSet && <DirectPurchaseDebugButton questionSetId={questionSet.id} price={questionSet.price} />}

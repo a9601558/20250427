@@ -42,6 +42,20 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
       setSavedAccounts(sorted);
     }
   }, [mode]);
+
+  // 监听UserContext中的错误状态变化
+  useEffect(() => {
+    if (contextError && !formError) {
+      setFormError(contextError);
+    }
+  }, [contextError, formError]);
+
+  // 监听UserContext中的错误状态变化
+  useEffect(() => {
+    if (contextError && !formError) {
+      setFormError(contextError);
+    }
+  }, [contextError, formError]);
   
   const toggleMode = () => {
     setMode(mode === AuthMode.LOGIN ? AuthMode.REGISTER : AuthMode.LOGIN);
@@ -108,13 +122,21 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
     
     if (!validateForm()) return;
     
+    // 清除之前的错误消息
+    setFormError('');
+    
     try {
       let success = false;
       
       if (mode === AuthMode.LOGIN) {
         success = await login(formData.usernameOrEmail, formData.password);
         if (!success) {
-          setFormError('用户名/邮箱或密码错误');
+          // 等待一下让contextError更新，然后使用最新的错误信息
+          setTimeout(() => {
+            const errorMessage = contextError || '用户名/邮箱或密码错误';
+            setFormError(errorMessage);
+            toast.error(errorMessage);
+          }, 100);
         }
       } else {
         // 创建用户数据对象
@@ -126,18 +148,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
         
         success = await register(userData);
         if (!success) {
-          setFormError('该用户名或邮箱已被注册');
+          // 等待一下让contextError更新，然后使用最新的错误信息
+          setTimeout(() => {
+            const errorMessage = contextError || '该用户名或邮箱已被注册';
+            setFormError(errorMessage);
+            toast.error(errorMessage);
+          }, 100);
         }
       }
       
       if (success) {
-        onClose(); // 登录/注册成功后关闭弹窗
-      } else if (contextError) {
-        // 如果上下文中有错误信息，则显示
-        setFormError(contextError);
+        // 成功时显示成功消息并关闭弹窗
+        const successMessage = mode === AuthMode.LOGIN ? '登录成功' : '注册成功';
+        toast.success(successMessage);
+        onClose();
       }
     } catch (error) {
-      setFormError('登录/注册时发生错误');
+      const errorMessage = '登录/注册时发生错误';
+      setFormError(errorMessage);
+      toast.error(errorMessage);
       console.error(error);
     }
   };
