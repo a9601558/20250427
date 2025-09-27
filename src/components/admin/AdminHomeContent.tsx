@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../../contexts/UserContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { homepageService } from '../../services/api';
 import { toast } from 'react-toastify';
@@ -642,21 +643,13 @@ const AdminHomeContent: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">显示在页面底部的页脚文本</p>
         </div>
 
-            {/* 主题设置 */}
-            <div className="mb-4">
-              <label className="block mb-2 font-medium text-gray-700">主题设置</label>
-              <select 
-                name="theme"
-                value={homeContent.theme}
-            onChange={handleInputChange}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="light">亮色主题</option>
-                <option value="dark">暗色主题</option>
-                <option value="auto">跟随系统设置</option>
-              </select>
-              <p className="mt-1 text-sm text-gray-500">设置网站的默认显示主题</p>
-        </div>
+            {/* 主题设置说明 */}
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <h4 className="font-medium text-blue-800 mb-2">主题设置</h4>
+              <p className="text-sm text-blue-700">
+                主题设置现在通过页面顶部的深色模式切换按钮进行全局管理。用户可以根据个人喜好自由切换浅色或深色主题。
+              </p>
+            </div>
 
             {/* Banner图片 */}
             <div className="mb-4">

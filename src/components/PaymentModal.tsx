@@ -12,7 +12,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import './payment-styles.css'; // 添加样式引用
 
 // 新增：导入React Spring用于动画效果
-import { useSpring, animated } from 'react-spring';
+import { useSpring, animated } from '@react-spring/web';
 
 // 定义庆祝组件接口
 interface CelebrationPopupProps {
@@ -149,25 +149,35 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   const [paymentIntentId, setPaymentIntentId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<'input' | 'processing' | 'confirming' | 'success'>('input');
+  const [cardValidation, setCardValidation] = useState({
+    complete: false,
+    empty: true,
+    error: null as string | null
+  });
   const submitButtonRef = useRef<HTMLButtonElement>(null);
 
   // Create a payment intent when the form loads
-  const createPaymentIntent = async () => {
+  const createPaymentIntent = async (retryCount = 0) => {
+    const MAX_RETRIES = 3;
+    
     try {
       if (!amount || amount <= 0) {
         console.error('[StripePaymentForm] Invalid amount:', amount);
-        setError('Invalid payment amount');
+        setError('支付金额无效。请确认金额正确。');
         return;
       }
 
       setIsLoading(true);
+      setPaymentStep('processing');
       
       try {
         // Get fresh token directly
         const token = localStorage.getItem('token');
         if (!token) {
-          setError('认证失败：无法获取有效的登录令牌');
+          setError('认证失败：请重新登录后再试');
           setIsLoading(false);
+          setPaymentStep('input');
           return;
         }
         
@@ -185,7 +195,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
-            }
+            },
+            timeout: 10000 // 10秒超时
           }
         );
 
@@ -193,19 +204,29 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           console.log('[StripePaymentForm] Payment intent created:', response.data);
           setClientSecret(response.data.clientSecret);
           setPaymentIntentId(response.data.paymentIntentId);
+          setPaymentStep('input');
         } else {
-          throw new Error(response.data.message || 'Failed to create payment intent');
+          throw new Error(response.data.message || '创建支付意向失败');
         }
       } catch (authError: any) {
         // 处理认证错误
         if (authError.response && authError.response.status === 403) {
           console.error('[StripePaymentForm] Authentication error:', authError);
-          setError('认证失败，请刷新页面后重试');
+          setError('认证失败，请重新登录后再试');
           // 提示用户刷新页面
-          toast.error('会话已过期，请刷新页面后重试', {
+          toast.error('会话已过期，请重新登录后再试', {
             position: 'top-center',
             autoClose: 5000
           });
+        } else if (authError.code === 'ECONNABORTED' || authError.message.includes('timeout')) {
+          // 网络超时错误
+          if (retryCount < MAX_RETRIES) {
+            console.log(`[StripePaymentForm] Timeout error, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+            setTimeout(() => createPaymentIntent(retryCount + 1), 2000 * (retryCount + 1));
+            return;
+          } else {
+            setError('网络连接超时，请检查网络后重试');
+          }
         } else {
           throw authError; // 重新抛出其他错误
         }
@@ -213,16 +234,25 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
     } catch (error: any) {
       console.error('[StripePaymentForm] Error creating payment intent:', error);
       
-      // 检查是否是用户ID不匹配错误
-      if (error.response && error.response.status === 403 && 
+      // 检查是否是网络错误
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[StripePaymentForm] Network error, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+          setTimeout(() => createPaymentIntent(retryCount + 1), 2000 * (retryCount + 1));
+          return;
+        } else {
+          setError('网络连接失败，请检查网络后重试');
+        }
+      } else if (error.response && error.response.status === 403 && 
           error.response.data && error.response.data.message && 
           error.response.data.message.includes('用户ID不匹配')) {
-        setError('会话状态异常，请尝试刷新页面后重试');
+        setError('会话状态异常，请重新登录后再试');
       } else {
-        setError(error instanceof Error ? error.message : 'Failed to create payment intent');
+        setError(error instanceof Error ? error.message : '创建支付意向失败，请稍后重试');
       }
     } finally {
       setIsLoading(false);
+      setPaymentStep('input');
     }
   };
 
@@ -231,23 +261,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
     createPaymentIntent();
   }, [amount]);
 
-  // 支付成功后的处理函数
-  const handlePaymentSuccess = (paymentInfo: any) => {
-    console.log('[StripePaymentForm] Payment success, forwarding to onSubmit:', paymentInfo);
-    // 保存付款记录到本地
-    try {
-      localStorage.setItem(`payment_success_${Date.now()}`, JSON.stringify({
-        paymentIntentId: paymentInfo.paymentIntentId,
-        timestamp: new Date().toISOString(),
-        amount: paymentInfo.amount // Use the amount from the payment info instead of component scope
-      }));
-    } catch (e) {
-      console.error('[StripePaymentForm] Error saving payment record:', e);
-    }
-    
-    // 转发到父组件的提交处理程序
-    onSubmit(paymentInfo);
-  };
+  // 移除未使用的 handlePaymentSuccess 函数
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -298,16 +312,17 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         throw new Error('Card element not found');
       }
       
-      const result = await stripe.confirmCardPayment(clientSecret, {
+        // 更新支付步骤
+        setPaymentStep('confirming');
+        
+        const result = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: cardElement,
           billing_details: {
             name: 'Customer Name',
           },
         }
-      });
-      
-      // 支付成功或需处理的情况
+      });      // 支付成功或需处理的情况
       if (result.error) {
         console.error('[StripePaymentForm] Payment confirmation error:', result.error);
         // 如果是网络错误或超时，可能支付已经成功但没有收到确认
@@ -336,6 +351,10 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         }
       } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
         console.log('[StripePaymentForm] Payment succeeded:', result.paymentIntent);
+        
+        // 更新支付步骤
+        setPaymentStep('success');
+        
         // 处理支付方法ID，可能是字符串或对象
         let paymentMethodId: string | null = null;
         if (result.paymentIntent.payment_method) {
@@ -344,13 +363,15 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             : null;
         }
         
-        // 处理支付成功 - 直接调用 onSubmit 而不是通过 handlePaymentSuccess
-        onSubmit({
-          paymentIntentId: paymentIntentId || result.paymentIntent.id,
-          paymentMethodId,
-          amount: amount,
-          status: 'succeeded'
-        });
+        // 短暂延迟以显示成功状态
+        setTimeout(() => {
+          onSubmit({
+            paymentIntentId: paymentIntentId || result.paymentIntent.id,
+            paymentMethodId,
+            amount: amount,
+            status: 'succeeded'
+          });
+        }, 1000);
       } else if (result.paymentIntent) {
         console.log('[StripePaymentForm] Payment pending:', result.paymentIntent);
         // 存储进行中的支付信息
@@ -375,6 +396,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       setError(error.message || 'An unexpected error occurred during payment');
     } finally {
       // 恢复表单状态
+      if (paymentStep !== 'success') {
+        setPaymentStep('input');
+      }
       setIsSubmitting(false);
       setIsLoading(false);
       if (submitButtonRef.current) {
@@ -384,8 +408,56 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
     }
   };
 
+  // 支付进度指示器组件
+  const PaymentProgress = () => {
+    const steps = [
+      { id: 'input', label: '输入信息', icon: '1' },
+      { id: 'processing', label: '处理中', icon: '2' },
+      { id: 'confirming', label: '确认支付', icon: '3' },
+      { id: 'success', label: '完成', icon: '✓' }
+    ];
+    
+    return (
+      <div className="flex items-center justify-between mb-6 px-4">
+        {steps.map((step, index) => {
+          const isActive = step.id === paymentStep;
+          const isCompleted = ['processing', 'confirming', 'success'].includes(paymentStep) && 
+                             ['input', 'processing', 'confirming'].slice(0, index + 1).includes(step.id);
+          
+          return (
+            <div key={step.id} className="flex items-center">
+              <div className={`
+                flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold transition-all duration-200
+                ${isActive 
+                  ? 'bg-blue-500 text-white scale-110' 
+                  : isCompleted 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-gray-600 text-gray-300'
+                }
+              `}>
+                {isCompleted && step.id !== 'success' ? '✓' : step.icon}
+              </div>
+              <span className={`ml-2 text-xs ${
+                isActive ? 'text-blue-300 font-medium' : 
+                isCompleted ? 'text-green-300' : 'text-gray-400'
+              }`}>
+                {step.label}
+              </span>
+              {index < steps.length - 1 && (
+                <div className={`mx-3 w-8 h-0.5 ${
+                  isCompleted ? 'bg-green-500' : 'bg-gray-600'
+                }`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="p-8 rounded-2xl bg-gradient-to-br from-gray-900 to-indigo-900 text-white">
+      <PaymentProgress />
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* 支付标题 */}
         <div className="text-center mb-6">
@@ -408,11 +480,38 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
         {/* 卡号信息 */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-200 mb-1">
-            银行卡信息
+          <label className="block text-sm font-medium text-gray-200 mb-1 flex items-center justify-between">
+            <span>银行卡信息</span>
+            {!cardValidation.empty && (
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                cardValidation.complete 
+                  ? 'bg-green-900 text-green-300 border border-green-600' 
+                  : cardValidation.error 
+                  ? 'bg-red-900 text-red-300 border border-red-600'
+                  : 'bg-yellow-900 text-yellow-300 border border-yellow-600'
+              }`}>
+                {cardValidation.complete ? '✓ 验证通过' : cardValidation.error ? '✗ 验证失败' : '⚠ 不完整'}
+              </span>
+            )}
         </label>
-          <div className="p-4 border border-gray-500 rounded-xl bg-black bg-opacity-20 backdrop-filter backdrop-blur-md shadow-inner">
+          <div className={`p-4 rounded-xl bg-black bg-opacity-20 backdrop-filter backdrop-blur-md shadow-inner transition-all duration-200 ${
+            cardValidation.error 
+              ? 'border-2 border-red-500 shadow-red-500/20' 
+              : cardValidation.complete 
+              ? 'border-2 border-green-500 shadow-green-500/20'
+              : 'border border-gray-500'
+          }`}>
           <CardElement
+            onChange={(event) => {
+              setCardValidation({
+                complete: event.complete,
+                empty: event.empty,
+                error: event.error?.message || null
+              });
+              if (event.error) {
+                setError(null); // 清除全局错误，显示实时验证错误
+              }
+            }}
             options={{
               style: {
                 base: {
@@ -432,8 +531,18 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           />
         </div>
           
+          {/* 卡片验证错误 */}
+          {cardValidation.error && (
+            <div className="text-red-400 text-sm flex items-center mt-1">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {cardValidation.error}
+            </div>
+          )}
+          
           {/* 安全标识 */}
-          <div className="flex items-center mt-1">
+          <div className="flex items-center mt-2">
             <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
@@ -498,23 +607,48 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         <button
             ref={submitButtonRef}
           type="submit"
-            disabled={!stripe || !elements || isProcessing || isLoading || isSubmitting}
+            disabled={!stripe || !elements || isProcessing || isLoading || isSubmitting || !cardValidation.complete}
             className={`
-              flex-1 py-3 rounded-xl font-medium flex items-center justify-center
-              ${(isProcessing || isLoading || isSubmitting || !stripe || !elements) 
-                ? 'bg-blue-700 bg-opacity-50 cursor-not-allowed' 
+              flex-1 py-3 rounded-xl font-medium flex items-center justify-center transition-all duration-200
+              ${(isProcessing || isLoading || isSubmitting || !stripe || !elements || !cardValidation.complete) 
+                ? 'bg-gray-600 cursor-not-allowed' 
+                : paymentStep === 'success'
+                ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
               }
-              transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
             `}
           >
-            {isProcessing || isLoading || isSubmitting ? (
+            {paymentStep === 'processing' ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                处理中...
+                创建支付...
+              </>
+            ) : paymentStep === 'confirming' ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                确认支付...
+              </>
+            ) : paymentStep === 'success' ? (
+              <>
+                <svg className="w-5 h-5 mr-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                支付成功
+              </>
+            ) : isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                初始化...
               </>
             ) : '确认支付'}
         </button>

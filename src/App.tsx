@@ -8,6 +8,7 @@ import ProfilePage from './components/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { UserProvider, useUser } from './contexts/UserContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import AdminPage from './components/AdminPage';
 import RedeemCodeAdmin from './components/RedeemCodeAdmin';
 import { SocketProvider } from './contexts/SocketContext';
@@ -105,50 +106,52 @@ const App: React.FC = () => {
   }, []);
   
   return (
-    <UserProvider>
-      <SocketProvider>
-        <UserProgressProvider>
-          <Router>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/profile" element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/admin" element={
-                  <AdminRoute>
-                    <AdminPage />
-                  </AdminRoute>
-                } />
-                <Route path="/admin/redeem-codes" element={
-                  <AdminRoute>
-                    <RedeemCodeAdmin />
-                  </AdminRoute>
-                } />
-                <Route path="/quiz/:questionSetId" element={<QuizPage />} />
-                <Route path="/payment/:id" element={<Navigate to="/" replace />} />
-                <Route path="/question-sets" element={<QuestionSetSearchPage />} />
-              </Routes>
-            </Layout>
-          </Router>
-          <AuthManager />
-          <ToastContainer 
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            icon={false}
-          />
-        </UserProgressProvider>
-      </SocketProvider>
-    </UserProvider>
+    <ThemeProvider>
+      <UserProvider>
+        <SocketProvider>
+          <UserProgressProvider>
+            <Router>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin" element={
+                    <AdminRoute>
+                      <AdminPage />
+                    </AdminRoute>
+                  } />
+                  <Route path="/admin/redeem-codes" element={
+                    <AdminRoute>
+                      <RedeemCodeAdmin />
+                    </AdminRoute>
+                  } />
+                  <Route path="/quiz/:questionSetId" element={<QuizPage />} />
+                  <Route path="/payment/:id" element={<Navigate to="/" replace />} />
+                  <Route path="/question-sets" element={<QuestionSetSearchPage />} />
+                </Routes>
+              </Layout>
+            </Router>
+            <AuthManager />
+            <ToastContainer 
+              position="top-right"
+              autoClose={5000}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              icon={false}
+            />
+          </UserProgressProvider>
+        </SocketProvider>
+      </UserProvider>
+    </ThemeProvider>
   );
 };
 

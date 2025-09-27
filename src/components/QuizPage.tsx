@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import type React from 'react';
 import { Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { questionSetApi } from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService, wrongAnswerService } from '../services/api';
@@ -79,42 +81,47 @@ const AnswerCard: React.FC<{
           {Array.from({length: totalQuestions}).map((_, questionIndex) => {
             const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);
             const isActive = currentIndex === questionIndex;
-          const isDisabled = isTrialMode && isTrialLimitReached && !isActive;
+            
+            // 在试用模式下，判断题目是否可访问
+            // 如果是试用模式且超出试用限制，则除了当前题目外都不可访问
+            const isInTrialMode = isTrialMode && trialLimit && trialLimit > 0;
+            const canAccess = !isInTrialMode || questionIndex < trialLimit || isActive;
+            const isDisabled = !canAccess;
           
             // 计算样式类
-            let buttonClass = "flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all";
+            let buttonClass = "relative flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all";
             
-          if (isActive) {
+            if (isActive) {
               buttonClass += " bg-blue-500 text-white scale-105 shadow-md";
-          } else if (answered) {
+            } else if (answered && canAccess) {
               buttonClass += answered.isCorrect 
                 ? " bg-green-500 text-white hover:shadow-md" 
                 : " bg-red-500 text-white hover:shadow-md";
-          } else if (isDisabled) {
+            } else if (isDisabled) {
               buttonClass += " bg-gray-200 text-gray-400 cursor-not-allowed opacity-60";
             } else {
               buttonClass += " bg-white text-gray-700 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md";
-          }
+            }
           
-          return (
-            <button
+            return (
+              <button
                 key={questionIndex}
                 className={buttonClass}
                 onClick={() => !isDisabled && onJump(questionIndex)}
-              disabled={isDisabled}
+                disabled={isDisabled}
                 title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${questionIndex + 1}题`}
-            >
+              >
                 {questionIndex + 1}
-              {isDisabled && (
-                <span className="absolute -top-1 -right-1">
-                  <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              )}
-            </button>
-          );
-        })}
+                {isDisabled && (
+                  <span className="absolute -top-1 -right-1">
+                    <svg className="w-3 h-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 616 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
       
@@ -136,12 +143,12 @@ const AnswerCard: React.FC<{
           <span className="w-4 h-4 bg-red-500 rounded-md mr-1"></span>
           答错
         </div>
-        {isTrialMode && isTrialLimitReached && (
+        {isTrialMode && trialLimit && (
           <div className="flex items-center">
             <span className="w-4 h-4 bg-gray-200 opacity-60 rounded-md mr-1"></span>
             需购买
-        </div>
-      )}
+          </div>
+        )}
       </div>
       
       {/* 试用模式提示 */}
@@ -157,8 +164,9 @@ const AnswerCard: React.FC<{
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>
-                您正在试用模式，可使用 <span className="font-medium">{trialLimit}</span> 道题，
-                已答 <span className="font-medium">{answeredQuestions.length}</span> 道
+                试用模式：可访问前 <span className="font-medium">{trialLimit}</span> 道题，
+                已答 <span className="font-medium">{answeredQuestions.length}</span> 道。
+                其他题目为灰色，需购买完整版访问。
               </span>
             </div>
           ) : (
@@ -166,7 +174,7 @@ const AnswerCard: React.FC<{
               <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>已达到试用题目上限，请购买完整版继续使用，无法回看已答题目</span>
+              <span>已达到试用题目上限，请购买完整版继续使用</span>
             </div>
           )}
         </div>

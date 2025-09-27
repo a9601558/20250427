@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
+import { useTheme } from '../contexts/ThemeContext';
 import AdminUserManagement from './admin/AdminUserManagement';
 import AdminHomeContent from './admin/AdminHomeContent';
 import AdminRedeemCodes from './admin/AdminRedeemCodes';

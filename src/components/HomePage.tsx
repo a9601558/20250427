@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
@@ -323,6 +324,7 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (..
 
 const HomePage = (): JSX.Element => {
   const { user, isAdmin, syncAccessRights } = useUser();
+  const { isDarkMode } = useTheme();
   const { socket } = useSocket();
   // Remove unused destructured variables
   const { /* progressStats, fetchUserProgress */ } = useUserProgress();
