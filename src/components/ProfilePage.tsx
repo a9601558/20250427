@@ -183,18 +183,63 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
     return null;
   };
   
+  // 验证和清理questionSetId的函数
+  const validateAndCleanQuestionSetId = (questionSetId: string): string | null => {
+    if (!questionSetId) return null;
+    
+    // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (uuidRegex.test(questionSetId)) {
+      return questionSetId; // 已经是正确格式
+    }
+    
+    // 如果包含下划线，可能是两个UUID连接，尝试提取第一个
+    if (questionSetId.includes('_')) {
+      const parts = questionSetId.split('_');
+      const firstPart = parts[0];
+      
+      console.warn('[ProfilePage] 检测到异常ID格式:', questionSetId, '尝试使用第一部分:', firstPart);
+      
+      if (uuidRegex.test(firstPart)) {
+        return firstPart;
+      }
+      
+      // 尝试第二部分
+      const secondPart = parts[1];
+      if (secondPart && uuidRegex.test(secondPart)) {
+        console.warn('[ProfilePage] 第一部分无效，尝试第二部分:', secondPart);
+        return secondPart;
+      }
+    }
+    
+    console.error('[ProfilePage] 无法清理异常的questionSetId:', questionSetId);
+    return null;
+  };
+  
   // 处理继续学习按钮点击
   const handleContinueLearning = () => {
+    // 验证和清理questionSetId
+    const cleanedId = validateAndCleanQuestionSetId(stats.questionSetId);
+    
+    if (!cleanedId) {
+      console.error('[ProfilePage] questionSetId格式异常，无法继续学习:', stats.questionSetId);
+      toast.error('题库ID格式异常，请刷新页面重试');
+      return;
+    }
+    
     // 检查本地数据是否存在更新的进度
     const localProgress = checkLocalProgressData();
     
     if (localProgress) {
       // 如果有本地进度数据，附加lastQuestionIndex参数
       const continueIndex = localProgress.lastQuestionIndex >= 0 ? localProgress.lastQuestionIndex : 0;
-      navigate(`/quiz/${stats.questionSetId}?lastQuestion=${continueIndex}`);
+      console.log('[ProfilePage] 继续学习，清理后的ID:', cleanedId, '继续题目索引:', continueIndex);
+      navigate(`/quiz/${cleanedId}?lastQuestion=${continueIndex}`);
     } else {
       // 否则正常导航
-      navigate(`/quiz/${stats.questionSetId}`);
+      console.log('[ProfilePage] 开始学习，清理后的ID:', cleanedId);
+      navigate(`/quiz/${cleanedId}`);
     }
   };
 

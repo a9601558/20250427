@@ -1669,13 +1669,50 @@ interface IQuestionSet {
   updatedAt: Date;
 }
 
+// 验证和清理questionSetId的函数
+const validateAndCleanQuestionSetId = (questionSetId: string | undefined): string | null => {
+  if (!questionSetId) return null;
+  
+  // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (uuidRegex.test(questionSetId)) {
+    return questionSetId; // 已经是正确格式
+  }
+  
+  // 如果包含下划线，可能是两个UUID连接，尝试提取第一个
+  if (questionSetId.includes('_')) {
+    const parts = questionSetId.split('_');
+    const firstPart = parts[0];
+    
+    console.warn('[QuizPage] 检测到异常ID格式:', questionSetId, '尝试使用第一部分:', firstPart);
+    
+    if (uuidRegex.test(firstPart)) {
+      return firstPart;
+    }
+    
+    // 尝试第二部分
+    const secondPart = parts[1];
+    if (secondPart && uuidRegex.test(secondPart)) {
+      console.warn('[QuizPage] 第一部分无效，尝试第二部分:', secondPart);
+      return secondPart;
+    }
+  }
+  
+  console.error('[QuizPage] 无法清理异常的questionSetId:', questionSetId);
+  return null;
+};
+
 function QuizPage(): JSX.Element {
-  const { questionSetId } = useParams<{ questionSetId: string }>();
+  const { questionSetId: rawQuestionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, hasAccessToQuestionSet, syncAccessRights, updateUser } = useUser();
   const { socket } = useSocket() as { socket: Socket | null };
   const { fetchUserProgress } = useUserProgress();
+  
+  // 验证和清理questionSetId
+  const questionSetId = validateAndCleanQuestionSetId(rawQuestionSetId);
   
   // 将 isSubmittingRef 移动到组件内部
   const isSubmittingRef = useRef<boolean>(false);
@@ -1945,13 +1982,20 @@ function QuizPage(): JSX.Element {
   // 完全重写检查权限函数，修复ID匹配和权限检查逻辑
   const checkFullAccessFromAllSources = useCallback(() => {
     if (!questionSet || !questionSet.id) {
-      console.log('[QuizPage] 检查访问权限：无题库ID，返回false');
+      console.log('[QuizPage] 检查访问权限：无题库或题库ID无效，返回false', { questionSet: !!questionSet, questionSetId: questionSet?.id });
       return false;
     }
     
-    // 标准化当前题库ID，确保精确匹配
-    const questionSetId = String(questionSet.id).trim();
-    console.log(`[QuizPage] 检查题库ID "${questionSetId}" 的访问权限`);
+    // 验证questionSetId格式
+    const cleanedId = validateAndCleanQuestionSetId(questionSet.id);
+    if (!cleanedId) {
+      console.error('[QuizPage] 题库ID格式异常，无法检查权限:', questionSet.id);
+      return false;
+    }
+    
+    // 使用清理后的ID进行权限检查
+    const questionSetIdForCheck = cleanedId;
+    console.log(`[QuizPage] 检查题库ID "${questionSetIdForCheck}" 的访问权限 (原始ID: "${questionSet.id}")`);
     
     // 步骤0：管理员覆盖功能（严格验证）
     const adminOverride = localStorage.getItem('admin_access_override');
@@ -1977,7 +2021,7 @@ function QuizPage(): JSX.Element {
         
         // 严格匹配，不允许部分匹配
         const purchaseId = String(p.questionSetId).trim();
-        const isExactMatch = purchaseId === questionSetId;
+        const isExactMatch = purchaseId === questionSetIdForCheck;
         
         if (isExactMatch) {
           console.log(`[QuizPage] 找到购买记录匹配: ID=${p.id}, 状态=${p.status}`);
@@ -2057,10 +2101,36 @@ function QuizPage(): JSX.Element {
               purchaseKeys: Object.keys(purchase)
             });
             
+            // 补充检查：通过本地兑换记录和用户兑换码记录来识别兑换购买
+            const isRedeemedLocally = (() => {
+              try {
+                const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+                if (redeemedStr) {
+                  const redeemedIds = JSON.parse(redeemedStr);
+                  return Array.isArray(redeemedIds) && redeemedIds.some(id => String(id || '').trim() === questionSetIdForCheck);
+                }
+              } catch (e) {
+                console.warn('[QuizPage] 检查本地兑换记录出错:', e);
+              }
+              return false;
+            })();
+            
+            const hasUserRedeemCode = user?.redeemCodes?.some(code => code.questionSetId === questionSetIdForCheck);
+            
+            // 综合判断是否为兑换购买
+            const isActualRedeemPurchase = isRedeemPurchase || isRedeemedLocally || hasUserRedeemCode;
+            
+            console.log(`[QuizPage] 兑换码识别综合检查:`, {
+              isRedeemPurchase,
+              isRedeemedLocally,
+              hasUserRedeemCode,
+              isActualRedeemPurchase
+            });
+            
             let purchaseHasAccess: boolean;
             
-            // 先尝试更宽松的兑换码检查
-            if (isRedeemPurchase) {
+            // 使用综合判断进行兑换码检查
+            if (isActualRedeemPurchase) {
               // 对于兑换码购买，只要状态为 active 就认为有效，不严格检查过期时间
               purchaseHasAccess = purchase.status === 'active';
               console.log(`[QuizPage] 兑换码购买检查（宽松规则）: 状态=${purchase.status}, 结果=${purchaseHasAccess}`);
@@ -2080,15 +2150,9 @@ function QuizPage(): JSX.Element {
                 purchaseHasAccess = purchase.status === 'active';
                 console.log(`[QuizPage] 疑似兑换购买（宽松规则）: 状态=${purchase.status}, 标识数量=${possibleRedeemIndicators.length}, 结果=${purchaseHasAccess}`);
               } else {
-                // 对于所有过期的active状态购买，暂时给予访问权限（临时修复）
-                if (purchase.status === 'active') {
-                  purchaseHasAccess = true;
-                  console.log(`[QuizPage] 临时修复：active状态的过期购买仍给予访问权限`);
-                } else {
-                  // 对于常规购买，使用严格的过期时间检查
-                  purchaseHasAccess = purchase.status === 'active' && remainingDays > 0;
-                  console.log(`[QuizPage] 常规购买检查（严格规则）: 状态=${purchase.status}, 剩余天数=${remainingDays}, 结果=${purchaseHasAccess}`);
-                }
+                // 对于常规购买，使用严格的过期时间检查
+                purchaseHasAccess = purchase.status === 'active' && remainingDays > 0;
+                console.log(`[QuizPage] 常规购买检查（严格规则）: 状态=${purchase.status}, 剩余天数=${remainingDays}, 结果=${purchaseHasAccess}`);
               }
             }
             
@@ -2197,7 +2261,7 @@ function QuizPage(): JSX.Element {
             } else {
               // 如果用户没有此题库的兑换记录，但本地有记录，可能是数据不同步
               console.warn(`[QuizPage] 本地有兑换记录但用户数据中无对应记录，清除本地记录`);
-              const validIds = redeemedIds.filter((id: string) => String(id || '').trim() !== questionSetId);
+              const validIds = redeemedIds.filter((id: string) => String(id || '').trim() !== questionSetIdForCheck);
               localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(validIds));
             }
           }
@@ -2214,12 +2278,12 @@ function QuizPage(): JSX.Element {
         const accessRights = JSON.parse(accessRightsStr) as AccessRights;
         
         // 确保只检查精确匹配的权限
-        if (accessRights && accessRights[questionSetId] === true) {
+        if (accessRights && accessRights[questionSetIdForCheck] === true) {
           console.log(`[QuizPage] 本地访问权限记录存在，需要验证有效性`);
           
           // 额外验证：检查本地权限记录是否基于有效的购买记录
           const hasValidPurchase = user?.purchases?.some(p => {
-            if (String(p.questionSetId).trim() !== questionSetId) return false;
+            if (String(p.questionSetId).trim() !== questionSetIdForCheck) return false;
             
             // 验证购买记录是否仍然有效
             const expiryDate = p.expiryDate ? new Date(p.expiryDate) : null;
@@ -2398,7 +2462,21 @@ function QuizPage(): JSX.Element {
   
   // 获取题库和题目数据
   useEffect(() => {
-    if (!questionSetId) return;
+    if (!questionSetId) {
+      console.error('[QuizPage] 无效的questionSetId:', rawQuestionSetId);
+      if (rawQuestionSetId) {
+        setQuizStatus(prev => ({ ...prev, error: `题库ID格式错误：${rawQuestionSetId}。请检查链接是否正确。`, loading: false }));
+      }
+      return;
+    }
+    
+    // 如果需要更新URL中的ID
+    if (rawQuestionSetId !== questionSetId) {
+      console.log('[QuizPage] 更新URL中的questionSetId:', rawQuestionSetId, '->', questionSetId);
+      const newUrl = location.pathname.replace(rawQuestionSetId!, questionSetId) + location.search;
+      navigate(newUrl, { replace: true });
+      return;
+    }
     
     const fetchQuestionSet = async () => {
       setQuizStatus({ ...quizStatus, loading: true });

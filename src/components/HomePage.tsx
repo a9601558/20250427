@@ -1117,24 +1117,56 @@ const HomePage = () => {
             // 处理过期日期
             const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
             const isExpired = expiryDate && expiryDate <= nowDate;
-            const isActive = !isExpired && 
-                            (purchase.status === 'active' || 
-                            purchase.status === 'completed' || 
-                            !purchase.status);
             
             // 计算剩余天数
             let remainingDays = null;
-            if (expiryDate && !isExpired) {
+            if (expiryDate) {
               const diffTime = expiryDate.getTime() - nowDate.getTime();
-              remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+            }
+            
+            // 识别兑换码购买（与QuizPage逻辑一致）
+            const isRedeemPurchase = purchase.paymentMethod === 'redeem';
+            
+            // 检查本地兑换记录
+            const isRedeemedLocally = (() => {
+              try {
+                const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
+                if (redeemedStr) {
+                  const redeemedIds = JSON.parse(redeemedStr);
+                  return Array.isArray(redeemedIds) && redeemedIds.some(id => String(id || '').trim() === qsId);
+                }
+              } catch (e) {
+                // 忽略错误
+              }
+              return false;
+            })();
+            
+            // 检查用户兑换码记录
+            const hasUserRedeemCode = user?.redeemCodes?.some(code => code.questionSetId === qsId);
+            
+            // 综合判断是否为兑换购买（与QuizPage逻辑一致）
+            const isActualRedeemPurchase = isRedeemPurchase || isRedeemedLocally || hasUserRedeemCode;
+            
+            // 根据购买类型应用不同的有效性检查
+            let isActive: boolean;
+            if (isActualRedeemPurchase) {
+              // 兑换码购买：只要状态为 active 就有效（宽松规则）
+              isActive = purchase.status === 'active';
+            } else {
+              // 常规购买：必须未过期且状态有效（严格规则）
+              isActive = !isExpired && 
+                        (purchase.status === 'active' || 
+                        purchase.status === 'completed' || 
+                        !purchase.status);
             }
             
             userPurchasesMap.set(qsId, {
               hasAccess: isActive,
-              accessType: purchase.paymentMethod === 'redeem' ? 'redeemed' : 'paid',
+              accessType: isActualRedeemPurchase ? 'redeemed' : 'paid',
               remainingDays: isActive ? remainingDays : (isExpired ? 0 : null),
               paymentMethod: purchase.paymentMethod || 'paid',
-              isExpired
+              isExpired: isExpired && !isActualRedeemPurchase // 兑换码购买即使过期也不标记为过期
             });
             
             console.log(`[HomePage] 用户购买记录: 题库=${qsId}, 有效=${isActive}, 类型=${purchase.paymentMethod || 'paid'}, 剩余天数=${remainingDays}`);
