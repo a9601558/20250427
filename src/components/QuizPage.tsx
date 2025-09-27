@@ -1951,10 +1951,10 @@ function QuizPage(): JSX.Element {
     const questionSetId = String(questionSet.id).trim();
     console.log(`[QuizPage] 检查题库ID "${questionSetId}" 的访问权限`);
     
-    // 步骤0：临时管理员覆盖功能（用于调试）
+    // 步骤0：管理员覆盖功能（严格验证）
     const adminOverride = localStorage.getItem('admin_access_override');
-    if (adminOverride === 'true' && user?.email?.includes('@admin.')) {
-      console.log(`[QuizPage] 管理员覆盖访问权限激活`);
+    if (adminOverride === 'true' && user?.email?.includes('@admin.') && user?.isAdmin === true) {
+      console.log(`[QuizPage] 管理员覆盖访问权限激活 (已验证管理员身份)`);
       return true;
     }
     
@@ -2032,52 +2032,44 @@ function QuizPage(): JSX.Element {
             return true;
           }
         } else {
-          // 如果服务器没有返回hasAccess，使用客户端逻辑
-          console.log(`[QuizPage] 服务器未返回hasAccess，使用客户端逻辑检查`);
+          // 如果服务器没有返回hasAccess，使用严格的客户端逻辑
+          console.log(`[QuizPage] 服务器未返回hasAccess，使用严格客户端逻辑检查`);
           
-          // 紧急修复：对于active状态的购买记录，直接给予访问权限
-          if (purchase.status === 'active') {
-            console.log(`[QuizPage] 紧急修复：active状态购买记录直接授予访问权限`);
+          // 严格的客户端逻辑：必须同时满足状态为active且未过期
+          if (isActive && expiryDate) {
+            // 计算剩余天数（与服务器端逻辑保持一致）
+            const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
             
-            // 详细的调试信息
-            console.log(`[QuizPage] 购买记录详细检查:`, {
+            // 严格按照服务器端逻辑：status === 'active' && remainingDays > 0
+            const purchaseHasAccess = purchase.status === 'active' && remainingDays > 0;
+            
+            console.log(`[QuizPage] 购买记录详细检查 (严格逻辑):`, {
               purchaseId: purchase.id,
               purchaseStatus: purchase.status,
               expiryDateRaw: purchase.expiryDate,
               expiryDateParsed: expiryDate,
               currentTime: now,
-              emergencyFixApplied: true,
-              finalResult: true
+              remainingDays: remainingDays,
+              isActive: purchase.status === 'active',
+              isNotExpired: remainingDays > 0,
+              finalResult: purchaseHasAccess
             });
             
-            console.log(`[QuizPage] 购买记录检查: 状态=active, 紧急修复=true, 最终结果=true`);
+            console.log(`[QuizPage] 购买记录检查: 状态=active=${purchase.status === 'active'}, 剩余天数=${remainingDays}, 最终结果=${purchaseHasAccess}`);
             
-            return true;
-          }
-          
-          // 常规的客户端逻辑（作为备份）
-          const remainingTime = expiryDate ? (expiryDate.getTime() - now.getTime()) : null;
-          const gracePeriodMs = 2 * 60 * 60 * 1000; // 2小时宽限期
-          const isExpired = expiryDate ? (now.getTime() - expiryDate.getTime() > gracePeriodMs) : false;
-          const purchaseHasAccess = !isExpired && isActive;
-          
-          console.log(`[QuizPage] 购买记录详细检查 (备份逻辑):`, {
-            purchaseId: purchase.id,
-            purchaseStatus: purchase.status,
-            expiryDateRaw: purchase.expiryDate,
-            expiryDateParsed: expiryDate,
-            currentTime: now,
-            timeDiff: remainingTime,
-            gracePeriodMs,
-            isExpired,
-            isActive,
-            finalResult: purchaseHasAccess
-          });
-          
-          console.log(`[QuizPage] 购买记录检查 (备份): 已过期=${isExpired}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
-          
-          if (purchaseHasAccess) {
-            return true;
+            if (purchaseHasAccess) {
+              return true;
+            }
+          } else if (!expiryDate) {
+            // 如果没有过期时间，且状态为active，视为永久有效（但这种情况应该很少见）
+            const purchaseHasAccess = purchase.status === 'active';
+            console.log(`[QuizPage] 购买记录无过期时间，状态检查: ${purchaseHasAccess}`);
+            
+            if (purchaseHasAccess) {
+              return true;
+            }
+          } else {
+            console.log(`[QuizPage] 购买记录状态无效或已过期，拒绝访问`);
           }
         }
       } else {
@@ -2085,7 +2077,7 @@ function QuizPage(): JSX.Element {
       }
     }
     
-    // 步骤3：检查本地存储的兑换记录
+    // 步骤3：检查本地存储的兑换记录（需要验证时效性）
     try {
       const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
       if (redeemedStr) {
@@ -2095,10 +2087,50 @@ function QuizPage(): JSX.Element {
           // 只检查完全匹配，不再支持部分匹配
           const isRedeemed = redeemedIds.some(id => String(id || '').trim() === questionSetId);
           
-          console.log(`[QuizPage] 本地兑换检查: ${isRedeemed}`);
+          console.log(`[QuizPage] 本地兑换记录检查: ${isRedeemed}`);
           
           if (isRedeemed) {
-            return true;
+            // 额外验证：检查用户的兑换记录是否仍然有效
+            const hasValidRedeemCode = user?.redeemCodes?.some(code => {
+              if (code.questionSetId !== questionSetId) return false;
+              
+              // 检查兑换记录的有效性
+              if (code.expiryDate) {
+                const expiryDate = new Date(code.expiryDate);
+                const now = new Date();
+                const isExpired = expiryDate <= now;
+                
+                console.log(`[QuizPage] 兑换记录时效检查: 过期时间=${code.expiryDate}, 当前时间=${now.toISOString()}, 已过期=${isExpired}`);
+                
+                return !isExpired;
+              }
+              
+              // 如果没有过期时间，检查使用时间和有效天数
+              if (code.usedAt && code.validityDays) {
+                const usedDate = new Date(code.usedAt);
+                const expiryDate = new Date(usedDate.getTime() + code.validityDays * 24 * 60 * 60 * 1000);
+                const now = new Date();
+                const isExpired = expiryDate <= now;
+                
+                console.log(`[QuizPage] 兑换记录有效期检查: 使用时间=${code.usedAt}, 有效天数=${code.validityDays}, 已过期=${isExpired}`);
+                
+                return !isExpired;
+              }
+              
+              // 如果既没有过期时间也没有使用时间信息，默认认为有效（但记录警告）
+              console.warn(`[QuizPage] 兑换记录缺少时效信息，默认认为有效: ${code.code}`);
+              return true;
+            });
+            
+            if (hasValidRedeemCode) {
+              console.log(`[QuizPage] 兑换记录验证通过，仍然有效`);
+              return true;
+            } else {
+              console.warn(`[QuizPage] 兑换记录已过期或无效，清除本地记录`);
+              // 清除过期的兑换记录
+              const validIds = redeemedIds.filter((id: string) => String(id || '').trim() !== questionSetId);
+              localStorage.setItem('redeemedQuestionSetIds', JSON.stringify(validIds));
+            }
           }
         }
       }
@@ -2106,7 +2138,7 @@ function QuizPage(): JSX.Element {
       console.error('[QuizPage] 检查兑换记录出错:', e);
     }
     
-    // 步骤4：检查本地存储的访问权限记录
+    // 步骤4：检查本地存储的访问权限记录（需要额外验证）
     try {
       const accessRightsStr = localStorage.getItem('quizAccessRights');
       if (accessRightsStr) {
@@ -2114,8 +2146,29 @@ function QuizPage(): JSX.Element {
         
         // 确保只检查精确匹配的权限
         if (accessRights && accessRights[questionSetId] === true) {
-          console.log(`[QuizPage] 本地访问权限检查: true`);
-          return true;
+          console.log(`[QuizPage] 本地访问权限记录存在，需要验证有效性`);
+          
+          // 额外验证：检查本地权限记录是否基于有效的购买记录
+          const hasValidPurchase = user?.purchases?.some(p => {
+            if (String(p.questionSetId).trim() !== questionSetId) return false;
+            
+            // 验证购买记录是否仍然有效
+            const expiryDate = p.expiryDate ? new Date(p.expiryDate) : null;
+            const now = new Date();
+            const remainingDays = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 999;
+            
+            return p.status === 'active' && remainingDays > 0;
+          });
+          
+          if (hasValidPurchase) {
+            console.log(`[QuizPage] 本地访问权限验证通过，基于有效购买记录`);
+            return true;
+          } else {
+            console.warn(`[QuizPage] 本地访问权限记录无效，清除过期记录`);
+            // 清除无效的本地权限记录
+            delete accessRights[questionSetId];
+            localStorage.setItem('quizAccessRights', JSON.stringify(accessRights));
+          }
         }
       }
     } catch (e) {
