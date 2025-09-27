@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { useTheme } from '../contexts/ThemeContext';
+
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';

@@ -4,10 +4,7 @@ import SocketStatus from './SocketStatus';
 import LoginModal from './LoginModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { homepageService } from '../services/api';
-import { HomeContent } from '../types';
-import { useSocket } from '../contexts/SocketContext';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 
 interface LayoutProps {
@@ -53,12 +50,6 @@ const layoutStyles = `
     text-fill-color: transparent;
   }
   
-  .dark-glass {
-    background: rgba(17, 24, 39, 0.8);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
-  
   .footer-wave {
     position: absolute;
     top: -70px;
@@ -68,59 +59,12 @@ const layoutStyles = `
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z' fill='%23ffffff'/%3E%3C/svg%3E");
     background-size: cover;
   }
-
-  /* 确保深色模式下，文本颜色不受影响 */
-  .dark .text-gray-700, 
-  .dark .text-gray-600,
-  .dark .text-gray-800,
-  .dark .text-gray-900 {
-    color: #374151 !important; /* 保持灰色文本不变 */
-  }
-
-  .dark .text-gray-500 {
-    color: #6b7280 !important; /* 保持中等灰色文本不变 */
-  }
-
-  .dark .text-gray-400 {
-    color: #9ca3af !important; /* 保持浅灰色文本不变 */
-  }
-
-  /* 保持超链接悬停效果一致 */
-  .dark a:hover {
-    color: #3b82f6 !important; /* 蓝色悬停效果 */
-  }
-
-  /* 全局覆盖深色模式文本颜色重置 */
-  .dark * {
-    color: inherit;
-  }
-  
-  /* 确保表单元素和按钮文本在深色背景下可见 */
-  .dark button, 
-  .dark input, 
-  .dark select, 
-  .dark textarea {
-    color: initial;
-  }
-  
-  /* 保持特定元素的特殊颜色 */
-  .dark .text-white {
-    color: white !important;
-  }
-  
-  .dark .text-blue-400,
-  .dark .text-blue-500,
-  .dark .text-blue-600 {
-    color: #60a5fa !important; /* 蓝色文本保持不变 */
-  }
 `;
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const { user } = useUser();
-  const { isDarkMode, toggleDarkMode } = useTheme();
   const [footerText, setFooterText] = useState<string>("");
-  const { socket } = useSocket();
   const [scrolled, setScrolled] = useState(false);
   
   // Handle scroll events for header effects
@@ -236,11 +180,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [fetchFooterText]);
 
   return (
-    <div className={`flex flex-col min-h-screen ${isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
+    <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Inject custom styles */}
       <style dangerouslySetInnerHTML={{ __html: layoutStyles }} />
       
-      <header className={`sticky top-0 z-30 transition-all duration-300 ${scrolled ? 'shadow-md glass-header dark:bg-gray-900/80' : 'bg-white/90 dark:bg-gray-900'}`}>
+      <header className={`sticky top-0 z-30 transition-all duration-300 ${scrolled ? 'shadow-md glass-header' : 'bg-white/90'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center group">
             <div className="text-2xl font-bold text-gradient group-hover:scale-105 transition-transform">
@@ -265,29 +209,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               )}
             </nav>
             
-            {/* Dark mode toggle - 更新按钮显示文字，使其更明确 */}
-            <button 
-              onClick={toggleDarkMode}
-              className="p-2 rounded-full bg-opacity-80 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none flex items-center space-x-1"
-              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {isDarkMode ? (
-                <>
-                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs hidden sm:inline">浅色</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                  <span className="text-xs hidden sm:inline">深色</span>
-                </>
-              )}
-            </button>
-            
+
             {user ? (
               <UserMenu />
             ) : (
@@ -309,8 +231,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Socket连接状态指示器 */}
       <SocketStatus />
 
-      <footer className="relative bg-white dark:bg-gray-900 py-8 border-t border-gray-200 dark:border-gray-800 mt-12">
-        <div className="footer-wave dark:hidden"></div>
+      <footer className="relative bg-white py-8 border-t border-gray-200 mt-12">
+        <div className="footer-wave"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center">
             <div className="flex items-center mb-4">

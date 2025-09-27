@@ -8,7 +8,6 @@ import ProfilePage from './components/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { UserProvider, useUser } from './contexts/UserContext';
-import { ThemeProvider } from './contexts/ThemeContext';
 import AdminPage from './components/AdminPage';
 import RedeemCodeAdmin from './components/RedeemCodeAdmin';
 import { SocketProvider } from './contexts/SocketContext';
@@ -106,10 +105,9 @@ const App: React.FC = () => {
   }, []);
   
   return (
-    <ThemeProvider>
-      <UserProvider>
-        <SocketProvider>
-          <UserProgressProvider>
+    <UserProvider>
+      <SocketProvider>
+        <UserProgressProvider>
             <Router>
               <Layout>
                 <Routes>
@@ -148,10 +146,9 @@ const App: React.FC = () => {
               pauseOnHover
               icon={false}
             />
-          </UserProgressProvider>
-        </SocketProvider>
-      </UserProvider>
-    </ThemeProvider>
+        </UserProgressProvider>
+      </SocketProvider>
+    </UserProvider>
   );
 };
 

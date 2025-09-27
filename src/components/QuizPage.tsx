@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type React from 'react';
 import { Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
-import { useTheme } from '../contexts/ThemeContext';
+
 import { questionSetApi } from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService, wrongAnswerService } from '../services/api';
@@ -1744,6 +1744,33 @@ function QuizPage(): JSX.Element {
   const unsyncedChangesRef = useRef<boolean>(false);
   const timeoutId = useRef<NodeJS.Timeout | undefined>(undefined);
 
+  // 添加题目切换时恢复选择状态的effect
+  useEffect(() => {
+    // 当题目索引变化时，恢复该题目的选择状态
+    if (questions.length > 0 && currentQuestionIndex >= 0 && currentQuestionIndex < questions.length) {
+      const currentAnswer = answeredQuestions.find(
+        (answer) => answer.questionIndex === currentQuestionIndex
+      );
+      
+      if (currentAnswer && currentAnswer.selectedOption) {
+        // 恢复已答题目的选择状态
+        const selectedOption = currentAnswer.selectedOption;
+        if (Array.isArray(selectedOption)) {
+          setSelectedOptions(selectedOption);
+        } else {
+          setSelectedOptions([selectedOption]);
+        }
+        console.log(`[QuizPage] 恢复第${currentQuestionIndex + 1}题的选择状态:`, selectedOption);
+      } else {
+        // 清空未答题目的选择状态
+        setSelectedOptions([]);
+      }
+      
+      // 重置题目开始时间
+      setQuestionStartTime(Date.now());
+    }
+  }, [currentQuestionIndex, answeredQuestions, questions.length]);
+
   // 添加支付检查effect，确保支付完成后不再显示支付弹窗
   useEffect(() => {
     // 本地函数检查支付状态 - 因为isPaymentCompleted在外部定义
@@ -2637,11 +2664,26 @@ function QuizPage(): JSX.Element {
     if (!socket || !user?.id) return;
 
     const handleProgressData = (data: ProgressData) => {
-      // 处理进度数据
+      // 智能处理进度数据，避免覆盖更新的本地状态
       if (data && data.answeredQuestions) {
-        setAnsweredQuestions(data.answeredQuestions);
-        if (data.lastQuestionIndex !== undefined) {
-          setCurrentQuestionIndex(data.lastQuestionIndex);
+        console.log('[QuizPage] 收到服务器进度数据:', data.answeredQuestions.length, '道已答题');
+        
+        // 只有在本地没有进度或服务器进度更新时才覆盖
+        if (answeredQuestions.length === 0 || 
+            (data.answeredQuestions.length > answeredQuestions.length)) {
+          setAnsweredQuestions(data.answeredQuestions);
+          
+          // 计算正确答案数
+          const correctCount = data.answeredQuestions.filter((q: any) => q.isCorrect).length;
+          setCorrectAnswers(correctCount);
+          
+          if (data.lastQuestionIndex !== undefined) {
+            setCurrentQuestionIndex(data.lastQuestionIndex);
+          }
+          
+          console.log('[QuizPage] 已从服务器恢复进度状态');
+        } else {
+          console.log('[QuizPage] 本地状态更新，忽略服务器进度');
         }
       }
     };
@@ -3180,9 +3222,10 @@ function QuizPage(): JSX.Element {
       // 更新状态显示已答问题
       setAnsweredQuestions(updatedAnsweredQuestions);
       
-      // 更新本地存储
+      // 更新本地存储（使用一致的key格式）
       if (questionSet) {
-        const localProgressKey = `quiz_progress_${questionSetId}`;
+        const userIdStr = user?.id ? `_${user.id}` : '';
+        const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
         const localProgressUpdate = {
           lastQuestionIndex: questionIndex,
           answeredQuestions: updatedAnsweredQuestions,
@@ -3483,14 +3526,22 @@ function QuizPage(): JSX.Element {
           // 设置重置标记
           sessionStorage.setItem('quiz_reset_required', 'true');
           
-          // 2. 清除localStorage中可能的进度缓存
+          // 2. 清除localStorage中可能的进度缓存（使用一致的键格式）
           console.log(`[QuizPage] 清除localStorage中的进度缓存`);
+          
+          // 使用与其他功能一致的localStorage键格式
+          const userIdStr = user?.id ? `_${user.id}` : '';
+          const mainProgressKey = `quiz_progress${userIdStr}_${questionSet.id}`;
+          
           const possibleKeys = [
-            `quiz_progress_${questionSet.id}`,
+            mainProgressKey, // 主要进度键（带用户ID）
+            `quiz_progress_${questionSet.id}`, // 旧格式（兼容性）
             `quiz_state_${questionSet.id}`,
             `last_question_${questionSet.id}`,
             `answered_questions_${questionSet.id}`
           ];
+          
+          console.log(`[QuizPage] 清除键列表:`, possibleKeys);
           
           possibleKeys.forEach(key => {
             localStorage.removeItem(key);
@@ -4272,26 +4323,38 @@ function QuizPage(): JSX.Element {
                 if (confirm('确定要清空当前答题进度吗？这将重置所有答题记录，但不会影响已同步到服务器的数据。')) {
                   // 清空本地存储的进度数据
                   if (questionSet) {
+                    // 使用与其他功能一致的localStorage键格式
+                    const userIdStr = user?.id ? `_${user.id}` : '';
+                    const localProgressKey = `quiz_progress${userIdStr}_${questionSet.id}`;
+                    
+                    console.log(`[QuizPage] 清空进度 - 使用键: ${localProgressKey}`);
+                    
                     // 清除所有与进度相关的本地存储
-                    const localProgressKey = `quiz_progress_${questionSet.id}`;
                     localStorage.removeItem(localProgressKey);
                     sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
                     
-                    // 清除其他可能存在的相关数据
+                    // 清除其他可能存在的相关数据（使用一致的格式）
                     localStorage.removeItem(`quiz_state_${questionSet.id}`);
                     localStorage.removeItem(`last_question_${questionSet.id}`);
                     localStorage.removeItem(`answered_questions_${questionSet.id}`);
+                    
+                    // 清除旧格式的键（兼容性）
+                    localStorage.removeItem(`quiz_progress_${questionSet.id}`);
                     
                     // 重置状态
                     setCurrentQuestionIndex(0);
                     setAnsweredQuestions([]);
                     setCorrectAnswers(0);
                     setSelectedOptions([]);
-                    setQuizStatus({ ...quizStatus, showExplanation: false });
-                    setQuizStatus({ ...quizStatus, quizComplete: false });
+                    setQuizStatus(prev => ({ ...prev, showExplanation: false, quizComplete: false }));
+                    
+                    // 重置计时器
+                    setQuizTotalTime(0);
+                    setQuizStartTime(Date.now());
                     
                     // 重置同步状态
                     unsyncedChangesRef.current = false;
+                    setHasUnsavedChanges(false);
                     
                     toast.success('答题进度已清空');
                   }
