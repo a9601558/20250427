@@ -4851,6 +4851,7 @@ function QuizPage(): JSX.Element {
             trialQuestions={questionSet?.trialQuestions}
             isSubmittingAnswer={false}
             trialLimitReached={isTrialLimitReached()} // 使用实际的试用限制状态
+            userAnsweredQuestion={answeredQuestions.find(a => a.questionIndex === currentQuestionIndex)} // 传递当前题目的已答状态
           />
         )}
         

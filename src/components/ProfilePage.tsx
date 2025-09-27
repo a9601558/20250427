@@ -1132,12 +1132,20 @@ const ProfilePage: React.FC = () => {
         // 获取题库标题
         let title = '未知题库';
         
-        if (questionSets.has(questionSetId)) {
-          title = questionSets.get(questionSetId)!.title;
-        } else if (finalRecords[0]?.progressQuestionSet?.title) {
+        // 首先尝试从记录中获取已关联的题库信息
+        if (finalRecords[0]?.progressQuestionSet?.title) {
           title = finalRecords[0].progressQuestionSet.title;
         } else {
-          console.warn(`[ProfilePage] 未找到题库标题，题库ID: ${questionSetId}`);
+          // 如果记录中没有，尝试清理ID后再查找
+          const cleanedId = validateAndCleanQuestionSetId(questionSetId);
+          
+          if (cleanedId && questionSets.has(cleanedId)) {
+            title = questionSets.get(cleanedId)!.title;
+          } else if (questionSets.has(questionSetId)) {
+            title = questionSets.get(questionSetId)!.title;
+          } else {
+            console.warn(`[ProfilePage] 未找到题库标题，原始ID: ${questionSetId}, 清理后ID: ${cleanedId}`);
+          }
         }
         
         stats.push({
@@ -1208,16 +1216,23 @@ const ProfilePage: React.FC = () => {
       
       Object.entries(localData).forEach(([questionSetId, data]) => {
         if (data.answeredQuestions && data.answeredQuestions.length > 0) {
+          // 清理questionSetId，提取纯净的题库ID
+          const cleanedQuestionSetId = validateAndCleanQuestionSetId(questionSetId);
+          const actualQuestionSetId = cleanedQuestionSetId || questionSetId;
+          
+          // 获取题库信息，优先使用清理后的ID
+          const questionSetInfo = questionSetsMap.get(actualQuestionSetId) || questionSetsMap.get(questionSetId);
+          
           data.answeredQuestions.forEach((answer, index) => {
             // 创建一个临时的进度记录
             const record: ProgressRecord = {
               id: `local_${questionSetId}_${index}`,
-              questionSetId,
+              questionSetId, // 保持原始复合ID用于分组
               questionId: `question_${answer.index || index}`, // 使用问题索引作为ID
               isCorrect: answer.isCorrect,
               timeSpent: 60, // 默认时间
               createdAt: new Date(data.lastUpdated || Date.now()),
-              progressQuestionSet: questionSetsMap.get(questionSetId)
+              progressQuestionSet: questionSetInfo // 使用正确的题库信息
             };
             tempProgressRecords.push(record);
           });
@@ -1271,6 +1286,13 @@ const ProfilePage: React.FC = () => {
         const isProtected = data.protected === true;
         
         if (data.answeredQuestions && data.answeredQuestions.length > 0) {
+          // 清理questionSetId，提取纯净的题库ID
+          const cleanedQuestionSetId = validateAndCleanQuestionSetId(questionSetId);
+          const actualQuestionSetId = cleanedQuestionSetId || questionSetId;
+          
+          // 获取题库信息，优先使用清理后的ID
+          const questionSetInfo = questionSetsMap.get(actualQuestionSetId) || questionSetsMap.get(questionSetId);
+          
           data.answeredQuestions.forEach((answer, index) => {
             const questionId = `question_${answer.index || index}`; // 使用问题索引作为ID
             const key = `${questionSetId}_${questionId}`;
@@ -1297,7 +1319,7 @@ const ProfilePage: React.FC = () => {
                 isCorrect: answer.isCorrect,
                 timeSpent: 60, // 默认时间
                 createdAt: localUpdatedAt,
-                progressQuestionSet: questionSetsMap.get(questionSetId)
+                progressQuestionSet: questionSetInfo // 使用正确的题库信息
               };
               
               serverRecordMap.set(key, newRecord);
