@@ -4,7 +4,6 @@ import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
-import ExamCountdownWidget from './ExamCountdownWidget';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
 import { httpRateLimiter, detectLoop, isBlocked } from '../utils/loopPrevention';
@@ -331,7 +330,6 @@ const HomePage = () => {
   const [homeContent, setHomeContent] = useState(defaultHomeContent);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [showCountdownWidget, setShowCountdownWidget] = useState(false);
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
@@ -3492,10 +3490,7 @@ const HomePage = () => {
             
             {/* Decorative tech illustration */}
             <div className="w-full md:w-2/5 flex justify-center items-center">
-              {showCountdownWidget ? (
-                <ExamCountdownWidget />
-              ) : (
-                <div className="relative w-64 h-64">
+              <div className="relative w-64 h-64">
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full opacity-20 animate-pulse"></div>
                   <div className="absolute inset-4 border-4 border-blue-400/30 border-dashed rounded-full animate-spin-slow"></div>
                   <div className="absolute inset-8 border-2 border-indigo-400/40 rounded-full"></div>
@@ -3514,7 +3509,6 @@ const HomePage = () => {
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-br from-transparent to-blue-900/30 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
                 </div>
-              )}
             </div>
           </div>
         </div>

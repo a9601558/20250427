@@ -82,7 +82,6 @@ export interface IUser {
   purchases?: IPurchase[];
   redeemCodes?: IRedeemCode[];
   progress?: { [key: string]: any };
-  examCountdowns?: string | any[];
   createdAt: Date;
   updatedAt: Date;
 }

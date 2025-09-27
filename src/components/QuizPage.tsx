@@ -1669,37 +1669,49 @@ interface IQuestionSet {
   updatedAt: Date;
 }
 
-// 验证和清理questionSetId的函数
-const validateAndCleanQuestionSetId = (questionSetId: string | undefined): string | null => {
-  if (!questionSetId) return null;
+// 验证questionSetId的函数，但不直接清理
+const validateQuestionSetId = (questionSetId: string | undefined): boolean => {
+  if (!questionSetId) return false;
   
   // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (uuidRegex.test(questionSetId)) {
+    return true; // 标准格式
+  }
+  
+  // 检查是否为错误格式但包含有效UUID (如 UUID_UUID 格式)
+  if (questionSetId.includes('_')) {
+    const parts = questionSetId.split('_');
+    return parts.some(part => uuidRegex.test(part));
+  }
+  
+  return false;
+};
+
+// 提取有效的UUID的函数
+const extractValidUuid = (questionSetId: string): string | null => {
+  if (!questionSetId) return null;
+  
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   
   if (uuidRegex.test(questionSetId)) {
     return questionSetId; // 已经是正确格式
   }
   
-  // 如果包含下划线，可能是两个UUID连接，尝试提取第一个
+  // 如果包含下划线，尝试提取有效的UUID
   if (questionSetId.includes('_')) {
     const parts = questionSetId.split('_');
-    const firstPart = parts[0];
     
-    console.warn('[QuizPage] 检测到异常ID格式:', questionSetId, '尝试使用第一部分:', firstPart);
-    
-    if (uuidRegex.test(firstPart)) {
-      return firstPart;
-    }
-    
-    // 尝试第二部分
-    const secondPart = parts[1];
-    if (secondPart && uuidRegex.test(secondPart)) {
-      console.warn('[QuizPage] 第一部分无效，尝试第二部分:', secondPart);
-      return secondPart;
+    for (const part of parts) {
+      if (uuidRegex.test(part)) {
+        console.warn('[QuizPage] 从错误格式ID中提取有效UUID:', questionSetId, '->', part);
+        return part;
+      }
     }
   }
   
-  console.error('[QuizPage] 无法清理异常的questionSetId:', questionSetId);
+  console.error('[QuizPage] 无法从异常ID中提取有效UUID:', questionSetId);
   return null;
 };
 
@@ -1711,8 +1723,9 @@ function QuizPage(): JSX.Element {
   const { socket } = useSocket() as { socket: Socket | null };
   const { fetchUserProgress } = useUserProgress();
   
-  // 验证和清理questionSetId
-  const questionSetId = validateAndCleanQuestionSetId(rawQuestionSetId);
+  // 验证questionSetId，但保持原始格式用于API调用
+  const isValidId = validateQuestionSetId(rawQuestionSetId);
+  const questionSetId = rawQuestionSetId; // 保持原始格式
   
   // 将 isSubmittingRef 移动到组件内部
   const isSubmittingRef = useRef<boolean>(false);
@@ -2462,7 +2475,7 @@ function QuizPage(): JSX.Element {
   
   // 获取题库和题目数据
   useEffect(() => {
-    if (!questionSetId) {
+    if (!questionSetId || !isValidId) {
       console.error('[QuizPage] 无效的questionSetId:', rawQuestionSetId);
       if (rawQuestionSetId) {
         setQuizStatus(prev => ({ ...prev, error: `题库ID格式错误：${rawQuestionSetId}。请检查链接是否正确。`, loading: false }));
@@ -2470,13 +2483,7 @@ function QuizPage(): JSX.Element {
       return;
     }
     
-    // 如果需要更新URL中的ID
-    if (rawQuestionSetId !== questionSetId) {
-      console.log('[QuizPage] 更新URL中的questionSetId:', rawQuestionSetId, '->', questionSetId);
-      const newUrl = location.pathname.replace(rawQuestionSetId!, questionSetId) + location.search;
-      navigate(newUrl, { replace: true });
-      return;
-    }
+    // 保持原始ID格式，不更新URL
     
     const fetchQuestionSet = async () => {
       setQuizStatus({ ...quizStatus, loading: true });
@@ -2506,8 +2513,24 @@ function QuizPage(): JSX.Element {
           rawParams: Array.from(urlParams.entries())
         });
         
-        // 获取题库详情 - 先从API缓存获取
-        const response = await questionSetApi.getQuestionSetById(questionSetId);
+        // 获取题库详情 - 先尝试原始ID，失败时尝试清理后的ID
+        let response;
+        let actualQuestionSetId = questionSetId;
+        
+        try {
+          console.log('[QuizPage] 尝试使用原始ID获取题库:', questionSetId);
+          response = await questionSetApi.getQuestionSetById(questionSetId);
+        } catch (error) {
+          console.warn('[QuizPage] 原始ID获取失败，尝试使用清理后的ID');
+          const cleanedId = extractValidUuid(questionSetId);
+          if (cleanedId && cleanedId !== questionSetId) {
+            console.log('[QuizPage] 使用清理后的ID重试:', cleanedId);
+            response = await questionSetApi.getQuestionSetById(cleanedId);
+            actualQuestionSetId = cleanedId; // 记录实际使用的ID
+          } else {
+            throw error; // 如果无法清理ID，重新抛出原始错误
+          }
+        }
         
         // 检查是否有疑似数据问题
         let questionSetData: IQuestionSet | null = null;
@@ -2516,7 +2539,7 @@ function QuizPage(): JSX.Element {
         if (response.success && response.data) {
           // 初步处理题库数据
           questionSetData = {
-            id: response.data.id,
+            id: actualQuestionSetId, // 使用实际成功获取数据的ID
             title: response.data.title,
             description: response.data.description,
             category: response.data.category,
@@ -2544,7 +2567,7 @@ function QuizPage(): JSX.Element {
               // 直接从API获取最新数据，绕过可能的缓存
               const timestamp = new Date().getTime();
               const directResponse = await axios.get(
-                `${API_BASE_URL}/question-sets/${questionSetId}?t=${timestamp}`, 
+                `${API_BASE_URL}/question-sets/${actualQuestionSetId}?t=${timestamp}`, 
                 { 
                   headers: { 
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,

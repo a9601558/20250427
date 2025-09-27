@@ -5,7 +5,6 @@ import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-toastify';
 import { userProgressService, questionSetService, purchaseService, wrongAnswerService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import ExamCountdownWidget from './ExamCountdownWidget';
 import { CalendarIcon, CreditCardIcon, ClockIcon, CashIcon } from './Icons';
 
 // 原始进度记录类型
@@ -2808,20 +2807,7 @@ const ProfilePage: React.FC = () => {
       
       {/* 主内容区域 */}
       <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              考试倒计时
-            </h2>
-            <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">与首页同步</span>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <ExamCountdownWidget theme="light" />
-          </div>
-        </div>
+
         
         {renderTabs()}
         

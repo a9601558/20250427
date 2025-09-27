@@ -8,7 +8,6 @@ export interface User {
   purchases?: Purchase[];
   userPurchases?: Purchase[];
   redeemCodes?: RedeemCode[];
-  examCountdowns?: string | any[];
 }
 
 export interface UserProgress {
