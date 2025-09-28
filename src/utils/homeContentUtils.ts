@@ -137,7 +137,7 @@ export const saveHomeContentToLocalStorage = (
     // 设置会话标记，便于其他页面检测更改
     sessionStorage.setItem('adminSavedContentTimestamp', String(Date.now()));
     
-    console.log('[HomeContentUtils] 内容已保存到localStorage，用户前缀:', userPrefix);
+    console.log('[HomeContentUtils] 内容保存済み到localStorage，用户前缀:', userPrefix);
   } catch (e) {
     console.error('[HomeContentUtils] 保存内容到localStorage失败:', e);
   }

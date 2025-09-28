@@ -103,7 +103,7 @@ export const refreshTokenExpiry = (userId: string): void => {
 };
 
 /**
- * 获取所有已保存的账号
+ * 获取所有保存済み的账号
  */
 export const getSavedAccounts = (): Array<{
   userId: string;

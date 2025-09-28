@@ -442,7 +442,7 @@ const AdminHomeContent: React.FC = () => {
       if (serverUpdateSuccess) {
         toast.success('首页内容已更新并保存到服务器');
       } else {
-        toast.warning('服务器连接错误，内容已保存到本地（刷新后仍有效）');
+        toast.warning('服务器连接错误，内容保存済み到本地（刷新后仍有效）');
       }
       
       // 使用工具函数触发更新事件，传递完整内容

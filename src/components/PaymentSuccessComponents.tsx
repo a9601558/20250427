@@ -252,7 +252,7 @@ export const PaymentConfirmationCard: React.FC<PaymentConfirmationCardProps> = (
           </svg>
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-1">购买说明</p>
-            <p>您现在可以无限制访问该题库的所有内容。购买记录已保存到您的账户中。</p>
+            <p>您现在可以无限制访问该题库的所有内容。购买记录保存済み到您的账户中。</p>
           </div>
         </div>
       </div>

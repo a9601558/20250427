@@ -979,7 +979,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       
       // 保存回localStorage
       localStorage.setItem('quizAccessRights', JSON.stringify(accessRightsWithMeta));
-      console.log(`[PaymentModal] 已保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+      console.log(`[PaymentModal] 保存済み题库 ${normalizedId} 的访问权限: ${hasAccess}`);
     } catch (e) {
       console.error('[PaymentModal] 保存访问权限失败', e);
     }
@@ -1985,7 +1985,7 @@ function QuizPage(): JSX.Element {
       
       // 保存回localStorage
       localStorage.setItem('quizAccessRights', JSON.stringify(accessRightsWithMeta));
-      console.log(`[QuizPage] 已保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+      console.log(`[QuizPage] 保存済み题库 ${normalizedId} 的访问权限: ${hasAccess}`);
       
       // 记录检查日志，便于调试
       const accessLog = localStorage.getItem('accessRightsLog') || '[]';
@@ -3137,7 +3137,7 @@ function QuizPage(): JSX.Element {
       saveAccessToLocalStorage(questionSet.id, true);
       
       // 显示成功消息
-      toast.success('访问权限已激活！', {
+      toast.success('アクセス権限が有効になりました！', {
         position: 'top-center',
         autoClose: 2000
       });
@@ -3195,7 +3195,7 @@ function QuizPage(): JSX.Element {
           }));
           
           // 显示通知
-          toast.info('您已完成该题库的支付，无需重复支付', {
+          toast.info('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
             autoClose: 2000
           });
           
@@ -4274,7 +4274,7 @@ function QuizPage(): JSX.Element {
                     }));
                     
                     // 显示通知
-                    toast.success('您已完成该题库的支付，无需重复支付', {
+                    toast.success('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
                       autoClose: 3000
                     });
                     
@@ -4282,7 +4282,7 @@ function QuizPage(): JSX.Element {
                   }
                 }
                 
-                toast.info('正在准备支付...', { autoClose: 1500 });
+                toast.info('決済を準備中です...', { autoClose: 1500 });
                 
                 // 直接设置状态显示支付模态窗口
                 console.log('[TrialPurchaseBar] 设置showPaymentModal=true');
@@ -4613,7 +4613,7 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    toast.info('正在准备支付...', { autoClose: 1500 });
+                    toast.info('決済を準備中です...', { autoClose: 1500 });
                     
                     // 直接设置状态显示支付模态窗口
                     console.log('[QuizPage] 完成页面设置showPaymentModal=true');
@@ -4679,7 +4679,7 @@ function QuizPage(): JSX.Element {
                   <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                   </svg>
-                  {hasUnsavedChanges ? '保存进度' : '已保存'}
+                  {hasUnsavedChanges ? '保存进度' : '保存済み'}
                 </>
               )}
             </button>
@@ -4713,7 +4713,7 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    toast.info('正在准备支付...', { autoClose: 1500 });
+                    toast.info('決済を準備中です...', { autoClose: 1500 });
                     
                     // 直接设置状态显示支付模态窗口
                     console.log('[QuizPage] 顶部指示器设置showPaymentModal=true');
@@ -5105,7 +5105,7 @@ function QuizPage(): JSX.Element {
           isProcessing={quizStatus.isProcessingPayment || quizStatus.isProcessingRedeem}
           onPurchase={() => {
             console.log('[QuizPage] 从PurchasePage点击购买按钮 - 时间:', new Date().toISOString());
-            toast.info('正在准备支付...', { autoClose: 1500 });
+            toast.info('決済を準備中です...', { autoClose: 1500 });
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,

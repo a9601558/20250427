@@ -400,7 +400,7 @@ const HomePage = () => {
     onStartQuiz: (set: PreparedQuestionSet) => void;
   }> = ({ set, onStartQuiz }) => {
     // Debug: 检查题库数据
-    console.log(`[BaseCard] 渲染题库卡片: ID=${set.id}, Title="${set.title}", HasTitle=${!!set.title}`);
+    console.log(`[BaseCard] 渲染题库卡片: ID=${set.id}, Title="${set.title}", HasTitle=${!!set.title}, Icon="${set.icon}", FullData=`, set);
     // 格式化剩余天数的显示
     const formatRemainingDays = (days: number | null) => {
       if (days === null) return "無期限";
@@ -647,7 +647,10 @@ const HomePage = () => {
         <div className="p-6 h-[calc(100%-8rem)] flex flex-col">
           {/* 标题 */}
           <h3 className="text-lg font-bold text-gray-900 mb-3 line-clamp-2 leading-tight">
-            {set.title || 'タイトルなし'}
+            {/* 临时调试：检查是否title被icon字段覆盖 */}
+            {/* 调试日志已移除以避免在JSX中返回void */}
+            {/* 临时修复：如果title是"default"，显示备用标题 */}
+            {(set.title && set.title !== 'default') ? set.title : '問題集 ID: ' + set.id.slice(0, 8)}
           </h3>
           
           {/* 统计信息 */}
@@ -1239,6 +1242,7 @@ const HomePage = () => {
       
       if (response && response.success && response.data) {
         console.log(`[HomePage] 成功获取${response.data.length}个题库`);
+        console.log(`[HomePage] API返回的前几个题库数据:`, response.data.slice(0, 3));
         
         // 预处理用户购买记录，创建一个Map方便快速查找
         const userPurchasesMap = new Map();
@@ -1363,6 +1367,9 @@ const HomePage = () => {
         
         // 处理题库数据，确保包含必要字段
         const preparedSets: PreparedQuestionSet[] = response.data.map((set: BaseQuestionSet) => {
+          // 临时调试：检查原始API数据
+          console.log(`[DEBUG API] 题库 ${set.id} - 原始title: "${set.title}", 原始icon: "${set.icon}"`);
+          
           const setId = String(set.id).trim();
           const isPaid = set.isPaid === true;
           
@@ -1500,7 +1507,7 @@ const HomePage = () => {
           // 确保validityPeriod字段存在，默认为180天
           const validityPeriod = set.validityPeriod || 180;
           
-          return {
+          const finalSet = {
             ...set,
             hasAccess,
             accessType,
@@ -1509,6 +1516,11 @@ const HomePage = () => {
             featuredCategory, // 添加featuredCategory属性
             questionCount // 确保問題数量被正确传递
           };
+          
+          // 临时调试：检查最终数据
+          console.log(`[DEBUG FINAL] 题库 ${set.id} - 最终title: "${finalSet.title}", 最终icon: "${finalSet.icon}"`);
+          
+          return finalSet;
         });
         
         // 防止无效更新

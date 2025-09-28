@@ -100,7 +100,7 @@ const saveWrongAnswer = async (req, res) => {
         }
         res.status(201).json({
             success: true,
-            message: existingWrongAnswer ? '错题已更新' : '错题已保存',
+            message: existingWrongAnswer ? '错题已更新' : '错题保存済み',
             data: wrongAnswer
         });
     }

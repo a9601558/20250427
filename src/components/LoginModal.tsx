@@ -42,7 +42,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
     autoLogin: boolean;
   }>>([]);
   
-  // 加载已保存的账号列表
+  // 加载保存済み的账号列表
   useEffect(() => {
     if (mode === AuthMode.LOGIN) {
       const accounts = getSavedAccounts();
@@ -447,7 +447,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
     }
   };
   
-  // 添加通过已保存账号登录的函数
+  // 添加通过保存済み账号登录的函数
   const handleQuickLogin = async (userId: string) => {
     try {
       const success = await switchAccount(userId);
@@ -466,18 +466,62 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
   
   if (!isOpen) return null;
   
+  // 添加内联样式以确保模态框正确显示
+  const modalOverlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    minHeight: '100vh',
+    minWidth: '100vw',
+    overflow: 'auto'
+  };
+
+  const modalContentStyle: React.CSSProperties = {
+    width: 'clamp(600px, 85vw, 1200px)',
+    minHeight: 'clamp(500px, 70vh, 900px)',
+    maxHeight: '95vh',
+    padding: '2rem',
+    backgroundColor: 'white',
+    borderRadius: '1rem',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    border: '1px solid #f3f4f6',
+    position: 'relative',
+    zIndex: 10,
+    overflow: 'auto',
+    boxSizing: 'border-box',
+    fontFamily: "'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic Medium', 'Meiryo', system-ui, sans-serif",
+    color: '#374151',
+    lineHeight: '1.5'
+  };
+  
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isOpen ? 'block' : 'hidden'}`}>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl mx-auto relative z-10 max-h-[95vh] overflow-y-auto border border-gray-100"
-           style={{
-             minWidth: '480px',
-             width: 'min(90vw, 768px)'
-           }}>
+    <div style={modalOverlayStyle}>
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 1
+        }}
+      ></div>
+      <div style={modalContentStyle}>
         {/* 模态框头部 */}
-        <div className="flex justify-between items-start mb-8">
-          <div className="flex-1">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="flex justify-between items-start mb-8" style={{ minHeight: '100px' }}>
+          <div className="flex-1 pr-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 leading-tight">
               {mode === AuthMode.LOGIN && 'アカウントにログイン'}
               {mode === AuthMode.REGISTER && '新しいアカウントを作成'}
               {mode === AuthMode.FORGOT_PASSWORD && 'パスワードをリセット'}
@@ -487,7 +531,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
               {mode === AuthMode.EMAIL_LOGIN && 'メール認証ログイン'}
               {mode === AuthMode.VERIFY_EMAIL && '認証コードを入力'}
             </h2>
-            <p className="text-gray-600 text-sm">
+            <p className="text-gray-600 text-base leading-relaxed">
               {mode === AuthMode.LOGIN && 'アカウントにログインして学習を続けましょう'}
               {mode === AuthMode.REGISTER && '新しいアカウントを作成して学習を始めましょう'}
               {mode === AuthMode.FORGOT_PASSWORD && 'メールアドレスまたはユーザー名を入力してください'}
@@ -500,9 +544,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
           </div>
           <button 
             onClick={onClose}
-            className="ml-6 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200"
+            className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200"
+            style={{ minWidth: '48px', minHeight: '48px' }}
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -851,8 +896,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
 
         {/* 登录和注册表单 */}
         {(mode === AuthMode.LOGIN || mode === AuthMode.REGISTER) && (
-          <div className="bg-gray-50 rounded-xl p-6 mb-6">
-            <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="bg-gray-50 rounded-xl mb-8" style={{ padding: '2rem', minHeight: '400px' }}>
+            <form className="space-y-8" onSubmit={handleSubmit}>
               {mode === AuthMode.LOGIN ? (
                 // 登录模式显示用户名/邮箱输入框
                 <div className="space-y-2">
@@ -873,7 +918,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
                       value={formData.usernameOrEmail}
                       onChange={(e) => setFormData({ ...formData, usernameOrEmail: e.target.value })}
                       required
-                      className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg bg-white shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base transition-all duration-200"
+                      className="w-full pl-14 pr-4 py-4 border border-gray-200 rounded-lg bg-white shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg transition-all duration-200"
+                      style={{ minHeight: '56px', fontSize: '16px' }}
                       placeholder="ユーザー名またはメールアドレスを入力"
                     />
                   </div>
@@ -983,15 +1029,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
                 )}
               </div>
 
-              <div className="pt-4">
+              <div className="pt-6">
                 <button
                   type="submit"
                   disabled={loading}
-                  className={`w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg text-base font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transform transition-all duration-200 hover:scale-[1.02] ${loading ? 'opacity-70 cursor-not-allowed hover:scale-100' : ''}`}
+                  className={`w-full flex justify-center items-center border border-transparent rounded-xl shadow-lg text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 transform transition-all duration-200 hover:scale-[1.02] ${loading ? 'opacity-70 cursor-not-allowed hover:scale-100' : ''}`}
+                  style={{ minHeight: '60px', fontSize: '18px', padding: '16px 24px' }}
                 >
                   {loading ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -999,7 +1046,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
                     </>
                   ) : (
                     <>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={mode === AuthMode.LOGIN ? "M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" : "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"} />
                       </svg>
                       {mode === AuthMode.LOGIN ? 'ログイン' : 'アカウントを作成'}
@@ -1012,7 +1059,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
         )}
 
         {/* 导航链接区域 */}
-        <div className="border-t border-gray-200 pt-6 mt-6 space-y-4">
+        <div className="border-t border-gray-200 space-y-6" style={{ paddingTop: '2rem', marginTop: '2rem' }}>
           {/* 主要切换按钮 */}
           <div className="text-center">
             <button

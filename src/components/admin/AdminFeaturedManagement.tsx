@@ -43,7 +43,7 @@ const AdminFeaturedManagement: React.FC = () => {
   const saveCategoryToLocalStorage = (categories: string[]) => {
     try {
       localStorage.setItem('featuredCategories', JSON.stringify(categories));
-      console.log("精选分类已保存到localStorage:", categories);
+      console.log("精选分类保存済み到localStorage:", categories);
     } catch (e) {
       console.error("保存分类到localStorage失败:", e);
     }
