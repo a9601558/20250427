@@ -40,7 +40,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
               onClick={() => window.location.href = '/'}
               className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
             >
-              返回首页
+              ホームに戻る
             </button>
           </div>
         </div>

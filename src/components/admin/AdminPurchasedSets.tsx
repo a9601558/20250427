@@ -149,7 +149,7 @@ const AdminPurchasedSets: React.FC = () => {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">已购题库管理</h2>
+        <h2 className="text-2xl font-bold text-gray-900">購入済み問題集の管理</h2>
         <button
           onClick={refreshData}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

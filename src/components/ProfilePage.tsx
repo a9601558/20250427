@@ -2292,7 +2292,7 @@ const ProfilePage: React.FC = () => {
               <svg className={`w-4 h-4 mr-2 ${activeTab === 'wrong-answers' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              错题集
+              誤答集
               {wrongAnswers.length > 0 && (
                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'wrong-answers' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
                   {wrongAnswers.length}
@@ -2312,7 +2312,7 @@ const ProfilePage: React.FC = () => {
               <svg className={`w-4 h-4 mr-2 ${activeTab === 'purchases' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
-              已购题库
+              購入済み問題集
               {purchases.length > 0 && (
                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'purchases' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
                   {purchases.length}
@@ -2332,7 +2332,7 @@ const ProfilePage: React.FC = () => {
               <svg className={`w-4 h-4 mr-2 ${activeTab === 'redeemed' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
               </svg>
-              已兑换的
+             引き換え済み
               {redeemCodes.length > 0 && (
                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${activeTab === 'redeemed' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
                   {redeemCodes.length}
@@ -2495,8 +2495,8 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">暂无购买记录</h3>
-          <p className="text-gray-600 mb-6 max-w-md">你还没有购买任何题库，浏览题库并选择感兴趣的内容吧！</p>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">購入履歴が存在しません</h3>
+          <p className="text-gray-600 mb-6 max-w-md">まだ問題集を購入していません。問題集を見て、興味のある内容を選んでみましょう！</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"
@@ -2504,7 +2504,7 @@ const ProfilePage: React.FC = () => {
             <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            浏览题库
+            問題集を見る
           </button>
         </div>
       );
@@ -2581,7 +2581,7 @@ const ProfilePage: React.FC = () => {
             <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            浏览题库
+            問題集を見る
           </button>
         </div>
       );
@@ -2593,7 +2593,7 @@ const ProfilePage: React.FC = () => {
           <svg className="w-6 h-6 mr-2 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
           </svg>
-          已兑换的题库
+          引き換え済みの問題集
         </h2>
         <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {redeemCodes.map((redeemCode) => (
@@ -2624,7 +2624,7 @@ const ProfilePage: React.FC = () => {
             </svg>
           </div>
           <h3 className="text-xl font-semibold text-gray-800 mb-2">暂无错题记录</h3>
-          <p className="text-gray-600 mb-6 max-w-md">答错的题目会自动添加到错题集，继续答题积累吧！</p>
+          <p className="text-gray-600 mb-6 max-w-md">間違えた問題は自動的に間違い問題集に追加されます。，继续答题积累吧！</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"
@@ -2650,7 +2650,7 @@ const ProfilePage: React.FC = () => {
             错题集 ({wrongAnswers.length}题)
           </h2>
           <div className="bg-red-50 text-red-600 text-sm px-3 py-1 rounded-full border border-red-100">
-            答错的题目会自动添加到错题集
+            間違えた問題は自動的に間違い問題集に追加されます。
           </div>
         </div>
         
@@ -2800,7 +2800,7 @@ const ProfilePage: React.FC = () => {
                 <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                浏览题库
+                問題集を見る
               </button>
               <button 
                 onClick={() => window.location.reload()}

@@ -208,7 +208,7 @@ const markAsMastered = async (req, res) => {
         await wrongAnswer.destroy();
         return res.json({
             success: true,
-            message: '已标记为掌握，该题已从错题集中移除'
+            message: '已标记为掌握，该题已从誤答集中移除'
         });
     }
     catch (error) {

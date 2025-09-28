@@ -38,10 +38,10 @@ async function addTestQuestionSet() {
       
       // 为每个题目创建选项
       const options = [
-        { text: '选项A', isCorrect: i === 1, optionIndex: 'A' },
-        { text: '选项B', isCorrect: i === 2, optionIndex: 'B' },
-        { text: '选项C', isCorrect: i === 3, optionIndex: 'C' },
-        { text: '选项D', isCorrect: false, optionIndex: 'D' }
+        { text: '選択肢A', isCorrect: i === 1, optionIndex: 'A' },
+        { text: '選択肢B', isCorrect: i === 2, optionIndex: 'B' },
+        { text: '選択肢C', isCorrect: i === 3, optionIndex: 'C' },
+        { text: '選択肢D', isCorrect: false, optionIndex: 'D' }
       ];
       
       for (const option of options) {

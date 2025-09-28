@@ -469,7 +469,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${isOpen ? 'block' : 'hidden'}`}>
       <div className="fixed inset-0 bg-black opacity-50" onClick={onClose}></div>
-      <div className="bg-white rounded-lg p-8 max-w-md w-full relative z-10">
+      <div className="bg-white rounded-lg p-8 max-w-lg w-full mx-4 relative z-10 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-semibold text-gray-900">
             {mode === AuthMode.LOGIN && 'アカウントにログイン'}

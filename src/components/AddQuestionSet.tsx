@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 // 分类选项 - Japanese categories for display
-const CATEGORIES = [
+const categoryOptions = [
   'コンピューター基礎',
   'プログラミング言語',
   'ネットワークプロトコル',
@@ -18,19 +18,6 @@ const CATEGORIES = [
   'その他'
 ];
 
-// 分类选项 - Keep original for compatibility
-const categoryOptions = [
-  '计算机基础',
-  '编程语言',
-  '网络协议',
-  '安全技术',
-  '数据库',
-  '操作系统',
-  '软件工程',
-  '人工智能',
-  '云计算',
-  '其他'
-];
 
 // 图标选项
 const iconOptions = ['📝', '⚙️', '🌐', '🔒', '💻', '📊', '🧩', '🤖', '☁️', '📚'];

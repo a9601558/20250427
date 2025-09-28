@@ -573,7 +573,7 @@ const PurchasePage: React.FC<{
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            返回首页
+            ホームに戻る
           </button>
         </div>
         
@@ -820,7 +820,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <p className="text-sm text-gray-600 mb-3">请输入信用卡信息完成支付：</p>
+          <p className="text-sm text-gray-600 mb-3">クレジットカード情報を入力して支払いを完了してください」：</p>
           <div className="p-3 bg-white rounded-md border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
             <CardElement
               options={{
@@ -1301,7 +1301,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           // 初始确认页面
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">购买确认</h2>
+              <h2 className="text-xl font-bold text-gray-800">ご購入の確認</h2>
               <button
                 onClick={handleCloseClick}
                 className="text-gray-400 hover:text-gray-600"
@@ -1323,7 +1323,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
               <h3 className="font-bold text-lg mb-2">{questionSet?.title}</h3>
               <p className="text-gray-600 mb-4">{questionSet?.description}</p>
               <div className="flex justify-between items-center text-lg border-t pt-4">
-                <span>价格:</span>
+                <span>価格:</span>
                 <span className="font-bold text-green-600">¥{questionSet?.price || 0}</span>
               </div>
             </div>
@@ -3801,7 +3801,7 @@ function QuizPage(): JSX.Element {
                 setQuizStatus({ ...quizStatus, showPurchasePage: true });
                 
                 // 显示提示
-                toast.info('您已达到试用题目限制，请购买完整版继续使用', {
+                toast.info('お試しの問題数の上限に達しました。続けてご利用いただくには、フル版をご購入ください。', {
                   position: 'top-center',
                   autoClose: 5000,
                   toastId: 'answer-submit-limit'
@@ -3880,7 +3880,7 @@ function QuizPage(): JSX.Element {
       console.log(`[QuizPage] 禁止跳转到题目: ${questionIndex + 1}, 超出试用限制`);
       
       // 显示提示信息
-      toast.info(`您正在试用模式下，需要购买完整版才能访问更多题目`, {
+      toast.info(`試用モード中です。続きの問題をご利用になるには、製品版をご購入ください。`, {
         position: "top-center",
         autoClose: 5000,
         toastId: "trial-limit-jump-toast",
@@ -4197,15 +4197,15 @@ function QuizPage(): JSX.Element {
           <div className="flex-1">
             {isTrialLimitReached ? (
               <p className="text-sm text-red-600 font-medium">
-                您已达到试用题目限制，请购买完整版继续使用
+                お試しの問題数の上限に達しました。続けてご利用いただくには、製品版をご購入ください。
               </p>
             ) : (
               <p className="text-sm text-gray-700">
-                <span className="font-medium">试用模式:</span> 已答 
-                <span className="text-blue-600 font-bold mx-1">{answeredCount}</span> 题，
-                限制 <span className="text-blue-600 font-bold mx-1">{totalTrialQuestions}</span> 题
+                <span className="font-medium">試用モード：</span> 解答済み 
+                <span className="text-blue-600 font-bold mx-1">{answeredCount}</span> 問，
+                限制 <span className="text-blue-600 font-bold mx-1">{totalTrialQuestions}</span> 問
                 <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                  还可答 {remainingTrialQuestions} 题
+                  还可答 {remainingTrialQuestions} 問
                 </span>
               </p>
             )}
@@ -4302,7 +4302,7 @@ function QuizPage(): JSX.Element {
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                       </svg>
-              购买完整版 ¥{questionSet.price || 0}
+              製品版を購入 ¥{questionSet.price || 0}
                     </div>
             </button>
             <button
@@ -4380,7 +4380,7 @@ function QuizPage(): JSX.Element {
             onClick={() => {navigate('/')}}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            返回首页
+            ホームに戻る
           </button>
         </div>
       );
@@ -4419,7 +4419,7 @@ function QuizPage(): JSX.Element {
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              返回首页
+              ホームに戻る
             </button>
                   
                   <div className="flex items-center">
@@ -4590,7 +4590,7 @@ function QuizPage(): JSX.Element {
                 <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                返回首页
+                ホームに戻る
               </button>
               
               {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 */}
@@ -4628,7 +4628,7 @@ function QuizPage(): JSX.Element {
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
-                  购买完整版 ¥{questionSet.price || 0}
+                  製品版を購入 ¥{questionSet.price || 0}
                   <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                   </svg>
@@ -4651,7 +4651,7 @@ function QuizPage(): JSX.Element {
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            返回首页
+            ホームに戻る
           </button>
           
           <div className="flex items-center">
@@ -4728,7 +4728,7 @@ function QuizPage(): JSX.Element {
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
-                  购买完整版
+                  製品版を購入
                 </button>
                 <button
                   onClick={(e) => {
