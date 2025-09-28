@@ -520,7 +520,7 @@ const AdminQuestionSets = () => {
 
   // 删除题库
   const handleDeleteQuestionSet = async (id) => {
-    if (!window.confirm('确定要删除此题库吗？此操作不可恢复！')) {
+    if (!window.confirm('この問題集を削除しますか？この操作は元に戻せません！')) {
       return;
     }
     
@@ -532,14 +532,14 @@ const AdminQuestionSets = () => {
       const response = await questionSetApi.deleteQuestionSet(id);
       
       if (response.success) {
-        showStatusMessage('success', '题库删除成功');
+        showStatusMessage('success', '問題集が正常に削除されました');
         await loadQuestionSets();  // 重新加载全部题库
       } else {
-        showStatusMessage('error', `删除题库失败: ${response.error || '未知错误'}`);
+        showStatusMessage('error', `問題集の削除に失敗: ${response.error || '不明なエラー'}`);
       }
     } catch (error) {
       console.error("删除题库出错:", error);
-      showStatusMessage('error', '删除题库时发生错误');
+      showStatusMessage('error', '問題集の削除中にエラーが発生しました');
     } finally {
       setLoading(false);
       setLoadingAction('');
@@ -575,7 +575,7 @@ const AdminQuestionSets = () => {
         showStatusMessage('success', `成功生成${response.data.length}个兑换码`);
         await loadRedeemCodes();  // 重新加载兑换码
       } else {
-        showStatusMessage('error', `生成兑换码失败: ${response.error || '未知错误'}`);
+        showStatusMessage('error', `引換コードの生成に失敗: ${response.error || '不明なエラー'}`);
       }
     } catch (error) {
       console.error("生成兑换码出错:", error);
@@ -624,7 +624,7 @@ const AdminQuestionSets = () => {
   const handleDeleteQuestion = (index) => {
     if (!currentQuestionSet) return;
     
-    if (!window.confirm('确定要删除此问题吗？此操作不可恢复！')) {
+    if (!window.confirm('この問題を削除しますか？この操作は元に戻せません！')) {
       return;
     }
     

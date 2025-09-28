@@ -141,7 +141,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
       <form onSubmit={handleSubmit}>
         {/* 题目类型 */}
         <div className="mb-4">
-          <label className="block text-gray-700 mb-2">题目类型</label>
+          <label className="block text-gray-700 mb-2">問題タイプ</label>
           <div className="flex space-x-4">
             <label className="inline-flex items-center">
               <input
@@ -180,13 +180,13 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
         {/* 题目选项 */}
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
-            <label className="block text-gray-700">选项 *</label>
+            <label className="block text-gray-700">選択肢 *</label>
             <button
               type="button"
               onClick={handleAddOption}
               className="text-blue-600 hover:text-blue-800 text-sm"
             >
-              + 添加选项
+              + 選択肢を追加
             </button>
           </div>
           

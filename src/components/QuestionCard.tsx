@@ -426,7 +426,7 @@ const QuestionCard = ({
               ? 'bg-green-100 text-green-800'
               : 'bg-purple-100 text-purple-800'
           }`}>
-            {question.questionType === 'single' ? '单选题' : '多选题'}
+            {question.questionType === 'single' ? '単一選択' : '複数選択'}
           </div>
         </div>
         
@@ -440,10 +440,10 @@ const QuestionCard = ({
                 : 'bg-yellow-100 text-yellow-800'
           }`}>
             {hasFullAccess 
-              ? '完整版' 
+              ? 'フルバージョン' 
               : trialLimitReached 
-                ? '试用已结束' 
-                : `试用模式 (${questionNumber}/${trialQuestions}题)`
+                ? 'トライアル終了' 
+                : `トライアルモード (${questionNumber}/${trialQuestions}問)`
             }
           </div>
         )}
@@ -507,7 +507,7 @@ const QuestionCard = ({
               <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              解析
+              解説
             </h4>
             <div className="text-yellow-700 text-sm" dangerouslySetInnerHTML={{__html: question.explanation}} />
           </div>

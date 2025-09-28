@@ -196,7 +196,7 @@ export const registerUserAccessHandlers = (socket: Socket, io: Server) => {
               amount: p.amount,
               // 添加缺失字段的默认值
               price: 0,
-              currency: 'CNY'
+              currency: 'JPY'
             }));
           }
         }

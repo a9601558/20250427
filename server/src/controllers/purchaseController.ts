@@ -71,7 +71,7 @@ export const createPurchase = async (req: Request, res: Response) => {
     // 使用Stripe创建支付意向
     const paymentIntent = await stripePaymentIntent({
       amount: Math.round(parseFloat(amount) * 100), // 转换为分
-      currency: 'cny',
+      currency: 'jpy',
       metadata: {
         userId: req.user.id,
         questionSetId: questionSetId,

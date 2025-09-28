@@ -98,22 +98,22 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
     
     // 验证表单
     if (!questionText.trim()) {
-      setErrorMessage('请输入题目内容');
+      setErrorMessage('問題内容を入力してください');
       return;
     }
     
     if (options.some(option => !option.text.trim())) {
-      setErrorMessage('选项内容不能为空');
+      setErrorMessage('選択肢の内容は空にできません');
       return;
     }
     
     if (questionType === 'single' && !selectedOption) {
-      setErrorMessage('请选择一个正确答案');
+      setErrorMessage('正しい答えを一つ選択してください');
       return;
     }
     
     if (questionType === 'multiple' && selectedOptions.length === 0) {
-      setErrorMessage('请至少选择一个正确答案');
+      setErrorMessage('少なくとも一つの正しい答えを選択してください');
       return;
     }
     
@@ -130,7 +130,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
     const updatedQuestion: Question = {
       ...question,
       text: questionText,
-      explanation: explanation || '暂无解析',
+      explanation: explanation || '解説なし',
       questionType,
       options: questionOptions,
     };
@@ -148,7 +148,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          题目内容
+          問題内容
         </label>
         <textarea
           value={questionText}
@@ -162,7 +162,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          解析
+          解説
         </label>
         <textarea
           value={explanation}
@@ -175,7 +175,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          题目类型
+          問題タイプ
         </label>
         <select
           value={questionType}
@@ -193,7 +193,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          选项
+          選択肢
         </label>
         <div className="space-y-2">
           {options.map((option) => (
@@ -235,7 +235,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
                     : 'text-red-600 hover:bg-red-50'
                 }`}
               >
-                删除
+                削除
               </button>
             </div>
           ))}

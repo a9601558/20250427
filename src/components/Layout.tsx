@@ -122,6 +122,7 @@ const layoutStyles = `
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useUser();
   const [footerText, setFooterText] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
@@ -135,6 +136,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+  
+  // Handle click outside to close mobile menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMobileMenuOpen) {
+        const target = event.target as Element;
+        if (!target.closest('[data-mobile-menu]')) {
+          setIsMobileMenuOpen(false);
+        }
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isMobileMenuOpen]);
   
   // Dark mode is now handled by ThemeContext
   
@@ -258,19 +274,70 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           
           <div className="flex items-center space-x-4">
             {/* Quick navigation */}
-            <nav className="hidden md:flex items-center mr-6 space-x-6">
-              <Link to="/" className="text-gray-700 hover:text-blue-600 transition-colors">
+            <nav className="hidden lg:flex items-center mr-6 space-x-6">
+              <Link to="/" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
                 ホーム
               </Link>
-              <Link to="/question-sets" className="text-gray-700 hover:text-blue-600 transition-colors">
+              <Link to="/question-sets" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
                 問題集
               </Link>
-              {user && (
-                <Link to="/profile" className="text-gray-700 hover:text-blue-600 transition-colors">
-                  マイページ
-                </Link>
-              )}
+              <Link to="/mock-exam" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
+                模試
+              </Link>
+              <Link to="/learning-path" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
+                学習パス
+              </Link>
+              <Link to="/blog" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
+                ブログ
+              </Link>
+              <Link to="/about" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
+                About MonTopi
+              </Link>
             </nav>
+            
+            {/* Mobile navigation menu */}
+            <div className="lg:hidden mr-4" data-mobile-menu>
+              <div className="relative">
+                <button 
+                  className="text-gray-700 hover:text-blue-600 p-2"
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                
+                {isMobileMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                    <Link to="/" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                      ホーム
+                    </Link>
+                    <Link to="/question-sets" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                      問題集
+                    </Link>
+                    <Link to="/mock-exam" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                      模試
+                    </Link>
+                    <Link to="/learning-path" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                      学習パス
+                    </Link>
+                    <Link to="/blog" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                      ブログ
+                    </Link>
+                    <Link to="/about" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                      About MonTopi
+                    </Link>
+                    {user && (
+                      <div className="border-t border-gray-100 mt-2 pt-2">
+                        <Link to="/profile" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
+                          マイページ
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
             
 
             {user ? (

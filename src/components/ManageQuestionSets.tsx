@@ -392,7 +392,7 @@ const ManageQuestionSets: React.FC = () => {
     if (loading) {
       return (
         <div className="text-center py-8">
-          <p className="text-gray-500">加载中...</p>
+          <p className="text-gray-500">読み込み中...</p>
         </div>
       );
     }
@@ -400,13 +400,13 @@ const ManageQuestionSets: React.FC = () => {
     if (error) {
       return (
         <div className="bg-red-50 p-8 text-center rounded">
-          <p className="text-red-500 mb-2">加载出错</p>
+          <p className="text-red-500 mb-2">読み込みエラー</p>
           <p className="text-gray-700">{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            重新加载
+            再読み込み
           </button>
         </div>
       );
@@ -415,8 +415,8 @@ const ManageQuestionSets: React.FC = () => {
     if (!questionSets || !Array.isArray(questionSets) || questionSets.length === 0) {
       return (
         <div className="bg-gray-50 p-8 text-center rounded">
-          <p className="text-gray-500 mb-2">暂无题库</p>
-          <p className="text-gray-400 text-sm">您可以在"添加题库"选项卡中创建新题库</p>
+          <p className="text-gray-500 mb-2">問題集がありません</p>
+          <p className="text-gray-400 text-sm">"問題集を追加"タブで新しい問題集を作成できます</p>
         </div>
       );
     }
@@ -442,7 +442,7 @@ const ManageQuestionSets: React.FC = () => {
               <p className="text-gray-600 mb-4">{questionSet.description}</p>
               
               <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                <span>题目数量: {questionSet.questionCount || 0}</span>
+                <span>問題数: {questionSet.questionCount || 0}</span>
                 {questionSet.isPaid && (
                   <span className="text-yellow-600">¥{questionSet.price}</span>
                 )}
@@ -456,13 +456,13 @@ const ManageQuestionSets: React.FC = () => {
                   }}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
-                  添加题目
+                  問題を追加
                 </button>
                 <button
                   onClick={() => handleManageQuestions(questionSet)}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
                 >
-                  管理题目
+                  問題管理
                 </button>
               </div>
             </div>
@@ -528,7 +528,7 @@ const ManageQuestionSets: React.FC = () => {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">管理题库</h2>
+      <h2 className="text-xl font-semibold text-gray-800 mb-4">問題集管理</h2>
       
       {/* 消息区域 */}
       {successMessage && (
@@ -539,13 +539,13 @@ const ManageQuestionSets: React.FC = () => {
       
       {error && !loading && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          <p className="font-medium">加载出错</p>
+          <p className="font-medium">読み込みエラー</p>
           <p>{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="mt-2 px-3 py-1 bg-red-200 text-red-800 rounded hover:bg-red-300"
           >
-            重新加载页面
+            ページを再読み込み
           </button>
         </div>
       )}
@@ -555,13 +555,13 @@ const ManageQuestionSets: React.FC = () => {
         <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">
-              添加题目到: <span className="text-blue-600">{currentQuestionSet.title}</span>
+              問題を追加: <span className="text-blue-600">{currentQuestionSet.title}</span>
             </h3>
             <button 
               onClick={handleCancelAddQuestion}
               className="text-gray-500 hover:text-gray-700"
             >
-              关闭
+              閉じる
             </button>
           </div>
           
@@ -580,13 +580,13 @@ const ManageQuestionSets: React.FC = () => {
         <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">
-              编辑题目: <span className="text-blue-600">{currentQuestionSet.title}</span>
+              問題を編集: <span className="text-blue-600">{currentQuestionSet.title}</span>
             </h3>
             <button 
               onClick={handleCancelEditQuestion}
               className="text-gray-500 hover:text-gray-700"
             >
-              关闭
+              閉じる
             </button>
           </div>
           
@@ -603,9 +603,9 @@ const ManageQuestionSets: React.FC = () => {
         <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">
-              管理题目: <span className="text-blue-600">{currentQuestionSet.title}</span>
+              問題管理: <span className="text-blue-600">{currentQuestionSet.title}</span>
               <span className="ml-2 text-sm text-gray-500">
-                (共 {currentQuestionSet.questions?.length || 0} 题)
+                (合計 {currentQuestionSet.questions?.length || 0} 問)
               </span>
             </h3>
             <div className="flex space-x-2">
@@ -613,13 +613,13 @@ const ManageQuestionSets: React.FC = () => {
                 onClick={() => handleAddQuestion(currentQuestionSet)}
                 className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
               >
-                添加题目
+                問題を追加
               </button>
               <button
                 onClick={handleCancelManageQuestions}
                 className="text-gray-500 hover:text-gray-700"
               >
-                关闭
+                閉じる
               </button>
             </div>
           </div>
@@ -632,7 +632,7 @@ const ManageQuestionSets: React.FC = () => {
                   onClick={() => handleSort('orderIndex')} 
                   className={`text-sm px-2 py-1 rounded ${sortField === 'orderIndex' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
                 >
-                  序号排序 
+                  番号順 
                   {sortField === 'orderIndex' && (
                     <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                   )}
@@ -641,14 +641,14 @@ const ManageQuestionSets: React.FC = () => {
                   onClick={() => handleSort('text')} 
                   className={`text-sm px-2 py-1 rounded ${sortField === 'text' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
                 >
-                  按题目文本 
+                  問題文順 
                   {sortField === 'text' && (
                     <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                   )}
                 </button>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">每页显示:</span>
+                <span className="text-sm text-gray-600">1ページあたり:</span>
                 <select
                   value={questionsPerPage}
                   onChange={(e) => {
@@ -670,7 +670,7 @@ const ManageQuestionSets: React.FC = () => {
           <div className="space-y-4">
             {loadingQuestions ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">加载题目中...</p>
+                <p className="text-gray-500">問題を読み込み中...</p>
                 <div className="mt-2 w-8 h-8 border-t-2 border-blue-500 border-solid rounded-full animate-spin mx-auto"></div>
               </div>
             ) : Array.isArray(currentQuestionSet.questions) && currentQuestionSet.questions.length > 0 ? (
@@ -679,12 +679,12 @@ const ManageQuestionSets: React.FC = () => {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="font-medium text-gray-800">#{(currentPage - 1) * questionsPerPage + index + 1}. {question.text}</p>
-                      <p className="text-sm text-gray-500 mt-1">类型: {question.questionType === 'single' ? '单选题' : '多选题'}</p>
+                      <p className="text-sm text-gray-500 mt-1">タイプ: {question.questionType === 'single' ? '単一選択' : '複数選択'}</p>
                       
                       {/* 显示选项 */}
                       {Array.isArray(question.options) && question.options.length > 0 && (
                         <div className="mt-2 space-y-1">
-                          <p className="text-sm text-gray-700 font-medium">选项：</p>
+                          <p className="text-sm text-gray-700 font-medium">選択肢:</p>
                           {question.options.map((option, optionIndex) => (
                             <div key={option.id || optionIndex} className="flex items-center ml-4">
                               <span className={`inline-block w-5 h-5 mr-2 rounded-full text-center text-xs leading-5 ${option.isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
@@ -692,7 +692,7 @@ const ManageQuestionSets: React.FC = () => {
                               </span>
                               <span className={`text-sm ${option.isCorrect ? 'font-medium text-green-700' : 'text-gray-600'}`}>
                                 {option.text}
-                                {option.isCorrect && ' (正确)'}
+                                {option.isCorrect && ' (正解)'}
                               </span>
                             </div>
                           ))}
@@ -701,7 +701,7 @@ const ManageQuestionSets: React.FC = () => {
                       
                       {question.explanation && (
                         <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded">
-                          <span className="font-medium">解析:</span> {question.explanation}
+                          <span className="font-medium">解説:</span> {question.explanation}
                         </p>
                       )}
                     </div>
@@ -710,13 +710,13 @@ const ManageQuestionSets: React.FC = () => {
                         onClick={() => handleEditQuestion(question)}
                         className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
                       >
-                        编辑
+                        編集
                       </button>
                       <button
                         onClick={() => handleDeleteQuestion(question)}
                         className="text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
                       >
-                        删除
+                        削除
                       </button>
                     </div>
                   </div>
@@ -724,12 +724,12 @@ const ManageQuestionSets: React.FC = () => {
               ))
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-500">该题库暂无题目</p>
+                <p className="text-gray-500">この問題集には問題がありません</p>
                 <button 
                   onClick={() => handleAddQuestion(currentQuestionSet)}
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
-                  添加题目
+                  問題を追加
                 </button>
               </div>
             )}

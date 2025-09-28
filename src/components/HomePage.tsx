@@ -506,48 +506,121 @@ const HomePage = () => {
     
 
 
+    // 确定卡片状态类型：Free / Pro / Owned
+    const getCardState = () => {
+      if (!set.isPaid) return 'free';
+      if (hasAccess) return 'owned';
+      return 'pro';
+    };
+
+    const cardState = getCardState();
+
+    // 获取价格显示信息
+    const getPriceInfo = () => {
+      if (cardState !== 'pro') return null;
+      
+      const basePrice = set.price || 0;
+      const hasDiscount = false; // 可以根据实际需求添加折扣逻辑
+      const discountPrice = basePrice;
+      const discountPercent = hasDiscount ? Math.round(((basePrice - discountPrice) / basePrice) * 100) : 0;
+      
+      return {
+        basePrice,
+        discountPrice,
+        hasDiscount,
+        discountPercent,
+        taxIncluded: true
+      };
+    };
+
+    const priceInfo = getPriceInfo();
+
+    // 获取状态标签信息
+    const getStateLabel = () => {
+      switch (cardState) {
+        case 'free':
+          return { text: '無料', bgClass: 'bg-green-500', textClass: 'text-white' };
+        case 'pro':
+          return { text: 'PRO', bgClass: 'bg-blue-600', textClass: 'text-white' };
+        case 'owned':
+          return { text: '購入済み', bgClass: 'bg-gray-500', textClass: 'text-white' };
+      }
+    };
+
+    const stateLabel = getStateLabel();
+
+    // 获取CTA按钮文案
+    const getCTAText = () => {
+      switch (cardState) {
+        case 'free':
+          return '今すぐ練習';
+        case 'pro':
+          return { primary: '購入して開始', secondary: set.trialQuestions ? '体験1問' : null };
+        case 'owned':
+          return '今すぐ練習';
+      }
+    };
+
+    const ctaText = getCTAText();
+
     return (
-      <div className={`apple-card relative group rounded-2xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] ${
-        isFree 
-          ? 'border-2 border-gradient-to-r from-blue-300 to-indigo-300 shadow-lg hover:shadow-2xl ring-2 ring-blue-100 hover:ring-blue-200' 
-          : 'hover:shadow-lg'
+      <div className={`relative group rounded-2xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] bg-white shadow-lg hover:shadow-xl border ${
+        cardState === 'free' 
+          ? 'border-green-200 hover:border-green-300' 
+          : cardState === 'pro'
+            ? 'border-blue-200 hover:border-blue-300'
+            : 'border-gray-200 hover:border-gray-300'
       }`}
-           style={{ height: '280px' }}>
+           style={{ height: '320px' }}>
         
-        {/* 免费题库专属光晕效果 */}
-        {isFree && (
-          <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 rounded-2xl opacity-20 blur-sm group-hover:opacity-40 transition-opacity duration-300"></div>
-        )}
+        {/* 状态标签 (Ribbon) */}
+        <div className="absolute top-0 right-0 z-20">
+          <div className={`${stateLabel.bgClass} ${stateLabel.textClass} px-3 py-1 text-xs font-bold rounded-bl-lg shadow-md`}>
+            {stateLabel.text}
+            {cardState === 'pro' && priceInfo && (
+              <div className="text-xs font-normal mt-0.5">
+                {priceInfo.hasDiscount && (
+                  <span className="line-through opacity-75 mr-1">¥{priceInfo.basePrice.toLocaleString()}</span>
+                )}
+                ¥{priceInfo.discountPrice.toLocaleString()} 
+                <span className="text-xs ml-1">税込</span>
+                {priceInfo.hasDiscount && (
+                  <div className="bg-red-500 text-white px-1 py-0.5 rounded text-xs font-bold mt-1">
+                    -{priceInfo.discountPercent}%
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
         
-        {/* 背景图片或渐变 */}
-        <div className="absolute inset-0 z-0">
+        {/* 背景头图区域 */}
+        <div className="relative h-32 overflow-hidden">
           {set.cardImage ? (
             <img 
               src={set.cardImage} 
               alt={set.title}
-              className="w-full h-32 object-cover"
+              className="w-full h-full object-cover"
             />
           ) : (
-            <div className={`w-full h-32 relative overflow-hidden ${isFree 
-              ? 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600' 
-              : 'bg-gradient-to-br from-gray-100 to-gray-200'
+            <div className={`w-full h-full relative ${
+              cardState === 'free' 
+                ? 'bg-gradient-to-br from-green-400 to-emerald-600' 
+                : cardState === 'pro'
+                  ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                  : 'bg-gradient-to-br from-gray-400 to-gray-600'
             }`}>
-              {/* 免费题库专属动画背景 */}
-              {isFree && (
-                <>
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 via-transparent to-purple-400/20 animate-pulse"></div>
-                  <div className="absolute top-0 left-0 w-full h-full">
-                    <div className="absolute top-2 left-4 w-3 h-3 bg-white/30 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
-                    <div className="absolute top-6 right-8 w-2 h-2 bg-white/40 rounded-full animate-bounce" style={{animationDelay: '0.5s'}}></div>
-                    <div className="absolute bottom-4 left-8 w-4 h-4 bg-white/20 rounded-full animate-bounce" style={{animationDelay: '1s'}}></div>
-                    <div className="absolute bottom-8 right-4 w-2 h-2 bg-white/35 rounded-full animate-bounce" style={{animationDelay: '1.5s'}}></div>
-                  </div>
-                </>
-              )}
+              {/* 装饰性几何图案 */}
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute top-4 left-4 w-8 h-8 border-2 border-white rounded-full"></div>
+                <div className="absolute top-8 right-8 w-4 h-4 bg-white rounded-full"></div>
+                <div className="absolute bottom-6 left-8 w-6 h-6 border border-white transform rotate-45"></div>
+                <div className="absolute bottom-4 right-4 w-3 h-3 bg-white rounded-full"></div>
+              </div>
+              
+              {/* 中央图标 */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl ${
-                  isFree ? 'bg-white/20 text-white' : 'bg-white/60 text-gray-600'
-                }`}>
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-2xl text-white backdrop-blur-sm">
                   {set.icon && (set.icon.startsWith('/') || set.icon.includes('http')) ? (
                     <img src={set.icon} alt={set.title} className="w-10 h-10 object-cover rounded-full" />
                   ) : (
@@ -557,143 +630,162 @@ const HomePage = () => {
               </div>
             </div>
           )}
+          
+          {/* 免费卡片特殊效果 */}
+          {cardState === 'free' && (
+            <div className="absolute top-0 left-0 w-full h-full">
+              <div className="absolute top-2 left-4 w-2 h-2 bg-white/60 rounded-full animate-ping"></div>
+              <div className="absolute top-6 right-6 w-3 h-3 bg-white/40 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
+              <div className="absolute bottom-4 left-6 w-2 h-2 bg-white/50 rounded-full animate-ping" style={{animationDelay: '1s'}}></div>
+            </div>
+          )}
         </div>
-        
-        {/* 免费标签 */}
-        {isFree && (
-          <div className="absolute top-3 left-3 z-20">
-            <div className="relative overflow-hidden">
-              <div className="apple-badge px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 shadow-lg">
-                <span className="text-xs font-bold text-white flex items-center">
-                  <svg className="w-3 h-3 mr-1 animate-spin" style={{animationDuration: '3s'}} fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                  </svg>
-                  免费
-                </span>
-              </div>
-              {/* 闪光效果 */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -translate-x-full animate-pulse" style={{animationDuration: '2s'}}></div>
-            </div>
-          </div>
-        )}
-        
-        {/* 访问类型标签 */}
-        {!isFree && (
-          <div className="absolute top-3 right-3 z-20">
-            <div className={`apple-badge px-2 py-1 rounded-full text-xs font-medium ${
-              set.accessType === 'paid' && hasAccess ? 'text-green-600' :
-              set.accessType === 'redeemed' ? 'text-purple-600' :
-              set.accessType === 'expired' ? 'text-red-600' :
-              'text-amber-600'
-            }`}>
-              {getAccessTypeLabel()}
-            </div>
-          </div>
-        )}
 
         {/* 内容区域 */}
-        <div className="relative z-10 h-full flex flex-col">
-          {/* 顶部空间（图片区域） */}
-          <div className="h-32"></div>
+        <div className="p-6 h-[calc(100%-8rem)] flex flex-col">
+          {/* 标题 */}
+          <h3 className="text-lg font-bold text-gray-900 mb-3 line-clamp-2 leading-tight">
+            {set.title}
+          </h3>
           
-          {/* 内容区域 */}
-          <div className="flex-1 p-6 bg-white">
-            {/* 标题 */}
-            <h3 className="apple-title text-xl text-gray-900 mb-2 line-clamp-2">
-              {set.title}
-            </h3>
-            
-            {/* 统计信息 */}
-            <div className="flex items-center apple-text text-sm text-gray-600 space-x-4 mb-4">
-              <div className="flex items-center">
-                <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
-                <span>{getQuestionCount()}問</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span>
-                <span>{set.category}</span>
-              </div>
+          {/* 统计信息 */}
+          <div className="flex items-center text-sm text-gray-600 space-x-4 mb-4">
+            <div className="flex items-center">
+              <div className={`w-2 h-2 rounded-full mr-2 ${
+                cardState === 'free' ? 'bg-green-500' : 
+                cardState === 'pro' ? 'bg-blue-500' : 'bg-gray-500'
+              }`}></div>
+              <span>{getQuestionCount()}問</span>
             </div>
+            <div className="flex items-center">
+              <div className="w-2 h-2 rounded-full bg-gray-400 mr-2"></div>
+              <span>{set.category}</span>
+            </div>
+          </div>
 
-            {/* 价格或有效期 */}
-            <div className="mb-4 flex-grow">
-              {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
-                <div className="w-full">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="apple-text text-gray-500">有効期限</span>
-                    <span className={`apple-text font-medium ${
-                      percent < 20 ? 'text-red-600' : 
-                      percent < 50 ? 'text-amber-600' : 
-                      'text-green-600'
-                    }`}>
-                      {formatRemainingDays(set.remainingDays)}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${color} transition-all duration-500 rounded-full`}
-                      style={{ width: `${percent}%` }}
-                    ></div>
-                  </div>
+          {/* 价格或有效期信息 */}
+          <div className="mb-4 flex-grow">
+            {cardState === 'owned' ? (
+              // 已购买状态 - 显示有效期
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">有効期限</span>
+                  <span className={`font-medium ${
+                    percent < 20 ? 'text-red-600' : 
+                    percent < 50 ? 'text-amber-600' : 
+                    'text-green-600'
+                  }`}>
+                    {formatRemainingDays(set.remainingDays)}
+                  </span>
                 </div>
-              ) : set.isPaid && !hasAccess ? (
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${color} transition-all duration-500 rounded-full`}
+                    style={{ width: `${percent}%` }}
+                  ></div>
+                </div>
+              </div>
+            ) : cardState === 'pro' && priceInfo ? (
+              // Pro状态 - 显示价格信息
+              <div className="space-y-2">
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <span className="apple-title text-2xl text-gray-900">¥{set.price}</span>
-                    {set.trialQuestions && (
-                      <div className="apple-text text-xs text-gray-500 mt-1">
-                        {set.trialQuestions}問お試し可能
+                    {priceInfo.hasDiscount && (
+                      <div className="text-sm text-gray-500 line-through">
+                        ¥{priceInfo.basePrice.toLocaleString()}
+                      </div>
+                    )}
+                    <div className="flex items-baseline">
+                      <span className="text-2xl font-bold text-gray-900">
+                        ¥{priceInfo.discountPrice.toLocaleString()}
+                      </span>
+                      <span className="text-sm text-gray-600 ml-1">税込</span>
+                    </div>
+                    {priceInfo.hasDiscount && (
+                      <div className="inline-block bg-red-500 text-white px-2 py-1 rounded text-xs font-bold mt-1">
+                        -{priceInfo.discountPercent}%
                       </div>
                     )}
                   </div>
                 </div>
-              ) : null}
-            </div>
-
-            {/* 按钮 */}
-            <button
-              onClick={() => onStartQuiz(set)}
-              className={`apple-button w-full py-3 text-sm font-medium relative overflow-hidden group ${
-                isFree 
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300'
-                  : hasAccess 
-                    ? 'bg-gray-900 hover:bg-gray-800 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-            >
-              {isFree && (
-                <>
-                  {/* 按钮光泽效果 */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
-                  {/* 脉冲背景 */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/50 to-indigo-500/50 animate-pulse"></div>
-                </>
-              )}
-              <span className="relative z-10 flex items-center justify-center">
-                {isFree && (
-                  <svg className="w-4 h-4 mr-2 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                  </svg>
+                {set.trialQuestions && (
+                  <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                    {set.trialQuestions}問お試し可能
+                  </div>
                 )}
-                {isFree ? '無料で開始' : hasAccess ? '練習開始' : 'お試し練習'}
-              </span>
-            </button>
+              </div>
+            ) : cardState === 'free' ? (
+              // 免费状态 - 显示免费标识
+              <div className="flex items-center text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium">完全無料</span>
+              </div>
+            ) : null}
+          </div>
+
+          {/* CTA按钮 */}
+          <div className="space-y-2">
+            {cardState === 'pro' && typeof ctaText === 'object' ? (
+              // Pro状态 - 主要和次要按钮
+              <>
+                <button
+                  onClick={() => onStartQuiz(set)}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  {ctaText.primary}
+                </button>
+                {ctaText.secondary && (
+                  <button
+                    onClick={() => onStartQuiz(set)}
+                    className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 text-sm"
+                  >
+                    {ctaText.secondary}
+                  </button>
+                )}
+              </>
+            ) : (
+              // Free 和 Owned 状态 - 单个主按钮
+              <button
+                onClick={() => onStartQuiz(set)}
+                className={`w-full py-3 font-medium rounded-lg transition-all duration-200 flex items-center justify-center ${
+                  cardState === 'free' 
+                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transform hover:scale-[1.02]'
+                    : 'bg-gray-900 hover:bg-gray-800 text-white'
+                }`}
+              >
+                {cardState === 'free' ? (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    {typeof ctaText === 'string' ? ctaText : '今すぐ練習'}
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v3a3 3 0 003 3z" />
+                    </svg>
+                    {typeof ctaText === 'string' ? ctaText : '今すぐ練習'}
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
         
-        {/* Hover effects */}
+        {/* Hover光泽效果 */}
         <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out ${
-          isFree 
-            ? 'bg-gradient-to-r from-transparent via-blue-200 to-purple-200'
-            : 'bg-gradient-to-r from-transparent via-blue-100 to-transparent'
+          cardState === 'free' 
+            ? 'bg-gradient-to-r from-transparent via-green-200 to-transparent'
+            : cardState === 'pro'
+              ? 'bg-gradient-to-r from-transparent via-blue-200 to-transparent'
+              : 'bg-gradient-to-r from-transparent via-gray-200 to-transparent'
         }`}></div>
-        
-        {/* 免费题库专属边框光效 */}
-        {isFree && (
-          <div className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300" style={{padding: '1px'}}>
-            <div className="w-full h-full bg-white rounded-2xl"></div>
-          </div>
-        )}
       </div>
     );
   };

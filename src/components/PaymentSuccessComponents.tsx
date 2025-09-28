@@ -151,7 +151,7 @@ interface PaymentConfirmationCardProps {
 export const PaymentConfirmationCard: React.FC<PaymentConfirmationCardProps> = ({
   questionSetTitle,
   amount,
-  currency = 'CNY',
+  currency = 'JPY',
   purchaseId,
   purchaseDate = new Date(),
   remainingDays,

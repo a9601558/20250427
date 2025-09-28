@@ -3,6 +3,7 @@ import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 // AWS Amplify Auth functions are handled by the CognitoUserContext
 import { useCognitoUser } from '../contexts/CognitoUserContext';
+import { useUser } from '../contexts/UserContext';
 import { toast } from 'react-toastify';
 
 interface CognitoAuthProps {
@@ -14,6 +15,7 @@ interface CognitoAuthProps {
 const AuthWrapper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user, route } = useAuthenticator((context) => [context.user, context.route]);
   const { refreshCognitoUser } = useCognitoUser();
+  const { syncAccessRights } = useUser();
 
   useEffect(() => {
     // 当用户成功认证后
@@ -26,8 +28,11 @@ const AuthWrapper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     try {
       console.log('[CognitoAuth] ユーザー認証が成功しました。処理を開始します...');
       
-      // Cognitoユーザー状態を更新
+      // Cognitoユーザー状态を更新
       await refreshCognitoUser();
+      
+      // UserContext状态も同期
+      await syncAccessRights();
       
       // 成功メッセージを表示
       toast.success('ログインが成功しました！');
@@ -54,6 +59,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         placeholder: 'ユーザー名・メール・電話番号を入力してください',
         label: 'ユーザー名/メール/電話番号',
         isRequired: true,
+        dialCode: '+81',
       },
       password: {
         placeholder: 'パスワードを入力してください',
@@ -63,7 +69,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
     },
     signUp: {
       username: {
-        placeholder: 'ユーザー名を入力してください',
+        placeholder: 'ユーザー名を入力してください（4-20文字の英数字）',
         label: 'ユーザー名',
         isRequired: true,
         order: 1,
@@ -75,10 +81,11 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         order: 2,
       },
       phone_number: {
-        placeholder: '電話番号を入力してください',
+        placeholder: '電話番号を入力してください（例：+81-90-1234-5678）',
         label: '電話番号',
         isRequired: true,
         order: 3,
+        dialCode: '+81',
       },
       password: {
         placeholder: 'パスワードを入力してください（8文字以上）',
@@ -140,29 +147,33 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         return (
           <div className="mt-4 space-y-3">
             <div className="text-center">
-              <div className="text-sm text-gray-500 mb-3">または</div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-center space-x-4 text-sm">
-                  <div className="flex items-center space-x-2 text-blue-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <span>電話番号でログイン可能</span>
-                  </div>
+              <div className="text-sm text-gray-500 mb-3">利用可能な認証方法</div>
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                <div className="flex items-center justify-center space-x-2 text-blue-600 bg-blue-50 p-2 rounded">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>ユーザー名 + パスワード</span>
                 </div>
-                <div className="flex items-center justify-center space-x-4 text-sm">
-                  <div className="flex items-center space-x-2 text-green-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <span>メールアドレスでログイン可能</span>
-                  </div>
+                <div className="flex items-center justify-center space-x-2 text-green-600 bg-green-50 p-2 rounded">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span>メールアドレス + パスワード</span>
+                </div>
+                <div className="flex items-center justify-center space-x-2 text-purple-600 bg-purple-50 p-2 rounded">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span>電話番号 + パスワード</span>
                 </div>
               </div>
-              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                <p className="text-xs text-blue-700">
-                  <strong>ヒント:</strong> 電話番号の場合は「+81」から始まる形式（例：+8190-1234-5678）で入力してください。
-                  パスワードをお忘れの場合は、「パスワードをお忘れですか？」から SMS または メール で認証コードを受信できます。
+              <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="text-xs text-amber-700">
+                  <strong>🔐 SMS・メール認証コード:</strong><br/>
+                  ・パスワードリセット時に SMS または Email で認証コードを受信<br/>
+                  ・電話番号は「+81-90-1234-5678」形式で入力<br/>
+                  ・初回登録後は MFA（多要素認証）が有効化されます
                 </p>
               </div>
             </div>
@@ -271,6 +282,9 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
             socialProviders={[]}
             signUpAttributes={['email', 'phone_number']}
             loginMechanisms={['username', 'email', 'phone_number']}
+            variation="modal"
+            hideSignUp={false}
+            initialState="signIn"
           >
             <AuthWrapper onClose={onClose} />
           </Authenticator>

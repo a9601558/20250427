@@ -10,7 +10,9 @@ enum AuthMode {
   FORGOT_PASSWORD = 'forgot_password',
   RESET_PASSWORD = 'reset_password',
   SMS_LOGIN = 'sms_login',
-  VERIFY_SMS = 'verify_sms'
+  VERIFY_SMS = 'verify_sms',
+  EMAIL_LOGIN = 'email_login',
+  VERIFY_EMAIL = 'verify_email'
 }
 
 interface LoginModalProps {
@@ -19,7 +21,7 @@ interface LoginModalProps {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
-  const { login, register, loading, error: contextError, switchAccount } = useUser();
+  const { login, register, loading, error: contextError, switchAccount, smsLogin, sendSmsCode, emailLogin, sendEmailCode } = useUser();
   const [mode, setMode] = useState<AuthMode>(AuthMode.LOGIN);
   const [formData, setFormData] = useState({
     usernameOrEmail: '',
@@ -330,11 +332,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
     }
 
     try {
-      // 这里可以调用发送短信验证码的API
-      // 暂时模拟发送成功
-      toast.success(`認証コードを ${formData.phoneNumber} に送信しました`);
-      setMode(AuthMode.VERIFY_SMS);
-      setFormError('');
+      const result = await sendSmsCode(formData.phoneNumber);
+      
+      if (result.success) {
+        toast.success(`認証コードを ${result.destination || formData.phoneNumber} に送信しました`);
+        setMode(AuthMode.VERIFY_SMS);
+        setFormError('');
+      } else {
+        setFormError(result.message || '認証コードの送信に失敗しました');
+        toast.error(result.message || '認証コードの送信に失敗しました');
+      }
     } catch (error) {
       console.error('发送短信验证码错误:', error);
       setFormError('認証コードの送信に失敗しました。しばらく後に再試行してください');
@@ -357,13 +364,84 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
     }
 
     try {
-      // 这里可以调用验证短信验证码并登录的API
-      // 暂时模拟登录成功
-      toast.success('SMS認証ログインに成功しました！');
-      onClose();
-      setFormError('');
+      const success = await smsLogin(formData.phoneNumber, formData.verificationCode);
+      
+      if (success) {
+        toast.success('SMS認証ログインに成功しました！');
+        onClose();
+        setFormError('');
+      } else {
+        // 错误信息已由UserContext设置，这里显示通用错误信息
+        toast.error(contextError || '認証コードが間違っているか期限切れです');
+      }
     } catch (error) {
       console.error('短信验证登录错误:', error);
+      setFormError('認証コードが間違っているか期限切れです');
+      toast.error('認証コードが間違っているか期限切れです');
+    }
+  };
+
+  // 处理邮箱验证码登录 - 发送验证码
+  const handleSendEmailCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.email.trim()) {
+      setFormError('メールアドレスを入力してください');
+      return;
+    }
+
+    // 验证邮箱格式
+    const emailValidation = cognitoAuthService.validateUserInput(formData.email);
+    if (emailValidation.type !== 'email' || !emailValidation.isValid) {
+      setFormError('有効なメールアドレスを入力してください');
+      return;
+    }
+
+    try {
+      const result = await sendEmailCode(formData.email);
+      
+      if (result.success) {
+        toast.success(`認証コードを ${result.destination || formData.email} に送信しました`);
+        setMode(AuthMode.VERIFY_EMAIL);
+        setFormError('');
+      } else {
+        setFormError(result.message || '認証コードの送信に失敗しました');
+        toast.error(result.message || '認証コードの送信に失敗しました');
+      }
+    } catch (error) {
+      console.error('发送邮箱验证码错误:', error);
+      setFormError('認証コードの送信に失敗しました。しばらく後に再試行してください');
+      toast.error('認証コードの送信に失敗しました。しばらく後に再試行してください');
+    }
+  };
+
+  // 处理邮箱验证码登录
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.verificationCode.trim()) {
+      setFormError('認証コードを入力してください');
+      return;
+    }
+
+    if (formData.verificationCode.length !== 6) {
+      setFormError('認証コードは6桁の数字である必要があります');
+      return;
+    }
+
+    try {
+      const success = await emailLogin(formData.email, formData.verificationCode);
+      
+      if (success) {
+        toast.success('メール認証ログインに成功しました！');
+        onClose();
+        setFormError('');
+      } else {
+        // 错误信息已由UserContext设置，这里显示通用错误信息
+        toast.error(contextError || '認証コードが間違っているか期限切れです');
+      }
+    } catch (error) {
+      console.error('邮箱验证登录错误:', error);
       setFormError('認証コードが間違っているか期限切れです');
       toast.error('認証コードが間違っているか期限切れです');
     }
@@ -400,6 +478,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
             {mode === AuthMode.RESET_PASSWORD && '新しいパスワードを設定'}
             {mode === AuthMode.SMS_LOGIN && 'SMS認証ログイン'}
             {mode === AuthMode.VERIFY_SMS && '認証コードを入力'}
+            {mode === AuthMode.EMAIL_LOGIN && 'メール認証ログイン'}
+            {mode === AuthMode.VERIFY_EMAIL && '認証コードを入力'}
           </h3>
           <button 
             onClick={onClose}
@@ -626,6 +706,105 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
           </form>
         )}
 
+        {/* 邮箱验证码登录表单 */}
+        {mode === AuthMode.EMAIL_LOGIN && (
+          <form className="space-y-4" onSubmit={handleSendEmailCode}>
+            <div>
+              <label htmlFor="emailLogin" className="block text-sm font-medium text-gray-700">
+                メールアドレス
+              </label>
+              <div className="mt-1">
+                <input
+                  id="emailLogin"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="メールアドレスを入力してください"
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {loading ? '送信中...' : '認証コードを送信'}
+              </button>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setMode(AuthMode.LOGIN)}
+                className="text-sm text-gray-600 hover:text-gray-500"
+              >
+                パスワードログインに戻る
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* 邮箱验证码验证表单 */}
+        {mode === AuthMode.VERIFY_EMAIL && (
+          <form className="space-y-4" onSubmit={handleEmailLogin}>
+            <div className="text-center text-sm text-gray-600 mb-4">
+              認証コードを {formData.email} に送信しました
+            </div>
+
+            <div>
+              <label htmlFor="emailVerificationCode" className="block text-sm font-medium text-gray-700">
+                認証コード
+              </label>
+              <div className="mt-1">
+                <input
+                  id="emailVerificationCode"
+                  name="verificationCode"
+                  type="text"
+                  maxLength={6}
+                  value={formData.verificationCode}
+                  onChange={(e) => setFormData({ ...formData, verificationCode: e.target.value.replace(/\D/g, '') })}
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-center text-lg tracking-widest"
+                  placeholder="6桁の認証コードを入力"
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {loading ? '認証中...' : '認証してログイン'}
+              </button>
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                type="button"
+                onClick={() => setMode(AuthMode.EMAIL_LOGIN)}
+                className="text-sm text-gray-600 hover:text-gray-500"
+              >
+                メールアドレスを再入力
+              </button>
+              <button
+                type="button"
+                onClick={handleSendEmailCode}
+                className="text-sm text-gray-600 hover:text-gray-500"
+              >
+                認証コードを再送信
+              </button>
+            </div>
+          </form>
+        )}
+
         {/* 登录和注册表单 */}
         {(mode === AuthMode.LOGIN || mode === AuthMode.REGISTER) && (
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -779,6 +958,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
                 className="text-sm text-blue-600 hover:text-blue-500"
               >
                 SMS認証ログイン
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={() => setMode(AuthMode.EMAIL_LOGIN)}
+                className="text-sm text-blue-600 hover:text-blue-500"
+              >
+                メール認証ログイン
               </button>
             </div>
           )}

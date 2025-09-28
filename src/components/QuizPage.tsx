@@ -73,7 +73,7 @@ const AnswerCard: React.FC<{
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium text-gray-700">解答カード</h3>
         <div className="text-sm text-gray-500">
-          当前进度: <span className="text-blue-600 font-medium">{currentIndex + 1}</span> / {totalQuestions}
+          現在の進度: <span className="text-blue-600 font-medium">{currentIndex + 1}</span> / {totalQuestions}
         </div>
       </div>
       
@@ -112,7 +112,7 @@ const AnswerCard: React.FC<{
                 className={buttonClass}
                 onClick={() => !isDisabled && onJump(questionIndex)}
                 disabled={isDisabled}
-                title={isDisabled ? "需要购买完整版才能访问" : `跳转到第${questionIndex + 1}题`}
+                title={isDisabled ? "フルバージョン購入で利用可能" : `第${questionIndex + 1}問に移動`}
               >
                 {questionIndex + 1}
                 {isDisabled && (
@@ -132,24 +132,24 @@ const AnswerCard: React.FC<{
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-2 text-xs text-gray-600">
         <div className="flex items-center">
           <span className="w-4 h-4 bg-white border border-gray-200 rounded-md mr-1"></span>
-          未作答
+          未回答
         </div>
         <div className="flex items-center">
           <span className="w-4 h-4 bg-blue-500 rounded-md mr-1"></span>
-          当前题目
+          現在の問題
         </div>
         <div className="flex items-center">
           <span className="w-4 h-4 bg-green-500 rounded-md mr-1"></span>
-          答对
+          正解
         </div>
         <div className="flex items-center">
           <span className="w-4 h-4 bg-red-500 rounded-md mr-1"></span>
-          答错
+          不正解
         </div>
         {isTrialMode && trialLimit && (
           <div className="flex items-center">
             <span className="w-4 h-4 bg-gray-200 opacity-60 rounded-md mr-1"></span>
-            需购买
+            要購入
           </div>
         )}
       </div>
@@ -167,9 +167,9 @@ const AnswerCard: React.FC<{
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>
-                试用模式：可访问前 <span className="font-medium">{trialLimit}</span> 道题，
-                已答 <span className="font-medium">{answeredQuestions.length}</span> 道。
-                其他题目为灰色，需购买完整版访问。
+                お試しモード：最初の <span className="font-medium">{trialLimit}</span> 問にアクセス可能、
+                解答済み <span className="font-medium">{answeredQuestions.length}</span> 問。
+                他の問題はグレー表示、フルバージョン購入でアクセス可能。
               </span>
             </div>
           ) : (
@@ -398,7 +398,7 @@ const PurchasePage: React.FC<{
                 <div className="w-16 h-16 rounded-full border-4 border-indigo-200 border-opacity-40 animate-spin"></div>
                 <div className="w-16 h-16 rounded-full border-t-4 border-blue-600 absolute top-0 left-0 animate-spin"></div>
               </div>
-              <p className="text-white text-lg font-medium mt-5 tracking-wide">处理中<span className="animate-pulse">...</span></p>
+              <p className="text-white text-lg font-medium mt-5 tracking-wide">処理中<span className="animate-pulse">...</span></p>
           </div>
         )}
         
@@ -409,15 +409,15 @@ const PurchasePage: React.FC<{
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-            <h2 className="text-3xl font-bold text-white mb-3 text-shadow">试用已结束</h2>
+            <h2 className="text-3xl font-bold text-white mb-3 text-shadow">お試し期間終了</h2>
             <div className="flex items-center justify-center space-x-2 mb-1">
-              <p className="text-blue-100">您已完成</p>
+              <p className="text-blue-100">完了しました</p>
               <div className="bg-blue-900 bg-opacity-50 text-blue-200 font-mono px-3 py-1 rounded-full font-bold">
                 {trialCount} <span className="text-xs">/ {questionSet?.trialQuestions || 0}</span>
               </div>
-              <p className="text-blue-100">道试用题目</p>
+              <p className="text-blue-100">問のお試し問題</p>
             </div>
-            <p className="text-blue-200 text-sm font-light">请购买完整版或使用兑换码继续使用</p>
+            <p className="text-blue-200 text-sm font-light">フルバージョンの購入またはクーポンコードで継続</p>
         </div>
         
         {/* Quiz set info */}
@@ -427,22 +427,22 @@ const PurchasePage: React.FC<{
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2 flex items-center">
                     <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                    {questionSet?.title || '题库'}
+                    {questionSet?.title || '問題集'}
                   </h3>
-                  <p className="text-gray-300 mb-4 text-sm">{questionSet?.description || '详细学习各种问题，提升知识水平。'}</p>
+                  <p className="text-gray-300 mb-4 text-sm">{questionSet?.description || '様々な問題で知識レベル向上。'}</p>
                 </div>
                 <div className="bg-indigo-600 bg-opacity-50 rounded-lg px-3 py-2 text-white">
-                  包含 <span className="font-mono font-bold">{questionSet?.questionCount || '0'}</span> 道题
+                  <span className="font-mono font-bold">{questionSet?.questionCount || '0'}</span> 問が含まれます
                 </div>
               </div>
               
               <div className="mt-4 flex justify-between items-center">
             <div className="flex items-baseline">
                   <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet?.price || '0'}</span>
-                  <span className="text-gray-400 text-xs ml-2">一次付费，永久使用</span>
+                  <span className="text-gray-400 text-xs ml-2">一度の支払いで半年間利用可能</span>
             </div>
                 <div className="flex space-x-1">
-                  {['安全', '快速', '高效'].map(tag => (
+                  {['安全', '高速', '効率的'].map(tag => (
                     <span key={tag} className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
                       {tag}
             </span>
@@ -482,7 +482,7 @@ const PurchasePage: React.FC<{
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
-            <span className="mr-2">立即购买完整版</span>
+            <span className="mr-2">フルバージョンを購入</span>
             
             {/* Right arrow icon */}
             <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -514,7 +514,7 @@ const PurchasePage: React.FC<{
           {/* Divider */}
             <div className="flex items-center my-4">
               <div className="flex-grow h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent opacity-20"></div>
-              <span className="mx-4 text-sm text-gray-300">或者</span>
+              <span className="mx-4 text-sm text-gray-300">または</span>
               <div className="flex-grow h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent opacity-20"></div>
           </div>
           
@@ -545,7 +545,7 @@ const PurchasePage: React.FC<{
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
-            <span className="mr-2">使用兑换码解锁</span>
+            <span className="mr-2">クーポンコードでアンロック</span>
             
             {/* Right arrow icon */}
             <svg className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -603,20 +603,20 @@ const PurchasePage: React.FC<{
               </div>
             </div>
             <p className="text-xs text-gray-400 mb-2">
-          付费后立即获得完整题库的访问权限，内容持续更新
+          購入後、完全な問題集へのアクセスを取得、コンテンツ継続更新
         </p>
             <div className="flex flex-col items-center justify-center space-y-1">
               <div className="flex items-center justify-center text-xs text-gray-500">
                 <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                支持Stripe安全支付，确保您的付款安全
+                Stripe安全支払いでお支払いの安全を保証
               </div>
               <div className="flex items-center text-xs text-green-400">
                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                支持Visa、MasterCard、银联、JCB等多种支付方式
+                Visa、MasterCard、銀聯、JCBなど多様な支払い方法に対応
               </div>
             </div>
           </div>
@@ -713,8 +713,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         const response = await axios.post(
           `${API_BASE_URL}/payments/create-intent`, 
           { 
-            amount: amount * 100, // Convert to cents for Stripe
-            currency: 'cny'
+            amount: amount * 100, // Convert to cents for Stripe  
+            currency: 'jpy'
           },
           {
             headers: { 
@@ -790,7 +790,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">安全支付</h2>
+        <h2 className="text-xl font-bold text-gray-800">セキュア決済</h2>
         <button
           onClick={onCancel}
           className="text-gray-400 hover:text-gray-600"
@@ -808,7 +808,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span className="font-medium">Stripe 安全支付</span>
+          <span className="font-medium">Stripe セキュア決済</span>
         </div>
       </div>
       
@@ -871,7 +871,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
               <svg className="w-3 h-3 mr-1 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              所有交易均通过Stripe加密处理，确保您的支付安全
+              すべての取引はStripe暗号化処理により、お支払いの安全を保証
             </p>
           </div>
         </div>
@@ -883,7 +883,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
             className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
             disabled={isProcessing}
           >
-            取消
+            キャンセル
           </button>
           <button
             type="submit"
@@ -1343,7 +1343,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
                 }`}
                 disabled={isProcessing}
               >
-                {isProcessing ? '处理中...' : '继续支付'}
+                {isProcessing ? '処理中...' : '支払いを続ける'}
               </button>
             </div>
           </div>
@@ -1390,7 +1390,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
     
     // Validate code
     if (!code || code.trim().length < 6) {
-      setError("请输入有效的兑换码");
+      setError("有効なクーポンコードを入力してください");
       return;
     }
     
@@ -1441,7 +1441,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
       } else {
         // API returned error
         console.error('[RedeemCodeModal] Code redemption failed:', response);
-        setError(response.message || '兑换码无效或已被使用');
+        setError(response.message || 'クーポンコードが無効または既に使用済みです');
         setIsProcessing(false);
       }
     } catch (err) {
@@ -1505,7 +1505,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
           </svg>
         </button>
         
-        <h3 className="text-xl font-bold text-gray-800 mb-4">兑换码解锁</h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">クーポンコードアンロック</h3>
         
         <div className="bg-blue-50 rounded-lg p-4 mb-6">
           <h4 className="font-medium text-blue-800 mb-1">{questionSet?.title || '题库'}</h4>
@@ -1521,7 +1521,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         <form onSubmit={handleRedeem}>
         <div className="mb-6">
             <label htmlFor="redeemCode" className="block text-sm font-medium text-gray-700 mb-2">
-              输入兑换码
+              クーポンコード入力
             </label>
           <input
             type="text"
@@ -1870,7 +1870,7 @@ function QuizPage(): JSX.Element {
         }));
         
         // Show a notification
-        toast.info('您已完成该题库的支付，无需重复支付', {
+        toast.info('この問題集の支払いは既に完了しています', {
           autoClose: 2000
         });
       }
@@ -2950,7 +2950,7 @@ function QuizPage(): JSX.Element {
             }
           } else {
             console.error("题库中没有题目");
-            setQuizStatus({ ...quizStatus, error: '此题库不包含任何题目' });
+            setQuizStatus({ ...quizStatus, error: 'この問題集には問題が含まれていません' });
           }
         } else {
           setQuizStatus({ ...quizStatus, error: '无法加载题库数据' });
@@ -3148,7 +3148,7 @@ function QuizPage(): JSX.Element {
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
     if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
-      toast.warning('试用已结束，请购买完整版或使用兑换码继续答题');
+      toast.warning('お試し期間が終了しました。フルバージョン購入またはクーポンコードで継続してください');
       
       // 检查是否已完成支付，避免重复显示支付窗口
       const normalizedId = String(questionSet?.id || '').trim();
@@ -4816,7 +4816,7 @@ function QuizPage(): JSX.Element {
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              清空进度
+              進捗をリセット
             </button>
             
             {/* 计时器 */}
@@ -4830,7 +4830,7 @@ function QuizPage(): JSX.Element {
             )}
             
             <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg text-sm">
-              {questionSet?.title || '加载中...'}
+              {questionSet?.title || '読み込み中...'}
             </div>
           </div>
         </div>
