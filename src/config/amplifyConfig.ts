@@ -12,6 +12,9 @@ const amplifyConfig = {
         email: {
           required: true,
         },
+        phone_number: {
+          required: true,
+        },
       },
       passwordFormat: {
         minLength: 8,

@@ -9,7 +9,7 @@ interface CognitoUserContextType {
   error: string | null;
   isAuthenticated: boolean;
   cognitoLogin: (username: string, password: string) => Promise<boolean>;
-  cognitoRegister: (userData: { username: string; email: string; password: string }) => Promise<boolean>;
+  cognitoRegister: (userData: { username: string; email: string; password: string; phone_number?: string }) => Promise<boolean>;
   cognitoLogout: () => Promise<void>;
   refreshCognitoUser: () => Promise<void>;
   updateLocalUser: (userData: Partial<User>) => void;
@@ -120,7 +120,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  const cognitoRegister = async (userData: { username: string; email: string; password: string }): Promise<boolean> => {
+  const cognitoRegister = async (userData: { username: string; email: string; password: string; phone_number?: string }): Promise<boolean> => {
     try {
       setLoading(true);
       setError(null);

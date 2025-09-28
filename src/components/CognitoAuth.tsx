@@ -79,17 +79,23 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         isRequired: true,
         order: 2,
       },
+      phone_number: {
+        placeholder: '请输入手机号码',
+        label: '手机号码',
+        isRequired: true,
+        order: 3,
+      },
       password: {
         placeholder: '请输入密码（至少8位）',
         label: '密码',
         isRequired: true,
-        order: 3,
+        order: 4,
       },
       confirm_password: {
         placeholder: '请再次输入密码',
         label: '确认密码',
         isRequired: true,
-        order: 4,
+        order: 5,
       }
     },
     forceNewPassword: {
@@ -151,7 +157,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
       <div className="fixed inset-0" onClick={onClose}></div>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative z-10 max-h-[90vh] overflow-y-auto transform transition-all">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full relative z-10 max-h-[90vh] overflow-y-auto transform transition-all">
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
@@ -233,7 +239,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
             formFields={formFields}
             components={components}
             socialProviders={[]}
-            signUpAttributes={['email']}
+            signUpAttributes={['email', 'phone_number']}
             loginMechanisms={['username', 'email']}
           >
             <AuthWrapper onClose={onClose} />

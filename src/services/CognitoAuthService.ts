@@ -88,15 +88,22 @@ class CognitoAuthService {
   /**
    * 使用Cognito进行注册
    */
-  async cognitoRegister(userData: { username: string; email: string; password: string }): Promise<CognitoAuthResult> {
+  async cognitoRegister(userData: { username: string; email: string; password: string; phone_number?: string }): Promise<CognitoAuthResult> {
     try {
+      const userAttributes: Record<string, string> = {
+        email: userData.email,
+      };
+      
+      // 如果提供了手机号，则添加到用户属性中
+      if (userData.phone_number) {
+        userAttributes.phone_number = userData.phone_number;
+      }
+      
       const { isSignUpComplete, userId } = await signUp({
         username: userData.username,
         password: userData.password,
         options: {
-          userAttributes: {
-            email: userData.email,
-          },
+          userAttributes,
         },
       });
 
