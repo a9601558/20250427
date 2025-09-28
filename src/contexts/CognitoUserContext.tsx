@@ -44,7 +44,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
         await loadUserFromCognito();
       }
     } catch (error) {
-      console.log('用户未登录');
+      console.log('ユーザーがログインしていません');
       setIsAuthenticated(false);
       setUser(null);
     } finally {
@@ -63,10 +63,10 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
         email: attributes.email || '',
         createdAt: attributes.created_at || new Date().toISOString(),
         lastLogin: new Date().toISOString(),
-        // 默认值
+        // デフォルト値
         purchases: [],
-        progress: {}, // 修复类型错误：应该是Record<string, UserProgress>
-        isAdmin: false, // 可以通过用户组或自定义属性来确定
+        progress: {}, // タイプエラー修正：Record<string, UserProgress>型であるべき
+        isAdmin: false, // ユーザーグループまたはカスタム属性で決定可能
         accessRights: [],
       };
 
@@ -74,8 +74,8 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       setIsAuthenticated(true);
       setError(null);
     } catch (error) {
-      console.error('加载用户信息失败:', error);
-      setError('加载用户信息失败');
+      console.error('ユーザー情報の読み込みに失敗しました:', error);
+      setError('ユーザー情報の読み込みに失敗しました');
       setIsAuthenticated(false);
       setUser(null);
     }
@@ -93,21 +93,21 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       if (isSignedIn) {
         await loadUserFromCognito();
-        toast.success('登录成功！');
+        toast.success('ログインが成功しました！');
         return true;
       }
       
       return false;
     } catch (error: any) {
-      console.error('登录失败:', error);
+      console.error('ログインに失敗しました:', error);
       
-      let errorMessage = '登录失败';
+      let errorMessage = 'ログインに失敗しました';
       if (error.name === 'NotAuthorizedException') {
-        errorMessage = '用户名或密码错误';
+        errorMessage = 'ユーザー名またはパスワードが間違っています';
       } else if (error.name === 'UserNotConfirmedException') {
-        errorMessage = '账号未验证，请检查邮箱验证链接';
+        errorMessage = 'アカウントが未確認です。メールの確認リンクをチェックしてください';
       } else if (error.name === 'UserNotFoundException') {
-        errorMessage = '用户不存在';
+        errorMessage = 'ユーザーが存在しません';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -136,22 +136,22 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       });
 
       if (isSignUpComplete || userId) {
-        toast.success('注册成功！请检查邮箱验证链接');
-        // 注册成功后，用户可能需要验证邮箱，这时不会自动登录
+        toast.success('登録が成功しました！メールの確認リンクをチェックしてください');
+        // 登録後、ユーザーはメール確認が必要な場合があり、自動ログインはされません
         return true;
       }
 
       return false;
     } catch (error: any) {
-      console.error('注册失败:', error);
+      console.error('登録に失敗しました:', error);
       
-      let errorMessage = '注册失败';
+      let errorMessage = '登録に失敗しました';
       if (error.name === 'UsernameExistsException') {
-        errorMessage = '用户名已存在';
+        errorMessage = 'ユーザー名が既に存在します';
       } else if (error.name === 'InvalidPasswordException') {
-        errorMessage = '密码不符合要求';
+        errorMessage = 'パスワードが要件を満たしていません';
       } else if (error.name === 'InvalidParameterException') {
-        errorMessage = '参数无效，请检查输入';
+        errorMessage = 'パラメータが無効です。入力内容を確認してください';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -171,10 +171,10 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       setUser(null);
       setIsAuthenticated(false);
       setError(null);
-      toast.success('已退出登录');
+      toast.success('ログアウトしました');
     } catch (error) {
-      console.error('退出登录失败:', error);
-      toast.error('退出登录失败');
+      console.error('ログアウトに失敗しました:', error);
+      toast.error('ログアウトに失敗しました');
     } finally {
       setLoading(false);
     }

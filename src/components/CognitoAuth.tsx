@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
-import { getCurrentUser, fetchUserAttributes, signOut } from 'aws-amplify/auth';
-import { useUser } from '../contexts/UserContext';
+// AWS Amplify Auth functions are handled by the CognitoUserContext
+import { useCognitoUser } from '../contexts/CognitoUserContext';
 import { toast } from 'react-toastify';
 
 interface CognitoAuthProps {
@@ -13,7 +13,7 @@ interface CognitoAuthProps {
 // 自定义认证包装组件
 const AuthWrapper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user, route } = useAuthenticator((context) => [context.user, context.route]);
-  const { updateUser } = useUser();
+  const { refreshCognitoUser } = useCognitoUser();
 
   useEffect(() => {
     // 当用户成功认证后
@@ -24,26 +24,21 @@ const AuthWrapper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const handleAuthSuccess = async () => {
     try {
-      // 获取用户属性
-      const attributes = await fetchUserAttributes();
-      const currentUser = await getCurrentUser();
+      console.log('[CognitoAuth] ユーザー認証が成功しました。処理を開始します...');
       
-      // 更新本地用户上下文
-      const userData = {
-        id: currentUser.userId,
-        username: currentUser.username || attributes.preferred_username || '',
-        email: attributes.email || '',
-        // 从Cognito属性映射到本地用户数据结构
-        createdAt: attributes.created_at || new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-      };
-
-      await updateUser(userData);
-      toast.success('登录成功！');
+      // Cognitoユーザー状態を更新
+      await refreshCognitoUser();
+      
+      // 成功メッセージを表示
+      toast.success('ログインが成功しました！');
+      
+      // 認証ダイアログを閉じる
       onClose();
+      
+      console.log('[CognitoAuth] 認証成功処理が完了しました');
     } catch (error) {
-      console.error('处理认证成功时出错:', error);
-      toast.error('登录处理失败，请重试');
+      console.error('[CognitoAuth] 認証成功処理中にエラーが発生しました:', error);
+      toast.error('ログイン処理に失敗しました。再試行してください');
     }
   };
 
@@ -56,72 +51,72 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   const formFields = {
     signIn: {
       username: {
-        placeholder: '请输入用户名或邮箱',
-        label: '用户名/邮箱',
+        placeholder: 'ユーザー名またはメールアドレスを入力してください',
+        label: 'ユーザー名/メール',
         isRequired: true,
       },
       password: {
-        placeholder: '请输入密码',
-        label: '密码',
+        placeholder: 'パスワードを入力してください',
+        label: 'パスワード',
         isRequired: true,
       }
     },
     signUp: {
       username: {
-        placeholder: '请输入用户名',
-        label: '用户名',
+        placeholder: 'ユーザー名を入力してください',
+        label: 'ユーザー名',
         isRequired: true,
         order: 1,
       },
       email: {
-        placeholder: '请输入邮箱地址',
-        label: '邮箱',
+        placeholder: 'メールアドレスを入力してください',
+        label: 'メールアドレス',
         isRequired: true,
         order: 2,
       },
       phone_number: {
-        placeholder: '请输入手机号码',
-        label: '手机号码',
+        placeholder: '電話番号を入力してください',
+        label: '電話番号',
         isRequired: true,
         order: 3,
       },
       password: {
-        placeholder: '请输入密码（至少8位）',
-        label: '密码',
+        placeholder: 'パスワードを入力してください（8文字以上）',
+        label: 'パスワード',
         isRequired: true,
         order: 4,
       },
       confirm_password: {
-        placeholder: '请再次输入密码',
-        label: '确认密码',
+        placeholder: 'パスワードを再入力してください',
+        label: 'パスワード確認',
         isRequired: true,
         order: 5,
       }
     },
     forceNewPassword: {
       password: {
-        placeholder: '请输入新密码',
-        label: '新密码',
+        placeholder: '新しいパスワードを入力してください',
+        label: '新しいパスワード',
       }
     },
     forgotPassword: {
       username: {
-        placeholder: '请输入用户名或邮箱',
-        label: '用户名/邮箱',
+        placeholder: 'ユーザー名またはメールアドレスを入力してください',
+        label: 'ユーザー名/メール',
       }
     },
     confirmResetPassword: {
       username: {
-        placeholder: '请输入用户名或邮箱',
-        label: '用户名/邮箱',
+        placeholder: 'ユーザー名またはメールアドレスを入力してください',
+        label: 'ユーザー名/メール',
       },
       confirmation_code: {
-        placeholder: '请输入验证码',
-        label: '验证码',
+        placeholder: '確認コードを入力してください',
+        label: '確認コード',
       },
       password: {
-        placeholder: '请输入新密码',
-        label: '新密码',
+        placeholder: '新しいパスワードを入力してください',
+        label: '新しいパスワード',
       }
     }
   };
@@ -135,8 +130,8 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">欢迎回来</h1>
-          <p className="text-gray-600 text-sm">请登录您的账户继续使用</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">おかえりなさい</h1>
+          <p className="text-gray-600 text-sm">アカウントにログインしてご利用ください</p>
         </div>
       );
     },
@@ -147,7 +142,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
-            <span>由 AWS Cognito 提供安全保障</span>
+            <span>AWS Cognito による安全な認証</span>
           </div>
         </div>
       );
