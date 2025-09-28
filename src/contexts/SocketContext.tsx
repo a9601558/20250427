@@ -88,6 +88,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return true;
   };
   
+  // 获取有效的认证token
+  const getValidToken = () => {
+    // 优先使用AWS Cognito token
+    const cognitoToken = localStorage.getItem('token');
+    const fallbackToken = localStorage.getItem('authToken');
+    
+    const token = cognitoToken || fallbackToken;
+    console.log('[Socket] Token获取:', { 
+      cognitoToken: cognitoToken ? '存在' : '不存在',
+      fallbackToken: fallbackToken ? '存在' : '不存在',
+      selectedToken: token ? '已选择' : '未找到'
+    });
+    
+    return token;
+  };
+
   // 初始化socket连接
   const initSocket = () => {
     if (socket) {
@@ -95,7 +111,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socket.disconnect();
     }
     
-    console.log('[Socket] 初始化新连接');
+    const token = getValidToken();
+    if (!token) {
+      console.warn('[Socket] 没有找到有效的认证token，跳过Socket连接');
+      return null;
+    }
+    
+    console.log('[Socket] 初始化新连接，使用token:', token.substring(0, 20) + '...');
     
     // 创建新的Socket实例
     const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || ''; // 使用空字符串自动跟随当前域名
@@ -106,7 +128,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       autoConnect: true,
-      auth: { token: localStorage.getItem('token') }
+      auth: { token }
     });
     
     // 添加断线重连和错误处理
@@ -119,44 +141,60 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // 如果用户已登录，发送认证信息
       if (user) {
-        newSocket.emit('auth', { userId: user.id, token: localStorage.getItem('token') });
+        const authToken = getValidToken();
+        if (authToken) {
+          newSocket.emit('auth', { userId: user.id, token: authToken });
+        }
       }
     });
     
     // 优化断开连接处理
     newSocket.on('disconnect', (reason) => {
       console.log(`[Socket] 断开连接: ${reason}`);
+      setIsConnected(false);
       
-      // 只在非主动断开的情况下更新状态，避免不必要的重连
-      if (reason !== 'io client disconnect') {
-        setIsConnected(false);
+      // 只在特定原因下尝试重连，避免不必要的重连
+      const shouldReconnect = reason === 'ping timeout' || 
+                             reason === 'transport close' || 
+                             reason === 'transport error';
+      
+      if (shouldReconnect && reconnectCount.current < maxReconnectAttempts) {
+        console.log(`[Socket] 将在 ${reconnectDelay.current/1000}秒后尝试重连...`);
         
-        // 实现指数退避重连
-        if (reconnectCount.current < maxReconnectAttempts) {
-          console.log(`[Socket] 将在 ${reconnectDelay.current/1000}秒后尝试重连...`);
-          
-          // 清除之前的重连定时器
-          if (reconnectTimerId.current) {
-            clearTimeout(reconnectTimerId.current);
-          }
-          
-          // 设置新的重连定时器
-          reconnectTimerId.current = setTimeout(() => {
-            reconnectCount.current++;
-            reconnectDelay.current = Math.min(reconnectDelay.current * 2, maxReconnectDelay);
-            console.log(`[Socket] 第 ${reconnectCount.current} 次尝试重连`);
-            newSocket.connect();
-          }, reconnectDelay.current);
-        } else {
-          setLastError('已达到最大重连次数，请刷新页面');
+        // 清除之前的重连定时器
+        if (reconnectTimerId.current) {
+          clearTimeout(reconnectTimerId.current);
         }
+        
+        // 设置新的重连定时器
+        reconnectTimerId.current = setTimeout(() => {
+          reconnectCount.current++;
+          reconnectDelay.current = Math.min(reconnectDelay.current * 2, maxReconnectDelay);
+          console.log(`[Socket] 第 ${reconnectCount.current} 次尝试重连`);
+          newSocket.connect();
+        }, reconnectDelay.current);
+      } else if (reason === 'io client disconnect') {
+        console.log(`[Socket] 主动断开连接，不尝试重连`);
+      } else if (reason === 'io server disconnect') {
+        console.log(`[Socket] 服务器断开连接，可能是认证问题`);
+        setLastError('认证失败，请重新登录');
+      } else {
+        console.log(`[Socket] 其他原因断开 (${reason})，不尝试重连`);
       }
     });
     
     // 处理连接错误，避免异常渲染
     newSocket.on('connect_error', (error) => {
       console.error('[Socket] 连接错误:', error);
-      setLastError(`连接错误: ${error.message}`);
+      
+      // 如果是认证错误，不要频繁重试
+      if (error.message.includes('认证') || error.message.includes('token')) {
+        console.log('[Socket] 认证错误，将延长重试间隔');
+        reconnectDelay.current = Math.max(reconnectDelay.current, 10000); // 至少10秒
+        setLastError('Socket认证失败，请检查登录状态');
+      } else {
+        setLastError(`连接错误: ${error.message}`);
+      }
       
       // 不立即触发重连，而是让断开连接事件处理器来处理重连
       // 这可以防止多个重连计时器
@@ -187,6 +225,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // 监听用户认证状态变化，更新Socket连接
   useEffect(() => {
+    // 只有在有token的情况下才初始化Socket连接
+    const token = getValidToken();
+    if (!token) {
+      console.log('[Socket] 没有认证token，跳过Socket初始化');
+      return;
+    }
+    
     // 用户登录或登出时重新初始化Socket
     const newSocket = initSocket();
     
@@ -196,7 +241,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (reconnectTimerId.current) {
         clearTimeout(reconnectTimerId.current);
       }
-      newSocket.disconnect();
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
   }, [user?.id]); // 仅在用户ID变化时重新连接
   

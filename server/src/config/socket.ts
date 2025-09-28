@@ -62,8 +62,9 @@ export const initializeSocket = (server: HttpServer): void => {
   io.use(async (socket: AuthenticatedSocket, next: (err?: Error) => void) => {
     const token = socket.handshake.auth.token;
     if (!token) {
-      console.log('Socket连接没有提供token');
-      return next(new Error('未提供认证令牌'));
+      console.log('Socket连接没有提供token - 允许匿名连接');
+      // 允许匿名连接，但不设置userId
+      return next();
     }
 
     try {
@@ -84,7 +85,9 @@ export const initializeSocket = (server: HttpServer): void => {
           console.log('Socket traditional JWT token verified successfully');
         } catch (jwtError) {
           console.error('Socket: Both token verification methods failed:', { cognitoError, jwtError });
-          throw new Error('Token verification failed');
+          // 允许连接但不设置userId，这样后续操作会知道用户未认证
+          console.log('Socket允许匿名连接 - token验证失败');
+          return next();
         }
       }
       
@@ -92,8 +95,9 @@ export const initializeSocket = (server: HttpServer): void => {
       console.log(`Socket认证成功: 用户ID ${socket.userId}`);
       next();
     } catch (error) {
-      console.error('Socket认证失败:', error);
-      next(new Error('认证失败'));
+      console.error('Socket认证过程中出现错误:', error);
+      // 即使认证失败也允许连接，避免页面无限重试
+      next();
     }
   });
 

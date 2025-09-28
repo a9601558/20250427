@@ -51,6 +51,31 @@ const AuthManager: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  // 页面刷新防护
+  useEffect(() => {
+    const refreshCount = parseInt(sessionStorage.getItem('appRefreshCount') || '0');
+    const lastRefreshTime = parseInt(sessionStorage.getItem('lastAppRefreshTime') || '0');
+    const now = Date.now();
+    
+    // 如果在30秒内刷新超过3次，显示警告
+    if (refreshCount >= 3 && (now - lastRefreshTime) < 30000) {
+      console.warn('[App] 检测到频繁刷新，可能存在无限循环问题');
+      toast.warning('页面正在频繁刷新，请检查网络连接或联系技术支持', {
+        autoClose: 5000,
+        toastId: 'refresh-warning'
+      });
+      sessionStorage.setItem('appRefreshCount', '0'); // 重置计数
+    } else if ((now - lastRefreshTime) > 30000) {
+      // 超过30秒，重置计数
+      sessionStorage.setItem('appRefreshCount', '1');
+    } else {
+      // 增加计数
+      sessionStorage.setItem('appRefreshCount', (refreshCount + 1).toString());
+    }
+    
+    sessionStorage.setItem('lastAppRefreshTime', now.toString());
+  }, []);
+
   // 应用启动时尝试自动登录
   useEffect(() => {
     const tryAutoLogin = async () => {
