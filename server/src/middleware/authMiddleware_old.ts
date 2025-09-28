@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
+import axios from 'axios';
 
 // Extend Express Request interface to include user
 declare global {
@@ -16,32 +17,59 @@ interface JwtPayload {
   id: string;
 }
 
-// Function to verify AWS Cognito JWT token (simplified for development)
+// Function to verify AWS Cognito JWT token
 const verifyCognitoToken = async (token: string): Promise<any> => {
   try {
-    // 简化版本：只解码token而不验证签名（用于开发测试）
-    // 生产环境中应该进行完整的签名验证
-    const decoded = jwt.decode(token);
-    
-    if (!decoded || typeof decoded === 'string') {
-      throw new Error('Invalid token format');
+    // Decode JWT header to get key ID
+    const decodedHeader = jwt.decode(token, { complete: true });
+    if (!decodedHeader || !decodedHeader.header.kid) {
+      throw new Error('Invalid token header');
     }
-    
-    // 检查token是否来自Cognito（通过iss字段）
+
+    // AWS Cognito JWT keys URL (adjust region and user pool ID as needed)
     const cognitoRegion = process.env.COGNITO_REGION || 'ap-southeast-2';
     const cognitoUserPoolId = process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_El0UTGvLD';
-    const expectedIssuer = `https://cognito-idp.${cognitoRegion}.amazonaws.com/${cognitoUserPoolId}`;
+    const jwksUrl = `https://cognito-idp.${cognitoRegion}.amazonaws.com/${cognitoUserPoolId}/.well-known/jwks.json`;
     
-    if (decoded.iss !== expectedIssuer) {
-      throw new Error('Token issuer does not match Cognito');
+    // Get public keys from Cognito
+    const response = await axios.get(jwksUrl);
+    const keys = response.data.keys;
+    
+    // Find the key that matches the token's kid
+    const key = keys.find((k: any) => k.kid === decodedHeader.header.kid);
+    if (!key) {
+      throw new Error('Public key not found');
     }
     
-    // 检查token是否过期
-    const now = Math.floor(Date.now() / 1000);
-    if (decoded.exp && decoded.exp < now) {
-      throw new Error('Token has expired');
+    // Convert JWK to PEM format
+    const jwkToPem = (jwk: any) => {
+      const modulus = Buffer.from(jwk.n, 'base64');
+      const exponent = Buffer.from(jwk.e, 'base64');
+      
+      const modulusHex = modulus.toString('hex');
+      const exponentHex = exponent.toString('hex');
+      
+      const modLen = modulus.length;
+      const expLen = exponent.length;
+      
+      const asnHeader = '30820122300d06092a864886f70d01010105000382010f003082010a0282010100';
+      const publicKeyDer = asnHeader + modulusHex + '0203' + exponentHex;
+      const publicKeyPem = '-----BEGIN PUBLIC KEY-----\n' + 
+        Buffer.from(publicKeyDer, 'hex').toString('base64').match(/.{1,64}/g)?.join('\n') +
+        '\n-----END PUBLIC KEY-----';
+      
+      return publicKeyPem;
+    };
+    
+    let publicKey;
+    if (key.kty === 'RSA') {
+      publicKey = jwkToPem(key);
+    } else {
+      throw new Error('Unsupported key type');
     }
     
+    // Verify the token with the public key
+    const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
     return decoded;
   } catch (error) {
     throw error;
@@ -149,4 +177,4 @@ export const generateToken = (id: string): string => {
  * - COGNITO_REGION: AWS Cognito region (e.g., 'ap-southeast-2')
  * - COGNITO_USER_POOL_ID: AWS Cognito User Pool ID (e.g., 'ap-southeast-2_El0UTGvLD')
  * - JWT_SECRET: Secret for traditional JWT tokens
- */
+ */ 
