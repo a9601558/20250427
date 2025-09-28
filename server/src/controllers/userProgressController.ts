@@ -82,14 +82,14 @@ interface QuestionSetWithQuestions {
 }
 
 /**
- * @desc    获取用户进度
+ * @desc    ユーザー進捗を取得
  * @route   GET /api/user-progress/:userId
  * @access  Private
  */
 export const getUserProgress = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { userId } = req.params;
-    // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
+    // ユーザー権限を検証：自分の情報のみ、または管理者は全員の情報にアクセス可能
     const currentUserId = req.user.id;
     if (userId !== currentUserId && !req.user.isAdmin) {
       return sendError(res, 403, '无权访问此用户的进度');
@@ -105,24 +105,24 @@ export const getUserProgress = async (req: Request, res: Response): Promise<Resp
         }
       ]
     });
-    return sendResponse(res, 200, '获取用户进度成功', progress);
+    return sendResponse(res, 200, 'ユーザー進捗の取得に成功しました', progress);
   } catch (error) {
-    return sendError(res, 500, '获取用户进度失败', error);
+    return sendError(res, 500, 'ユーザー進捗の取得に失敗しました', error);
   }
 };
 
 /**
- * @desc    获取特定题库的用户进度
+ * @desc    特定問題集のユーザー進捗を取得
  * @route   GET /api/user-progress/:userId/:questionSetId
  * @access  Private
  */
 export const getProgressByQuestionSetId = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { userId, questionSetId } = req.params;
-    // 验证用户权限：只能查询自己的或管理员有权限查询所有人的
+    // ユーザー権限を検証：自分の情報のみ、または管理者は全員の情報にアクセス可能
     const currentUserId = req.user.id;
     if (userId !== currentUserId && req.user.role !== 'admin') {
-      return sendError(res, 403, '无权访问此用户的进度');
+      return sendError(res, 403, 'このユーザーの進捗にアクセスする権限がありません');
     }
 
     const progress = await UserProgress.findAll({
@@ -135,14 +135,14 @@ export const getProgressByQuestionSetId = async (req: Request, res: Response): P
     if (!progress || progress.length === 0) {
       return sendError(res, 404, 'Progress not found');
     }
-    return sendResponse<UserProgress[]>(res, 200, '获取进度成功', progress);
+    return sendResponse<UserProgress[]>(res, 200, '進捗の取得に成功しました', progress);
   } catch (error) {
     return sendError(res, 500, 'Error fetching progress', error);
   }
 };
 
 /**
- * @desc    更新用户进度
+ * @desc    ユーザー進捗を更新
  * @route   POST /api/user-progress
  * @access  Private
  */
@@ -151,12 +151,12 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     const userId = req.user.id;
     const { questionSetId, questionId, isCorrect, timeSpent } = req.body;
 
-    // 验证必要参数
+    // 必須パラメータを検証
     if (!questionSetId || !questionId || typeof isCorrect !== 'boolean') {
-      return sendError(res, 400, '缺少必要参数');
+      return sendError(res, 400, '必須パラメータが不足しています');
     }
 
-    // 创建或更新进度记录
+    // 進捗記録を作成または更新
     const [progress, created] = await UserProgress.findOrCreate({
       where: {
         userId,
@@ -173,7 +173,7 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
       }
     });
 
-    // 如果记录已存在，更新它
+    // 記録が既に存在する場合は更新
     if (!created) {
       await progress.update({
         isCorrect,
@@ -194,15 +194,15 @@ export const updateProgress = async (req: Request, res: Response): Promise<Respo
     
     io.to(userId).emit('progress:update', updateEvent);
 
-    return sendResponse<UserProgress>(res, 200, '更新进度成功', progress);
+    return sendResponse<UserProgress>(res, 200, '進捗の更新に成功しました', progress);
   } catch (error) {
-    console.error('更新进度失败:', error);
+    console.error('進捗の更新に失敗しました:', error);
     return sendError(res, 500, 'Error updating progress', error);
   }
 };
 
 /**
- * @desc    重置用户进度
+ * @desc    ユーザー進捗をリセット
  * @route   DELETE /api/user-progress/:userId/:questionSetId
  * @access  Private
  */
@@ -212,20 +212,20 @@ export const resetProgress = async (req: Request, res: Response): Promise<Respon
     // 验证用户权限：只能重置自己的或管理员有权限重置所有人的
     const currentUserId = req.user.id;
     if (userId !== currentUserId && req.user.role !== 'admin') {
-      return sendError(res, 403, '无权重置此用户的进度');
+      return sendError(res, 403, 'このユーザーの進捗をリセットする権限がありません');
     }
 
     await UserProgress.destroy({
       where: { userId, questionSetId },
     });
-    return sendResponse(res, 200, '进度重置成功');
+    return sendResponse(res, 200, '進捗のリセットに成功しました');
   } catch (error) {
     return sendError(res, 500, 'Error resetting progress', error);
   }
 };
 
 /**
- * @desc    记录详细的进度信息
+ * @desc    詳細な進捗情報を記録
  * @route   POST /api/user-progress/record
  * @access  Private
  */
@@ -233,24 +233,24 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
     
-    // 打印请求信息，便于调试
+    // デバッグ用リクエスト情報を出力
     console.log('Create Detailed Progress Request:', {
       body: req.body,
       userId: userId
     });
 
-    // 尝试从不同的请求字段获取数据，增加兼容性
+    // 互換性向上のため、異なるリクエストフィールドからデータを取得を試行
     let questionSetId = req.body.questionSetId;
     let questionId = req.body.questionId;
     let isCorrect = req.body.isCorrect;
     let timeSpent = req.body.timeSpent || 0;
     
-    // 如果请求包含问题集数据对象
+    // リクエストに問題集データオブジェクトが含まれている場合
     if (req.body.questionSet) {
       questionSetId = req.body.questionSet.id || questionSetId;
     }
     
-    // 如果请求包含问题数据对象
+    // リクエストに問題データオブジェクトが含まれている場合
     if (req.body.question) {
       questionId = req.body.question.id || questionId;
       if (req.body.question.questionSetId) {
@@ -258,23 +258,23 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
       }
     }
     
-    // 如果请求包含答案数据对象
+    // リクエストに回答データオブジェクトが含まれている場合
     if (req.body.answer) {
       isCorrect = req.body.answer.isCorrect !== undefined ? req.body.answer.isCorrect : isCorrect;
       timeSpent = req.body.answer.timeSpent || req.body.answer.time || timeSpent;
     }
     
-    // 如果请求直接包含答案结果
+    // リクエストに直接回答結果が含まれている場合
     if (req.body.result !== undefined) {
       isCorrect = !!req.body.result;
     }
 
-    // 详细的参数验证
+    // 詳細なパラメータ検証
     const missingParams = [];
     if (!questionSetId) missingParams.push('questionSetId');
     if (!questionId) missingParams.push('questionId');
     if (typeof isCorrect !== 'boolean') {
-      // 尝试转换可能是字符串的布尔值
+      // 文字列の可能性があるブール値の変換を試行
       if (isCorrect === 'true') isCorrect = true;
       else if (isCorrect === 'false') isCorrect = false;
       else missingParams.push('isCorrect');
@@ -288,10 +288,10 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     });
 
     if (missingParams.length > 0) {
-      return sendError(res, 400, `缺少必要参数: ${missingParams.join(', ')}`);
+      return sendError(res, 400, `必須パラメータが不足しています: ${missingParams.join(', ')}`);
     }
 
-    // 创建新的进度记录
+    // 新しい進捗記録を作成
     const newProgress = await UserProgress.create({
       userId,
       questionSetId,
@@ -313,15 +313,15 @@ export const createDetailedProgress = async (req: Request, res: Response) => {
     
     io.to(userId).emit('progress:update', updateEvent);
     
-    return sendResponse(res, 201, '学习进度已记录', newProgress.toJSON());
+    return sendResponse(res, 201, '学習進捗を記録しました', newProgress.toJSON());
   } catch (error) {
-    console.error('创建学习进度失败:', error);
-    return sendError(res, 500, '创建学习进度失败', error);
+    console.error('学習進捗の作成に失敗しました:', error);
+    return sendError(res, 500, '学習進捗の作成に失敗しました', error);
   }
 };
 
 /**
- * @desc    获取详细的进度记录
+ * @desc    詳細な進捗記録を取得
  * @route   GET /api/user-progress/detailed
  * @access  Private
  */
@@ -330,7 +330,7 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const { questionSetId } = req.params;
     
-    // 查询进度记录
+    // 進捗記録を照会
     const progressRecords = await UserProgress.findAll({
       where: {
         userId,
@@ -353,7 +353,7 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
     if (!progressRecords.length) {
       return res.status(404).json({
         success: false,
-        message: '未找到进度记录'
+        message: '進捗記録が見つかりません'
       });
     }
 
@@ -362,16 +362,16 @@ export const getDetailedProgress = async (req: Request, res: Response) => {
       data: progressRecords
     });
   } catch (error) {
-    console.error('获取进度详情失败:', error);
+    console.error('進捗詳細の取得に失敗しました:', error);
     return res.status(500).json({
       success: false,
-      message: '服务器错误，获取进度详情失败'
+      message: 'サーバーエラー、進捗詳細の取得に失敗しました'
     });
   }
 };
 
 /**
- * @desc    获取学习统计
+ * @desc    学習統計を取得
  * @route   GET /api/user-progress/stats
  * @access  Private
  */
@@ -410,7 +410,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
     userProgressRecords.forEach(record => {
       // 确保 questionSetId 是有效的
       if (!record.questionSetId) {
-        console.warn('发现缺少 questionSetId 的记录:', record.id);
+        console.warn('questionSetIdが不足している記録を発見しました:', record.id);
         return; // 跳过此记录
       }
       
@@ -440,7 +440,7 @@ export const getProgressStats = async (req: Request, res: Response) => {
     const stats = questionSets.map(qs => {
       // 确保 qs.id 是有效的
       if (!qs || !qs.id) {
-        console.warn('发现缺少 id 的题库');
+        console.warn('idが不足している問題集を発見しました');
         return null; // 返回 null，之后会过滤掉
       }
       
@@ -483,15 +483,15 @@ export const getProgressStats = async (req: Request, res: Response) => {
       };
     }).filter(Boolean); // 过滤掉 null 值
 
-    return sendResponse(res, 200, '获取学习统计成功', stats);
+    return sendResponse(res, 200, '学習統計の取得に成功しました', stats);
   } catch (error) {
-    console.error('获取学习统计失败:', error);
-    return sendError(res, 500, '获取学习统计失败', error);
+    console.error('学習統計の取得に失敗しました:', error);
+    return sendError(res, 500, '学習統計の取得に失敗しました', error);
   }
 };
 
 /**
- * @desc    删除进度记录
+ * @desc    進捗記録を削除
  * @route   DELETE /api/user-progress/record/:id
  * @access  Private
  */
@@ -505,19 +505,19 @@ export const deleteProgressRecord = async (req: Request, res: Response) => {
     });
 
     if (!progress) {
-      return sendError(res, 404, '进度记录不存在');
+      return sendError(res, 404, '進捗記録が存在しません');
     }
 
     await progress.destroy();
-    return sendResponse(res, 200, '进度记录已删除');
+    return sendResponse(res, 200, '進捗記録を削除しました');
   } catch (error) {
-    console.error('删除进度记录失败:', error);
-    return sendError(res, 500, '删除进度记录失败', error);
+    console.error('進捗記録の削除に失敗しました:', error);
+    return sendError(res, 500, '進捗記録の削除に失敗しました', error);
   }
 };
 
 /**
- * @desc    获取用户进度统计
+ * @desc    ユーザー進捗統計を取得
  * @route   GET /api/user-progress/stats/:userId
  * @access  Private
  */
@@ -528,7 +528,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
     
     // 修改权限检查逻辑：允许用户访问自己的进度，或管理员访问任何用户的进度
     if (userId !== currentUserId && !req.user.isAdmin) {
-      return sendError(res, 403, '无权访问此用户的进度统计');
+      return sendError(res, 403, 'このユーザーの進捗統計にアクセスする権限がありません');
     }
     
     // 获取用户的所有进度记录，包括关联的题目集和题目信息
@@ -637,7 +637,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
       stat.averageTime = stat.total > 0 ? stat.timeSpent / stat.total : 0;
     });
 
-    return sendResponse(res, 200, '获取用户进度统计成功', {
+    return sendResponse(res, 200, 'ユーザー進捗統計の取得に成功しました', {
       overall: {
         totalQuestions,
         correctAnswers,
@@ -654,7 +654,7 @@ export const getUserProgressStats = async (req: Request, res: Response) => {
 };
 
 /**
- * @desc    获取用户的原始进度记录
+ * @desc    ユーザーの原始進捗記録を取得
  * @route   GET /api/user-progress/records
  * @access  Private
  */
@@ -673,10 +673,10 @@ export const getUserProgressRecords = async (req: Request, res: Response) => {
       }]
     });
 
-    return sendResponse(res, 200, '获取进度记录成功', progressRecords);
+    return sendResponse(res, 200, '進捗記録の取得に成功しました', progressRecords);
   } catch (error) {
-    console.error('获取进度记录失败:', error);
-    return sendError(res, 500, '获取进度记录失败', error);
+    console.error('進捗記録の取得に失敗しました:', error);
+    return sendError(res, 500, '進捗記録の取得に失敗しました', error);
   }
 };
 
@@ -735,10 +735,10 @@ export const getProgressSummary = async (req: Request, res: Response) => {
       data: summary
     });
   } catch (error) {
-    console.error('获取进度汇总统计失败:', error);
+    console.error('進捗サマリー統計の取得に失敗しました:', error);
     res.status(500).json({
       success: false,
-      error: '获取进度汇总统计失败'
+      error: '進捗サマリー統計の取得に失敗しました'
     });
   }
 }; 

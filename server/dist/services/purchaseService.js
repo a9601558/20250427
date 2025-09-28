@@ -60,7 +60,7 @@ const getActivePurchasesByUserId = async (userId) => {
                 transactionId: purchase.transactionId,
                 paymentMethod: purchase.paymentMethod || 'unknown',
                 price: 0, // 默认值
-                currency: 'CNY', // 默认值
+                currency: 'JPY', // 默认值
                 createdAt: purchase.createdAt || new Date(),
                 updatedAt: purchase.updatedAt || new Date()
             };
@@ -145,7 +145,7 @@ const getLatestPurchaseForQuestionSet = async (userId, questionSetId) => {
             transactionId: purchase.transactionId,
             paymentMethod: purchase.paymentMethod || 'unknown',
             price: 0, // 默认值
-            currency: 'CNY', // 默认值
+            currency: 'JPY', // 默认值
             createdAt: purchase.createdAt || new Date(),
             updatedAt: purchase.updatedAt || new Date()
         };

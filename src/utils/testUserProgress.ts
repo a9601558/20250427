@@ -14,7 +14,7 @@ export const monitorUserProgress = () => {
   // 使用localStorage事件来捕获登录状态变化
   window.addEventListener('storage', (event) => {
     if (event.key === 'token') {
-      console.log('[进度监控] 用户登录状态变化:', {
+      console.log('[進捗監視] ユーザーログイン状態変化:', {
         prevToken: event.oldValue,
         newToken: event.newValue,
       });
@@ -52,14 +52,14 @@ export const monitorUserProgress = () => {
       
       // 检查用户变化
       if (currentUser?.id !== prevUser?.id) {
-        console.log('[进度监控] 用户切换:', {
+        console.log('[進捗監視] ユーザー切り替え:', {
           prevUserId: prevUser?.id,
           newUserId: currentUser?.id,
         });
         
         // 检查进度是否被重置
         if (currentUser && Object.keys(currentProgressStats || {}).length > 0) {
-          console.log('[进度监控] 新用户的进度状态:', currentProgressStats);
+          console.log('[進捗監視] 新しいユーザーの進捗状態:', currentProgressStats);
         }
         
         prevUser = currentUser;
@@ -74,7 +74,7 @@ export const monitorUserProgress = () => {
         prevKeys.some(key => !currentKeys.includes(key)) ||
         currentKeys.some(key => !prevKeys.includes(key))
       ) {
-        console.log('[进度监控] 进度键变化:', {
+        console.log('[進捗監視] 進捗キー変化:', {
           prevKeys,
           currentKeys,
           添加的键: currentKeys.filter(key => !prevKeys.includes(key)),
@@ -84,14 +84,14 @@ export const monitorUserProgress = () => {
       
       prevProgressStats = currentProgressStats;
     } catch (error) {
-      console.error('[进度监控] 错误:', error);
+      console.error('[進捗監視] エラー:', error);
     }
   }, 1000);
   
   // 返回清理函数
   return () => {
     clearInterval(intervalId);
-    console.log('[进度监控] 已停止');
+    console.log('[進捗監視] 停止しました');
   };
 };
 

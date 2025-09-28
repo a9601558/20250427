@@ -399,6 +399,8 @@ const HomePage = () => {
     set: PreparedQuestionSet;
     onStartQuiz: (set: PreparedQuestionSet) => void;
   }> = ({ set, onStartQuiz }) => {
+    // Debug: 检查题库数据
+    console.log(`[BaseCard] 渲染题库卡片: ID=${set.id}, Title="${set.title}", HasTitle=${!!set.title}`);
     // 格式化剩余天数的显示
     const formatRemainingDays = (days: number | null) => {
       if (days === null) return "無期限";
@@ -645,7 +647,7 @@ const HomePage = () => {
         <div className="p-6 h-[calc(100%-8rem)] flex flex-col">
           {/* 标题 */}
           <h3 className="text-lg font-bold text-gray-900 mb-3 line-clamp-2 leading-tight">
-            {set.title}
+            {set.title || 'タイトルなし'}
           </h3>
           
           {/* 统计信息 */}
@@ -796,14 +798,14 @@ const HomePage = () => {
     
     // 防御性检查：确保题库数据有效
     if (!set || !set.id || !set.title) {
-      console.error('[handleStartQuiz] 无效题库数据:', set);
+      console.error('[handleStartQuiz] 無効な題庫データ:', set);
       toast.error('問題集にアクセスできません：データが無効です');
       return;
     }
     
     // 检查付费题库和访问权限
     const isTrial = set.isPaid && !set.hasAccess;
-    console.log(`[HomePage] 题库类型: ${set.isPaid ? '付费' : '免费'}, 访问权限: ${set.hasAccess ? '有' : '无'}, 试用模式: ${isTrial ? '是' : '否'}`);
+    console.log(`[HomePage] 題庫タイプ: ${set.isPaid ? '有料' : '無料'}, アクセス権限: ${set.hasAccess ? '有り' : '無し'}, 体験モード: ${isTrial ? 'はい' : 'いいえ'}`);
     
     // 构建URL参数对象
     const params = new URLSearchParams();
@@ -826,7 +828,7 @@ const HomePage = () => {
     // 构建完整URL
     const quizUrl = `/quiz/${set.id}?${params.toString()}`;
     
-    console.log(`[HomePage] 跳转到URL: ${quizUrl}, 试用模式: ${isTrial ? '是' : '否'}`);
+    console.log(`[HomePage] URLへジャンプ: ${quizUrl}, 体験モード: ${isTrial ? 'はい' : 'いいえ'}`);
     console.log(`[HomePage] URLSearchParams详情:`, Object.fromEntries(params.entries()));
     
     // 使用navigate进行路由跳转
@@ -869,11 +871,11 @@ const HomePage = () => {
             // Migrate the old data to the new format
             const newCache = oldCache[user.id];
             localStorage.setItem(cacheKey, JSON.stringify(newCache));
-            console.log('[HomePage] 已将旧格式的缓存数据迁移到用户特定存储');
+            console.log('[HomePage] 古いフォーマットのキャッシュデータをユーザー固有のストレージに移行完了');
             return newCache;
           }
         } catch (migrationError) {
-          console.error('[HomePage] 迁移旧缓存数据失败', migrationError);
+          console.error('[HomePage] 古いキャッシュデータの移行に失敗', migrationError);
         }
       }
     } catch (error) {

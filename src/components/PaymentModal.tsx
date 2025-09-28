@@ -30,7 +30,7 @@ const PaymentForm: React.FC<{
     const createPaymentIntent = async () => {
       try {
         const response = await axios.post(`${API_BASE_URL}/api/payments/create-intent`, {
-          amount: amount,
+          amount: Math.round(amount * 100), // 转换为分
           currency: 'jpy'
         }, {
           headers: {

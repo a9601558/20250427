@@ -27,7 +27,7 @@ api.interceptors.request.use(
     return config;
   },
   error => {
-    console.error('请求拦截器错误:', error);
+    console.error('リクエストインターセプターエラー:', error);
     return Promise.reject(error);
   }
 );
@@ -41,7 +41,7 @@ api.interceptors.response.use(
     if (error.response) {
       // 服务器返回了错误状态码
       const { status, data } = error.response;
-      const errorMessage = data?.message || '请求失败';
+      const errorMessage = data?.message || 'リクエストが失敗しました';
       
       // 处理特定状态码
       if (status === 401) {
@@ -59,13 +59,13 @@ api.interceptors.response.use(
       // 请求发送成功，但没有收到响应
       return Promise.reject({
         success: false,
-        message: '服务器未响应，请检查网络连接'
+        message: 'サーバーが応答しません。ネットワーク接続を確認してください'
       });
     } else {
       // 请求设置过程中发生错误
       return Promise.reject({
         success: false,
-        message: error.message || '请求配置错误'
+        message: error.message || 'リクエスト設定エラー'
       });
     }
   }
@@ -378,13 +378,13 @@ export const questionService = {
       if (response.data.success) {
         return { success: true, data: response.data.data };
       } else {
-        return { success: false, message: response.data.message || '获取题目失败' };
+        return { success: false, message: response.data.message || '問題の取得に失敗しました' };
       }
     } catch (error: any) {
       console.error('API Error - getQuestionsByQuestionSetId:', error);
       return {
         success: false,
-        message: error.response?.data?.message || '获取题目列表失败，请检查网络连接'
+        message: error.response?.data?.message || '問題リストの取得に失敗しました。ネットワーク接続を確認してください'
       };
     }
   },
@@ -510,8 +510,8 @@ export const userProgressService = {
       const response = await api.get('/user-progress');
       return response.data;
     } catch (error) {
-      console.error('获取用户进度失败:', error);
-      return { success: false, message: '获取用户进度失败' };
+      console.error('ユーザー進捗の取得に失敗:', error);
+      return { success: false, message: 'ユーザー進捗の取得に失敗しました' };
     }
   },
   
@@ -521,8 +521,8 @@ export const userProgressService = {
       const response = await api.get('/user-progress/records');
       return response.data;
     } catch (error) {
-      console.error('获取用户进度记录失败:', error);
-      return { success: false, message: '获取用户进度记录失败' };
+      console.error('ユーザー進捗レコードの取得に失敗:', error);
+      return { success: false, message: 'ユーザー進捗レコードの取得に失敗しました' };
     }
   },
   
@@ -532,8 +532,8 @@ export const userProgressService = {
       const response = await api.get('/user-progress/history');
       return response.data;
     } catch (error) {
-      console.error('获取用户历史记录失败:', error);
-      return { success: false, message: '获取用户历史记录失败' };
+      console.error('ユーザー履歴レコードの取得に失敗:', error);
+      return { success: false, message: 'ユーザー履歴レコードの取得に失敗しました' };
     }
   },
   
@@ -543,8 +543,8 @@ export const userProgressService = {
       const response = await api.get('/user-progress/stats');
       return response.data;
     } catch (error) {
-      console.error('获取用户统计数据失败:', error);
-      return { success: false, message: '获取用户统计数据失败' };
+      console.error('ユーザー統計データの取得に失敗:', error);
+      return { success: false, message: 'ユーザー統計データの取得に失敗しました' };
     }
   },
   
@@ -555,7 +555,7 @@ export const userProgressService = {
       return response.data;
     } catch (error) {
       console.error(`获取题库${questionSetId}的进度失败:`, error);
-      return { success: false, message: '获取题库进度失败' };
+      return { success: false, message: '題庫進捗の取得に失敗しました' };
     }
   },
   
@@ -566,7 +566,7 @@ export const userProgressService = {
       return response.data;
     } catch (error) {
       console.error(`删除题库${questionSetId}的进度失败:`, error);
-      return { success: false, message: '删除题库进度失败' };
+      return { success: false, message: '題庫進捗の削除に失敗しました' };
     }
   },
   
@@ -576,8 +576,8 @@ export const userProgressService = {
       const response = await api.post('/user-progress/update', progress);
       return response.data;
     } catch (error) {
-      console.error('更新进度失败:', error);
-      return { success: false, message: '更新进度失败' };
+      console.error('進捗の更新に失敗:', error);
+      return { success: false, message: '進捗の更新に失敗しました' };
     }
   },
 
@@ -593,8 +593,8 @@ export const userProgressService = {
       const response = await api.post('/user-progress/save', data);
       return response.data;
     } catch (error) {
-      console.error('保存答题进度失败:', error);
-      return { success: false, message: '保存答题进度失败' };
+      console.error('答題進捗の保存に失敗:', error);
+      return { success: false, message: '答題進捗の保存に失敗しました' };
     }
   }
 };
@@ -627,7 +627,7 @@ export const purchaseService = {
   // 获取用户的所有购买
   async getUserPurchases(): Promise<ApiResponse<Purchase[]>> {
     try {
-      console.log('[API] 开始请求获取用户购买记录');
+      console.log('[API] ユーザー的入レコードの取得リクエストを開始');
       const response = await api.get('/purchases');
       console.log('[API] 购买记录API响应:', response.status);
       

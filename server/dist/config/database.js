@@ -42,10 +42,10 @@ const sequelize = new sequelize_1.Sequelize(dbConfig);
 const testConnection = async () => {
     try {
         await sequelize.authenticate();
-        console.log('数据库连接成功！');
+        console.log('データベース接続成功！');
     }
     catch (error) {
-        console.error('无法连接到数据库:', error);
+        console.error('データベースに接続できません:', error);
         process.exit(1); // 如果无法连接，退出进程
     }
 };

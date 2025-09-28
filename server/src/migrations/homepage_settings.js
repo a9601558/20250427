@@ -11,7 +11,6 @@ const DEFAULT_THEME = 'light';
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // 1. 创建homepage_settings表
     await queryInterface.createTable('homepage_settings', {
       id: {
         type: Sequelize.INTEGER,
@@ -63,7 +62,7 @@ module.exports = {
       }
     });
 
-    // 插入默认记录
+    // Insert default record
     await queryInterface.bulkInsert('homepage_settings', [{
       id: 1,
       welcome_title: DEFAULT_WELCOME_TITLE,
@@ -74,36 +73,9 @@ module.exports = {
       banner_image: DEFAULT_BANNER_IMAGE,
       theme: DEFAULT_THEME
     }]);
-
-    // 2. 检查question_sets表中是否有is_featured列，如果没有则添加
-    try {
-      // 检查列是否存在
-      const tableInfo = await queryInterface.describeTable('question_sets');
-      
-      if (!tableInfo.is_featured) {
-        // 如果不存在，添加is_featured列
-        await queryInterface.addColumn('question_sets', 'is_featured', {
-          type: Sequelize.BOOLEAN,
-          defaultValue: false,
-          allowNull: false
-        });
-        
-        console.log('Added is_featured column to question_sets table');
-      }
-    } catch (error) {
-      console.error('Error checking or adding is_featured column:', error);
-    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    // 删除homepage_settings表
     await queryInterface.dropTable('homepage_settings');
-    
-    // 删除question_sets表的is_featured列
-    try {
-      await queryInterface.removeColumn('question_sets', 'is_featured');
-    } catch (error) {
-      console.error('Error removing is_featured column:', error);
-    }
   }
 }; 

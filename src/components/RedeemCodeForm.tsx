@@ -55,11 +55,11 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
     setMessage('引き換えコードを検証中...');
     
     try {
-      console.log('[RedeemCodeForm] 开始兑换码:', redeemCode.trim());
+      console.log('[RedeemCodeForm] 引き換えコード開始:', redeemCode.trim());
       // 调用 UserContext 中的 redeemCode 函数，并将结果类型扩展为 RedeemCodeResult
       const result = await redeemCodeFunction(redeemCode.trim()) as RedeemCodeResult;
       
-      console.log('[RedeemCodeForm] 兑换结果:', result);
+      console.log('[RedeemCodeForm] 引き換え結果:', result);
       
       if (result.success) {
         setStatus('success');
@@ -67,7 +67,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
         
         // 查找已兑换的题库信息
         if (result.questionSetId) {
-          console.log('[RedeemCodeForm] 找到题库ID:', result.questionSetId);
+          console.log('[RedeemCodeForm] 題庫IDを発見:', result.questionSetId);
           const set = questionSets.find(s => s.id === result.questionSetId);
           
           if (set) {
@@ -78,7 +78,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
             
             // 全局发送兑换成功事件，强制刷新
             if (typeof window !== 'undefined') {
-              console.log('[RedeemCodeForm] 发送全局兑换成功事件');
+              console.log('[RedeemCodeForm] グローバル引き換え成功イベントを送信');
               
               // 确保事件细节完整
               const eventDetail = { 
@@ -110,7 +110,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
             }, 800);
           } else {
             // 如果本地找不到题库信息，使用 API 返回的信息
-            console.log('[RedeemCodeForm] 本地未找到题库，使用API返回的信息');
+            console.log('[RedeemCodeForm] ローカルで題庫が見つからないため、APIの情報を使用');
             setRedeemedSet({
               id: result.questionSetId,
               title: result.quizTitle || '引き換え済みの問題集',
@@ -147,7 +147,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
       
       // 发送一个额外的检查，因为有可能兑换码已经成功兑换但返回错误
       try {
-        console.log('[RedeemCodeForm] 尝试检查兑换码可能已兑换...');
+        console.log('[RedeemCodeForm] 引き換えコードが既に引き換え済みか確認中...');
         
         // 等待一小段时间再检查，让服务器有时间完成事务
         setTimeout(async () => {
@@ -166,11 +166,11 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess }) => {
               detail: { forceRefresh: true, timestamp: Date.now() }
             }));
           } catch (checkError) {
-            console.error('[RedeemCodeForm] 检查兑换状态失败:', checkError);
+            console.error('[RedeemCodeForm] 引き換え状態の確認に失敗:', checkError);
           }
         }, 1000);
       } catch (recoveryError) {
-        console.error('[RedeemCodeForm] 恢复尝试失败:', recoveryError);
+        console.error('[RedeemCodeForm] 復旧試行に失敗:', recoveryError);
       }
       
       setStatus('error');

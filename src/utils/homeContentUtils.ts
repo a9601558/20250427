@@ -41,7 +41,7 @@ export const defaultHomeContent: HomeContentData = {
   welcomeTitle: "MonTopi 模擬練習",
   welcomeDescription: "以下のいずれかの問題集を選択して練習を開始し、あなたの知識レベルをテストしてください",
   featuredCategories: ["AWS", "SAP", "Oracle"],
-  announcements: "オンライン問題集システムへようこそ！新しい問題集は定期的に更新されますので、継続的にご注目ください！",
+  announcements: "MonTopiオンライン問題集システムへようこそ！新しい問題集を随時追加していますので、ぜひチェックしてください！",
   footerText: "© 2025 MonTopi オンライン問題集システム 全権利保留",
   bannerImage: "https://via.placeholder.com/1500x500/4F46E5/FFFFFF?text=試験練習システム",
   theme: 'light'

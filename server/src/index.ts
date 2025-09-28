@@ -106,7 +106,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   console.error(err.stack);
   res.status(500).json({
     success: false,
-    message: '服务器内部错误',
+    message: 'サーバー内部エラー',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
@@ -128,14 +128,14 @@ sequelize.sync({ alter: false }).then(() => {
   return HomepageSettings.findOne();
 }).then(settings => {
   if (!settings) {
-    console.log('创建首页默认设置');
+    console.log('ホームページのデフォルト設定を作成');
     return HomepageSettings.create(defaultHomepageSettings);
   }
   return settings;
 }).then(() => {
   // 初始化 Socket.io
   const io = initializeSocket(server);
-  console.log('Socket.io 初始化完成');
+  console.log('Socket.io 初期化完了');
   
   // 启动 HTTP 服务器
   server.listen(PORT, () => {

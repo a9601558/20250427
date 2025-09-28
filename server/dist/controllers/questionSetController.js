@@ -33,7 +33,7 @@ const sendError = (res, status, message, error) => {
 const getAllQuestionSets = async (req, res) => {
     try {
         console.log('[QuestionSetController] 开始获取题库列表');
-        // 明确指定要查询的字段，避免 card_image 列不存在的问题，使用正确的snake_case列名
+        // 明确指定要查询的字段，使用正确的数据库字段名和映射
         const questionSets = await QuestionSet_1.default.findAll({
             attributes: [
                 'id',
@@ -41,11 +41,11 @@ const getAllQuestionSets = async (req, res) => {
                 'description',
                 'category',
                 'icon',
-                'isPaid',
+                ['is_paid', 'isPaid'],
                 'price',
-                'trialQuestions',
-                'isFeatured',
-                'featuredCategory',
+                ['trial_questions', 'trialQuestions'],
+                ['is_featured', 'isFeatured'],
+                ['featured_category', 'featuredCategory'],
                 ['created_at', 'createdAt'],
                 ['updated_at', 'updatedAt']
             ]
@@ -196,40 +196,96 @@ exports.createQuestionSet = createQuestionSet;
 // @access  Private/Admin
 const updateQuestionSet = async (req, res) => {
     try {
+        console.log('题库更新请求:', {
+            id: req.params.id,
+            body: req.body
+        });
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id);
         if (questionSet) {
+            console.log('找到题库，当前数据:', {
+                id: questionSet.id,
+                title: questionSet.title,
+                isPaid: questionSet.isPaid,
+                price: questionSet.price,
+            });
             const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions } = req.body;
             // 如果是付费题库，验证价格
             if (isPaid && (price === undefined || price <= 0)) {
-                return sendError(res, 400, '付费题库必须设置有效的价格');
+                console.log('价格验证失败:', { isPaid, price });
+                return sendError(res, 400, '付费題庫には有効な価格を設定する必要があります');
             }
-            questionSet.title = title || questionSet.title;
-            questionSet.description = description || questionSet.description;
-            questionSet.category = category || questionSet.category;
+            // 记录更新前的值
+            const oldValues = {
+                title: questionSet.title,
+                description: questionSet.description,
+                category: questionSet.category,
+                isPaid: questionSet.isPaid,
+                price: questionSet.price,
+                trialQuestions: questionSet.trialQuestions,
+                isFeatured: questionSet.isFeatured,
+                featuredCategory: questionSet.featuredCategory
+            };
+            // 更新字段
+            if (title !== undefined)
+                questionSet.title = title;
+            if (description !== undefined)
+                questionSet.description = description;
+            if (category !== undefined)
+                questionSet.category = category;
             // 更新付费相关字段
             if (isPaid !== undefined) {
                 questionSet.isPaid = isPaid;
                 if (isPaid) {
-                    questionSet.price = price !== undefined ? price : questionSet.price;
-                    questionSet.trialQuestions = trialQuestions !== undefined ? trialQuestions : questionSet.trialQuestions;
+                    if (price !== undefined)
+                        questionSet.price = price;
+                    if (trialQuestions !== undefined)
+                        questionSet.trialQuestions = trialQuestions;
                 }
                 else {
                     questionSet.price = undefined;
                     questionSet.trialQuestions = undefined;
                 }
             }
-            questionSet.isFeatured = isFeatured !== undefined ? isFeatured : questionSet.isFeatured;
-            questionSet.featuredCategory = featuredCategory !== undefined ? featuredCategory : questionSet.featuredCategory;
-            const updatedQuestionSet = await questionSet.save();
-            sendResponse(res, 200, updatedQuestionSet, '题库更新成功');
+            if (isFeatured !== undefined)
+                questionSet.isFeatured = isFeatured;
+            if (featuredCategory !== undefined)
+                questionSet.featuredCategory = featuredCategory;
+            // 记录更新后的值
+            const newValues = {
+                title: questionSet.title,
+                description: questionSet.description,
+                category: questionSet.category,
+                isPaid: questionSet.isPaid,
+                price: questionSet.price,
+                trialQuestions: questionSet.trialQuestions,
+                isFeatured: questionSet.isFeatured,
+                featuredCategory: questionSet.featuredCategory
+            };
+            console.log('题库更新对比:', {
+                old: oldValues,
+                new: newValues,
+                changed: questionSet.changed()
+            });
+            // 检查是否有变化
+            if (questionSet.changed()) {
+                console.log('检测到数据变化，开始保存...');
+                const updatedQuestionSet = await questionSet.save();
+                console.log('题库更新成功:', updatedQuestionSet.toJSON());
+                sendResponse(res, 200, updatedQuestionSet, '題庫が正常に更新されました');
+            }
+            else {
+                console.log('未检测到数据变化，返回当前数据');
+                sendResponse(res, 200, questionSet, '題庫データに変更はありません');
+            }
         }
         else {
-            sendError(res, 404, '题库不存在');
+            console.log('题库不存在:', req.params.id);
+            sendError(res, 404, '題庫が存在しません');
         }
     }
     catch (error) {
         console.error('Update question set error:', error);
-        sendError(res, 500, '更新题库失败', error);
+        sendError(res, 500, '題庫の更新に失敗しました', error);
     }
 };
 exports.updateQuestionSet = updateQuestionSet;

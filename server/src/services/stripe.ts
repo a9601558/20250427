@@ -24,9 +24,9 @@ export const stripePaymentIntent = async (params: PaymentIntentParams) => {
   try {
     console.log(`Creating Stripe payment intent: amount=${params.amount}, currency=${params.currency}`);
     
-    // 确保金额是整数（Stripe要求以分为单位）
-    const amountInCents = Math.round(params.amount * 100);
-    console.log(`Converted amount for Stripe: ${params.amount} ${params.currency} -> ${amountInCents} cents`);
+    // 前端已经发送分为单位的金额，直接使用
+    const amountInCents = Math.round(params.amount);
+    console.log(`Amount for Stripe (already in cents): ${amountInCents}`);
     
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,

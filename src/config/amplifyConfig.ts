@@ -6,7 +6,6 @@ const amplifyConfig = {
       loginWith: {
         username: true,
         email: true,
-        phone_number: true,
       },
       signUpVerificationMethod: 'code' as const,
       userAttributes: {
@@ -23,15 +22,6 @@ const amplifyConfig = {
         requireUppercase: true,
         requireNumbers: true,
         requireSpecialCharacters: false,
-      },
-      mfa: {
-        status: 'optional',
-        sms: true,
-        totp: false,
-      },
-      passwordlessSignIn: {
-        email: true,
-        sms: true,
       },
     },
   },

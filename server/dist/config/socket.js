@@ -9,7 +9,7 @@ const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const sequelize_1 = require("sequelize");
-// 加载环境变量
+// 加载环墁E��釁E
 dotenv_1.default.config();
 // 初始化 Socket.IO
 const initializeSocket = (server) => {
@@ -49,86 +49,86 @@ const initializeSocket = (server) => {
     exports.io.use(async (socket, next) => {
         const token = socket.handshake.auth.token;
         if (!token) {
-            console.log('Socket连接没有提供token - 允许匿名连接');
-            // 允许匿名连接，但不设置userId
+            console.log('Socket接続でtokenが提供されてぁE��せん - 匿名接続を許可');
+            // 允许匿名连接�E�佁E��设置userId
             return next();
         }
         try {
             // Pure AWS Cognito token verification for Socket
             const payload = await verifyCognitoTokenForSocket(token);
             socket.userId = payload.sub; // Use Cognito sub as user ID
-            console.log(`Socket AWS Cognito认证成功: 用户ID ${socket.userId}`);
+            console.log(`Socket AWS Cognito认证�E劁E 用户ID ${socket.userId}`);
             next();
         }
         catch (error) {
-            console.error('Socket认证过程中出现错误:', error);
-            // 即使认证失败也允许连接，避免页面无限重试
+            console.error('Socket認証プロセスでエラーが発甁E', error);
+            // 即使认证失败也�E许连接�E�避免页面无限重证E
             next();
         }
     });
-    // 监听数据包
+    // 监听数据匁E
     exports.io.engine.on('packet', (packet) => {
         console.log('packet', packet.type, packet.data);
     });
-    // 处理连接
+    // 夁E��连接
     exports.io.on('connection', (socket) => {
         console.log(`用户 ${socket.userId} 已连接`);
-        // 将socket加入以用户ID命名的房间
+        // 封Eocket加入以用户ID命名的房间
         if (socket.userId) {
             socket.join(socket.userId);
             console.log(`用户 ${socket.userId} 加入个人房间`);
         }
-        // 处理题库访问权限检查
+        // 夁E��题库访问杁E��检查
         socket.on('questionSet:checkAccess', (data) => {
             try {
-                // 安全检查：确保只能查询自己的权限
+                // 安�E检查�E�确保只能查询自己皁E��陁E
                 if (data.userId !== socket.userId) {
-                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
-                    socket.emit('access_error', { message: '权限验证失败' });
+                    console.error(`用户ID不匹酁E 请汁E${data.userId}, socket=${socket.userId}`);
+                    socket.emit('access_error', { message: '杁E��验证失败' });
                     return;
                 }
-                // 继续处理题库访问权限检查...
-                console.log(`检查用户 ${data.userId} 对题库 ${data.questionSetId} 的访问权限`);
-                // 这里放原有的访问权限检查逻辑
+                // 继续夁E��题库访问杁E��检查...
+                console.log(`检查用户 ${data.userId} 对题庁E${data.questionSetId} 皁E��问杁E��`);
+                // 这里放原有皁E��问杁E��检查逻辁E
             }
             catch (error) {
-                console.error('检查访问权限出错:', error);
-                socket.emit('access_error', { message: '检查访问权限失败' });
+                console.error('アクセス権限�E確認でエラー:', error);
+                socket.emit('access_error', { message: 'アクセス権限�E確認に失敗しました' });
             }
         });
-        // 批量检查题库访问权限
+        // 批量检查题库访问杁E��
         socket.on('questionSet:checkAccessBatch', (data) => {
             try {
-                // 安全检查：确保只能查询自己的权限
+                // 安�E检查�E�确保只能查询自己皁E��陁E
                 if (data.userId !== socket.userId) {
-                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
-                    socket.emit('access_error', { message: '权限验证失败' });
+                    console.error(`用户ID不匹酁E 请汁E${data.userId}, socket=${socket.userId}`);
+                    socket.emit('access_error', { message: '杁E��验证失败' });
                     return;
                 }
-                console.log(`批量检查用户 ${data.userId} 对 ${data.questionSetIds.length} 个题库的访问权限`);
-                // 这里放原有的批量访问权限检查逻辑
+                console.log(`批量检查用户 ${data.userId} 对 ${data.questionSetIds.length} 个题库的访问杁E��`);
+                // 这里放原有皁E��量访问杁E��检查逻辁E
             }
             catch (error) {
-                console.error('批量检查访问权限出错:', error);
-                socket.emit('access_error', { message: '批量检查访问权限失败' });
+                console.error('バッチアクセス権限確認でエラー:', error);
+                socket.emit('access_error', { message: 'バッチアクセス権限�E確認に失敗しました' });
             }
         });
-        // 处理进度更新
+        // 夁E��进度更新
         socket.on('progress:update', async (data) => {
             try {
-                // 安全检查：确保只能更新自己的进度
+                // 安�E检查�E�确保只能更新自己皁E��度
                 if (data.userId !== socket.userId) {
-                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
-                    socket.emit('progress_error', { message: '权限验证失败' });
+                    console.error(`用户ID不匹酁E 请汁E${data.userId}, socket=${socket.userId}`);
+                    socket.emit('progress_error', { message: '杁E��验证失败' });
                     return;
                 }
                 const { userId, questionSetId, questionId, isCorrect, timeSpent, lastQuestionIndex, answeredQuestions } = data;
                 // 验证参数
                 if (!userId || !questionSetId || !questionId) {
-                    socket.emit('progress_error', { message: '缺少必要参数' });
+                    socket.emit('progress_error', { message: '缺少忁E��参数' });
                     return;
                 }
-                // 保存进度到数据库
+                // 保存进度到数据庁E
                 const [progressRecord, created] = await UserProgress_1.default.upsert({
                     id: undefined,
                     userId,
@@ -140,10 +140,10 @@ const initializeSocket = (server) => {
                     totalQuestions: 1,
                     correctAnswers: isCorrect ? 1 : 0,
                     lastAccessed: new Date(),
-                    lastQuestionIndex: lastQuestionIndex, // 保存最后题目索引
-                    metadata: answeredQuestions ? JSON.stringify({ answeredQuestions }) : undefined // 保存已答题列表
+                    lastQuestionIndex: lastQuestionIndex, // 保存最后题目索弁E
+                    metadata: answeredQuestions ? JSON.stringify({ answeredQuestions }) : undefined // 保存已答题�E表
                 });
-                console.log(`用户进度已${created ? '创建' : '更新'}: ${userId}, ${questionSetId}, 当前题目索引: ${lastQuestionIndex}`);
+                console.log(`ユーザー進捗が${created ? '作�E' : '更新'}されました: ${userId}, ${questionSetId}, 現在の問題インチE��クス: ${lastQuestionIndex}`);
                 // 转换为纯对象
                 const progressData = progressRecord.toJSON();
                 // 向用户发送进度已更新通知
@@ -151,7 +151,7 @@ const initializeSocket = (server) => {
                     questionSetId,
                     progress: progressData
                 });
-                // 向客户端确认进度已保存
+                // 向客户端确认进度已保孁E
                 socket.emit('progress_saved', {
                     success: true,
                     progress: progressData
@@ -162,31 +162,31 @@ const initializeSocket = (server) => {
                 socket.emit('progress_error', { message: '保存进度失败' });
             }
         });
-        // 新增: 处理进度查询
+        // 新墁E 夁E��进度查询
         socket.on('progress:get', async (data) => {
             try {
-                // 安全检查：确保只能查询自己的进度
+                // 安�E检查�E�确保只能查询自己皁E��度
                 if (data.userId !== socket.userId) {
-                    console.error(`进度查询权限错误: 请求用户=${data.userId}, socket用户=${socket.userId}`);
-                    socket.emit('progress_error', { message: '权限验证失败' });
+                    console.error(`进度查询杁E��错误: 请求用户=${data.userId}, socket用户=${socket.userId}`);
+                    socket.emit('progress_error', { message: '杁E��验证失败' });
                     return;
                 }
                 const { userId, questionSetId } = data;
                 console.log(`[Socket] 查询用户进度: userId=${userId}, questionSetId=${questionSetId}`);
-                // 从数据库查询最新的进度记录
+                // 从数据库查询最新皁E��度记彁E
                 const lastProgress = await UserProgress_1.default.findOne({
                     where: {
                         userId,
                         questionSetId,
-                        lastQuestionIndex: { [sequelize_1.Op.gte]: 0 } // 查询大于等于0的索引值，避免与null直接比较
+                        lastQuestionIndex: { [sequelize_1.Op.gte]: 0 } // 查询大于等亁E皁E��引值�E�避免与null直接比辁E
                     },
-                    order: [['updatedAt', 'DESC']], // 获取最新记录
+                    order: [['updatedAt', 'DESC']], // 获取最新记彁E
                     raw: true
                 });
-                // 如果找到进度记录
+                // 如果找到进度记彁E
                 if (lastProgress) {
-                    console.log(`[Socket] 找到用户进度记录: lastQuestionIndex=${lastProgress.lastQuestionIndex}`);
-                    // 尝试解析metadata中的answeredQuestions
+                    console.log(`[Socket] 找到用户进度记彁E lastQuestionIndex=${lastProgress.lastQuestionIndex}`);
+                    // 尝试解析metadata中皁EnsweredQuestions
                     let answeredQuestions = [];
                     try {
                         if (lastProgress.metadata) {
@@ -206,7 +206,7 @@ const initializeSocket = (server) => {
                     });
                 }
                 else {
-                    console.log(`[Socket] 未找到用户进度记录: userId=${userId}, questionSetId=${questionSetId}`);
+                    console.log(`[Socket] 未找到用户进度记彁E userId=${userId}, questionSetId=${questionSetId}`);
                     socket.emit('progress:data', null);
                 }
             }
@@ -215,18 +215,18 @@ const initializeSocket = (server) => {
                 socket.emit('progress_error', { message: '查询进度失败' });
             }
         });
-        // 新增: 处理进度重置
+        // 新墁E 夁E��进度重置
         socket.on('progress:reset', async (data) => {
             try {
-                // 安全检查：确保只能重置自己的进度
+                // 安�E检查�E�确保只能重置自己皁E��度
                 if (data.userId !== socket.userId) {
-                    console.error(`进度重置权限错误: 请求用户=${data.userId}, socket用户=${socket.userId}`);
-                    socket.emit('progress_error', { message: '权限验证失败' });
+                    console.error(`进度重置杁E��错误: 请求用户=${data.userId}, socket用户=${socket.userId}`);
+                    socket.emit('progress_error', { message: '杁E��验证失败' });
                     return;
                 }
                 const { userId, questionSetId } = data;
                 console.log(`[Socket] 重置用户进度: userId=${userId}, questionSetId=${questionSetId}`);
-                // 从数据库删除进度记录
+                // 从数据库删除进度记彁E
                 const deleted = await UserProgress_1.default.destroy({
                     where: {
                         userId,
@@ -234,10 +234,10 @@ const initializeSocket = (server) => {
                     }
                 });
                 console.log(`[Socket] 已删除 ${deleted} 条进度记录`);
-                // 发送重置成功通知
+                // 发送E��置成功通知
                 socket.emit('progress:reset:result', {
                     success: true,
-                    message: `成功重置进度，删除了 ${deleted} 条记录`,
+                    message: `成功重置进度�E�删除亁E${deleted} 条记录`,
                     deletedCount: deleted
                 });
             }
@@ -246,19 +246,19 @@ const initializeSocket = (server) => {
                 socket.emit('progress_error', { message: '重置进度失败' });
             }
         });
-        // 处理进度删除请求
+        // 夁E��进度删除请汁E
         socket.on('progress:delete', async (data) => {
             try {
-                // 安全检查：确保只能删除自己的进度
+                // 安�E检查�E�确保只能删除自己皁E��度
                 if (data.userId !== socket.userId) {
-                    console.error(`用户ID不匹配: 请求=${data.userId}, socket=${socket.userId}`);
-                    socket.emit('progress_error', { message: '权限验证失败' });
+                    console.error(`用户ID不匹酁E 请汁E${data.userId}, socket=${socket.userId}`);
+                    socket.emit('progress_error', { message: '杁E��验证失败' });
                     return;
                 }
                 const { userId, questionSetId } = data;
                 // 验证参数
                 if (!userId || !questionSetId) {
-                    socket.emit('progress_error', { message: '缺少必要参数' });
+                    socket.emit('progress_error', { message: '缺少忁E��参数' });
                     return;
                 }
                 // 从数据库中删除进度
@@ -282,7 +282,7 @@ const initializeSocket = (server) => {
                 socket.emit('progress:delete:result', { success: false, error: error.message });
             }
         });
-        // 处理断开连接
+        // 夁E��断开连接
         socket.on('disconnect', (reason) => {
             console.log(`用户 ${socket.userId} 断开连接, 原因: ${reason}`);
         });

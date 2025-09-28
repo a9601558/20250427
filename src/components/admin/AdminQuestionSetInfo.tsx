@@ -53,23 +53,23 @@ const AdminQuestionSetInfo: React.FC = () => {
   
   // 可选的分类和图标
   const categoryOptions = [
-    '前端开发',
-    '后端开发',
-    '全栈开发',
-    '移动开发',
-    '数据库',
-    '人工智能',
-    '网络安全',
-    '操作系统',
-    '软件工程',
-    '计算机基础',
-    '网络协议',
-    '云计算',
-    '区块链',
-    '大数据',
-    '服务器运维',
-    '其他'
-  ];
+  'フロントエンド開発',   // 前端开发
+  'バックエンド開発',     // 后端开发
+  'フルスタック開発',     // 全栈开发
+  'モバイル開発',         // 移动开发
+  'データベース',         // 数据库
+  '人工知能',             // 人工智能
+  'ネットワークセキュリティ', // 网络安全
+  'オペレーティングシステム', // 操作系统
+  'ソフトウェア工学',     // 软件工程
+  'コンピュータ基礎',     // 计算机基础
+  'ネットワークプロトコル', // 网络协议
+  'クラウドコンピューティング', // 云计算
+  'ブロックチェーン',     // 区块链
+  'ビッグデータ',         // 大数据
+  'サーバー運用',         // 服务器运维
+  'その他'               // 其他
+];
   
   const iconOptions = [
     '📝', '📚', '💻', '🔍', '🧩', '⚙️', '📊', '🔐', '📡', '🛠️',
@@ -99,13 +99,13 @@ const AdminQuestionSetInfo: React.FC = () => {
   const fetchQuestionSets = async () => {
     setLoading(true);
     try {
-      console.log('开始获取题库列表...');
+      console.log('題庫リストの取得を開始中...');
       // 直接使用 API 服务获取题库列表
       const { questionSetService } = await import('../../services/api');
       const response = await questionSetService.getAllQuestionSets();
 
       if (response.success && response.data) {
-        console.log('成功获取题库列表, 正在处理题目数量...');
+        console.log('題庫リストの取得が成功、問題数を処理中...');
         
         // 手动获取每个题库的题目数量
         const enhancedData = await Promise.all(

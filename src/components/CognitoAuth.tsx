@@ -56,10 +56,9 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   const formFields = {
     signIn: {
       username: {
-        placeholder: 'ユーザー名・メール・電話番号を入力してください',
-        label: 'ユーザー名/メール/電話番号',
+        placeholder: 'ユーザー名またはメールアドレスを入力してください',
+        label: 'ユーザー名/メール',
         isRequired: true,
-        dialCode: '+81',
       },
       password: {
         placeholder: 'パスワードを入力してください',
@@ -108,14 +107,14 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
     },
     forgotPassword: {
       username: {
-        placeholder: 'ユーザー名またはメールアドレスを入力してください',
-        label: 'ユーザー名/メール',
+        placeholder: 'ユーザー名・メール・電話番号を入力してください',
+        label: 'ユーザー名/メール/電話番号',
       }
     },
     confirmResetPassword: {
       username: {
-        placeholder: 'ユーザー名またはメールアドレスを入力してください',
-        label: 'ユーザー名/メール',
+        placeholder: 'ユーザー名・メール・電話番号を入力してください',
+        label: 'ユーザー名/メール/電話番号',
       },
       confirmation_code: {
         placeholder: '確認コードを入力してください',
@@ -161,19 +160,13 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
                   </svg>
                   <span>メールアドレス + パスワード</span>
                 </div>
-                <div className="flex items-center justify-center space-x-2 text-purple-600 bg-purple-50 p-2 rounded">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  <span>電話番号 + パスワード</span>
-                </div>
               </div>
-              <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <p className="text-xs text-amber-700">
-                  <strong>🔐 SMS・メール認証コード:</strong><br/>
-                  ・パスワードリセット時に SMS または Email で認証コードを受信<br/>
-                  ・電話番号は「+81-90-1234-5678」形式で入力<br/>
-                  ・初回登録後は MFA（多要素認証）が有効化されます
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-700">
+                  <strong>� ログインについて:</strong><br/>
+                  ・ユーザー名またはメールアドレスでログイン可能<br/>
+                  ・パスワードを忘れた場合は「パスワードをお忘れですか？」をクリック<br/>
+                  ・初回利用の場合は新規アカウント作成が必要です
                 </p>
               </div>
             </div>
@@ -198,7 +191,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
       <div className="fixed inset-0" onClick={onClose}></div>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full relative z-10 max-h-[90vh] overflow-y-auto transform transition-all">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full relative z-10 max-h-[95vh] overflow-y-auto transform transition-all">
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
@@ -211,7 +204,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         </button>
         
         {/* 认证表单容器 */}
-        <div className="p-8 auth-container">
+        <div className="p-6 sm:p-8 auth-container">
           <style>{`
             .auth-container .amplify-authenticator {
               --amplify-components-authenticator-router-background-color: transparent;
@@ -281,7 +274,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
             components={components}
             socialProviders={[]}
             signUpAttributes={['email', 'phone_number']}
-            loginMechanisms={['username', 'email', 'phone_number']}
+            loginMechanisms={['username', 'email']}
             variation="modal"
             hideSignUp={false}
             initialState="signIn"

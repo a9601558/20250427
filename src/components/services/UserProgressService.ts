@@ -32,8 +32,8 @@ class UserProgressService {
       const response = await axios.post(`${this.baseUrl}/save`, params);
       return response.data;
     } catch (error: any) {
-      console.error('保存进度失败:', error?.response?.data || error.message);
-      return { success: false, message: error?.response?.data?.message || '保存进度失败' };
+      console.error('進捗の保存に失敗:', error?.response?.data || error.message);
+      return { success: false, message: error?.response?.data?.message || '進捗の保存に失敗しました' };
     }
   }
 
@@ -45,8 +45,8 @@ class UserProgressService {
       const response = await axios.get(url);
       return response.data;
     } catch (error: any) {
-      console.error('获取用户进度失败:', error?.response?.data || error.message);
-      return { success: false, message: error?.response?.data?.message || '获取用户进度失败' };
+      console.error('ユーザー進捗の取得に失敗:', error?.response?.data || error.message);
+      return { success: false, message: error?.response?.data?.message || 'ユーザー進捗の取得に失敗しました' };
     }
   }
 }

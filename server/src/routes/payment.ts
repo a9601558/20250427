@@ -19,21 +19,20 @@ router.post('/create-intent', protect, async (req, res) => {
       });
     }
     
-    // 确保金额有效
+    // 确保金额有效（前端已经传递分为单位的金额）
     const numericAmount = parseInt(String(amount), 10);
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: '支付金额必须大于0'
+        message: '支払い金額は0より大きい必要があります'
       });
     }
     
-    // 添加金额上限检查，避免超过Stripe的限制（人民币最大999999.99元）
-    const amountInCents = numericAmount * 100;
-    if (amountInCents > 99999999) {
+    // 添加金额上限检查，避免超过Stripe的限制（日元最大999999.99元 = 99999999分）
+    if (numericAmount > 99999999) {
       return res.status(400).json({
         success: false,
-        message: '支付金额超过限制，最大金额为¥999,999.99'
+        message: '支払い金額が制限を超えています。最大金額は¥999,999.99です'
       });
     }
     

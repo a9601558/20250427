@@ -41,14 +41,14 @@ function validateToken(): string {
     // 简单的JWT格式验证
     const parts = token.split('.');
     if (parts.length !== 3) {
-      throw new Error('无效的认证信息格式');
+      throw new Error('無効な認証情報形式です');
     }
     
     // 解码payload检查过期时间
     const payload = JSON.parse(atob(parts[1]));
     if (payload.exp && payload.exp < Date.now() / 1000) {
       localStorage.removeItem('token'); // 清除过期token
-      throw new Error('认证信息已过期，请重新登录');
+      throw new Error('認証情報が期限切れです。再ログインしてください');
     }
   } catch (e) {
     console.warn('[PaymentUtils] Token validation failed:', e);
@@ -61,15 +61,15 @@ function validateToken(): string {
 // 支付金额验证函数
 function validateAmount(amount: number): number {
   if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
-    throw new Error('支付金额必须为正数');
+    throw new Error('支払金額は正の数である必要があります');
   }
   
   if (amount > 100000) { // 限制最大金额
-    throw new Error('支付金额超出限制（最大100,000元）');
+    throw new Error('支払金額が制限を超えています（最大100,000円）');
   }
   
   if (amount < 0.01) { // 限制最小金额
-    throw new Error('支付金额不能小于0.01元');
+    throw new Error('支払金額は0.01円以上である必要があります');
   }
   
   return Math.round(amount * 100) / 100; // 保留两位小数
@@ -135,7 +135,7 @@ export const processPayment = async (
     
     // 验证metadata
     if (!metadata.userId || !metadata.questionSetId) {
-      throw new Error('缺少必要的支付信息');
+      throw new Error('必要な支払情報が不足しています');
     }
     
     // 转换为分（Stripe要求）
@@ -168,14 +168,14 @@ export const processPayment = async (
     
     // 验证响应
     if (!response.data || !response.data.success) {
-      const errorMsg = response.data?.message || '创建支付意向失败';
+      const errorMsg = response.data?.message || '支払インテントの作成に失敗しました';
       throw new Error(errorMsg);
     }
     
     // 验证返回数据
     const { clientSecret, paymentIntentId } = response.data;
     if (!clientSecret || !paymentIntentId) {
-      throw new Error('服务器返回数据不完整');
+      throw new Error('サーバーからのデータが不完全です');
     }
     
     // 记录成功日志
@@ -186,10 +186,10 @@ export const processPayment = async (
       paymentIntentId
     };
   } catch (error: any) {
-    console.error('[PaymentUtils] 创建支付意向错误:', error);
+    console.error('[PaymentUtils] 支払インテント作成エラー:', error);
     
     // 更精确的错误处理
-    let errorMessage = '支付初始化失败';
+    let errorMessage = '支払の初期化に失敗しました';
     
     if (error.response) {
       const status = error.response.status;
@@ -198,26 +198,26 @@ export const processPayment = async (
       switch (status) {
         case 401:
         case 403:
-          errorMessage = '认证失败，请重新登录';
+          errorMessage = '認証に失敗しました。再ログインしてください';
           break;
         case 400:
-          errorMessage = data?.message || '请求参数错误';
+          errorMessage = data?.message || 'リクエストパラメーターエラー';
           break;
         case 429:
-          errorMessage = '请求过于频繁，请稍后再试';
+          errorMessage = 'リクエストが频繁すぎます。しばらく待ってから再試行してください';
           break;
         case 500:
         case 502:
         case 503:
-          errorMessage = '服务器暂时不可用，请稍后重试';
+          errorMessage = 'サーバーが一時的に利用できません。しばらく待ってから再試行してください';
           break;
         default:
           errorMessage = data?.message || `服务器错误 (${status})`;
       }
     } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      errorMessage = '网络连接超时，请检查网络后重试';
+      errorMessage = 'ネットワーク接続がタイムアウトしました。ネットワークを確認してから再試行してください';
     } else {
-      errorMessage = error.message || '未知错误';
+      errorMessage = error.message || '未知のエラーが発生しました';
     }
     
     // 显示用户友好的错误信息
@@ -246,7 +246,7 @@ export async function createDirectPurchase(
   // 从localStorage获取token
   const token = localStorage.getItem('token');
   if (!token) {
-    throw new Error('未找到认证信息，请重新登录');
+    throw new Error('認証情報が見つかりません。再ログインしてください');
   }
   
   // 创建购买记录
@@ -268,10 +268,10 @@ export async function createDirectPurchase(
   
   // 检查是否成功
   if (!response.data || !response.data.success) {
-    throw new Error(response.data?.message || '购买失败');
+    throw new Error(response.data?.message || '購入に失敗しました');
   }
   
-  console.log('[支付] 成功创建购买:', response.data.data);
+  console.log('[支払] 購入の作成が成功:', response.data.data);
   
   // 获取购买记录
   const purchaseData = response.data.data;
@@ -292,7 +292,7 @@ export async function createDirectPurchase(
       }
     );
   } catch (updateError) {
-    console.warn('[支付] 更新访问权限失败，但购买已创建');
+    console.warn('[支払] アクセス権限の更新に失敗しましたが、購入は作成されました');
     // 继续流程，不中断
   }
   
