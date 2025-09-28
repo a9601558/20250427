@@ -64,7 +64,7 @@ export type QuestionType = 'single' | 'multiple';
 export interface Question {
   id: string | number;
   text: string;
-  question?: string; // 兼容旧代码，text和question都可以访问题目内容
+  question?: string; // 兼容旧代码，text和question都可以访問題目内容
   options: Option[];
   explanation: string;
   questionType?: QuestionType;

@@ -517,7 +517,7 @@ const HomePage = () => {
 
     const cardState = getCardState();
 
-    // 获取价格显示信息
+    // 获取価格显示信息
     const getPriceInfo = () => {
       if (cardState !== 'pro') return null;
       
@@ -665,7 +665,7 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* 价格或有效期信息 */}
+          {/* 価格或有效期信息 */}
           <div className="mb-4 flex-grow">
             {cardState === 'owned' ? (
               // 已购买状态 - 显示有效期
@@ -688,7 +688,7 @@ const HomePage = () => {
                 </div>
               </div>
             ) : cardState === 'pro' && priceInfo ? (
-              // Pro状态 - 显示价格信息
+              // Pro状态 - 显示価格信息
               <div className="space-y-2">
                 <div className="flex items-baseline justify-between">
                   <div>
@@ -1366,10 +1366,10 @@ const HomePage = () => {
           const setId = String(set.id).trim();
           const isPaid = set.isPaid === true;
           
-          // 处理问题数量，确保正确填充
+          // 处理問題数量，确保正确填充
           let questionCount = set.questionCount || 0;
           
-          // 如果后端没有提供问题数量，尝试从questions数组长度计算
+          // 如果后端没有提供問題数量，尝试从questions数组长度计算
           if (questionCount === 0 && Array.isArray(set.questions) && set.questions.length > 0) {
             questionCount = set.questions.length;
             console.log(`[HomePage] Using questions array length for count: ${set.title} - ${questionCount}`);
@@ -1507,7 +1507,7 @@ const HomePage = () => {
             remainingDays,
             validityPeriod,
             featuredCategory, // 添加featuredCategory属性
-            questionCount // 确保问题数量被正确传递
+            questionCount // 确保問題数量被正确传递
           };
         });
         
@@ -1614,7 +1614,7 @@ const HomePage = () => {
     }
   }, [questionSets, user?.id, user?.purchases, user?.redeemCodes, getAccessFromLocalCache, saveAccessToLocalStorage, homeContent.featuredCategories, canMakeRequest]); // 添加canMakeRequest作为依赖项
   
-  // 初始化时获取题库列表 - 修复重复加载问题
+  // 初始化时获取题库列表 - 修复重复加载問題
   useEffect(() => {
     // 如果已经有题库列表，则不重新加载
     if (questionSets.length === 0) {
@@ -3326,7 +3326,7 @@ const HomePage = () => {
     };
   }, [fetchLatestHomeContent, setActiveCategory]);
 
-  // 添加一个专门用于刷新问题数量的函数
+  // 添加一个专门用于刷新問題数量的函数
   const refreshQuestionCounts = useCallback(async (forceAll = false) => {
     console.log(`[HomePage] Refreshing question counts for all question sets... Force All: ${forceAll}`);
     
@@ -3348,7 +3348,7 @@ const HomePage = () => {
       const updatedSets = [...questionSets];
       let updatedCount = 0;
       
-      // 为每个题库获取最新的问题数量
+      // 为每个题库获取最新的問題数量
       for (let i = 0; i < updatedSets.length; i++) {
         const set = updatedSets[i];
         
@@ -3419,7 +3419,7 @@ const HomePage = () => {
     }
   }, [questionSets]);
 
-  // 在组件挂载和题库列表更新后刷新问题数量
+  // 在组件挂载和题库列表更新后刷新問題数量
   useEffect(() => {
     if (questionSets.length > 0) {
       const hasZeroCounts = questionSets.some(set => 
@@ -3439,7 +3439,7 @@ const HomePage = () => {
     }
   }, [questionSets.length, refreshQuestionCounts]);
 
-  // 添加监听问题数量更新事件，用于实时更新题库卡片显示的问题数量
+  // 添加监听問題数量更新事件，用于实时更新题库卡片显示的問題数量
   useEffect(() => {
     const handleQuestionCountUpdate = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -3448,7 +3448,7 @@ const HomePage = () => {
         
         console.log(`[HomePage] Received count update for question set ${questionSetId}: ${count}`);
         
-        // 使用不可变方式更新questionSets状态，仅更新问题数量
+        // 使用不可变方式更新questionSets状态，仅更新問題数量
         setQuestionSets(prevSets => 
           prevSets.map(set => 
             set.id === questionSetId 
@@ -3468,10 +3468,10 @@ const HomePage = () => {
     };
   }, []);
 
-  // 确保所有推荐题库都有正确的问题数量信息
+  // 确保所有推荐题库都有正确的問題数量信息
   useEffect(() => {
     if (recommendedSets.length > 0) {
-      // 检查是否有推荐题库缺少问题数量信息
+      // 检查是否有推荐题库缺少問題数量信息
       const setsWithoutCount = recommendedSets.filter(
         set => typeof set.questionCount !== 'number' || set.questionCount === 0
       );
@@ -3479,7 +3479,7 @@ const HomePage = () => {
       if (setsWithoutCount.length > 0) {
         console.log(`[HomePage] Found ${setsWithoutCount.length} recommended sets without question count, requesting updates...`);
         
-        // 批量请求问题数量
+        // 批量请求問題数量
         setsWithoutCount.forEach(set => {
           apiClient.get(`/api/questions/count/${set.id}`)
             .then(response => {

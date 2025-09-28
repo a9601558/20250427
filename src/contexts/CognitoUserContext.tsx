@@ -256,7 +256,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
           break;
           
         case 'NetworkError':
-          errorMessage = '网络连接问题，请检查网络后重试';
+          errorMessage = '网络连接問題，请检查网络后重试';
           break;
           
         default:

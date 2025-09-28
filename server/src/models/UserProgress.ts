@@ -112,7 +112,7 @@ UserProgress.init(
     metadata: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: '存储任意额外数据，例如已回答问题列表等JSON格式'
+      comment: '存储任意额外数据，例如已回答問題列表等JSON格式'
     },
     createdAt: {
       type: DataTypes.DATE,

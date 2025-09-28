@@ -80,7 +80,7 @@ export const getActivePurchasesByUserId = async (userId: string): Promise<Purcha
 };
 
 /**
- * 检查用户是否有访问题库的权限
+ * 检查用户是否有访問題库的权限
  */
 export const hasAccessToQuestionSet = async (userId: string, questionSetId: string): Promise<boolean> => {
   try {

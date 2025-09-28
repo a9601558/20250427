@@ -20,10 +20,10 @@ client_max_body_size 50M;           # 客户端请求体的最大允许大小
 client_body_buffer_size 256k;       # 请求体的缓冲区大小
 ```
 
-这些参数能有效解决以下问题：
+这些参数能有效解决以下問題：
 - "413 Request Entity Too Large" 错误（请求体过大）
 - "431 Request Header Fields Too Large" 错误（请求头过大）
-- 大型 cookie 或含有大量数据的 JWT 令牌传输问题
+- 大型 cookie 或含有大量数据的 JWT 令牌传输問題
 
 ## 应用配置指南
 
@@ -76,16 +76,16 @@ client_body_buffer_size 256k;
 
 ## 故障排查
 
-如果遇到问题，请检查 Nginx 错误日志：
+如果遇到問題，请检查 Nginx 错误日志：
 
 ```bash
 sudo tail -f /var/log/nginx/error.log
 ```
 
-常见问题包括：
-- 权限问题：确保 Nginx 用户对网站目录有读取权限
+常见問題包括：
+- 权限問題：确保 Nginx 用户对网站目录有读取权限
 - 端口冲突：确保端口 80/443 没有被其他服务占用
-- 上游连接问题：确保后端 API 服务器正在运行且可访问
+- 上游连接問題：确保后端 API 服务器正在运行且可访问
 
 ## 安全注意事项
 

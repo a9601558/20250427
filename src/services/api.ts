@@ -705,7 +705,7 @@ export const purchaseService = {
     }
   },
   
-  // 检查用户是否有权限访问题库
+  // 检查用户是否有权限访問題库
   async checkAccess(questionSetId: string): Promise<ApiResponse<AccessCheckResult>> {
     try {
       const response = await api.get(`/purchases/check/${questionSetId}`);

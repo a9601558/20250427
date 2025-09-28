@@ -93,7 +93,7 @@ echo -e "\n${GREEN}完成!${NC} 您现在可以测试Socket.IO连接:"
 echo "1. 在浏览器中打开: http://MonTopi.jp/socket-test-updated.html"
 echo "2. 或使用验证脚本: node socket-io-debug-test.js"
 
-echo -e "\n${BLUE}如果仍有问题，请检查日志:${NC}"
+echo -e "\n${BLUE}如果仍有問題，请检查日志:${NC}"
 echo "1. PM2日志: pm2 logs MonTopi-server"
 echo "2. Nginx错误日志: tail -f /www/wwwlogs/MonTopi.jp.error.log"
 echo "3. 服务器启动日志: cat server.log" 

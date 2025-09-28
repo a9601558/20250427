@@ -67,7 +67,7 @@ const QuestionSetSearchPage: React.FC = () => {
         const setsWithQuestionCounts = await Promise.all(
           processedData.map(async (set) => {
             try {
-              // 直接调用问题计数API
+              // 直接调用問題计数API
               const response = await fetch(`/api/questions/count/${set.id}`);
               if (!response.ok) {
                 console.error(`获取题库 "${set.title}" 题目数量失败: 状态码 ${response.status}`);
@@ -556,8 +556,8 @@ const QuestionSetSearchPage: React.FC = () => {
                       <option value="oldest">最初公開</option>
                       <option value="nameAsc">名称 (A-Z)</option>
                       <option value="nameDesc">名称 (Z-A)</option>
-                      <option value="priceAsc">价格 (低-高)</option>
-                      <option value="priceDesc">价格 (高-低)</option>
+                      <option value="priceAsc">価格 (低-高)</option>
+                      <option value="priceDesc">価格 (高-低)</option>
                     </select>
                   </div>
                 </div>

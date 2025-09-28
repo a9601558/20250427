@@ -542,7 +542,7 @@ const AdminContentManagement: React.FC = () => {
                             <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                               <span>分类: {set.category}</span>
                               <span>题目数量: {getCorrectQuestionCount(set)}</span>
-                              <span>价格: {set.isPaid ? `¥${set.price}` : '免费'}</span>
+                              <span>価格: {set.isPaid ? `¥${set.price}` : '免费'}</span>
                             </div>
                             {set.isFeatured && (
                               <div className="mt-2">

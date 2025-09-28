@@ -83,7 +83,7 @@ const initializeSocket = (): Socket => {
       
       // 分析断开原因
       if (reason === 'transport close') {
-        console.warn('Socket.IO传输层关闭，可能是网络连接问题');
+        console.warn('Socket.IO传输层关闭，可能是网络连接問題');
         attemptReconnect(1000); // 传输关闭快速重连
       } else if (reason === 'ping timeout') {
         console.warn('Socket.IO ping超时，服务器未响应');

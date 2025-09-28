@@ -85,7 +85,7 @@ SELECT * FROM users ORDER BY createdAt DESC LIMIT 5;
    - 定义API端点
    - 连接控制器和路由
 
-## 常见问题排查
+## 常见問題排查
 
 1. **数据库连接失败**
    - 检查MySQL服务是否运行
@@ -97,7 +97,7 @@ SELECT * FROM users ORDER BY createdAt DESC LIMIT 5;
    - 验证请求数据格式是否符合预期
    - 查看服务器日志获取详细错误信息
 
-3. **密码加密问题**
+3. **密码加密問題**
    - 确保bcryptjs依赖项正确安装
    - 验证加密过程没有被跳过
 
@@ -107,4 +107,4 @@ SELECT * FROM users ORDER BY createdAt DESC LIMIT 5;
 
 ## 结论
 
-按照以上步骤，您应该能够成功实现用户注册功能，并将用户数据保存到MySQL数据库中。如果遇到任何问题，请查看服务器日志以获取更详细的错误信息。 
+按照以上步骤，您应该能够成功实现用户注册功能，并将用户数据保存到MySQL数据库中。如果遇到任何問題，请查看服务器日志以获取更详细的错误信息。 

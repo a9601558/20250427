@@ -300,7 +300,7 @@ const questionSets = [
       },
       {
         text: "在JavaScript中，以下哪个方法用于处理异步操作？",
-        explanation: "Promise是JavaScript中处理异步操作的一种机制，可以解决回调地狱问题。",
+        explanation: "Promise是JavaScript中处理异步操作的一种机制，可以解决回调地狱問題。",
         options: [
           { text: "setTimeout()", isCorrect: false },
           { text: "Promise()", isCorrect: true },
@@ -343,11 +343,11 @@ for (let i = 0; i < 15; i++) {
     questions: []
   };
   
-  // 每个题库生成5个问题
+  // 每个题库生成5个問題
   for (let j = 0; j < 5; j++) {
     const question = {
-      text: `${categories[categoryIndex]}问题 #${j+1}：这是一个测试问题？`,
-      explanation: `这是问题#${j+1}的详细解答，介绍了相关知识点和解题思路。`,
+      text: `${categories[categoryIndex]}問題 #${j+1}：这是一个测试問題？`,
+      explanation: `这是問題#${j+1}的详细解答，介绍了相关知识点和解题思路。`,
       options: [
         { text: "选项A", isCorrect: j % 4 === 0 },
         { text: "选项B", isCorrect: j % 4 === 1 },
@@ -403,7 +403,7 @@ async function importData() {
         }
       }
       
-      console.log(`已导入题库 "${questionSet.title}" 的全部${questionSet.questions.length}个问题`);
+      console.log(`已导入题库 "${questionSet.title}" 的全部${questionSet.questions.length}个問題`);
     }
     
     console.log('数据导入完成！共导入了', questionSets.length, '个题库');

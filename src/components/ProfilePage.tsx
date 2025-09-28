@@ -1223,7 +1223,7 @@ const ProfilePage: React.FC = () => {
             const record: ProgressRecord = {
               id: `local_${questionSetId}_${index}`,
               questionSetId, // 保持原始复合ID用于分组
-              questionId: `question_${answer.index || index}`, // 使用问题索引作为ID
+              questionId: `question_${answer.index || index}`, // 使用問題索引作为ID
               isCorrect: answer.isCorrect,
               timeSpent: 60, // 默认时间
               createdAt: new Date(data.lastUpdated || Date.now()),
@@ -1268,7 +1268,7 @@ const ProfilePage: React.FC = () => {
         console.log('[ProfilePage] 检测到登录状态，在合并时优先使用本地进度数据');
       }
       
-      // 创建服务器记录的映射（按题库ID和问题ID）
+      // 创建服务器记录的映射（按题库ID和問題ID）
       const serverRecordMap = new Map<string, ProgressRecord>();
       serverRecords.forEach(record => {
         const key = `${record.questionSetId}_${record.questionId}`;
@@ -1289,7 +1289,7 @@ const ProfilePage: React.FC = () => {
           const questionSetInfo = questionSetsMap.get(actualQuestionSetId) || questionSetsMap.get(questionSetId);
           
           data.answeredQuestions.forEach((answer, index) => {
-            const questionId = `question_${answer.index || index}`; // 使用问题索引作为ID
+            const questionId = `question_${answer.index || index}`; // 使用問題索引作为ID
             const key = `${questionSetId}_${questionId}`;
             
             // 如果本地记录不存在于服务器记录中，或者比服务器记录更新，或者在登录后短时间内，或者数据受保护，则添加本地记录
@@ -2742,7 +2742,7 @@ const ProfilePage: React.FC = () => {
 
   // 更新错题练习功能
   const handlePracticeWrongAnswers = (questionSetId: string) => {
-    // 创建问题ID列表，用于URL参数传递
+    // 创建問題ID列表，用于URL参数传递
     const group = groupedWrongAnswers().find(g => g.questionSetId === questionSetId);
     
     if (group && group.wrongAnswers.length > 0) {

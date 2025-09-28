@@ -280,9 +280,9 @@ const AdminRedeemCodes: React.FC = () => {
         setShowDebugInfo(true);
         
         if (response.data.data.issues.length > 0) {
-          setStatusMessage(`发现 ${response.data.data.issues.length} 个兑换码存在问题，请查看详情`);
+          setStatusMessage(`发现 ${response.data.data.issues.length} 个兑换码存在問題，请查看详情`);
         } else {
-          setStatusMessage('没有发现问题的兑换码');
+          setStatusMessage('没有发现問題的兑换码');
         }
       } else {
         setStatusMessage(`调试失败: ${response.data.message || '未知错误'}`);
@@ -306,7 +306,7 @@ const AdminRedeemCodes: React.FC = () => {
     }
   };
   
-  // 批量修复问题兑换码
+  // 批量修复問題兑换码
   const batchFixRedeemCodes = async () => {
     if (!debuggingResults || !debuggingResults.issues || debuggingResults.issues.length === 0) {
       setStatusMessage('没有需要修复的兑换码');
@@ -550,7 +550,7 @@ const AdminRedeemCodes: React.FC = () => {
               className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
               disabled={isDebugging}
             >
-              {isDebugging ? '正在检查...' : '检查兑换码问题'}
+              {isDebugging ? '正在检查...' : '检查兑换码問題'}
             </button>
             
             {debuggingResults && debuggingResults.issues.length > 0 && (
@@ -559,7 +559,7 @@ const AdminRedeemCodes: React.FC = () => {
                 className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
                 disabled={isDebugging || !selectedQuestionSetId}
               >
-                批量修复 {debuggingResults.issues.length} 个问题兑换码
+                批量修复 {debuggingResults.issues.length} 个問題兑换码
               </button>
             )}
             
@@ -658,7 +658,7 @@ const AdminRedeemCodes: React.FC = () => {
             <p className="mb-1">总兑换码数量: <span className="font-medium">{debuggingResults.totalRedeemCodes}</span></p>
             <p className="mb-1">总题库数量: <span className="font-medium">{debuggingResults.totalQuestionSets}</span></p>
             <p className="mb-3">
-              有问题的兑换码: 
+              有問題的兑换码: 
               <span className={`font-medium ${debuggingResults.issues.length > 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {debuggingResults.issues.length}
               </span>
@@ -666,7 +666,7 @@ const AdminRedeemCodes: React.FC = () => {
             
             {debuggingResults.issues.length > 0 && (
               <div className="mt-2">
-                <p className="text-red-600 font-medium mb-1">问题详情:</p>
+                <p className="text-red-600 font-medium mb-1">問題详情:</p>
                 <ul className="text-xs bg-white p-2 rounded border border-gray-200 max-h-32 overflow-y-auto">
                   {debuggingResults.issues.map((issue: any, index: number) => (
                     <li key={index} className="mb-1 pb-1 border-b border-gray-100">

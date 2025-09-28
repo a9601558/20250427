@@ -237,11 +237,11 @@ export async function createDirectPurchase(
   questionSetId: string,
   price: any = 0
 ) {
-  // 确保价格是一个有效的数字
+  // 确保価格是一个有效的数字
   const numericPrice = typeof price === 'number' ? price : 
                        (typeof price === 'string' && !isNaN(parseFloat(price)) ? parseFloat(price) : 0);
   
-  console.log(`[支付] 创建购买: 题库=${questionSetId}, 价格=${numericPrice}`);
+  console.log(`[支付] 创建购买: 题库=${questionSetId}, 価格=${numericPrice}`);
   
   // 从localStorage获取token
   const token = localStorage.getItem('token');
@@ -389,7 +389,7 @@ export function isPaidQuiz(quizData: any, debug = false): boolean {
     return true;
   }
   
-  // 仅在API的意外行为时才依赖价格：如果价格是正数，很可能是付费题库
+  // 仅在API的意外行为时才依赖価格：如果価格是正数，很可能是付费题库
   if (dataToCheck.price && parseFloat(dataToCheck.price) > 0) {
     if (debug) console.log('[isPaidQuiz] true because price > 0:', dataToCheck.price);
     return true;

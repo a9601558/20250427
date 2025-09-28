@@ -125,7 +125,7 @@ npm run baota-deploy
 - description: 题库描述
 - category: 题库分类
 - isPaid: 是否付费
-- price: 价格
+- price: 価格
 - trialQuestions: 免费试用题目数
 
 ### 题目模型 (Question)

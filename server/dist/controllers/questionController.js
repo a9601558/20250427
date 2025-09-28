@@ -42,10 +42,10 @@ const getQuestions = async (req, res) => {
         });
     }
     catch (error) {
-        console.error('获取问题列表失败:', error);
+        console.error('获取問題列表失败:', error);
         res.status(500).json({
             success: false,
-            message: '获取问题列表失败',
+            message: '获取問題列表失败',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
@@ -59,12 +59,12 @@ const getQuestionById = async (req, res) => {
     try {
         const question = await Question_1.default.findByPk(req.params.id);
         if (!question) {
-            return (0, responseUtils_1.sendError)(res, 404, '问题不存在');
+            return (0, responseUtils_1.sendError)(res, 404, '問題不存在');
         }
-        (0, responseUtils_1.sendResponse)(res, 200, '获取问题成功', question);
+        (0, responseUtils_1.sendResponse)(res, 200, '获取問題成功', question);
     }
     catch (error) {
-        (0, responseUtils_1.sendError)(res, 500, '获取问题失败', error);
+        (0, responseUtils_1.sendError)(res, 500, '获取問題失败', error);
     }
 };
 exports.getQuestionById = getQuestionById;
@@ -85,10 +85,10 @@ const createQuestion = async (req, res) => {
             explanation,
             orderIndex: orderIndex || 0
         });
-        (0, responseUtils_1.sendResponse)(res, 201, '创建问题成功', question);
+        (0, responseUtils_1.sendResponse)(res, 201, '创建問題成功', question);
     }
     catch (error) {
-        (0, responseUtils_1.sendError)(res, 500, '创建问题失败', error);
+        (0, responseUtils_1.sendError)(res, 500, '创建問題失败', error);
     }
 };
 exports.createQuestion = createQuestion;
@@ -100,7 +100,7 @@ const updateQuestion = async (req, res) => {
     try {
         const question = await Question_1.default.findByPk(req.params.id);
         if (!question) {
-            return (0, responseUtils_1.sendError)(res, 404, '问题不存在');
+            return (0, responseUtils_1.sendError)(res, 404, '問題不存在');
         }
         const { text, questionType, explanation, orderIndex } = req.body;
         await question.update({
@@ -109,10 +109,10 @@ const updateQuestion = async (req, res) => {
             explanation,
             orderIndex
         });
-        (0, responseUtils_1.sendResponse)(res, 200, '更新问题成功', question);
+        (0, responseUtils_1.sendResponse)(res, 200, '更新問題成功', question);
     }
     catch (error) {
-        (0, responseUtils_1.sendError)(res, 500, '更新问题失败', error);
+        (0, responseUtils_1.sendError)(res, 500, '更新問題失败', error);
     }
 };
 exports.updateQuestion = updateQuestion;
@@ -124,13 +124,13 @@ const deleteQuestion = async (req, res) => {
     try {
         const question = await Question_1.default.findByPk(req.params.id);
         if (!question) {
-            return (0, responseUtils_1.sendError)(res, 404, '问题不存在');
+            return (0, responseUtils_1.sendError)(res, 404, '問題不存在');
         }
         await question.destroy();
-        (0, responseUtils_1.sendResponse)(res, 200, '问题删除成功');
+        (0, responseUtils_1.sendResponse)(res, 200, '問題删除成功');
     }
     catch (error) {
-        (0, responseUtils_1.sendError)(res, 500, '删除问题失败', error);
+        (0, responseUtils_1.sendError)(res, 500, '删除問題失败', error);
     }
 };
 exports.deleteQuestion = deleteQuestion;
@@ -142,21 +142,21 @@ const getRandomQuestion = async (req, res) => {
     try {
         const { questionSetId } = req.query;
         if (!questionSetId) {
-            return (0, responseUtils_1.sendError)(res, 400, '缺少问题集ID');
+            return (0, responseUtils_1.sendError)(res, 400, '缺少問題集ID');
         }
         const count = await Question_1.default.count({ where: { questionSetId: String(questionSetId) } });
         if (count === 0) {
-            return (0, responseUtils_1.sendError)(res, 404, '该问题集没有可用的问题');
+            return (0, responseUtils_1.sendError)(res, 404, '该問題集没有可用的問題');
         }
         const randomOffset = Math.floor(Math.random() * count);
         const question = await Question_1.default.findOne({
             where: { questionSetId: String(questionSetId) },
             offset: randomOffset
         });
-        (0, responseUtils_1.sendResponse)(res, 200, '获取随机问题成功', question);
+        (0, responseUtils_1.sendResponse)(res, 200, '获取随机問題成功', question);
     }
     catch (error) {
-        (0, responseUtils_1.sendError)(res, 500, '获取随机问题失败', error);
+        (0, responseUtils_1.sendError)(res, 500, '获取随机問題失败', error);
     }
 };
 exports.getRandomQuestion = getRandomQuestion;
@@ -266,13 +266,13 @@ const batchUploadQuestions = async (req, res) => {
         // 解析文件内容 - 假设是按行分隔的文本文件
         const lines = fileContent.split('\n').filter((line) => line.trim() !== '');
         console.log(`[API] 解析到 ${lines.length} 行数据`);
-        // 导入成功的问题数量
+        // 导入成功的問題数量
         let successCount = 0;
-        // 导入失败的问题数量
+        // 导入失败的問題数量
         let failedCount = 0;
         // 错误信息数组
         const errors = [];
-        // 成功创建的问题ID集合
+        // 成功创建的問題ID集合
         const createdQuestionIds = [];
         // 处理每一行数据
         for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -292,22 +292,22 @@ const batchUploadQuestions = async (req, res) => {
                 let options = [];
                 let explanation = '';
                 if (fields.length >= 7) {
-                    // 标准格式: 问题|选项A|选项B|选项C|选项D|正确答案|解析
+                    // 标准格式: 問題|选项A|选项B|选项C|选项D|正确答案|解析
                     options = fields.slice(1, 5); // 四个选项A,B,C,D
                     explanation = fields[6]; // 第7个元素是解析
                 }
                 else if (fields.length === 6) {
-                    // 少一个字段: 问题|选项A|选项B|选项C|选项D|正确答案
+                    // 少一个字段: 問題|选项A|选项B|选项C|选项D|正确答案
                     options = fields.slice(1, 5);
                     explanation = '';
                 }
                 else if (fields.length === 5) {
-                    // 三个选项: 问题|选项A|选项B|选项C|正确答案
+                    // 三个选项: 問題|选项A|选项B|选项C|正确答案
                     options = fields.slice(1, 4);
                     explanation = '';
                 }
                 else if (fields.length === 4) {
-                    // 两个选项: 问题|选项A|选项B|正确答案
+                    // 两个选项: 問題|选项A|选项B|正确答案
                     options = fields.slice(1, 3);
                     explanation = '';
                 }
@@ -322,7 +322,7 @@ const batchUploadQuestions = async (req, res) => {
                 // 检查答案是否包含英文逗号，真正用于多选题答案分割
                 // 只有当答案中包含多个字母（如"A,B"）时才视为多选题
                 const isMultipleChoice = correctAnswer.includes(',') && correctAnswer.split(',').length > 1;
-                // 处理正确答案 - 修复单选题被识别为多选题的问题
+                // 处理正确答案 - 修复单选题被识别为多选题的問題
                 const correctAnswers = isMultipleChoice
                     ? correctAnswer.split(',').map((a) => a.trim().toUpperCase())
                     : [correctAnswer.trim().toUpperCase()];
@@ -344,11 +344,11 @@ const batchUploadQuestions = async (req, res) => {
                     continue;
                 }
                 try {
-                    // 最简单的方式：直接使用原始SQL创建问题和选项
-                    // 1. 首先创建问题 - 使用SQL直接插入
+                    // 最简单的方式：直接使用原始SQL创建問題和选项
+                    // 1. 首先创建問題 - 使用SQL直接插入
                     const newQuestionId = (0, uuid_1.v4)();
-                    console.log(`[API] 正在创建问题, ID: ${newQuestionId}`);
-                    // 使用原始SQL插入问题
+                    console.log(`[API] 正在创建問題, ID: ${newQuestionId}`);
+                    // 使用原始SQL插入問題
                     await database_1.default.query(`INSERT INTO questions (id, questionSetId, text, questionType, explanation, orderIndex, createdAt, updatedAt) 
              VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`, {
                         replacements: [
@@ -360,13 +360,13 @@ const batchUploadQuestions = async (req, res) => {
                             lineIndex
                         ]
                     });
-                    console.log(`[API] 问题创建成功, ID: ${newQuestionId}`);
+                    console.log(`[API] 問題创建成功, ID: ${newQuestionId}`);
                     // 2. 为每个选项创建记录 - 使用SQL直接插入
                     const optionPromises = options.map(async (optionText, i) => {
                         const optionId = (0, uuid_1.v4)();
                         const optionLetter = String.fromCharCode(65 + i); // A, B, C, D...
                         const isCorrect = correctAnswers.includes(optionLetter);
-                        console.log(`[API] 正在创建选项 ${optionLetter}, ID: ${optionId}, 问题ID: ${newQuestionId}`);
+                        console.log(`[API] 正在创建选项 ${optionLetter}, ID: ${optionId}, 問題ID: ${newQuestionId}`);
                         // 使用原始SQL插入选项
                         await database_1.default.query(`INSERT INTO options (id, questionId, text, isCorrect, optionIndex, createdAt, updatedAt) 
                VALUES (?, ?, ?, ?, ?, NOW(), NOW())`, {
@@ -383,7 +383,7 @@ const batchUploadQuestions = async (req, res) => {
                     });
                     // 等待所有选项创建完成
                     const createdOptions = await Promise.all(optionPromises);
-                    console.log(`[API] 问题 ${newQuestionId} 的所有选项创建成功, 共 ${createdOptions.length} 个`);
+                    console.log(`[API] 問題 ${newQuestionId} 的所有选项创建成功, 共 ${createdOptions.length} 个`);
                     // 添加到成功列表
                     createdQuestionIds.push(newQuestionId);
                     successCount++;
@@ -415,7 +415,7 @@ const batchUploadQuestions = async (req, res) => {
         }
         console.log(`[API] 批量导入完成. 成功: ${successCount}, 失败: ${failedCount}`);
         if (createdQuestionIds.length > 0) {
-            console.log(`[API] 创建的问题ID列表:`, createdQuestionIds);
+            console.log(`[API] 创建的問題ID列表:`, createdQuestionIds);
         }
         // 导入完成后返回结果
         return res.status(200).json({
@@ -423,7 +423,7 @@ const batchUploadQuestions = async (req, res) => {
             successCount,
             failedCount,
             errors: errors.length > 0 ? errors : undefined,
-            message: `成功导入 ${successCount} 个问题，失败 ${failedCount} 个`
+            message: `成功导入 ${successCount} 个問題，失败 ${failedCount} 个`
         });
     }
     catch (error) {

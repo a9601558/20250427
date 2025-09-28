@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const uuid_1 = require("uuid");
-// 问题模型类
+// 問題模型类
 class Question extends sequelize_1.Model {
     id;
     questionSetId;
@@ -47,7 +47,7 @@ Question.init({
         set(value) {
             // 确保值不为null或空字符串
             if (value === null || value === undefined || value === '') {
-                this.setDataValue('text', '未命名问题');
+                this.setDataValue('text', '未命名問題');
             }
             else {
                 this.setDataValue('text', String(value).trim());

@@ -59,7 +59,7 @@ const App: React.FC = () => {
     
     // 如果在30秒内刷新超过3次，显示警告
     if (refreshCount >= 3 && (now - lastRefreshTime) < 30000) {
-      console.warn('[App] 检测到频繁刷新，可能存在无限循环问题');
+      console.warn('[App] 检测到频繁刷新，可能存在无限循环問題');
       toast.warning('ページが頻繁に更新されています。ネットワーク接続を確認するか、技術サポートにお問い合わせください', {
         autoClose: 5000,
         toastId: 'refresh-warning'

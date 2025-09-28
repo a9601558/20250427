@@ -176,7 +176,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } else if (reason === 'io client disconnect') {
         console.log(`[Socket] 主动断开连接，不尝试重连`);
       } else if (reason === 'io server disconnect') {
-        console.log(`[Socket] 服务器断开连接，可能是认证问题`);
+        console.log(`[Socket] 服务器断开连接，可能是认证問題`);
         setLastError('认证失败，请重新登录');
       } else {
         console.log(`[Socket] 其他原因断开 (${reason})，不尝试重连`);

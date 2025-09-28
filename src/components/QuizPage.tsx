@@ -991,7 +991,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     e.preventDefault();
     
     if (!user || !questionSet) {
-      setError("无法进行购买，请确认您已登录且题库信息完整");
+      setError("購入を行うことができません。ログイン済みであり、問題集の情報が正しく入力されていることをご確認ください。");
       return;
     }
     
@@ -1018,7 +1018,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     }
     
     // 增强日志，添加完整的调试信息
-    console.log(`[PaymentModal] 购买操作开始，题库ID: ${questionSet.id}, 价格: ${questionSet.price}`);
+    console.log(`[PaymentModal] 购买操作开始，题库ID: ${questionSet.id}, 価格: ${questionSet.price}`);
     
     // 启用调试模式检查题库状态，打印更多信息
     const isPaid = isPaidQuiz(questionSet, true);
@@ -1095,7 +1095,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     toast.info("正在处理您的支付请求...", { autoClose: 2000 });
     
     try {
-      // 标准化题库ID，避免ID不匹配问题
+      // 标准化题库ID，避免ID不匹配問題
       const normalizedId = String(questionSet!.id).trim();
       
       // 尝试使用直接购买接口
@@ -1629,7 +1629,7 @@ const StyleInjector = () => {
         user-select: none;
       }
       
-      /* 修复safari移动设备上的按钮点击问题 */
+      /* 修复safari移动设备上的按钮点击問題 */
       @media (hover: none) {
         button:active {
           transform: scale(0.95);
@@ -1877,11 +1877,11 @@ function QuizPage(): JSX.Element {
     }
   }, [questionSet, quizStatus.showPaymentModal]);
 
-  // 每次应用启动时清除有问题的权限缓存
+  // 每次应用启动时清除有問題的权限缓存
   useEffect(() => {
-    // 清除可能有问题的权限缓存数据
+    // 清除可能有問題的权限缓存数据
     try {
-      console.log('[QuizPage] 应用启动，清除可能有问题的权限缓存');
+      console.log('[QuizPage] 应用启动，清除可能有問題的权限缓存');
       
       // 获取所有本地存储的access rights
       const accessRightsStr = localStorage.getItem('quizAccessRights');
@@ -2088,7 +2088,7 @@ function QuizPage(): JSX.Element {
         let expiryDate: Date | null = null;
         if (purchase.expiryDate) {
           try {
-            // 尝试解析过期时间，处理可能的时区问题
+            // 尝试解析过期时间，处理可能的时区問題
             expiryDate = new Date(purchase.expiryDate);
             
             // 检查日期是否有效
@@ -2569,7 +2569,7 @@ function QuizPage(): JSX.Element {
           }
         }
         
-        // 检查是否有疑似数据问题
+        // 检查是否有疑似数据問題
         let questionSetData: IQuestionSet | null = null;
         let directApiData = null;
         
@@ -2596,9 +2596,9 @@ function QuizPage(): JSX.Element {
           // 使用调试模式检查题库付费状态
           const cachedIsPaid = isPaidQuiz(questionSetData, true);
           
-          // 如果缓存API返回的是付费题库，但缓存isPaid标识可能存在问题，直接从API获取
+          // 如果缓存API返回的是付费题库，但缓存isPaid标识可能存在問題，直接从API获取
           if (!cachedIsPaid && questionSetData.price > 0) {
-            console.log('[QuizPage] 检测到潜在的题库数据不一致：价格 > 0 但 isPaid 不为真，尝试直接调用 API');
+            console.log('[QuizPage] 检测到潜在的题库数据不一致：価格 > 0 但 isPaid 不为真，尝试直接调用 API');
             
             try {
               // 直接从API获取最新数据，绕过可能的缓存
@@ -2759,7 +2759,7 @@ function QuizPage(): JSX.Element {
             // 保存原始题目顺序
             setOriginalQuestions(processedQuestions);
             
-            // 如果是错题练习模式且指定了问题ID，则筛选题目
+            // 如果是错题练习模式且指定了問題ID，则筛选题目
             if (mode === 'wrong-answers' && specificQuestions) {
               console.log('[QuizPage] 错题练习模式，筛选指定题目');
               const questionIds = specificQuestions.split(',');
@@ -2799,7 +2799,7 @@ function QuizPage(): JSX.Element {
               }
             }
             
-            // 初始化问题开始时间
+            // 初始化問題开始时间
             setQuestionStartTime(Date.now());
             
             // 从本地存储加载上次的答题进度
@@ -2821,7 +2821,7 @@ function QuizPage(): JSX.Element {
                     try {
                       const savedProgress = JSON.parse(savedProgressStr);
                       if (savedProgress.answeredQuestions && Array.isArray(savedProgress.answeredQuestions)) {
-                        // 恢复已回答问题列表
+                        // 恢复已回答問題列表
                         const validAnsweredQuestions = savedProgress.answeredQuestions
                           .filter((q: any) => q.questionIndex !== undefined && q.questionIndex < processedQuestions.length)
                           .map((q: any) => ({
@@ -2886,7 +2886,7 @@ function QuizPage(): JSX.Element {
                   console.log(`[QuizPage] 从本地进度恢复: 从第${startIndex + 1}题开始`);
                   setCurrentQuestionIndex(startIndex);
                   
-                  // 恢复已回答问题列表
+                  // 恢复已回答問題列表
                   const validAnsweredQuestions = savedProgress.answeredQuestions
                     .filter((q: any) => q.questionIndex !== undefined && q.questionIndex < processedQuestions.length)
                     .map((q: any) => ({
@@ -2896,7 +2896,7 @@ function QuizPage(): JSX.Element {
                       selectedOption: q.selectedOption || ''
                     }));
                   
-                  console.log('[QuizPage] 恢复已回答问题列表:', validAnsweredQuestions.length, '道题');
+                  console.log('[QuizPage] 恢复已回答問題列表:', validAnsweredQuestions.length, '道题');
                   setAnsweredQuestions(validAnsweredQuestions);
                   
                   // 计算正确答题数
@@ -3199,7 +3199,7 @@ function QuizPage(): JSX.Element {
             autoClose: 2000
           });
           
-          // 刷新当前问题让用户继续答题
+          // 刷新当前問題让用户继续答题
           setTimeout(() => {
             // 重置当前选项，允许用户重新选择
             setSelectedOptions([]);
@@ -3604,7 +3604,7 @@ function QuizPage(): JSX.Element {
         return;
       }
       
-      // 计算当前问题的答题用时（毫秒）
+      // 计算当前問題的答题用时（毫秒）
       const timeSpent = Date.now() - questionStartTime;
       
       // 检查是否为重复提交相同题目
@@ -3635,7 +3635,7 @@ function QuizPage(): JSX.Element {
       const newCorrectCount = updatedAnsweredQuestions.filter(q => q.isCorrect).length;
       setCorrectAnswers(newCorrectCount);
       
-      // 更新状态显示已答问题
+      // 更新状态显示已答問題
       setAnsweredQuestions(updatedAnsweredQuestions);
       
       // 更新本地存储（使用一致的key格式）
@@ -3739,14 +3739,14 @@ function QuizPage(): JSX.Element {
     
     // 超出试用数量的题目不能访问
     if (answeredQuestions.length >= trialLimit) {
-      console.log(`[canAccessQuestion] 无法访问题目 ${questionIndex + 1}：已达到试用限制 ${answeredQuestions.length}/${trialLimit}`);
+      console.log(`[canAccessQuestion] 无法访問題目 ${questionIndex + 1}：已达到试用限制 ${answeredQuestions.length}/${trialLimit}`);
       return false;
     }
     
     // 检查目标题目索引是否在试用范围内
     const isWithinTrialLimit = questionIndex < trialLimit;
     if (!isWithinTrialLimit) {
-      console.log(`[canAccessQuestion] 无法访问题目 ${questionIndex + 1}：超出试用范围（试用范围：1-${trialLimit}题）`);
+      console.log(`[canAccessQuestion] 无法访問題目 ${questionIndex + 1}：超出试用范围（试用范围：1-${trialLimit}题）`);
       return false;
     }
     
@@ -3766,7 +3766,7 @@ function QuizPage(): JSX.Element {
       if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
     }
     
-    // 获取当前问题
+    // 获取当前問題
     const currentQ = questions[currentQuestionIndex];
     if (currentQ) {
       try {
@@ -3958,9 +3958,9 @@ function QuizPage(): JSX.Element {
       setQuizStatus({ ...quizStatus, quizComplete: false });
       setQuestionStartTime(Date.now());
       
-      // 使用原始问题数组重新设置问题
+      // 使用原始問題数组重新设置問題
       if (originalQuestions && originalQuestions.length > 0) {
-        // 洗牌问题数组
+        // 洗牌問題数组
         const shuffled = [...originalQuestions].sort(() => Math.random() - 0.5);
         setQuestions(shuffled);
       }
@@ -3998,7 +3998,7 @@ function QuizPage(): JSX.Element {
             localStorage.removeItem(key);
           });
           
-          // 清除每个问题的单独状态
+          // 清除每个問題的单独状态
           for (let i = 0; i < questions.length; i++) {
             if (questions[i] && questions[i].id) {
               localStorage.removeItem(`quiz_state_${questionSet.id}_${questions[i].id}`);
@@ -4033,7 +4033,7 @@ function QuizPage(): JSX.Element {
             }
           });
           
-          // 设置超时，确保不会因为服务器响应问题而挂起
+          // 设置超时，确保不会因为服务器响应問題而挂起
           timeoutId.current = setTimeout(() => {
             // 如果还没有收到响应，直接刷新页面
             if (questionSet) {
@@ -4374,7 +4374,7 @@ function QuizPage(): JSX.Element {
     if (questions.length === 0) {
       return (
         <div className="text-center py-12">
-          <div className="text-xl mb-4">没有找到问题</div>
+          <div className="text-xl mb-4">没有找到問題</div>
           <p className="text-gray-600 mb-6">该题库暂无内容或您可能没有访问权限</p>
           <button 
             onClick={() => {navigate('/')}}
@@ -4519,7 +4519,7 @@ function QuizPage(): JSX.Element {
                     if (!question) return null;
                     
                     // 获取题目内容，优先使用 question.text，如果不存在则使用 question.question
-                    const questionContent = question.text || question.question || '未知问题';
+                    const questionContent = question.text || question.question || '未知問題';
                     
                     return (
                       <div key={index} className={`p-3 rounded-lg border ${answer.isCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
@@ -5154,7 +5154,7 @@ function QuizPage(): JSX.Element {
           isOpen={quizStatus.showPaymentModal}
           questionSet={{
             ...questionSet,
-            // 确保价格是有效的数字
+            // 确保価格是有效的数字
             price: typeof questionSet.price === 'number' ? questionSet.price : parseFloat(String(questionSet.price || 0))
           }}
           onClose={() => {

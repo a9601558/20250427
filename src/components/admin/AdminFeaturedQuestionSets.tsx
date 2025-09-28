@@ -304,7 +304,7 @@ const AdminFeaturedQuestionSets: React.FC = () => {
                     <div className="text-2xl mr-3">{qs.icon}</div>
                     <div>
                       <div className="text-sm font-medium text-gray-900">{qs.title}</div>
-                      <div className="text-sm text-gray-500">{qs.questions?.length || 0} 个问题</div>
+                      <div className="text-sm text-gray-500">{qs.questions?.length || 0} 个問題</div>
                     </div>
                   </div>
                 </td>

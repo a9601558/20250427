@@ -114,7 +114,7 @@ const uploadQuestionSetFile = async (req, res) => {
                 // 添加新题目
                 for (let i = 0; i < questionSetData.questions.length; i++) {
                     const q = questionSetData.questions[i];
-                    // 创建问题
+                    // 创建問題
                     const question = await Question_1.default.create({
                         id: q.id || undefined,
                         text: q.text,
@@ -123,7 +123,7 @@ const uploadQuestionSetFile = async (req, res) => {
                         questionType: q.questionType || 'single',
                         orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
                     });
-                    // 创建问题的选项
+                    // 创建問題的选项
                     if (q.options && q.options.length > 0) {
                         // 定义选项索引字母数组
                         const optionIndices = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
@@ -165,7 +165,7 @@ const uploadQuestionSetFile = async (req, res) => {
             if (questionSetData.questions && questionSetData.questions.length > 0) {
                 for (let i = 0; i < questionSetData.questions.length; i++) {
                     const q = questionSetData.questions[i];
-                    // 创建问题
+                    // 创建問題
                     const question = await Question_1.default.create({
                         id: q.id || undefined,
                         text: q.text,
@@ -174,7 +174,7 @@ const uploadQuestionSetFile = async (req, res) => {
                         questionType: q.questionType || 'single',
                         orderIndex: q.orderIndex !== undefined ? q.orderIndex : i
                     });
-                    // 创建问题的选项
+                    // 创建問題的选项
                     if (q.options && q.options.length > 0) {
                         // 定义选项索引字母数组
                         const optionIndices = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];

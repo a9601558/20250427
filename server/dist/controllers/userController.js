@@ -80,7 +80,7 @@ const getUserProfile = async (req, res) => {
                     association: 'userRedeemCodes'
                 }
             ],
-            // 记录请求信息以帮助调试跨设备同步问题
+            // 记录请求信息以帮助调试跨设备同步問題
             logging: (sql) => {
                 console.log(`[用户资料] 获取用户(${req.user.id})资料, 设备: ${req.headers['user-agent']}`);
             },

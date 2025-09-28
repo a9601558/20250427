@@ -1,6 +1,6 @@
 # 🚀 生产环境JWT修复部署指南
 
-## 📋 问题分析
+## 📋 問題分析
 根据生产日志分析，JWT认证错误 `JsonWebTokenError: invalid algorithm` 出现在以下位置：
 - `/dist/server/dist/middleware/authMiddleware.js:19:52`
 - `/dist/server/dist/config/socket.js:31:52`
@@ -68,7 +68,7 @@ grep -n "algorithms: \['HS256'\]" /www/wwwroot/root/git/dist/server/dist/config/
 - ✅ 页面不再出现无限刷新
 
 ## 📞 回滚方案
-如果出现问题，可以快速回滚：
+如果出现問題，可以快速回滚：
 ```bash
 # 恢复备份
 rm -rf /www/wwwroot/root/git/dist/server

@@ -33,7 +33,7 @@ const Footer: React.FC = () => {
             <div>
               <h3 className="font-medium mb-2">资源</h3>
               <ul className="text-sm text-gray-400">
-                <li className="mb-1"><Link to="/faq" className="hover:text-blue-300">常见问题</Link></li>
+                <li className="mb-1"><Link to="/faq" className="hover:text-blue-300">常见問題</Link></li>
                 <li className="mb-1"><Link to="/terms" className="hover:text-blue-300">服务条款</Link></li>
               </ul>
             </div>

@@ -22,7 +22,7 @@ router.get('/', (async (req: Request, res: Response) => {
       });
     }
     
-    // 获取问题列表
+    // 获取問題列表
     console.log(`获取题库 ${questionSetId} 的题目`);
     const questions: QueryResult = await db.query(
       `SELECT * FROM questions WHERE questionSetId = ? ORDER BY orderIndex`,
@@ -31,14 +31,14 @@ router.get('/', (async (req: Request, res: Response) => {
     
     console.log(`找到 ${questions.length} 个题目`);
     
-    // 获取每个问题的选项
+    // 获取每个問題的选项
     for (const question of questions) {
       const options = await db.query(
         `SELECT * FROM options WHERE questionId = ? ORDER BY optionIndex`,
         [question.id]
       );
       question.options = options;
-      console.log(`问题 ${question.id} 有 ${options.length} 个选项`);
+      console.log(`問題 ${question.id} 有 ${options.length} 个选项`);
     }
     
     res.json({

@@ -742,7 +742,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                   {editFormData.isPaid && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">价格 (¥)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">価格 (¥)</label>
                         <input
                           type="number"
                           name="price"
@@ -880,7 +880,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                     {selectedSet.isPaid && (
                       <>
                         <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-1">价格</h4>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">価格</h4>
                           <p className="text-gray-900">¥{selectedSet.price || '未设置'}</p>
                         </div>
                         

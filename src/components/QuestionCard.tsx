@@ -77,7 +77,7 @@ const QuestionCard = ({
   // 为键盘导航跟踪当前选项
   const { user } = useUser();
   
-  // 当用户已回答过该问题时，加载已选答案
+  // 当用户已回答过该問題时，加载已选答案
   useEffect(() => {
     if (userAnsweredQuestion) {
       setIsSubmitted(true);

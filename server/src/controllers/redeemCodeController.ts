@@ -80,7 +80,7 @@ export const getRedeemCodes = async (req: Request, res: Response) => {
     const isUsedFilter = req.query.isUsed !== undefined ? `AND rc.isUsed = ${req.query.isUsed === 'true' ? 1 : 0}` : '';
     const questionSetFilter = req.query.questionSetId ? `AND rc.questionSetId = '${req.query.questionSetId}'` : '';
     
-    // 使用原生SQL查询，避免Sequelize关联问题
+    // 使用原生SQL查询，避免Sequelize关联問題
     try {
       console.log('[RedeemCodeController] 使用原生SQL查询获取兑换码列表');
       
@@ -201,7 +201,7 @@ export const redeemCode = async (req: Request, res: Response) => {
     // 输出调试信息
     console.log(`尝试兑换码: ${code}, 用户ID: ${userId}`);
 
-    // 直接使用原始SQL查询获取兑换码，避免关联加载问题
+    // 直接使用原始SQL查询获取兑换码，避免关联加载問題
     const [redeemCodeResults] = await sequelize.query(
       `SELECT * FROM redeem_codes WHERE code = ?`,
       {
@@ -376,7 +376,7 @@ export const redeemCode = async (req: Request, res: Response) => {
       console.log('尽管出现错误，但兑换的重要部分已成功完成，返回成功响应');
       return res.json({
         success: true,
-        message: '兑换成功，但系统处理过程中出现了一些问题',
+        message: '兑换成功，但系统处理过程中出现了一些問題',
         data: {
           questionSet: successfulQuestionSet,
           purchase: {

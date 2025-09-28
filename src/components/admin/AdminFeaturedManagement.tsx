@@ -100,7 +100,7 @@ const AdminFeaturedManagement: React.FC = () => {
       if (qsResponse.success && qsResponse.data) {
         console.log("成功获取题库数据，题库数量:", qsResponse.data.length);
         
-        // 确保每个题库都有正确的问题计数
+        // 确保每个题库都有正确的問題计数
         const questionSetsWithVerifiedCounts = await Promise.all(
           (qsResponse.data as FeaturedQuestionSet[]).map(async (set) => {
             // 如果questionCount为空或0，尝试从questions或questionSetQuestions数组中获取
@@ -914,7 +914,7 @@ const AdminFeaturedManagement: React.FC = () => {
                           <div>
                             <div className="text-sm font-medium text-gray-900">{qs.title}</div>
                             <div className="text-sm text-gray-500">
-                              {qs.questionCount || qs.questions?.length || qs.questionSetQuestions?.length || 0} 个问题
+                              {qs.questionCount || qs.questions?.length || qs.questionSetQuestions?.length || 0} 个問題
                               {qs.questionCount === 0 && (
                                 <span className="text-red-500 ml-2">(需要更新题目计数)</span>
                               )}

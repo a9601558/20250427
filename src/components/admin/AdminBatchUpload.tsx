@@ -371,7 +371,7 @@ const AdminBatchUpload: React.FC = () => {
             <div className="mt-2 text-sm">
               <p>TXTまたはCSV形式のファイルに対応、一行に一つの問題、形式は以下の通り：</p>
               <pre className="mt-1 font-mono text-xs bg-blue-100 p-2 rounded overflow-x-auto mb-2">
-                问题?|选项A|选项B|选项C|选项D|正确答案|解析
+                問題?|选项A|选项B|选项C|选项D|正确答案|解析
               </pre>
               <ul className="list-disc list-inside text-xs mt-2">
                 <li>各フィールドは縦線 | で区切ります</li>
@@ -385,10 +385,10 @@ const AdminBatchUpload: React.FC = () => {
               <div className="mt-3 p-2 rounded bg-blue-100">
                 <p className="font-medium text-blue-800 mb-1">支持的格式变体：</p>
                 <ul className="list-disc list-inside text-xs">
-                  <li>4个选项 + 答案 + 解析：<code>问题|选项A|选项B|选项C|选项D|A|解析</code></li>
-                  <li>4个选项 + 答案（无解析）：<code>问题|选项A|选项B|选项C|选项D|A</code></li>
-                  <li>3个选项 + 答案：<code>问题|选项A|选项B|选项C|B</code></li>
-                  <li>2个选项 + 答案：<code>问题|选项A|选项B|A</code></li>
+                  <li>4个选项 + 答案 + 解析：<code>問題|选项A|选项B|选项C|选项D|A|解析</code></li>
+                  <li>4个选项 + 答案（无解析）：<code>問題|选项A|选项B|选项C|选项D|A</code></li>
+                  <li>3个选项 + 答案：<code>問題|选项A|选项B|选项C|B</code></li>
+                  <li>2个选项 + 答案：<code>問題|选项A|选项B|A</code></li>
                 </ul>
             </div>
             

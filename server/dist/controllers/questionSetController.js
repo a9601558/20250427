@@ -50,9 +50,9 @@ const getAllQuestionSets = async (req, res) => {
                 ['updated_at', 'updatedAt']
             ]
         });
-        // 为每个题库获取准确的问题数量 - 使用更高效的批量查询
+        // 为每个题库获取准确的問題数量 - 使用更高效的批量查询
         const questionSetIds = questionSets.map(set => set.id);
-        console.log(`[QuestionSetController] 正在为 ${questionSetIds.length} 个题库获取问题数量...`);
+        console.log(`[QuestionSetController] 正在为 ${questionSetIds.length} 个题库获取問題数量...`);
         let questionCountMap = new Map();
         if (questionSetIds.length > 0) {
             try {
@@ -72,15 +72,15 @@ const getAllQuestionSets = async (req, res) => {
                     const qsId = item.questionSetId;
                     const count = parseInt(item.count) || 0;
                     questionCountMap.set(qsId, count);
-                    console.log(`[QuestionSetController] 题库 ${qsId} 的问题数量: ${count}`);
+                    console.log(`[QuestionSetController] 题库 ${qsId} 的問題数量: ${count}`);
                 });
-                console.log(`[QuestionSetController] 成功获取 ${questionCountsQuery.length} 个题库的问题数量`);
+                console.log(`[QuestionSetController] 成功获取 ${questionCountsQuery.length} 个题库的問題数量`);
             }
             catch (countError) {
-                console.error('[QuestionSetController] 获取题库问题数量失败:', countError);
+                console.error('[QuestionSetController] 获取题库問題数量失败:', countError);
             }
         }
-        // 为每个题库添加问题数量
+        // 为每个题库添加問題数量
         const enhancedSets = questionSets.map(set => {
             const setJSON = set.toJSON();
             const questionCount = questionCountMap.get(set.id) || 0;
@@ -90,10 +90,10 @@ const getAllQuestionSets = async (req, res) => {
                 questionCount // 使用查询结果或默认为0
             };
         });
-        console.log(`[QuestionSetController] 成功获取${enhancedSets.length}个题库，包含问题数量信息`);
-        // 记录一些题库的问题数量，用于调试
+        console.log(`[QuestionSetController] 成功获取${enhancedSets.length}个题库，包含問題数量信息`);
+        // 记录一些题库的問題数量，用于调试
         if (enhancedSets.length > 0) {
-            console.log(`[QuestionSetController] 题库问题数量示例:`);
+            console.log(`[QuestionSetController] 题库問題数量示例:`);
             enhancedSets.slice(0, 5).forEach(set => {
                 console.log(`  - ${set.title}: ${set.questionCount}题`);
             });
@@ -149,7 +149,7 @@ const getQuestionSetById = async (req, res) => {
         }
         // 直接使用 questionSet 的数据，不添加 cardImage 字段
         const questionSetData = questionSet.toJSON();
-        console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个问题`);
+        console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个問題`);
         sendResponse(res, 200, questionSetData);
     }
     catch (error) {
@@ -168,9 +168,9 @@ const createQuestionSet = async (req, res) => {
         if (!title || !description || !category) {
             return sendError(res, 400, '请提供标题、描述和分类');
         }
-        // 如果是付费题库，验证价格
+        // 如果是付费题库，验证価格
         if (isPaid && (price === undefined || price <= 0)) {
-            return sendError(res, 400, '付费题库必须设置有效的价格');
+            return sendError(res, 400, '付费题库必须设置有效的価格');
         }
         const questionSet = await QuestionSet_1.default.create({
             title,
@@ -209,9 +209,9 @@ const updateQuestionSet = async (req, res) => {
                 price: questionSet.price,
             });
             const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions } = req.body;
-            // 如果是付费题库，验证价格
+            // 如果是付费题库，验证価格
             if (isPaid && (price === undefined || price <= 0)) {
-                console.log('价格验证失败:', { isPaid, price });
+                console.log('価格验证失败:', { isPaid, price });
                 return sendError(res, 400, '付费題庫には有効な価格を設定する必要があります');
             }
             // 记录更新前的值
@@ -544,7 +544,7 @@ const uploadQuestionSets = async (req, res) => {
                     for (let i = 0; i < setData.questions.length; i++) {
                         const q = setData.questions[i];
                         console.log(`创建新题库的题目 ${i + 1}: ${q.text?.substring(0, 30)}...`);
-                        // 创建问题
+                        // 创建問題
                         const questionObj = {
                             questionSetId: setData.id,
                             text: q.text,
@@ -563,7 +563,7 @@ const uploadQuestionSets = async (req, res) => {
                             const errorMessage = error instanceof Error ? error.message : '未知错误';
                             throw new Error(`题目创建失败: ${errorMessage}`);
                         }
-                        // 创建问题的选项
+                        // 创建問題的选项
                         if (q.options && q.options.length > 0) {
                             for (const option of q.options) {
                                 await Option_1.default.create({

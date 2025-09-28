@@ -76,7 +76,7 @@ const getActivePurchasesByUserId = async (userId) => {
 };
 exports.getActivePurchasesByUserId = getActivePurchasesByUserId;
 /**
- * 检查用户是否有访问题库的权限
+ * 检查用户是否有访問題库的权限
  */
 const hasAccessToQuestionSet = async (userId, questionSetId) => {
     try {

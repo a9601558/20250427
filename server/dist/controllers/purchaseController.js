@@ -141,7 +141,7 @@ const getUserPurchases = async (req, res) => {
                 const expiryDate = rawPurchase.expiryDate ? new Date(rawPurchase.expiryDate) : new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
                 // 计算剩余天数
                 const remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-                // 标准化问题集信息
+                // 标准化問題集信息
                 const purchaseData = rawPurchase; // Use type assertion to fix TypeScript errors
                 const questionSetInfo = purchaseData.purchaseQuestionSet ? {
                     id: purchaseData.purchaseQuestionSet.id,

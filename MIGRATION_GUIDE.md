@@ -2,12 +2,12 @@
 
 本文档详细说明如何将数据库中的字段命名进行统一，主要是将 `purchases` 表中的 `quizId` 字段重命名为 `questionSetId`。
 
-## 问题背景
+## 問題背景
 
 当前数据库中存在命名不一致的情况：
 - `question_sets` 表：使用 `id` 作为主键
 - `questions` 表：使用 `questionSetId` 引用题库
-- `options` 表：使用 `questionId` 引用问题
+- `options` 表：使用 `questionId` 引用問題
 - `purchases` 表：使用 `quizId` 引用题库（而非 `questionSetId`）
 - `redeem_codes` 表：使用 `questionSetId` 引用题库
 
@@ -79,7 +79,7 @@ node migrate-data.js
 
 ### 故障恢复
 
-如果遇到问题，可以使用以下SQL回滚表结构：
+如果遇到問題，可以使用以下SQL回滚表结构：
 
 ```sql
 DROP TABLE IF EXISTS purchases;
@@ -96,4 +96,4 @@ RENAME TABLE purchases_backup TO purchases;
 
 ## 联系支持
 
-如遇到任何问题，请联系技术支持团队。 
+如遇到任何問題，请联系技术支持团队。 

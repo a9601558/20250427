@@ -2,7 +2,7 @@ import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 
-// 问题接口
+// 問題接口
 export interface QuestionAttributes {
   id: string;
   questionSetId: string;
@@ -17,7 +17,7 @@ export interface QuestionAttributes {
 // 创建时可选的属性
 interface QuestionCreationAttributes extends Optional<QuestionAttributes, 'id'> {}
 
-// 问题模型类
+// 問題模型类
 class Question extends Model<QuestionAttributes, QuestionCreationAttributes> implements QuestionAttributes {
   public id!: string;
   public questionSetId!: string;
@@ -61,7 +61,7 @@ Question.init(
       set(value: any) {
         // 确保值不为null或空字符串
         if (value === null || value === undefined || value === '') {
-          this.setDataValue('text', '未命名问题');
+          this.setDataValue('text', '未命名問題');
         } else {
           this.setDataValue('text', String(value).trim());
         }

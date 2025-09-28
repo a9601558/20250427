@@ -80,7 +80,7 @@ const AddQuestionSet: React.FC = () => {
   const checkServerStatus = async () => {
     try {
       setServerStatus('checking');
-      // 尝试访问题库列表接口而不是健康检查接口
+      // 尝试访問題库列表接口而不是健康检查接口
       // 这个接口应该在生产环境中也存在
       await axios.get('/api/question-sets', { 
         timeout: 5000,
@@ -142,7 +142,7 @@ const AddQuestionSet: React.FC = () => {
 
       console.log('题库数据:', JSON.stringify(questionSetData));
 
-      // 直接使用axios发送请求，避开可能的封装问题
+      // 直接使用axios发送请求，避开可能的封装問題
       const response = await axios.post('/api/question-sets', questionSetData, {
         headers: {
           'Content-Type': 'application/json',
@@ -338,7 +338,7 @@ const AddQuestionSet: React.FC = () => {
             {isPaid && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                 <div>
-                  <label className="block text-gray-700 mb-2">价格 (¥)</label>
+                  <label className="block text-gray-700 mb-2">価格 (¥)</label>
                   <input
                     type="number"
                     value={price}

@@ -117,7 +117,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
       return;
     }
     
-    // 创建问题对象
+    // 创建問題对象
     const questionOptions: QuestionOption[] = options.map(option => ({
       id: option.id,
       text: option.text,

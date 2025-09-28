@@ -1,5 +1,5 @@
 /**
- * 修复题目添加问题 - 直接替换更新函数
+ * 修复题目添加問題 - 直接替换更新函数
  */
 
 // 添加一个预处理函数来标准化前端传来的数据格式
@@ -13,10 +13,10 @@ function normalizeQuestionData(questions) {
     .filter(q => q) // 过滤掉null和undefined
     .map((q, index) => {
       // 确保text字段不为null
-      const questionText = q.text || q.question || `问题 ${index + 1}`;
+      const questionText = q.text || q.question || `問題 ${index + 1}`;
       const explanation = q.explanation || '暂无解析';
       
-      // 标准化问题数据
+      // 标准化問題数据
       const normalizedQuestion = {
         text: questionText,
         explanation: explanation,
@@ -64,7 +64,7 @@ function testNormalize() {
       input: [{text: null, options: [{text: "选项1"}]}],
       expected: [
         {
-          text: "问题 0",
+          text: "問題 0",
           explanation: "暂无解析",
           questionType: "single",
           orderIndex: 0,
@@ -73,10 +73,10 @@ function testNormalize() {
       ]
     },
     {
-      input: [{question: "测试问题", options: null}],
+      input: [{question: "测试問題", options: null}],
       expected: [
         {
-          text: "测试问题",
+          text: "测试問題",
           explanation: "暂无解析",
           questionType: "single",
           orderIndex: 0,
@@ -111,8 +111,8 @@ testNormalize();
  * 3. 在 updateQuestionSet 函数中，在处理 questions 前添加:
  *    if (Array.isArray(questions) && questions.length > 0) {
  *      questions = normalizeQuestionData(questions);
- *      console.log(`标准化了 ${questions.length} 个问题`);
+ *      console.log(`标准化了 ${questions.length} 个問題`);
  *    }
  * 
- * 这样可以确保所有问题的 text 字段都不会为 null
+ * 这样可以确保所有問題的 text 字段都不会为 null
  */ 

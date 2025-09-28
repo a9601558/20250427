@@ -88,7 +88,7 @@ console.log('2. 或者访问测试页面:');
 console.log('   http://MonTopi.jp/socket-test-updated.html\n');
 
 console.log(`${colors.green}${colors.bold}完成以上步骤后，WebSocket应该能够正常连接。${colors.reset}`);
-console.log('如果仍然遇到问题，请检查:');
+console.log('如果仍然遇到問題，请检查:');
 console.log('1. 服务器日志查找错误: pm2 logs');
 console.log('2. Nginx错误日志: tail -f /www/wwwlogs/MonTopi.jp.error.log');
 console.log('3. 浏览器开发者工具的网络面板，查看WebSocket连接状态\n');

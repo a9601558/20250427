@@ -586,9 +586,9 @@ const AdminQuestionSets = () => {
     }
   };
 
-  // 初始化添加问题的表单
+  // 初始化添加問題的表单
   const handleAddQuestion = () => {
-    // 重置问题表单
+    // 重置問題表单
     setQuestionFormData({
       id: '',
       question: '',
@@ -605,7 +605,7 @@ const AdminQuestionSets = () => {
     setShowQuestionModal(true);
   };
 
-  // 编辑问题
+  // 编辑問題
   const handleEditQuestion = (question, index) => {
     setQuestionIndex(index);
     setCurrentQuestion(question);
@@ -620,7 +620,7 @@ const AdminQuestionSets = () => {
     setShowQuestionModal(true);
   };
 
-  // 删除问题
+  // 删除問題
   const handleDeleteQuestion = (index) => {
     if (!currentQuestionSet) return;
     
@@ -636,7 +636,7 @@ const AdminQuestionSets = () => {
       questions: updatedQuestions
     });
     
-    // 直接更新题库中的问题列表
+    // 直接更新题库中的問題列表
     handleUpdateQuestions(updatedQuestions);
   };
 
@@ -713,13 +713,13 @@ const AdminQuestionSets = () => {
     });
   };
 
-  // 直接添加问题到服务器
+  // 直接添加問題到服务器
   const handleDirectAddQuestion = async () => {
     if (!currentQuestionSet) return;
     
     // 验证表单
     if (!questionFormData.question) {
-      showStatusMessage('error', '问题内容不能为空');
+      showStatusMessage('error', '問題内容不能为空');
       return;
     }
     
@@ -746,14 +746,14 @@ const AdminQuestionSets = () => {
     setLoadingAction('addQuestion');
     
     try {
-      // 转换问题格式为API格式
+      // 转换問題格式为API格式
       const questionData = mapClientToApiQuestion(questionFormData);
       
       // 重要: 确保传入当前题库的ID
       const response = await questionApi.addQuestion(currentQuestionSet.id, questionData);
       
       if (response.success && response.data) {
-        // 将API返回的问题转换为前端格式并添加到当前题库
+        // 将API返回的問題转换为前端格式并添加到当前题库
         const apiQuestion = response.data;
         const clientQuestion = mapApiToClientQuestion(apiQuestion);
         
@@ -767,7 +767,7 @@ const AdminQuestionSets = () => {
         // 更新题目数量
         await updateQuestionCount(currentQuestionSet.id);
         
-        showStatusMessage('success', '问题添加成功');
+        showStatusMessage('success', '問題添加成功');
         setIsAddingQuestion(false);
         setShowQuestionModal(false);
         
@@ -784,18 +784,18 @@ const AdminQuestionSets = () => {
           explanation: ''
         });
       } else {
-        showStatusMessage('error', `添加问题失败: ${response.error || '未知错误'}`);
+        showStatusMessage('error', `添加問題失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("添加问题出错:", error);
-      showStatusMessage('error', '添加问题时发生错误');
+      console.error("添加問題出错:", error);
+      showStatusMessage('error', '添加問題时发生错误');
     } finally {
       setLoading(false);
       setLoadingAction('');
     }
   };
 
-  // 更新题库的问题列表
+  // 更新题库的問題列表
   const handleUpdateQuestions = async (questions) => {
     if (!currentQuestionSet) return;
     
@@ -803,7 +803,7 @@ const AdminQuestionSets = () => {
     setLoadingAction('updateQuestions');
     
     try {
-      // 更新题库中的问题列表
+      // 更新题库中的問題列表
       const updatedQuestionSet = {
         ...currentQuestionSet,
         questions
@@ -818,28 +818,28 @@ const AdminQuestionSets = () => {
         // 更新题目数量
         await updateQuestionCount(currentQuestionSet.id);
         
-        showStatusMessage('success', '问题列表更新成功');
+        showStatusMessage('success', '問題列表更新成功');
         // 更新本地状态
         setCurrentQuestionSet(response.data);
       } else {
-        showStatusMessage('error', `更新问题列表失败: ${response.error || '未知错误'}`);
+        showStatusMessage('error', `更新問題列表失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("更新问题列表出错:", error);
-      showStatusMessage('error', '更新问题列表时发生错误');
+      console.error("更新問題列表出错:", error);
+      showStatusMessage('error', '更新問題列表时发生错误');
     } finally {
       setLoading(false);
       setLoadingAction('');
     }
   };
 
-  // 直接更新问题
+  // 直接更新問題
   const handleDirectUpdateQuestion = async () => {
     if (!currentQuestionSet || !currentQuestion) return;
     
     // 验证表单
     if (!questionFormData.question) {
-      showStatusMessage('error', '问题内容不能为空');
+      showStatusMessage('error', '問題内容不能为空');
       return;
     }
     
@@ -866,18 +866,18 @@ const AdminQuestionSets = () => {
     setLoadingAction('updateQuestion');
     
     try {
-      // 转换问题格式为API格式
+      // 转换問題格式为API格式
       const questionData = mapClientToApiQuestion(questionFormData);
       
-      // 调用API更新问题
+      // 调用API更新問題
       const response = await questionApi.updateQuestion(questionFormData.id, questionData);
       
       if (response.success && response.data) {
-        // 将API返回的问题转换为前端格式
+        // 将API返回的問題转换为前端格式
         const apiQuestion = response.data;
         const updatedQuestion = mapApiToClientQuestion(apiQuestion);
         
-        // 更新题库中的问题
+        // 更新题库中的問題
         const updatedQuestions = [...currentQuestionSet.questions];
         updatedQuestions[questionIndex] = updatedQuestion;
         
@@ -889,15 +889,15 @@ const AdminQuestionSets = () => {
         // 更新题目数量
         await updateQuestionCount(currentQuestionSet.id);
         
-        showStatusMessage('success', '问题更新成功');
+        showStatusMessage('success', '問題更新成功');
         setCurrentQuestion(null);
         setShowQuestionModal(false);
       } else {
-        showStatusMessage('error', `更新问题失败: ${response.error || '未知错误'}`);
+        showStatusMessage('error', `更新問題失败: ${response.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error("更新问题出错:", error);
-      showStatusMessage('error', '更新问题时发生错误');
+      console.error("更新問題出错:", error);
+      showStatusMessage('error', '更新問題时发生错误');
     } finally {
       setLoading(false);
       setLoadingAction('');
@@ -1097,7 +1097,7 @@ const AdminQuestionSets = () => {
   // 组件的返回语句 - 实际 UI 部分
   return (
     <div>
-      {/* 问题管理模态框 */}
+      {/* 問題管理模态框 */}
       <Modal
         title={currentQuestion ? '编辑题目' : '添加题目'}
         visible={showQuestionModal}
@@ -1116,23 +1116,23 @@ const AdminQuestionSets = () => {
               <h2 className="text-lg font-medium">
                 题库: {currentQuestionSet.title} 
                 <span className="ml-2 text-sm text-gray-500">
-                  {currentQuestionSet.questions?.length || 0} 个问题
+                  {currentQuestionSet.questions?.length || 0} 个問題
                 </span>
               </h2>
             </div>
           )}
           
-          {/* 添加问题列表 */}
+          {/* 添加問題列表 */}
           {currentQuestionSet && currentQuestionSet.questions && currentQuestionSet.questions.length > 0 && (
             <div className="mb-4">
-              <h3 className="text-md font-medium mb-2">问题列表</h3>
+              <h3 className="text-md font-medium mb-2">問題列表</h3>
               <div className="bg-gray-50 p-2 rounded max-h-60 overflow-y-auto">
                 <table className="min-w-full">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-2 px-3 w-8">#</th>
-                      <th className="text-left py-2 px-3">问题内容</th>
-                      <th className="text-left py-2 px-3 w-24">问题类型</th>
+                      <th className="text-left py-2 px-3">問題内容</th>
+                      <th className="text-left py-2 px-3 w-24">問題类型</th>
                       <th className="text-left py-2 px-3 w-24">操作</th>
                     </tr>
                   </thead>
@@ -1180,7 +1180,7 @@ const AdminQuestionSets = () => {
                   onClick={handleAddQuestion}
                   icon={<PlusOutlined />}
                 >
-                  添加新问题
+                  添加新問題
                 </Button>
               </div>
               
@@ -1188,25 +1188,25 @@ const AdminQuestionSets = () => {
             </div>
           )}
           
-          {/* 当前没有问题时显示提示 */}
+          {/* 当前没有問題时显示提示 */}
           {currentQuestionSet && (!currentQuestionSet.questions || currentQuestionSet.questions.length === 0) && !currentQuestion && (
             <div className="text-center py-4 mb-4 bg-gray-50 rounded">
-              <p className="text-gray-500 mb-3">当前题库还没有问题</p>
+              <p className="text-gray-500 mb-3">当前题库还没有問題</p>
               <Button 
                 type="primary" 
                 onClick={handleAddQuestion}
                 icon={<PlusOutlined />}
               >
-                添加第一个问题
+                添加第一个問題
               </Button>
             </div>
           )}
           
-          {/* 问题表单 - 当添加或编辑问题时显示 */}
+          {/* 問題表单 - 当添加或编辑問題时显示 */}
           {(isAddingQuestion || currentQuestion) && (
             <div>
               <h3 className="text-md font-medium mb-2">
-                {currentQuestion ? '编辑问题' : '添加新问题'}
+                {currentQuestion ? '编辑問題' : '添加新問題'}
               </h3>
               
               <Form layout="vertical">
@@ -1561,13 +1561,13 @@ const AdminQuestionSets = () => {
               {formData.isPaid && (
                 <>
                   <div className="ml-5 mb-2">
-                    <label htmlFor="price" className="block mb-1">价格 (¥)</label>
+                    <label htmlFor="price" className="block mb-1">価格 (¥)</label>
                     <Input
                       type="number"
                       name="price"
                       value={formData.price}
                       onChange={handleFormChange}
-                      placeholder="请输入价格"
+                      placeholder="请输入価格"
                       min={0.01}
                       step={0.01}
                     />
@@ -1789,13 +1789,13 @@ const AdminQuestionSets = () => {
               {formData.isPaid && (
                 <>
                   <div className="ml-5 mb-2">
-                    <label htmlFor="editPrice" className="block mb-1">价格 (¥)</label>
+                    <label htmlFor="editPrice" className="block mb-1">価格 (¥)</label>
                     <Input
                       type="number"
                       name="price"
                       value={formData.price}
                       onChange={handleFormChange}
-                      placeholder="请输入价格"
+                      placeholder="请输入価格"
                       min={0.01}
                       step={0.01}
                       id="editPrice"

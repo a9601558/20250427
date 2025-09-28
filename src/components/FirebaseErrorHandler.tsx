@@ -208,7 +208,7 @@ const FirebaseErrorHandler: React.FC = () => {
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {isAdminPage 
                 ? '管理页面与 Firebase 服务连接异常，这可能会影响某些管理功能。您可以禁用 Firebase 以减少错误消息。'
-                : '应用程序遇到了与 Firebase 服务的连接问题。这可能会影响某些功能，但不会影响主要使用。'
+                : '应用程序遇到了与 Firebase 服务的连接問題。这可能会影响某些功能，但不会影响主要使用。'
               }
               {errorCount > 5 && (
                 <span className="block mt-1 text-red-500 dark:text-red-400">

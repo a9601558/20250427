@@ -55,7 +55,7 @@ class UserProgressService {
         console.error('保存进度参数无效:', validatedParams);
         return { 
           success: false, 
-          message: '问题ID或题库ID无效' 
+          message: '問題ID或题库ID无效' 
         };
       }
       

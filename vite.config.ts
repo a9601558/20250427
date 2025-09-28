@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      // 配置API代理，解决跨域问题
+      // 配置API代理，解决跨域問題
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
