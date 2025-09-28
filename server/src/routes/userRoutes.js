@@ -1,19 +1,18 @@
 const express = require('express');
 const { 
-  registerUser, 
-  loginUser, 
   getUserProfile,
-  updateUser
+  updateUser,
+  createOrGetCognitoUser
 } = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// 公开路由
-router.post('/register', registerUser);
-router.post('/login', loginUser);
+// 所有用户路由现在都需要AWS Cognito认证
+// 不再提供传统的/register和/login路由
+// 认证通过AWS Cognito UI在前端处理
 
-// 受保护路由 (需要认证)
+// 受保护路由 (需要AWS Cognito认证)
 router.get('/me', protect, getUserProfile);
 router.put('/:id', protect, updateUser);
 

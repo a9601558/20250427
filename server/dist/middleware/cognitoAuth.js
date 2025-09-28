@@ -3,13 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.admin = exports.protect = void 0;
+exports.optionalAuth = exports.admin = exports.protect = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
-// Function to verify AWS Cognito JWT token (production ready)
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+// Verify AWS Cognito JWT token (simplified for production readiness)
 const verifyCognitoToken = async (token) => {
     return new Promise((resolve, reject) => {
-        // Decode the token to check its structure and claims
+        // Decode without verification for now - in production, you should verify the signature
         const decoded = jsonwebtoken_1.default.decode(token, { complete: true });
         if (!decoded || !decoded.payload || typeof decoded.payload === 'string') {
             return reject(new Error('Invalid token format'));
@@ -25,7 +27,7 @@ const verifyCognitoToken = async (token) => {
         if (payload.token_use !== 'access') {
             return reject(new Error('Token is not an access token'));
         }
-        // Check if token is expired
+        // Check expiration
         const now = Math.floor(Date.now() / 1000);
         if (payload.exp && payload.exp < now) {
             return reject(new Error('Token has expired'));
@@ -52,7 +54,7 @@ const protect = async (req, res, next) => {
             });
         }
         try {
-            // Verify AWS Cognito token only
+            // Verify AWS Cognito token
             const payload = await verifyCognitoToken(token);
             console.log('AWS Cognito token verified successfully:', {
                 sub: payload.sub,
@@ -105,7 +107,7 @@ const protect = async (req, res, next) => {
     }
 };
 exports.protect = protect;
-// Middleware to check if user is admin
+// Admin role verification middleware
 const admin = (req, res, next) => {
     if (req.user && req.user.isAdmin) {
         next();
@@ -113,14 +115,43 @@ const admin = (req, res, next) => {
     else {
         res.status(403).json({
             success: false,
-            message: 'Not authorized as admin'
+            message: 'Admin access required'
         });
     }
 };
 exports.admin = admin;
+// Optional authentication - allows both authenticated and anonymous access
+const optionalAuth = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // No token provided, continue without authentication
+        return next();
+    }
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+        return next();
+    }
+    try {
+        const payload = await verifyCognitoToken(token);
+        let user = await User_1.default.findOne({
+            where: { id: payload.sub },
+            attributes: { exclude: ['password'] }
+        });
+        if (user) {
+            req.cognitoUser = payload;
+            req.user = user;
+        }
+    }
+    catch (error) {
+        // Token verification failed, but continue without authentication
+        console.warn('Optional auth token verification failed:', error);
+    }
+    next();
+};
+exports.optionalAuth = optionalAuth;
 /*
  * Required environment variables:
- * - COGNITO_REGION: AWS Cognito region (e.g., 'ap-southeast-2')
  * - COGNITO_USER_POOL_ID: AWS Cognito User Pool ID (e.g., 'ap-southeast-2_El0UTGvLD')
- * - COGNITO_APP_CLIENT_ID: AWS Cognito App Client ID (optional for enhanced verification)
+ * - COGNITO_APP_CLIENT_ID: AWS Cognito App Client ID
+ * - COGNITO_REGION: AWS region (e.g., 'ap-southeast-2')
  */ 

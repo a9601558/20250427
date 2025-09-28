@@ -19,10 +19,9 @@ export const API_ENDPOINTS = {
   QUESTION_COUNT: (questionSetId: string) => `${API_BASE_URL}/api/questions/count/${questionSetId}`,
   BATCH_UPLOAD_QUESTIONS: (questionSetId: string) => `${API_BASE_URL}/api/questions/batch-upload/${questionSetId}`,
   
-  // Users
+  // Users - 现在使用AWS Cognito认证，不再需要传统的login/register端点
   USERS: `${API_BASE_URL}/api/users`,
-  LOGIN: `${API_BASE_URL}/api/users/login`,
-  REGISTER: `${API_BASE_URL}/api/users/register`,
+  // LOGIN和REGISTER端点已移除 - 现在通过AWS Cognito UI处理
   
   // Other endpoints
   HOMEPAGE: `${API_BASE_URL}/api/homepage`,

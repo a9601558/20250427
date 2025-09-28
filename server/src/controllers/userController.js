@@ -1,171 +1,46 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
 /**
- * 用户注册
- * @route POST /users/register
- * @access Public
+ * AWS Cognito用户自动创建或获取
+ * 当Cognito用户首次访问时，在本地数据库创建用户记录
+ * @access Internal (called by authMiddleware)
  */
-exports.registerUser = async (req, res) => {
+exports.createOrGetCognitoUser = async (cognitoUser) => {
   try {
-    const { username, email, password } = req.body;
+    // 使用Cognito的sub作为用户ID
+    const userId = cognitoUser.sub;
+    const email = cognitoUser.email;
+    const username = cognitoUser.preferred_username || cognitoUser.email?.split('@')[0] || `user_${userId.substring(0, 8)}`;
 
-    // 验证请求数据
-    if (!username || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: '请提供用户名、邮箱和密码'
-      });
-    }
-
-    // 检查用户是否已存在
-    const userExists = await User.findOne({
-      where: {
-        [User.sequelize.Op.or]: [
-          { username },
-          { email }
-        ]
-      }
-    });
-
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: '用户名或邮箱已被注册'
-      });
-    }
-
-    // 密码哈希
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // 创建用户
-    const user = await User.create({
-      id: uuidv4(),
-      username,
-      email,
-      password: hashedPassword,
-      isAdmin: false,
-      progress: {},
-      purchases: [],
-      redeemCodes: []
-    });
-
-    // 创建JWT令牌
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '30d' }
-    );
-
-    // 返回用户信息和令牌(不包含密码)
-    const userWithoutPassword = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt
-    };
-
-    res.status(201).json({
-      success: true,
-      data: {
-        user: userWithoutPassword,
-        token
-      },
-      message: '用户注册成功'
-    });
+    // 查找或创建用户
+    let user = await User.findByPk(userId);
     
-  } catch (error) {
-    console.error('注册错误:', error);
-    res.status(500).json({
-      success: false,
-      message: '服务器错误',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-/**
- * 用户登录
- * @route POST /users/login
- * @access Public
- */
-exports.loginUser = async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    // 验证请求数据
-    if (!username || !password) {
-      return res.status(400).json({
-        success: false,
-        message: '请提供用户名和密码'
-      });
-    }
-
-    // 查找用户 - 支持用户名或邮箱登录
-    const user = await User.findOne({
-      where: {
-        [User.sequelize.Op.or]: [
-          { username },
-          { email: username }
-        ]
-      }
-    });
-
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: '用户名或密码不正确'
+      // 创建新用户，使用Cognito的sub作为ID
+      user = await User.create({
+        id: userId, // 使用Cognito sub作为主键
+        username,
+        email,
+        password: null, // Cognito用户不需要本地密码
+        isAdmin: false,
+        progress: {},
+        purchases: [],
+        redeemCodes: []
       });
+      
+      console.log(`Created new Cognito user: ${username} (${userId})`);
     }
 
-    // 验证密码
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: '用户名或密码不正确'
-      });
-    }
-
-    // 创建JWT令牌
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '30d' }
-    );
-
-    // 返回用户信息和令牌(不包含密码)
-    const userWithoutPassword = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt
-    };
-
-    res.status(200).json({
-      success: true,
-      data: {
-        user: userWithoutPassword,
-        token
-      },
-      message: '登录成功'
-    });
-    
+    return user;
   } catch (error) {
-    console.error('登录错误:', error);
-    res.status(500).json({
-      success: false,
-      message: '服务器错误',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error('Cognito用户创建/获取错误:', error);
+    throw error;
   }
 };
+
+// 传统登录已移除 - 现在使用AWS Cognito认证
+// 登录流程：前端Cognito UI -> AWS Cognito -> JWT token -> authMiddleware验证
 
 /**
  * 获取当前用户信息

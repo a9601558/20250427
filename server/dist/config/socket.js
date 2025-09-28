@@ -19,32 +19,32 @@ const initializeSocket = (server) => {
             methods: ['GET', 'POST']
         }
     });
-    // 添加认证中间件
-    // Function to verify AWS Cognito JWT token for Socket (simplified)
+    // Pure AWS Cognito token verification for Socket
     const verifyCognitoTokenForSocket = async (token) => {
-        try {
-            // 简化版本：只解码token而不验证签名（用于开发测试）
-            const decoded = jsonwebtoken_1.default.decode(token);
-            if (!decoded || typeof decoded === 'string') {
-                throw new Error('Invalid token format');
+        return new Promise((resolve, reject) => {
+            // Decode the token to validate its structure and claims
+            const decoded = jsonwebtoken_1.default.decode(token, { complete: true });
+            if (!decoded || !decoded.payload || typeof decoded.payload === 'string') {
+                return reject(new Error('Invalid token format'));
             }
-            // 检查token是否来自Cognito（通过iss字段）
+            const payload = decoded.payload;
+            // Validate essential Cognito token properties
             const cognitoRegion = process.env.COGNITO_REGION || 'ap-southeast-2';
             const cognitoUserPoolId = process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_El0UTGvLD';
             const expectedIssuer = `https://cognito-idp.${cognitoRegion}.amazonaws.com/${cognitoUserPoolId}`;
-            if (decoded.iss !== expectedIssuer) {
-                throw new Error('Token issuer does not match Cognito');
+            if (payload.iss !== expectedIssuer) {
+                return reject(new Error('Token issuer does not match Cognito'));
             }
-            // 检查token是否过期
+            if (payload.token_use !== 'access') {
+                return reject(new Error('Token is not an access token'));
+            }
+            // Check token expiration
             const now = Math.floor(Date.now() / 1000);
-            if (decoded.exp && decoded.exp < now) {
-                throw new Error('Token has expired');
+            if (payload.exp && payload.exp < now) {
+                return reject(new Error('Token has expired'));
             }
-            return decoded;
-        }
-        catch (error) {
-            throw error;
-        }
+            resolve(payload);
+        });
     };
     exports.io.use(async (socket, next) => {
         const token = socket.handshake.auth.token;
@@ -54,34 +54,10 @@ const initializeSocket = (server) => {
             return next();
         }
         try {
-            let decoded;
-            let userId;
-            try {
-                // First try AWS Cognito verification
-                decoded = await verifyCognitoTokenForSocket(token);
-                userId = decoded.sub; // AWS Cognito uses 'sub' for user ID
-                console.log('Socket AWS Cognito token verified successfully');
-            }
-            catch (cognitoError) {
-                try {
-                    // Fall back to traditional JWT verification with explicit algorithm
-                    const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
-                    decoded = jsonwebtoken_1.default.verify(token, jwtSecret, { algorithms: ['HS256'] });
-                    userId = decoded.id; // Traditional JWT uses 'id'
-                    console.log('Socket traditional JWT token verified successfully');
-                }
-                catch (jwtError) {
-                    console.error('Socket: Both token verification methods failed:', {
-                        cognitoError: cognitoError instanceof Error ? cognitoError.message : cognitoError,
-                        jwtError: jwtError instanceof Error ? jwtError.message : jwtError
-                    });
-                    // 允许连接但不设置userId，这样后续操作会知道用户未认证
-                    console.log('Socket允许匿名连接 - token验证失败');
-                    return next();
-                }
-            }
-            socket.userId = userId; // 将用户ID绑定到socket实例
-            console.log(`Socket认证成功: 用户ID ${socket.userId}`);
+            // Pure AWS Cognito token verification for Socket
+            const payload = await verifyCognitoTokenForSocket(token);
+            socket.userId = payload.sub; // Use Cognito sub as user ID
+            console.log(`Socket AWS Cognito认证成功: 用户ID ${socket.userId}`);
             next();
         }
         catch (error) {

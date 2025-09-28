@@ -85,34 +85,14 @@ const handleResponse = <T>(response: any): ApiResponse<T> => {
 };
 
 // 用户API服务
+// 注意：登录和注册现在通过AWS Cognito UI处理，不再需要API调用
 export const userService = {
-  // 用户登录
-  async login(username: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
-    try {
-      const response = await api.post('/users/login', { username, password });
-      return handleResponse<{ user: User; token: string }>(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
-    }
-  },
-
-  // 用户注册
-  async register(userData: Partial<User>): Promise<ApiResponse<{ user: User; token: string }>> {
-    try {
-      const response = await api.post('/users/register', userData);
-      return handleResponse<{ user: User; token: string }>(response);
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message,
-        error: error.error
-      };
-    }
-  },
+  // 传统的login和register方法已移除
+  // 现在使用AWS Cognito进行身份验证：
+  // 1. 用户通过Cognito UI登录/注册
+  // 2. Cognito返回JWT token
+  // 3. 前端在API请求中包含token
+  // 4. 后端通过authMiddleware验证Cognito token
 
   // 获取当前用户信息
   async getCurrentUser(): Promise<ApiResponse<User>> {
