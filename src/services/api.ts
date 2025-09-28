@@ -94,10 +94,10 @@ export const userService = {
   // 3. 前端在API请求中包含token
   // 4. 后端通过authMiddleware验证Cognito token
 
-  // 获取当前用户信息
+  // 获取当前用户信息 (使用AWS Cognito认证)
   async getCurrentUser(): Promise<ApiResponse<User>> {
     try {
-      const response = await api.get('/users/profile');
+      const response = await api.get('/users/me');
       return handleResponse<User>(response);
     } catch (error: any) {
       return {
