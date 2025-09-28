@@ -67,17 +67,22 @@ const protect = async (req, res, next) => {
             // If user doesn't exist, create new user from Cognito data
             if (!user) {
                 console.log('Creating new user from Cognito token');
+                // Prepare user data with fallback values for required fields
+                const username = payload.username || payload.preferred_username || `user_${payload.sub.substring(0, 8)}`;
+                const email = payload.email || `${username}_${payload.sub.substring(0, 8)}@cognito.local`;
+                const password = `cognito_${payload.sub}_dummy_password`; // Dummy password for Cognito users
                 user = await User_1.default.create({
                     id: payload.sub,
-                    username: payload.username || payload.preferred_username || payload.email || `user_${payload.sub.substring(0, 8)}`,
-                    email: payload.email || '',
-                    password: '', // AWS Cognito users don't need local passwords
+                    username: username,
+                    email: email,
+                    password: password, // Dummy password - authentication is handled by Cognito
                     isAdmin: false,
                     role: 'user',
                     verified: true, // Assume Cognito users are verified
                     createdAt: new Date(),
                     lastLoginAt: new Date()
                 });
+                console.log(`Created Cognito user: ${username} (${email})`);
             }
             else {
                 // Update last login time
