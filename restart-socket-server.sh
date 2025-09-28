@@ -26,13 +26,13 @@ fi
 if command -v pm2 &> /dev/null; then
     echo "使用PM2重启服务..."
     
-    # 检查是否已存在exam7-server应用
-    if pm2 list | grep -q "exam7-server"; then
+    # 检查是否已存在MonTopi-server应用
+    if pm2 list | grep -q "MonTopi-server"; then
         # 重启现有应用
-        pm2 restart exam7-server
+        pm2 restart MonTopi-server
     else
         # 首次启动
-        pm2 start dist/index.js --name "exam7-server" --watch --max-memory-restart 500M
+        pm2 start dist/index.js --name "MonTopi-server" --watch --max-memory-restart 500M
     fi
 else
     echo -e "${RED}PM2未安装，使用node直接启动...${NC}"
@@ -71,7 +71,7 @@ echo -e "${YELLOW}检查服务状态...${NC}"
 # 检查Node.js服务
 if command -v pm2 &> /dev/null; then
     echo "PM2状态:"
-    pm2 status exam7-server
+    pm2 status MonTopi-server
     echo ""
 else
     echo "Node.js进程:"
@@ -90,10 +90,10 @@ else
 fi
 
 echo -e "\n${GREEN}完成!${NC} 您现在可以测试Socket.IO连接:"
-echo "1. 在浏览器中打开: http://exam7.jp/socket-test-updated.html"
+echo "1. 在浏览器中打开: http://MonTopi.jp/socket-test-updated.html"
 echo "2. 或使用验证脚本: node socket-io-debug-test.js"
 
 echo -e "\n${BLUE}如果仍有问题，请检查日志:${NC}"
-echo "1. PM2日志: pm2 logs exam7-server"
-echo "2. Nginx错误日志: tail -f /www/wwwlogs/exam7.jp.error.log"
+echo "1. PM2日志: pm2 logs MonTopi-server"
+echo "2. Nginx错误日志: tail -f /www/wwwlogs/MonTopi.jp.error.log"
 echo "3. 服务器启动日志: cat server.log" 

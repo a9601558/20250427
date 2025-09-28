@@ -28,7 +28,7 @@ console.log('4. 添加放行端口5000\n');
 console.log(`${colors.yellow}${colors.bold}步骤 2: 在宝塔面板添加网站${colors.reset}`);
 console.log('1. 在宝塔面板中，点击"网站"');
 console.log('2. 点击"添加站点"');
-console.log('3. 域名输入: exam7.jp');
+console.log('3. 域名输入: MonTopi.jp');
 console.log('4. 选择PHP版本为: 纯静态');
 console.log('5. 完成站点创建\n');
 
@@ -77,7 +77,7 @@ console.log(`${colors.yellow}${colors.bold}步骤 6: 启动Node.js应用${colors
 console.log('1. 进入项目目录');
 console.log('2. 安装PM2: npm install -g pm2');
 console.log('3. 使用PM2启动应用:');
-console.log('   pm2 start dist/server.js --name "exam7-server"');
+console.log('   pm2 start dist/server.js --name "MonTopi-server"');
 console.log('4. 或者使用我们的启动脚本:');
 console.log('   node server/start-server.js\n');
 
@@ -85,12 +85,12 @@ console.log(`${colors.yellow}${colors.bold}步骤 7: 验证连接${colors.reset}
 console.log('1. 使用验证脚本测试连接:');
 console.log('   node validate-socket.js');
 console.log('2. 或者访问测试页面:');
-console.log('   http://exam7.jp/socket-test-updated.html\n');
+console.log('   http://MonTopi.jp/socket-test-updated.html\n');
 
 console.log(`${colors.green}${colors.bold}完成以上步骤后，WebSocket应该能够正常连接。${colors.reset}`);
 console.log('如果仍然遇到问题，请检查:');
 console.log('1. 服务器日志查找错误: pm2 logs');
-console.log('2. Nginx错误日志: tail -f /www/wwwlogs/exam7.jp.error.log');
+console.log('2. Nginx错误日志: tail -f /www/wwwlogs/MonTopi.jp.error.log');
 console.log('3. 浏览器开发者工具的网络面板，查看WebSocket连接状态\n');
 
 console.log(`${colors.blue}祝您配置成功！${colors.reset}`); 

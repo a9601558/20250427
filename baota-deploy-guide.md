@@ -31,15 +31,15 @@ server.listen(5000, '0.0.0.0', () => {...});
 
 ```bash
 # 进入网站目录
-cd /www/wwwroot/exam7.jp   # 替换为你的网站目录
+cd /www/wwwroot/MonTopi.jp   # 替换为你的网站目录
 
 # 编译TypeScript项目(如果使用TS)
 npx tsc
 
 # 使用PM2启动或重启Node.js应用
 pm2 list                    # 查看当前运行的应用
-pm2 restart exam7-server    # 重启应用
-pm2 logs exam7-server       # 查看应用日志
+pm2 restart MonTopi-server    # 重启应用
+pm2 logs MonTopi-server       # 查看应用日志
 
 # 如果没有使用PM2，可以使用以下命令启动
 node dist/index.js > server.log 2>&1 &
@@ -51,7 +51,7 @@ nginx -t
 systemctl restart nginx   # 或 /etc/init.d/nginx restart
 
 # 检查日志
-tail -f /www/wwwlogs/exam7.jp.error.log  # Nginx错误日志
+tail -f /www/wwwlogs/MonTopi.jp.error.log  # Nginx错误日志
 cat server.log                           # Node.js应用日志
 ```
 
@@ -88,13 +88,13 @@ location /socket.io/ {
    - 使用宝塔面板的文件管理功能上传
    - 或者使用以下命令创建文件：
    ```bash
-   nano /www/wwwroot/exam7.jp/socket-test-baota.html
+   nano /www/wwwroot/MonTopi.jp/socket-test-baota.html
    # 粘贴HTML内容后保存退出
    ```
 
 2. 在浏览器中访问测试页面：
    ```
-   http://exam7.jp/socket-test-baota.html
+   http://MonTopi.jp/socket-test-baota.html
    ```
 
 3. 点击"连接"按钮测试连接
@@ -107,12 +107,12 @@ location /socket.io/ {
 
 1. **服务器日志**：
    ```bash
-   pm2 logs exam7-server
+   pm2 logs MonTopi-server
    ```
 
 2. **Nginx错误日志**：
    ```bash
-   tail -f /www/wwwlogs/exam7.jp.error.log
+   tail -f /www/wwwlogs/MonTopi.jp.error.log
    ```
 
 3. **端口是否开放**：

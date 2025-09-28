@@ -38,12 +38,12 @@ export interface HomeContentDataDB {
  * 默认首页内容
  */
 export const defaultHomeContent: HomeContentData = {
-  welcomeTitle: "Exam7 模拟练习",
-  welcomeDescription: "选择以下任一题库开始练习，测试您的知识水平",
-  featuredCategories: ["Aws", "sap", "oracle"],
-  announcements: "欢迎使用在线题库系统，新增题库将定期更新，请持续关注！",
-  footerText: "© 2023 Exam7 在线题库系统 保留所有权利",
-  bannerImage: "https://via.placeholder.com/1500x500/4F46E5/FFFFFF?text=考试练习系统",
+  welcomeTitle: "MonTopi 模擬練習",
+  welcomeDescription: "以下のいずれかの問題集を選択して練習を開始し、あなたの知識レベルをテストしてください",
+  featuredCategories: ["AWS", "SAP", "Oracle"],
+  announcements: "オンライン問題集システムへようこそ！新しい問題集は定期的に更新されますので、継続的にご注目ください！",
+  footerText: "© 2025 MonTopi オンライン問題集システム 全権利保留",
+  bannerImage: "https://via.placeholder.com/1500x500/4F46E5/FFFFFF?text=試験練習システム",
   theme: 'light'
 };
 

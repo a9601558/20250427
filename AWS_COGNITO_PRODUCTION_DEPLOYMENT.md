@@ -67,7 +67,7 @@ COGNITO_USER_POOL_ID=ap-southeast-2_El0UTGvLD
 COGNITO_APP_CLIENT_ID=<your-cognito-app-client-id>
 
 # 其他现有配置保持不变
-CLIENT_URL=https://exam7.jp
+CLIENT_URL=https://MonTopi.jp
 ```
 
 ### 步骤2: 数据库用户迁移（可选）

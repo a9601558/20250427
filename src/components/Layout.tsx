@@ -146,7 +146,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     } catch (error) {
       console.error('[Layout] Failed to fetch footer text:', error);
       // Set default footer text as fallback
-      setFooterText(`© ${new Date().getFullYear()} Exam7 Online Quiz System. All Rights Reserved.`);
+      setFooterText(`© ${new Date().getFullYear()} MonTopi Online Quiz System. All Rights Reserved.`);
     }
   }, [footerText]);
   
@@ -191,7 +191,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <img 
               src={montopiLogo} 
               alt="MonTopi" 
-              className="h-10 w-auto group-hover:scale-105 transition-transform"
+              className="h-12 sm:h-14 md:h-16 lg:h-18 w-auto group-hover:scale-105 transition-transform duration-200 max-w-none"
             />
           </Link>
           
@@ -238,7 +238,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center">
             <div className="flex items-center mb-4">
-              <div className="text-xl font-bold text-gradient">Exam7</div>
+              <div className="text-xl font-bold text-gradient">MonTopi</div>
               <div className="ml-2 bg-blue-500 w-1.5 h-1.5 rounded-full animate-pulse"></div>
             </div>
             

@@ -19,9 +19,9 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
     );
   }
 
-  // 用户未登录或不是管理员，重定向到登录页
+  // 用户未登录或不是管理员，重定向到首页
   if (!user || !user.isAdmin) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // 用户是管理员，显示子组件

@@ -6,11 +6,11 @@ exports.defaultHomepageSettings = void 0;
  * This eliminates duplication and inconsistencies across different files
  */
 exports.defaultHomepageSettings = {
-    welcome_title: 'Exam7 模拟练习',
-    welcome_description: '选择以下任一题库开始练习，测试您的知识水平',
-    featured_categories: ['网络协议', '编程语言', '计算机基础'],
-    announcements: '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！',
-    footer_text: '© 2023 Exam7 在线题库系统 保留所有权利',
+    welcome_title: 'MonTopi 模擬練習',
+    welcome_description: '以下のいずれかの問題集を選択して練習を開始し、あなたの知識レベルをテストしてください',
+    featured_categories: ['ネットワークプロトコル', 'プログラミング言語', 'コンピュータ基礎'],
+    announcements: 'オンライン問題集システムへようこそ！新しい問題集は定期的に更新されますので、継続的にご注目ください！',
+    footer_text: '© 2025 MonTopi オンライン問題集システム 全権利保留',
     banner_image: '/images/banner.jpg',
     theme: 'light'
 };

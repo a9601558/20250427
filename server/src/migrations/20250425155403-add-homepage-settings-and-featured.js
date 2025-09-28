@@ -1,11 +1,11 @@
 'use strict';
 
 // Standardized default values to match defaultHomepageSettings
-const DEFAULT_WELCOME_TITLE = 'Exam7 模拟练习';
-const DEFAULT_WELCOME_DESCRIPTION = '选择以下任一题库开始练习，测试您的知识水平';
-const DEFAULT_FEATURED_CATEGORIES = ['网络协议', '编程语言', '计算机基础'];
-const DEFAULT_ANNOUNCEMENTS = '欢迎使用在线题库系统，新增题库将定期更新，请持续关注！';
-const DEFAULT_FOOTER_TEXT = '© 2023 Exam7 在线题库系统 保留所有权利';
+const DEFAULT_WELCOME_TITLE = 'MonTopi 模擬練習';
+const DEFAULT_WELCOME_DESCRIPTION = '以下のいずれかの問題集を選択して練習を開始し、あなたの知識レベルをテストしてください';
+const DEFAULT_FEATURED_CATEGORIES = ['ネットワークプロトコル', 'プログラミング言語', 'コンピュータ基礎'];
+const DEFAULT_ANNOUNCEMENTS = 'オンライン問題集システムへようこそ！新しい問題集は定期的に更新されますので、継続的にご注目ください！';
+const DEFAULT_FOOTER_TEXT = '© 2025 MonTopi オンライン問題集システム 全権利保留';
 const DEFAULT_BANNER_IMAGE = '/images/banner.jpg';
 const DEFAULT_THEME = 'light';
 

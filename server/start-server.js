@@ -38,7 +38,7 @@ exec('pm2 --version', (error) => {
 
 // 使用PM2启动应用
 function startApp() {
-  const appName = 'exam7-server';
+  const appName = 'MonTopi-server';
   const scriptPath = path.join(distDir, 'server.js');
 
   // 停止已存在的实例

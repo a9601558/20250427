@@ -262,7 +262,7 @@ const AdminQuestionSetInfo: React.FC = () => {
       formData.append('questionSetId', questionSetId);
       
       // 使用正确的API基础URL
-      // 解决因绝对URL https://exam7.jp 导致的404错误
+      // 解决因绝对URL https://MonTopi.jp 导致的404错误
       const apiUrl = process.env.NODE_ENV === 'production' 
         ? '/api/admin/upload/card-image'  // 生产环境使用相对路径
         : '/api/admin/upload/card-image'; // 开发环境也使用相对路径

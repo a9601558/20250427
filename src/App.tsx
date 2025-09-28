@@ -79,6 +79,13 @@ const App: React.FC = () => {
   // 应用启动时尝试自动登录
   useEffect(() => {
     const tryAutoLogin = async () => {
+      // 检查是否有明确的登出标记
+      const hasLoggedOut = sessionStorage.getItem('user_logged_out');
+      if (hasLoggedOut) {
+        console.log('[App] 用户已明确登出，跳过自动登录');
+        return;
+      }
+      
       // 只有在没有token的情况下才尝试自动登录
       if (!localStorage.getItem('token')) {
         const success = await performAutoLogin();

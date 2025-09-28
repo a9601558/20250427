@@ -374,6 +374,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // 移除身份验证令牌
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('authState');
     
     // 重置用户状态
     setUser(null);
@@ -395,21 +397,43 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         key === 'token' || 
         key === 'refreshToken' || 
         key === 'authState' ||
+        key.startsWith('aws-amplify') ||
+        key.includes('CognitoIdentityServiceProvider') ||
         (key.includes('_token') && !key.includes(`_${currentUserId}_`)) ||
         key.includes('_auth_') ||
-        key.includes('_session_')
+        key.includes('_session_') ||
+        key.includes('_cognito_')
       )) {
         keysToRemove.push(key);
       }
     }
     
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+    keysToRemove.forEach(key => {
+      console.log('[UserContext] 清理本地存储key:', key);
+      localStorage.removeItem(key);
+    });
     
-    // 只清除会话存储中的数据
-    sessionStorage.clear();
+    // 清除会话存储中的数据，但先设置登出标记
+    sessionStorage.setItem('user_logged_out', 'true');
+    
+    // 清除自动登录设置
+    localStorage.removeItem('auto_login_user');
+    localStorage.removeItem('activeUserId');
+    
+    // 调用Cognito登出（如果使用Cognito）
+    if (cognitoAuthService) {
+      cognitoAuthService.cognitoLogout().catch(error => {
+        console.warn('[UserContext] Cognito登出失败:', error);
+      });
+    }
     
     // 通知用户变更
     notifyUserChange(null);
+    
+    // 强制刷新页面以确保完全清理状态
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 100);
   };
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -425,6 +449,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // 清除之前的错误
         setError(null);
+        
+        // 清除登出标记，允许后续自动登录
+        sessionStorage.removeItem('user_logged_out');
         
         // 触发用户变更事件
         const newUserChangeEvent = { userId: cognitoResult.user.id, timestamp: Date.now() };

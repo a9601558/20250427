@@ -45,9 +45,9 @@ api.interceptors.response.use(
       
       // 处理特定状态码
       if (status === 401) {
-        // 未授权，清除token并跳转到登录页
+        // 未授权，清除token并跳转到首页
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        window.location.href = '/';
       }
       
       return Promise.reject({
