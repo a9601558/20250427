@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useUser } from '../contexts/UserContext';
-import LoginModal from './LoginModal';
+import AuthModal from './AuthModal';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -44,7 +44,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
             </button>
           </div>
         </div>
-        <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+        <AuthModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} useCognito={true} />
       </>
     );
   }

@@ -5,12 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const stripe_1 = require("../services/stripe");
-const auth_1 = require("../middlewares/auth");
+const authMiddleware_1 = require("../middleware/authMiddleware");
 const models_1 = __importDefault(require("../models"));
 const uuid_1 = require("uuid");
 const router = express_1.default.Router();
 // 创建支付Intent
-router.post('/create-intent', auth_1.authenticateJwt, async (req, res) => {
+router.post('/create-intent', authMiddleware_1.protect, async (req, res) => {
     try {
         const { amount, currency, metadata } = req.body;
         if (!amount || !currency) {
@@ -71,7 +71,7 @@ router.post('/create-intent', auth_1.authenticateJwt, async (req, res) => {
     }
 });
 // 验证支付状态
-router.get('/verify/:paymentIntentId', auth_1.authenticateJwt, async (req, res) => {
+router.get('/verify/:paymentIntentId', authMiddleware_1.protect, async (req, res) => {
     try {
         const { paymentIntentId } = req.params;
         if (!paymentIntentId) {
@@ -200,7 +200,7 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
     }
 });
 // 完成支付处理
-router.post('/complete-purchase', auth_1.authenticateJwt, async (req, res) => {
+router.post('/complete-purchase', authMiddleware_1.protect, async (req, res) => {
     try {
         const { questionSetId, paymentIntentId, amount } = req.body;
         if (!questionSetId || !paymentIntentId) {

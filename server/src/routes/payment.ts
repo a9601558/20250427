@@ -1,6 +1,6 @@
 import express from 'express';
 import { stripePaymentIntent, verifyPaymentIntent, constructEvent } from '../services/stripe';
-import { authenticateJwt } from '../middlewares/auth';
+import { protect } from '../middleware/authMiddleware';
 import db from '../models';
 import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
@@ -8,7 +8,7 @@ import Stripe from 'stripe';
 const router = express.Router();
 
 // 创建支付Intent
-router.post('/create-intent', authenticateJwt, async (req, res) => {
+router.post('/create-intent', protect, async (req, res) => {
   try {
     const { amount, currency, metadata } = req.body;
     
@@ -78,7 +78,7 @@ router.post('/create-intent', authenticateJwt, async (req, res) => {
 });
 
 // 验证支付状态
-router.get('/verify/:paymentIntentId', authenticateJwt, async (req, res) => {
+router.get('/verify/:paymentIntentId', protect, async (req, res) => {
   try {
     const { paymentIntentId } = req.params;
     
@@ -223,7 +223,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 });
 
 // 完成支付处理
-router.post('/complete-purchase', authenticateJwt, async (req, res) => {
+router.post('/complete-purchase', protect, async (req, res) => {
   try {
     const { questionSetId, paymentIntentId, amount } = req.body;
     

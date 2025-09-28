@@ -1,24 +1,23 @@
 import express from 'express';
 import { 
-  registerUser, 
-  loginUser, 
   getUserProfile, 
   updateUserProfile,
   getUsers,
   deleteUser,
   getUserById,
-  updateUser
+  updateUser,
+  createOrGetCognitoUser
 } from '../controllers/userController';
 import { protect, admin } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// Public routes
-router.post('/register', registerUser);
-router.post('/login', loginUser);
+// 所有用户路由现在都需要AWS Cognito认证
+// 不再提供传统的/register和/login路由 (TypeScript版本)
+// 认证通过AWS Cognito UI在前端处理
 
-// Protected routes (requires authentication)
-router.get('/profile', protect, getUserProfile);
+// Protected routes (requires AWS Cognito authentication)
+router.get('/me', protect, getUserProfile);  // 改为/me以匹配前端API调用
 router.put('/profile', protect, updateUserProfile);
 
 // Admin routes (requires admin role)

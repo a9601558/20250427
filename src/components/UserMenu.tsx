@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import LoginModal from './LoginModal';
+import AuthModal from './AuthModal';
 import AccountSwitcher from './AccountSwitcher';
 
 const UserMenu: React.FC = () => {
@@ -72,9 +72,10 @@ const UserMenu: React.FC = () => {
           登录
         </button>
         
-        <LoginModal 
+        <AuthModal 
           isOpen={isLoginModalOpen} 
-          onClose={() => setIsLoginModalOpen(false)} 
+          onClose={() => setIsLoginModalOpen(false)}
+          useCognito={true} 
         />
       </>
     );
