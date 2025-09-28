@@ -100,7 +100,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
   // 处理自动退出
   const handleAutoLogout = async () => {
     if (isAuthenticated) {
-      toast.warning('由于长时间未操作，您已被自动退出登录');
+      toast.warning('長時間操作がなく、自動的にログアウトされました');
       await cognitoLogout();
     }
   };
@@ -217,7 +217,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
         // 重置自动退出计时器
         localStorage.setItem('lastActivity', Date.now().toString());
         
-        toast.success('登录成功！');
+        toast.success('ログイン成功！');
         return true;
       }
       
@@ -357,7 +357,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       // 触发全局登出事件
       window.dispatchEvent(new CustomEvent('userLoggedOut'));
       
-      toast.success('已成功退出登录');
+      toast.success('ログアウト成功');
       
       // 强制刷新页面确保完全清除状态
       setTimeout(() => {

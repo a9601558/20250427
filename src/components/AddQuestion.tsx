@@ -74,31 +74,31 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
     try {
       // 验证题目文本
       if (questionText.trim() === '') {
-        setErrorMessage('请输入题目内容');
+        setErrorMessage('問題内容を入力してください');
         return;
       }
       
       // 验证选项 - 确保所有选项都有文本内容
       const validOptions = options.filter(option => option.text.trim() !== '');
       if (validOptions.length < 2) {
-        setErrorMessage('请至少添加两个有效选项');
+        setErrorMessage('有効な選択肢を少なくとも2つ追加してください');
         return;
       }
       
       // 验证答案
       if (questionType === 'single' && !selectedOption) {
-        setErrorMessage('请选择正确答案');
+        setErrorMessage('正しい答えを選択してください');
         return;
       }
       
       if (questionType === 'multiple' && selectedOptions.length === 0) {
-        setErrorMessage('请至少选择一个正确答案');
+        setErrorMessage('正しい答えを少なくとも1つ選択してください');
         return;
       }
       
       // 验证解析
       if (explanation.trim() === '') {
-        setErrorMessage('请输入解析');
+        setErrorMessage('解説を入力してください');
         return;
       }
       
@@ -124,13 +124,13 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
       setErrorMessage('');
     } catch (error) {
       console.error('添加题目时出错:', error);
-      setErrorMessage('添加题目时发生错误，请检查表单内容或刷新页面重试');
+      setErrorMessage('問題の追加中にエラーが発生しました。フォームの内容を確認してから再試行してください');
     }
   };
 
   return (
     <div className="bg-gray-50 p-6 rounded">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">添加题目</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">問題を追加</h3>
       
       {errorMessage && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -150,7 +150,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
                 onChange={() => setQuestionType('single')}
                 className="form-radio"
               />
-              <span className="ml-2">单选题</span>
+              <span className="ml-2">単一選択</span>
             </label>
             <label className="inline-flex items-center">
               <input
@@ -159,20 +159,20 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
                 onChange={() => setQuestionType('multiple')}
                 className="form-radio"
               />
-              <span className="ml-2">多选题</span>
+              <span className="ml-2">複数選択</span>
             </label>
           </div>
         </div>
         
         {/* 题目内容 */}
         <div className="mb-4">
-          <label className="block text-gray-700 mb-2">题目内容 *</label>
+          <label className="block text-gray-700 mb-2">問題内容 *</label>
           <textarea
             value={questionText}
             onChange={(e) => setQuestionText(e.target.value)}
             className="w-full border border-gray-300 rounded px-3 py-2"
             rows={3}
-            placeholder="输入题目内容"
+            placeholder="問題内容を入力してください"
             required
           />
         </div>
@@ -217,7 +217,7 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
                   value={option.text}
                   onChange={(e) => handleOptionTextChange(option.id, e.target.value)}
                   className="flex-1 border border-gray-300 rounded px-3 py-2"
-                  placeholder={`选项 ${option.id}`}
+                  placeholder={`選択肢 ${option.id}`}
                 />
                 <button
                   type="button"
@@ -225,27 +225,27 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
                   className="ml-2 text-red-600 hover:text-red-800"
                   disabled={options.length <= 2}
                 >
-                  删除
+                  削除
                 </button>
               </div>
             ))}
           </div>
           <p className="text-sm text-gray-500 mt-2">
             {questionType === 'single' 
-              ? '选择单个正确答案' 
-              : '选择一个或多个正确答案'}
+              ? '単一の正しい答えを選択' 
+              : '一つまたは複数の正しい答えを選択'}
           </p>
         </div>
         
         {/* 解析 */}
         <div className="mb-4">
-          <label className="block text-gray-700 mb-2">解析 *</label>
+          <label className="block text-gray-700 mb-2">解説 *</label>
           <textarea
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
             className="w-full border border-gray-300 rounded px-3 py-2"
             rows={3}
-            placeholder="输入答案解析"
+            placeholder="答えの解説を入力してください"
             required
           />
         </div>
@@ -257,14 +257,14 @@ const AddQuestion: React.FC<AddQuestionProps> = ({ onAddQuestion, onCancel, ques
             onClick={onCancel}
             className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
           >
-            取消
+            キャンセル
           </button>
           <button
             type="submit"
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             disabled={isAdding}
           >
-            {isAdding ? '添加中...' : '添加题目'}
+            {isAdding ? '追加中...' : '問題を追加'}
           </button>
         </div>
       </form>

@@ -35,12 +35,12 @@ const AdminPage: React.FC = () => {
       navigate('/');
     } else if (!isAdmin()) {
       navigate('/');
-      alert('您没有管理员权限');
+      alert('管理者権限がありません');
     }
   }, [user, isAdmin, navigate]);
   
   if (!user || !isAdmin()) {
-    return <div className="min-h-screen bg-gray-100 flex items-center justify-center">检查权限中...</div>;
+    return <div className="min-h-screen bg-gray-100 flex items-center justify-center">権限を確認中...</div>;
   }
   
   return (
@@ -50,7 +50,7 @@ const AdminPage: React.FC = () => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-xl font-bold text-gray-900">MonTopi 管理后台</h1>
+                <h1 className="text-xl font-bold text-gray-900">MonTopi 管理バックエンド</h1>
               </div>
             </div>
             <div className="flex items-center">

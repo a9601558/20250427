@@ -155,7 +155,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
           onChange={(e) => setQuestionText(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={3}
-          placeholder="题目内容"
+          placeholder="問題内容"
           required
         />
       </div>
@@ -169,7 +169,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
           onChange={(e) => setExplanation(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={2}
-          placeholder="题目解析（可选）"
+          placeholder="問題解説（オプション）"
         />
       </div>
       
@@ -186,8 +186,8 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
           }}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="single">单选题</option>
-          <option value="multiple">多选题</option>
+          <option value="single">単一選択問題</option>
+          <option value="multiple">複数選択問題</option>
         </select>
       </div>
       
@@ -222,7 +222,7 @@ const EditQuestion: React.FC<EditQuestionProps> = ({ question, onSave, onCancel 
                 value={option.text}
                 onChange={(e) => handleOptionTextChange(option.id, e.target.value)}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={`选项 ${option.optionIndex}`}
+                placeholder={`選択肢 ${option.optionIndex}`}
                 required
               />
               <button

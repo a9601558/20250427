@@ -6,7 +6,7 @@ import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
-import montopiLogo from '../assets/montopi-logo.svg';
+import montopiLogo from '../assets/montopi-new-logo.svg';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -71,6 +71,15 @@ const layoutStyles = `
     50% { text-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(139, 92, 246, 0.3); }
   }
   
+  .montopi-logo {
+    filter: drop-shadow(0 2px 8px rgba(255, 140, 66, 0.2));
+    transition: all 0.3s ease;
+  }
+  
+  .montopi-logo:hover {
+    filter: drop-shadow(0 4px 12px rgba(255, 140, 66, 0.3));
+  }
+  
   .montopi-text {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     font-weight: 700;
@@ -78,11 +87,11 @@ const layoutStyles = `
     position: relative;
     background: linear-gradient(
       90deg,
-      #3b82f6 0%,
-      #6366f1 25%,
-      #8b5cf6 50%,
-      #a855f7 75%,
-      #3b82f6 100%
+      #FF6B47 0%,
+      #FF8C42 25%,
+      #FFB366 50%,
+      #FF6B47 75%,
+      #E53E3E 100%
     );
     background-size: 200% auto;
     -webkit-background-clip: text;
@@ -235,14 +244,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <style dangerouslySetInnerHTML={{ __html: layoutStyles }} />
       
       <header className={`sticky top-0 z-30 transition-all duration-300 ${scrolled ? 'shadow-md glass-header' : 'bg-white/90'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <Link to="/" className="flex items-center group">
             <img 
               src={montopiLogo} 
               alt="MonTopi" 
-              className="h-12 sm:h-14 md:h-16 lg:h-18 w-auto group-hover:scale-105 transition-transform duration-200 max-w-none"
+              className="h-14 sm:h-16 md:h-18 lg:h-20 w-auto montopi-logo group-hover:scale-105 transition-all duration-300 max-w-none"
             />
-            <span className="ml-3 text-2xl md:text-3xl montopi-text select-none">
+            <span className="ml-4 text-2xl md:text-3xl lg:text-4xl montopi-text select-none tracking-wide animate-float">
               MonTopi
             </span>
           </Link>
@@ -269,7 +278,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             ) : (
               <button
                 onClick={() => setIsLoginModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
                 ログイン/登録
               </button>
@@ -287,7 +296,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <footer className="relative bg-white py-8 border-t border-gray-200 mt-12">
         <div className="footer-wave"></div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto px-4">
           <div className="flex flex-col items-center">
             <div className="flex items-center mb-4">
               <div className="text-xl font-bold text-gradient">MonTopi</div>

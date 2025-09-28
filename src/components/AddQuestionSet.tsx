@@ -4,7 +4,21 @@ import { Question } from '../data/questions';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// 分类选项
+// 分类选项 - Japanese categories for display
+const CATEGORIES = [
+  'コンピューター基礎',
+  'プログラミング言語',
+  'ネットワークプロトコル',
+  'セキュリティ技術',
+  'データベース',
+  'オペレーティングシステム',
+  'ソフトウェア工学',
+  '人工知能',
+  'クラウドコンピューティング',
+  'その他'
+];
+
+// 分类选项 - Keep original for compatibility
 const categoryOptions = [
   '计算机基础',
   '编程语言',
@@ -90,7 +104,7 @@ const AddQuestionSet: React.FC = () => {
     } catch (error) {
       console.error('服务器连接失败:', error);
       setServerStatus('offline');
-      setErrorMessage('无法连接到服务器，请确保后端服务正在运行');
+      setErrorMessage('サーバーに接続できません。バックエンドサービスが実行中であることを確認してください');
       return false;
     }
   };
@@ -105,7 +119,7 @@ const AddQuestionSet: React.FC = () => {
     e.preventDefault();
     
     if (title.trim() === '') {
-      setErrorMessage('请填写题库标题');
+      setErrorMessage('問題集のタイトルを入力してください');
       return;
     }
     
@@ -164,10 +178,10 @@ const AddQuestionSet: React.FC = () => {
         setIsFeatured(false);
         setFeaturedCategory('');
         setQuestions([]);
-        setSuccessMessage('题库创建成功！');
+        setSuccessMessage('問題集が正常に作成されました！');
         navigate('/');
       } else {
-        setErrorMessage(response.data?.message || '创建失败，请重试');
+        setErrorMessage(response.data?.message || '作成に失敗しました。再試行してください');
       }
     } catch (error: any) {
       console.error('创建题库错误:', error);

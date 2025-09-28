@@ -276,7 +276,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-md">
           <div className="flex items-center">
             <div>
-              <p className="font-bold">连接失败</p>
+              <p className="font-bold">接続失敗</p>
               <p className="text-sm">{lastError}</p>
             </div>
             <div className="flex ml-4">

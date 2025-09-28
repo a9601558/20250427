@@ -62,7 +62,7 @@ const customStyles = `
   }
   
   .apple-hero {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
     background-size: 200% 200%;
     animation: gradientShift 8s ease infinite;
   }
@@ -183,7 +183,7 @@ const customStyles = `
     position: absolute;
     top: -8px;
     right: -8px;
-    background: linear-gradient(45deg, #3b82f6, #2563eb);
+    background: linear-gradient(45deg, #3B82F6, #2563EB);
     color: white;
     width: 40px;
     height: 40px;
@@ -192,7 +192,7 @@ const customStyles = `
     align-items: center;
     justify-content: center;
     font-size: 18px;
-    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.5);
+    box-shadow: 0 2px 10px rgba(59, 130, 246, 0.5);
     z-index: 10;
     transform: rotate(15deg);
   }
@@ -386,7 +386,7 @@ const HomePage = () => {
   
   const socketDataRef = useRef<{[key: string]: {hasAccess: boolean, remainingDays: number | null, accessType?: string}}>({}); 
   // 修改bgClass的定义，确保不影响用户菜单的交互
-  const bgClass = "bg-gray-50 dark:bg-gray-900 py-0 relative"; // 移除min-h-screen和pt-20, 设置py-0完全移除上下间距
+  const bgClass = "bg-white dark:bg-gray-900 py-0 relative"; // 应用白色背景，符合极简设计
   
   // Add notification state variables
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
@@ -607,7 +607,7 @@ const HomePage = () => {
             <div className="flex items-center apple-text text-sm text-gray-600 space-x-4 mb-4">
               <div className="flex items-center">
                 <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
-                <span>{getQuestionCount()}题</span>
+                <span>{getQuestionCount()}問</span>
               </div>
               <div className="flex items-center">
                 <span className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span>
@@ -3469,92 +3469,98 @@ const HomePage = () => {
       )}
 
       {/* 首页主内容 */}
-      <div className="container mx-auto px-4 py-6">
-        {/* 自适应英雄区域 */}
-        <div className="bg-gradient-to-br from-slate-900 to-indigo-900 rounded-2xl p-6 mb-8 relative overflow-hidden shadow-xl">
-          {/* High-tech decorative elements */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-0 right-0 w-full h-full bg-grid-white/[0.2] bg-[length:30px_30px] transform -skew-y-12"></div>
-          </div>
-          
-          {/* Circuit patterns */}
-          <div className="absolute top-0 left-0 w-full h-full opacity-10">
-            <svg className="absolute left-0 top-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0,0 L100,0 L100,100 L0,100 Z" fill="none" stroke="white" strokeWidth="0.5"></path>
-              <path d="M0,50 L100,50" stroke="white" strokeWidth="0.5"></path>
-              <path d="M50,0 L50,100" stroke="white" strokeWidth="0.5"></path>
-              <circle cx="50" cy="50" r="40" fill="none" stroke="white" strokeWidth="0.5"></circle>
-              <circle cx="50" cy="50" r="20" fill="none" stroke="white" strokeWidth="0.5"></circle>
-              <path d="M0,0 L100,100" stroke="white" strokeWidth="0.5"></path>
-              <path d="M0,100 L100,0" stroke="white" strokeWidth="0.5"></path>
-            </svg>
-          </div>
-
-          {/* Floating particles */}
-          <div className="absolute h-full w-full">
-            <div className="absolute h-2 w-2 rounded-full bg-blue-400 animate-ping" style={{top: '20%', left: '10%', animationDuration: '3s'}}></div>
-            <div className="absolute h-2 w-2 rounded-full bg-indigo-400 animate-ping" style={{top: '70%', left: '20%', animationDuration: '4s'}}></div>
-            <div className="absolute h-2 w-2 rounded-full bg-cyan-400 animate-ping" style={{top: '30%', left: '80%', animationDuration: '5s'}}></div>
-            <div className="absolute h-3 w-3 rounded-full bg-purple-400 animate-ping" style={{top: '60%', left: '75%', animationDuration: '7s'}}></div>
-            <div className="absolute h-3 w-3 rounded-full bg-blue-400 animate-ping" style={{top: '40%', left: '30%', animationDuration: '6s'}}></div>
-          </div>
-
-          {/* Glowing orbs */}
-          <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-500 opacity-20 rounded-full blur-xl animate-pulse"></div>
-          <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-purple-500 opacity-20 rounded-full blur-xl animate-pulse" style={{animationDelay: '1s'}}></div>
-          <div className="absolute right-1/3 bottom-0 w-24 h-24 bg-cyan-500 opacity-15 rounded-full blur-lg animate-pulse" style={{animationDelay: '0.5s'}}></div>
-
-          {/* Digital scan line effect */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-900/10 to-transparent h-[200%] animate-scan"></div>
-          
-          {/* Content with tech-themed graphic */}
-          <div className="relative z-10 flex flex-col md:flex-row items-center">
-            <div className="w-full md:w-3/5 text-center md:text-left mb-8 md:mb-0">
-              <h1 className="text-2xl md:text-3xl font-bold text-white mb-4 tracking-wider">
-                {homeContent.welcomeTitle || "オンライン試験センターへようこそ"}
+      <div className="container mx-auto px-6 py-8">
+        {/* Hero区域 - 权威极简版 */}
+        <div className="bg-white rounded-xl p-12 mb-12 relative overflow-hidden shadow-sm border border-gray-100">
+          <div className="flex flex-col lg:flex-row items-center justify-between">
+            {/* 左侧内容 */}
+            <div className="w-full lg:w-3/5 text-center lg:text-left mb-12 lg:mb-0">
+              {/* 主标题 */}
+              <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+                最短で、合格へ。
               </h1>
-              <p className="text-blue-100 text-sm md:text-base mb-6">
-                {homeContent.welcomeDescription || "下記の問題集を選択して練習を開始し、専門スキルを向上させましょう"}
+              
+              {/* 副标题 */}
+              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+                実戦IT真題 × アダプティブ練習 × 模試
               </p>
-              <div className="flex flex-wrap justify-center md:justify-start">
+              
+              {/* CTA按钮组 */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
                 <Link
                   to="/question-sets" 
-                  className="relative overflow-hidden bg-white text-blue-600 font-medium px-5 py-2 rounded-lg shadow-md hover:bg-blue-50 transition-all mr-3 mb-2 text-sm group"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:shadow-lg transition-all duration-200 text-lg"
                 >
-                  <span className="relative z-10">問題集を参照</span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 via-transparent to-blue-400/20 translate-x-[-100%] group-hover:animate-shimmer"></div>
+                  今日の1問から
+                  <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </Link>
                 <Link
                   to="/profile" 
-                  className="relative overflow-hidden bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm group"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg shadow-md border-2 border-blue-600 hover:bg-blue-50 transition-all duration-200 text-lg"
                 >
-                  <span className="relative z-10">マイページ</span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-white/10 to-white/5 translate-x-[-100%] group-hover:animate-shimmer"></div>
+                  模試を試す
                 </Link>
+              </div>
+              
+              {/* 信任数据指标 */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-8 border-t border-gray-100">
+                <div className="text-center lg:text-left">
+                  <div className="text-2xl font-bold text-blue-600 mb-1">12,000+</div>
+                  <div className="text-sm text-gray-600">実戦問題</div>
+                </div>
+                <div className="text-center lg:text-left">
+                  <div className="text-2xl font-bold text-green-600 mb-1">68%</div>
+                  <div className="text-sm text-gray-600">7日継続率</div>
+                </div>
+                <div className="text-center lg:text-left">
+                  <div className="text-2xl font-bold text-orange-500 mb-1">-18%</div>
+                  <div className="text-sm text-gray-600">解答時間</div>
+                </div>
               </div>
             </div>
             
-            {/* Decorative tech illustration */}
-            <div className="w-full md:w-2/5 flex justify-center items-center">
-              <div className="relative w-64 h-64">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full opacity-20 animate-pulse"></div>
-                  <div className="absolute inset-4 border-4 border-blue-400/30 border-dashed rounded-full animate-spin-slow"></div>
-                  <div className="absolute inset-8 border-2 border-indigo-400/40 rounded-full"></div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="w-32 h-32 text-blue-100/80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 4.75V6.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M17.127 6.873L16.073 7.927" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M19.25 12L17.75 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M17.127 17.127L16.073 16.073" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M12 19.25V17.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M7.927 16.073L6.873 17.127" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M6.25 12L4.75 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M7.927 7.927L6.873 6.873" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M12 14.25C13.2426 14.25 14.25 13.2426 14.25 12C14.25 10.7574 13.2426 9.75 12 9.75C10.7574 9.75 9.75 10.7574 9.75 12C9.75 13.2426 10.7574 14.25 12 14.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                    </svg>
+            {/* 右侧极简插画 */}
+            <div className="w-full lg:w-2/5 flex justify-center">
+              <div className="relative w-80 h-80">
+                {/* 终端窗口外框 */}
+                <div className="absolute inset-0 bg-gray-900 rounded-lg shadow-2xl border border-gray-700">
+                  {/* 终端标题栏 */}
+                  <div className="flex items-center p-4 border-b border-gray-700">
+                    <div className="flex space-x-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    </div>
+                    <div className="flex-1 text-center text-gray-400 text-sm font-mono">MonTopi Terminal</div>
                   </div>
-                  <div className="absolute inset-0 bg-gradient-to-br from-transparent to-blue-900/30 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
+                  
+                  {/* 终端内容 */}
+                  <div className="p-6 space-y-3 font-mono text-sm">
+                    <div className="text-green-400">$ montopi quiz --start</div>
+                    <div className="text-gray-300">Loading question set...</div>
+                    <div className="text-gray-300">Analyzing difficulty level...</div>
+                    <div className="text-blue-400">Question: What is React?</div>
+                    <div className="text-gray-300">[ ] A framework</div>
+                    <div className="text-gray-300">[×] A library ✓</div>
+                    <div className="text-gray-300">[ ] A language</div>
+                    <div className="flex items-center mt-4">
+                      <div className="text-green-400 text-xl mr-2">✓</div>
+                      <div className="text-green-400">Correct! Score: +10</div>
+                    </div>
+                    <div className="text-orange-500">Time saved: 18% faster</div>
+                    <div className="text-blue-400 animate-pulse">Ready for next question...</div>
+                  </div>
                 </div>
+                
+                {/* 装饰性检查标记 */}
+                <div className="absolute -top-4 -right-4 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -3562,7 +3568,7 @@ const HomePage = () => {
         {/* 推荐题库 */}
         {recommendedSets.length > 0 && (
           <div className="mb-12">
-            <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white flex items-center">
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white flex items-center">
               <svg className="w-5 h-5 mr-2 text-yellow-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
@@ -3580,7 +3586,7 @@ const HomePage = () => {
         {/* 题库分类和搜索 */}
         <div id="question-sets" className="mb-6">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
               <svg className="w-5 h-5 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
           </svg>
@@ -3608,7 +3614,7 @@ const HomePage = () => {
             onClick={() => handleCategoryChange('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
               activeCategory === 'all' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                  ? 'bg-blue-600 text-white shadow-md transform -translate-y-0.5' 
                   : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
             }`}
           >
@@ -3631,7 +3637,7 @@ const HomePage = () => {
               onClick={() => handleCategoryChange(category)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
                 activeCategory === category 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                    ? 'bg-blue-600 text-white shadow-md transform -translate-y-0.5' 
                     : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
               }`}
             >
@@ -3652,7 +3658,7 @@ const HomePage = () => {
               onClick={() => handleCategoryChange(category)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
                 activeCategory === category 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform -translate-y-0.5' 
+                    ? 'bg-blue-600 text-white shadow-md transform -translate-y-0.5' 
                     : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
               }`}
             >
@@ -3701,7 +3707,7 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-green-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">マイ問題集</h2>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">マイ問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
                       {categorized.purchased.length}個購入済み/交換済み
@@ -3741,7 +3747,7 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-blue-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">無料問題集</h2>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">無料問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
                       {categorized.free.length}個の無料問題集
@@ -3781,7 +3787,7 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-purple-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">有料問題集</h2>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">有料問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
                       {categorized.paid.length}個の購入待ち
@@ -3821,7 +3827,7 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-red-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">期限切れの問題集</h2>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">期限切れの問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
                       {categorized.expired.length}个已过期
@@ -3886,7 +3892,7 @@ const HomePage = () => {
                       setActiveCategory('all');
                       setSearchTerm('');
                     }}
-                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-300 flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                   >
                     <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

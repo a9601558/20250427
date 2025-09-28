@@ -29,7 +29,7 @@ const AuthManager: React.FC = () => {
       // 如果用户已登录且令牌过期，自动登出
       if (user && isTokenExpired()) {
         console.log('令牌已过期，自动登出');
-        toast.info('登录已过期，请重新登录', {
+        toast.info('ログインが期限切れです。再度ログインしてください', {
           autoClose: 3000
         });
         logout();
@@ -60,7 +60,7 @@ const App: React.FC = () => {
     // 如果在30秒内刷新超过3次，显示警告
     if (refreshCount >= 3 && (now - lastRefreshTime) < 30000) {
       console.warn('[App] 检测到频繁刷新，可能存在无限循环问题');
-      toast.warning('页面正在频繁刷新，请检查网络连接或联系技术支持', {
+      toast.warning('ページが頻繁に更新されています。ネットワーク接続を確認するか、技術サポートにお問い合わせください', {
         autoClose: 5000,
         toastId: 'refresh-warning'
       });
@@ -90,7 +90,7 @@ const App: React.FC = () => {
       if (!localStorage.getItem('token')) {
         const success = await performAutoLogin();
         if (success) {
-          toast.success('自动登录成功', {
+          toast.success('自動ログイン成功', {
             autoClose: 2000
           });
         }

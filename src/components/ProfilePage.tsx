@@ -351,18 +351,18 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-blue-50 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-blue-600">{stats.completedQuestions}</div>
-            <div className="text-xs text-blue-600 mt-1">已答题数</div>
+            <div className="text-xs text-blue-600 mt-1">答えた問題数</div>
           </div>
           <div className="bg-green-50 rounded-lg p-3 text-center">
             <div className="text-2xl font-bold text-green-600">{stats.correctAnswers}</div>
-            <div className="text-xs text-green-600 mt-1">答对题数</div>
+            <div className="text-xs text-green-600 mt-1">正答数</div>
           </div>
         </div>
         
         <div className="space-y-4">
           <div>
             <div className="flex justify-between items-center mb-1">
-              <span className="text-sm text-gray-600">正确率</span>
+              <span className="text-sm text-gray-600">正答率</span>
               <span className="text-sm font-semibold">{stats.accuracy.toFixed(1)}%</span>
             </div>
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -375,7 +375,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
           
           <div>
             <div className="flex justify-between items-center mb-1">
-              <span className="text-sm text-gray-600">平均答题时间</span>
+              <span className="text-sm text-gray-600">平均解答時間</span>
               <span className="text-sm font-semibold">{formatTime(stats.averageTimeSpent)}</span>
             </div>
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -387,7 +387,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
           </div>
           
           <div className="flex justify-between items-center text-sm mt-4 pt-4 border-t border-gray-100">
-            <span className="text-gray-500">总学习时间</span>
+            <span className="text-gray-500">総学習時間</span>
             <span className="font-medium text-indigo-600">{formatTime(stats.totalTimeSpent)}</span>
           </div>
         </div>
@@ -402,7 +402,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
           <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
-          继续学习
+          学習を続ける
         </button>
       </div>
     </div>
@@ -420,7 +420,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   // 提取题库数据，确保兼容不同来源的数据
   const questionSet = purchase.purchaseQuestionSet || 
     (purchase as any).questionSet || 
-    { id: purchase.questionSetId, title: `题库 (ID: ${purchase.questionSetId.substring(0, 8)}...)` };
+    { id: purchase.questionSetId, title: `問題集 (ID: ${purchase.questionSetId.substring(0, 8)}...)` };
   
   // 计算剩余天数
   const calculateRemainingDays = (): number => {
@@ -487,11 +487,11 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
   const theme = getThemeColors();
   
   const getStatusText = () => {
-    if (hasExpired) return '已过期';
-    if (purchase.status === 'active') return '有效';
-    if (purchase.status === 'pending') return '待处理';
+    if (hasExpired) return '期限切れ';
+    if (purchase.status === 'active') return '有効';
+    if (purchase.status === 'pending') return '処理中';
     if (purchase.status === 'cancelled') return 'キャンセル済み';
-    return purchase.status || '未知';
+    return purchase.status || '不明';
   };
   
   const handleClick = () => {
@@ -516,7 +516,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
       <div className="p-5">
         <div className="flex justify-between items-start mb-4">
           <h3 className="text-lg font-semibold text-gray-800 mr-3 line-clamp-1">
-            {questionSet?.title || `题库 (ID: ${purchase.questionSetId.substring(0, 8)}...)`}
+            {questionSet?.title || `問題集 (ID: ${purchase.questionSetId.substring(0, 8)}...)`}
           </h3>
           <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium ${theme.statusBg} ${theme.statusText}`}>
             {getStatusText()}
@@ -524,17 +524,17 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
         </div>
         
         <div className="text-sm text-gray-500 mb-5 max-h-12 overflow-hidden line-clamp-2">
-          {questionSet?.description || '无描述'}
+          {questionSet?.description || '説明なし'}
         </div>
         
         <div className="space-y-4 mb-5">
           <div className="flex justify-between items-center mb-1 text-sm">
             <span className="text-gray-600 flex items-center">
               <ClockIcon className="w-4 h-4 mr-1.5 text-gray-400" />
-              剩余有效期
+              残り有効期限
             </span>
             <span className={`font-medium ${hasExpired ? 'text-red-500' : 'text-indigo-600'}`}>
-              {hasExpired ? '已过期' : `${remainingDays}天`}
+              {hasExpired ? '期限切れ' : `${remainingDays}日`}
             </span>
           </div>
           
@@ -557,7 +557,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
         
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="bg-gray-50 rounded-lg p-3">
-            <div className="text-xs text-gray-500 mb-1">购买日期</div>
+            <div className="text-xs text-gray-500 mb-1">購入日</div>
             <div className="text-sm font-medium flex items-center">
               <CalendarIcon className="w-3.5 h-3.5 mr-1 text-gray-400" />
               {new Date(purchase.purchaseDate).toLocaleDateString()}
@@ -565,13 +565,13 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
           </div>
           
           <div className="bg-gray-50 rounded-lg p-3">
-            <div className="text-xs text-gray-500 mb-1">支付方式</div>
+            <div className="text-xs text-gray-500 mb-1">支払方法</div>
             <div className="text-sm font-medium flex items-center">
               <CreditCardIcon className="w-3.5 h-3.5 mr-1 text-gray-400" />
-              {purchase.paymentMethod === 'wechat' ? '微信支付' : 
-               purchase.paymentMethod === 'alipay' ? '支付宝' : 
-               purchase.paymentMethod === 'direct' ? '直接购买' : 
-               purchase.paymentMethod || '未知'}
+              {purchase.paymentMethod === 'wechat' ? 'WeChat支払' : 
+               purchase.paymentMethod === 'alipay' ? 'Alipay' : 
+               purchase.paymentMethod === 'direct' ? '直接購入' : 
+               purchase.paymentMethod || '不明'}
             </div>
           </div>
         </div>
@@ -582,8 +582,8 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
               <CashIcon className="w-5 h-5 text-blue-500" />
             </div>
             <div>
-              <div className="text-xs text-gray-500">价格</div>
-              <div className="font-bold text-blue-600">{purchase.amount ? `¥${purchase.amount.toFixed(2)}` : '免费'}</div>
+              <div className="text-xs text-gray-500">価格</div>
+              <div className="font-bold text-blue-600">{purchase.amount ? `¥${purchase.amount.toFixed(2)}` : '無料'}</div>
             </div>
           </div>
           
@@ -599,7 +599,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
             }`}
             disabled={hasExpired}
           >
-            {hasExpired ? '已过期' : '开始学习'}
+            {hasExpired ? '期限切れ' : '学習開始'}
           </button>
         </div>
       </div>
@@ -625,7 +625,7 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
   const totalValidityDays = 30;
   
   // 获取题库标题
-  const title = redeem.redeemQuestionSet?.title || (redeem as any).questionSet?.title || '未知题库';
+  const title = redeem.redeemQuestionSet?.title || (redeem as any).questionSet?.title || '不明な問題集';
   
   // 使用剩余天数确定颜色
   const getStatusColorClass = () => {
@@ -648,7 +648,7 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
             {title}
           </h2>
           <div className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColorClass()}`}>
-            {isExpired ? '已过期' : remainingDays < 7 ? '即将过期' : '有效'}
+            {isExpired ? '期限切れ' : remainingDays < 7 ? 'まもなく期限切れ' : '有効'}
           </div>
         </div>
         
@@ -659,18 +659,18 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
             </svg>
           </div>
           <div>
-            <div className="text-xs text-purple-500 font-medium">兑换码</div>
+            <div className="text-xs text-purple-500 font-medium">引き換えコード</div>
             <div className="text-sm font-bold tracking-wider">{redeem.code.substring(0, 4)}-****-****</div>
           </div>
         </div>
         
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-gray-50 rounded-lg p-3">
-            <div className="text-xs text-gray-500 mb-1">兑换日期</div>
+            <div className="text-xs text-gray-500 mb-1">引き換え日</div>
             <div className="text-sm font-medium">{formatDate(redeem.usedAt)}</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
-            <div className="text-xs text-gray-500 mb-1">到期日期</div>
+            <div className="text-xs text-gray-500 mb-1">有効期限</div>
             <div className={`text-sm font-medium ${isExpired ? 'text-red-500' : ''}`}>{formatDate(redeem.expiryDate)}</div>
           </div>
         </div>
@@ -678,7 +678,7 @@ const RedeemCard: React.FC<RedeemCardProps> = ({ redeem }) => {
         {!isExpired && (
           <div className="mt-4">
             <div className="flex justify-between items-center mb-2 text-sm">
-              <span className="text-gray-600">剩余有效期</span>
+              <span className="text-gray-600">残り有効期間</span>
               <div className="font-medium text-indigo-600 flex items-center">
                 <svg className="w-4 h-4 mr-1 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -803,7 +803,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 mb-4 hover:shadow-md transition-all duration-200">
       <div className="flex justify-between items-start mb-3">
         <h3 className="font-medium text-gray-800 flex items-start">
-          <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full mr-2 mt-0.5 flex-shrink-0">错题</span>
+          <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full mr-2 mt-0.5 flex-shrink-0">間違い</span>
           {wrongAnswer.question}
         </h3>
         <div className="flex items-center space-x-2">
@@ -815,7 +815,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            {showOptions ? '隐藏选项' : '查看选项'}
+            {showOptions ? 'オプションを非表示' : 'オプションを表示'}
           </button>
           <button 
             onClick={() => onPractice(wrongAnswer.questionSetId)}
@@ -857,7 +857,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-sm font-medium">解析</p>
+                <p className="text-sm font-medium">解説</p>
               </div>
               <p className="text-sm text-blue-700">{wrongAnswer.explanation}</p>
             </div>
@@ -871,7 +871,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-            placeholder="添加备注..."
+            placeholder="メモを追加..."
             rows={2}
           />
           <div className="flex justify-end mt-2 space-x-2">
@@ -910,7 +910,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                添加备注...
+                メモを追加...
               </button>
             </div>
           )}
@@ -924,7 +924,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                编辑
+                編集
               </button>
             )}
             <button 
@@ -973,7 +973,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-800">{group.questionSetTitle}</h2>
-            <p className="text-sm text-gray-500">共 {group.wrongAnswers.length} 道错题</p>
+            <p className="text-sm text-gray-500">合計 {group.wrongAnswers.length} 問の間違い</p>
           </div>
         </div>
         <div className="flex items-center">
@@ -1374,7 +1374,7 @@ const ProfilePage: React.FC = () => {
               
               if (restored > 0) {
                 console.log(`[ProfilePage] 已恢复 ${restored} 条丢失的进度数据`);
-                toast.success(`找回了${restored}条丢失的学习进度`);
+                toast.success(`${restored}件の失われた学習進捗を復元しました`);
               }
             }
           }
@@ -2397,7 +2397,7 @@ const ProfilePage: React.FC = () => {
       return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 text-sm">加载学习进度中...</p>
+          <p className="text-gray-500 text-sm">学習進朗を読み込み中...</p>
         </div>
       );
     }
@@ -2410,7 +2410,7 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">加载失败</h3>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">読み込み失敗</h3>
           <p className="text-gray-600 mb-6 max-w-md">{error}</p>
           <button
             onClick={() => {
@@ -2448,7 +2448,7 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">开始你的学习之旅</h3>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">学習の旅を始めましょう</h3>
           <p className="text-gray-600 mb-6 max-w-md">你还没有开始答题，点击下面的按钮选择题库开始练习！</p>
           <button
             onClick={() => navigate('/')}

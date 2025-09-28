@@ -51,8 +51,8 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   const formFields = {
     signIn: {
       username: {
-        placeholder: 'ユーザー名またはメールアドレスを入力してください',
-        label: 'ユーザー名/メール',
+        placeholder: 'ユーザー名・メール・電話番号を入力してください',
+        label: 'ユーザー名/メール/電話番号',
         isRequired: true,
       },
       password: {
@@ -134,6 +134,41 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
           <p className="text-gray-600 text-sm">アカウントにログインしてご利用ください</p>
         </div>
       );
+    },
+    SignIn: {
+      Footer() {
+        return (
+          <div className="mt-4 space-y-3">
+            <div className="text-center">
+              <div className="text-sm text-gray-500 mb-3">または</div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span>電話番号でログイン可能</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span>メールアドレスでログイン可能</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>ヒント:</strong> 電話番号の場合は「+81」から始まる形式（例：+8190-1234-5678）で入力してください。
+                  パスワードをお忘れの場合は、「パスワードをお忘れですか？」から SMS または メール で認証コードを受信できます。
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      }
     },
     Footer() {
       return (
@@ -235,7 +270,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
             components={components}
             socialProviders={[]}
             signUpAttributes={['email', 'phone_number']}
-            loginMechanisms={['username', 'email']}
+            loginMechanisms={['username', 'email', 'phone_number']}
           >
             <AuthWrapper onClose={onClose} />
           </Authenticator>

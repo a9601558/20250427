@@ -71,7 +71,7 @@ const AnswerCard: React.FC<{
     <div className="flex flex-col bg-white rounded-xl shadow-md p-5 mb-5">
       {/* 标题与进度指示器 */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-700">答题卡</h3>
+        <h3 className="text-lg font-medium text-gray-700">解答カード</h3>
         <div className="text-sm text-gray-500">
           当前进度: <span className="text-blue-600 font-medium">{currentIndex + 1}</span> / {totalQuestions}
         </div>
@@ -177,7 +177,7 @@ const AnswerCard: React.FC<{
               <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>已达到试用题目上限，请购买完整版继续使用</span>
+              <span>お試し問題の上限に達しました。継続するには完全版を購入してください</span>
             </div>
           )}
         </div>
@@ -255,7 +255,7 @@ const PurchasePage: React.FC<{
     }));
     
     // Visual feedback
-    toast.info('正在准备支付界面...', { 
+    toast.info('支払いインターフェースを準備中...', { 
       autoClose: 1000,
       position: 'top-center',
       hideProgressBar: false
@@ -305,7 +305,7 @@ const PurchasePage: React.FC<{
     }));
     
     // Visual feedback
-    toast.info('正在准备兑换界面...', { 
+    toast.info('引き換えインターフェースを準備中...', { 
       autoClose: 1000,
       position: 'top-center',
       hideProgressBar: false
@@ -355,7 +355,7 @@ const PurchasePage: React.FC<{
     }));
     
     // Visual feedback
-    toast.info('正在返回首页...', { 
+    toast.info('ホームページに戻っています...', { 
       autoClose: 1000,
       position: 'top-center'
     });

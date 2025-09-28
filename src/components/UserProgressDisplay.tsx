@@ -60,7 +60,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
     <div className={`bg-white rounded-lg shadow p-4 ${className}`}>
       {showTitle && (
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">我的学习进度</h2>
+          <h2 className="text-lg font-semibold text-gray-900">私の学習進朗</h2>
           <Link to="/profile" className="text-sm text-blue-600 hover:text-blue-800">
             全て表示
           </Link>
@@ -70,7 +70,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
       {/* 总体进度 */}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-1">
-          <span className="text-sm font-medium text-gray-700">总体进度</span>
+          <span className="text-sm font-medium text-gray-700">全体進朗</span>
           <span className="text-sm font-medium text-blue-600">{overallProgress}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -114,7 +114,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
               </div>
               
               <div className="flex justify-between text-xs text-gray-500">
-                <span>{progress.completedQuestions}/{progress.totalQuestions} 题目</span>
+                <span>{progress.completedQuestions}/{progress.totalQuestions} 問題</span>
                 {score !== null && (
                   <span className="font-medium" style={{ color: score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#3B82F6' }}>
                     得分: {score}%

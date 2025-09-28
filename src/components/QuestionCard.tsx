@@ -27,17 +27,17 @@ interface QuestionCardProps {
 // 提示语精简：提取为常量，便于后期i18n多语言
 const MESSAGES = {
   SUBMIT_ANSWER: '回答を送信',
-  SELECT_ONE_OPTION: '请选择一个选项',
-  SUBMIT_ALL_OPTIONS: '提交所有选项',
-  SELECT_AT_LEAST_ONE: '请选择至少一个选项',
-  CORRECT_ANSWER: '回答正确!',
-  WRONG_ANSWER: '回答错误!',
-  CORRECT_ANSWER_IS: '正确答案是',
-  SHOW_EXPLANATION: '查看解析',
-  HIDE_EXPLANATION: '隐藏解析',
-  ANALYSIS: '解析:',
-  NEXT_QUESTION: '下一题',
-  COMPLETE_EXERCISE: '完成练习'
+  SELECT_ONE_OPTION: '選択肢を一つ選んでください',
+  SUBMIT_ALL_OPTIONS: 'すべての選択肢を送信',
+  SELECT_AT_LEAST_ONE: '少なくとも一つの選択肢を選んでください',
+  CORRECT_ANSWER: '正解です！',
+  WRONG_ANSWER: '不正解です！',
+  CORRECT_ANSWER_IS: '正解は',
+  SHOW_EXPLANATION: '解説を見る',
+  HIDE_EXPLANATION: '解説を隠す',
+  ANALYSIS: '解説：',
+  NEXT_QUESTION: '次の問題',
+  COMPLETE_EXERCISE: '練習を完了'
 };
 
 const QuestionCard = ({ 
@@ -565,7 +565,7 @@ const QuestionCard = ({
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            上一题
+            前の問題
           </button>
         
         {/* 当前位置显示 - 添加数字导航 */}
@@ -732,7 +732,7 @@ const QuestionCard = ({
           }`}
           disabled={questionNumber >= totalQuestions || (isPaid && !hasFullAccess && questionNumber >= (trialQuestions || 0))}
         >
-          下一题
+          次の問題
           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>

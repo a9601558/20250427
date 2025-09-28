@@ -239,13 +239,13 @@ const QuestionSetSearchPage: React.FC = () => {
 
   // 添加日期格式化函数
   const formatDate = (dateString: string | Date | undefined): string => {
-    if (!dateString) return '未知日期';
+    if (!dateString) return '不明な日付';
     
     try {
       const date = new Date(dateString);
       // 检查是否为有效日期
       if (isNaN(date.getTime())) {
-        return '未知日期';
+        return '不明な日付';
       }
       return date.toLocaleDateString('zh-CN', {
         year: 'numeric',
@@ -254,27 +254,27 @@ const QuestionSetSearchPage: React.FC = () => {
       });
     } catch (error) {
       console.error('日期格式化错误:', error);
-      return '未知日期';
+      return '不明な日付';
     }
   };
 
   // 获取访问状态标签
   const getAccessLabel = (set: QuestionSet): JSX.Element => {
     if (!set.isPaid) {
-      return <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">免费</span>;
+      return <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">無料</span>;
     }
     
     if (set.hasAccess) {
       if (set.accessType === 'expired') {
-        return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">已过期</span>;
+        return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">期限切れ</span>;
       }
       if (set.accessType === 'redeemed') {
-        return <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">已兑换</span>;
+        return <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">交換済み</span>;
       }
-      return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">已购买</span>;
+      return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">購入済み</span>;
     }
     
-    return <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">付费</span>;
+    return <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">有料</span>;
   };
 
   // 添加手动刷新按钮
@@ -290,14 +290,14 @@ const QuestionSetSearchPage: React.FC = () => {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          刷新中...
+          更新中...
         </>
       ) : (
         <>
           <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          刷新数据
+          データ更新
         </>
       )}
     </button>
@@ -342,7 +342,7 @@ const QuestionSetSearchPage: React.FC = () => {
               <div className="flex items-baseline">
                 <span className="text-lg font-bold text-blue-600">¥{set.price}</span>
                 {set.trialQuestions && (
-                  <span className="ml-2 text-xs text-gray-500">可试用{set.trialQuestions}题</span>
+                  <span className="ml-2 text-xs text-gray-500">{set.trialQuestions}問お試し可能</span>
                 )}
               </div>
             )}
@@ -360,11 +360,11 @@ const QuestionSetSearchPage: React.FC = () => {
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800">
           <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">题库名称</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">分类</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">题目数量</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">状态</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">更新时间</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">問題集名</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">カテゴリ</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">問題数</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">ステータス</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">更新日時</th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">操作</th>
           </tr>
         </thead>
@@ -395,7 +395,7 @@ const QuestionSetSearchPage: React.FC = () => {
                   onClick={() => handleQuestionSetClick(set.id)}
                   className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
                 >
-                  开始学习
+                  学習開始
                 </button>
               </td>
             </tr>
@@ -411,7 +411,7 @@ const QuestionSetSearchPage: React.FC = () => {
       return (
         <div className="flex items-center">
           <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">{count}</span>
-          <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">题</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">問</span>
         </div>
       );
     }
@@ -420,8 +420,8 @@ const QuestionSetSearchPage: React.FC = () => {
     return (
       <div className="flex items-center">
         <span className="text-sm font-medium text-red-500 dark:text-red-400">0</span>
-        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">题</span>
-        <span className="ml-1 text-xs text-red-500 dark:text-red-400">(数据未同步)</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">問</span>
+        <span className="ml-1 text-xs text-red-500 dark:text-red-400">(データ未同期)</span>
       </div>
     );
   };
@@ -441,9 +441,9 @@ const QuestionSetSearchPage: React.FC = () => {
         
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">题库搜索</h1>
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">問題集検索</h1>
             <p className="text-xl text-blue-200 max-w-3xl mx-auto">
-              浏览所有可用题库，找到最适合你的学习资源
+              利用可能なすべての問題集を閲覧し、最適な学習リソースを見つけましょう
             </p>
           </div>
           
@@ -453,7 +453,7 @@ const QuestionSetSearchPage: React.FC = () => {
               <div className="relative flex-grow bg-white/10 backdrop-blur rounded-xl overflow-hidden border border-white/20">
                 <input
                   type="text"
-                  placeholder="搜索题库名称、描述或分类..."
+                  placeholder="問題集名、説明、カテゴリーで検索..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full px-12 py-4 bg-transparent border-none focus:outline-none focus:ring-0 text-white placeholder-blue-300"
@@ -485,7 +485,7 @@ const QuestionSetSearchPage: React.FC = () => {
                 <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-                {showFilters ? "隐藏筛选" : "显示筛选"}
+                {showFilters ? "フィルターを非表示" : "フィルターを表示"}
               </button>
               
               <div className="flex border border-white/20 rounded-xl overflow-hidden">
@@ -514,13 +514,13 @@ const QuestionSetSearchPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* 分类过滤 */}
                   <div>
-                    <label className="block text-sm font-medium text-blue-200 mb-2">分类</label>
+                    <label className="block text-sm font-medium text-blue-200 mb-2">カテゴリー</label>
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
-                      <option value="all">所有分类</option>
+                      <option value="all">すべてのカテゴリー</option>
                       {categories.map(category => (
                         <option key={category} value={category}>{category}</option>
                       ))}
@@ -529,31 +529,31 @@ const QuestionSetSearchPage: React.FC = () => {
                   
                   {/* 状态过滤 */}
                   <div>
-                    <label className="block text-sm font-medium text-blue-200 mb-2">状态</label>
+                    <label className="block text-sm font-medium text-blue-200 mb-2">ステータス</label>
                     <select
                       value={selectedStatus}
                       onChange={(e) => setSelectedStatus(e.target.value)}
                       className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
-                      <option value="all">所有状态</option>
-                      <option value="free">免费题库</option>
-                      <option value="paid">付费题库</option>
+                      <option value="all">すべてのステータス</option>
+                      <option value="free">無料問題集</option>
+                      <option value="paid">有料問題集</option>
                       <option value="purchased">已购买/已兑换</option>
-                      <option value="expired">已过期</option>
-                      <option value="featured">精选题库</option>
+                      <option value="expired">期限切れ</option>
+                      <option value="featured">おすすめ問題集</option>
                     </select>
                   </div>
                   
                   {/* 排序过滤 */}
                   <div>
-                    <label className="block text-sm font-medium text-blue-200 mb-2">排序</label>
+                    <label className="block text-sm font-medium text-blue-200 mb-2">並び順</label>
                     <select
                       value={sortOption}
                       onChange={(e) => setSortOption(e.target.value)}
                       className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
-                      <option value="newest">最新发布</option>
-                      <option value="oldest">最早发布</option>
+                      <option value="newest">最新公開</option>
+                      <option value="oldest">最初公開</option>
                       <option value="nameAsc">名称 (A-Z)</option>
                       <option value="nameDesc">名称 (Z-A)</option>
                       <option value="priceAsc">价格 (低-高)</option>
@@ -570,7 +570,7 @@ const QuestionSetSearchPage: React.FC = () => {
                     <svg className="h-4 w-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    重置筛选
+                    フィルターをリセット
                   </button>
                 </div>
               </div>
@@ -590,12 +590,12 @@ const QuestionSetSearchPage: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-            {filteredSets.length > 0 ? `找到 ${filteredSets.length} 个题库` : '题库列表'}
+            {filteredSets.length > 0 ? `${filteredSets.length}個の問題集が見つかりました` : '問題集一覧'}
           </h2>
           <div className="flex space-x-2">
             <button
               onClick={() => {
-                toast.info('正在刷新题库数据...');
+                toast.info('問題集データを更新中...');
                 fetchQuestionSets();
               }}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -603,7 +603,7 @@ const QuestionSetSearchPage: React.FC = () => {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              刷新题库数据
+              問題集データを更新
             </button>
           </div>
         </div>
@@ -615,7 +615,7 @@ const QuestionSetSearchPage: React.FC = () => {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p className="text-lg text-gray-600 dark:text-gray-300">加载题库中...</p>
+            <p className="text-lg text-gray-600 dark:text-gray-300">問題集を読み込み中...</p>
           </div>
         )}
 
@@ -626,16 +626,16 @@ const QuestionSetSearchPage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
-              没有找到匹配的题库
+              一致する問題集が見つかりませんでした
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              尝试重置筛选条件或使用不同的搜索词
+              フィルター条件をリセットするか、別の検索語を試してください
             </p>
             <button
               onClick={handleResetFilters}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow transition-colors"
             >
-              重置所有筛选
+              すべてのフィルターをリセット
             </button>
           </div>
         )}

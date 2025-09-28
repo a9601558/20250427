@@ -16,7 +16,7 @@ const SocketStatus: React.FC = () => {
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-start p-3 bg-red-100 border border-red-300 rounded-md shadow-lg">
       <div className="flex items-center">
         <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-        <span className="text-red-700 text-sm font-medium">Socket 连接失败</span>
+        <span className="text-red-700 text-sm font-medium">Socket 接続失敗</span>
       </div>
       
       {lastError && (

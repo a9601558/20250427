@@ -65,7 +65,7 @@ const ManageQuestionSets: React.FC = () => {
         }
       } catch (err) {
         console.error('加载题库失败:', err);
-        setError(`加载题库时发生错误：${err.message || '未知错误'}，请稍后重试`);
+        setError(`問題集の読み込み中にエラーが発生しました：${err.message || '不明なエラー'}。しばらく待ってから再試行してください`);
       } finally {
         setLoading(false);
       }
@@ -97,7 +97,7 @@ const ManageQuestionSets: React.FC = () => {
       
       // 更新状态，移除已删除的题库
       setQuestionSets(prev => prev.filter(set => set.id !== id));
-      setSuccessMessage('题库已成功删除');
+      setSuccessMessage('問題集が正常に削除されました');
       
       // 3秒后清除成功消息
       setTimeout(() => {
@@ -105,7 +105,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('删除题库失败:', err);
-      setError(`删除题库失败: ${err.message || '未知错误'}`);
+      setError(`問題集の削除に失敗しました: ${err.message || '不明なエラー'}`);
       
       // 3秒后清除错误消息
       setTimeout(() => {
@@ -176,7 +176,7 @@ const ManageQuestionSets: React.FC = () => {
       
       // 重置添加题目状态
       setIsAddingQuestion(false);
-      setSuccessMessage('题目添加成功');
+      setSuccessMessage('問題が正常に追加されました');
       
       // 3秒后清除成功消息
       setTimeout(() => {
@@ -184,7 +184,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('添加题目失败:', err);
-      setError(`添加题目失败: ${err.message || '未知错误'}`);
+      setError(`問題の追加に失敗しました: ${err.message || '不明なエラー'}`);
     } finally {
       setIsSavingQuestion(false);
     }
@@ -233,7 +233,7 @@ const ManageQuestionSets: React.FC = () => {
       }
     } catch (error) {
       console.error('获取题目详情失败:', error);
-      setError(`加载题目失败: ${error.message || '未知错误'}`);
+      setError(`問題の読み込みに失敗しました: ${error.message || '不明なエラー'}`);
     } finally {
       setLoadingQuestions(false);
     }
@@ -299,7 +299,7 @@ const ManageQuestionSets: React.FC = () => {
       // 重置编辑状态
       setEditingQuestion(null);
       setIsEditingQuestion(false);
-      setSuccessMessage('题目更新成功');
+      setSuccessMessage('問題が正常に更新されました');
       
       // 3秒后清除成功消息
       setTimeout(() => {
@@ -307,7 +307,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('更新题目失败:', err);
-      setError(`更新题目失败: ${err.message || '未知错误'}`);
+      setError(`問題の更新に失敗しました: ${err.message || '不明なエラー'}`);
     } finally {
       setIsSavingQuestion(false);
     }
@@ -350,7 +350,7 @@ const ManageQuestionSets: React.FC = () => {
         )
       );
       
-      setSuccessMessage('题目删除成功');
+      setSuccessMessage('問題が正常に削除されました');
       
       // 3秒后清除成功消息
       setTimeout(() => {
@@ -358,7 +358,7 @@ const ManageQuestionSets: React.FC = () => {
       }, 3000);
     } catch (err) {
       console.error('删除题目失败:', err);
-      setError('删除题目失败，请稍后重试');
+      setError('問題の削除に失敗しました。しばらく待ってから再試行してください');
     } finally {
       setIsSavingQuestion(false);
     }
