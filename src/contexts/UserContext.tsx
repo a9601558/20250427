@@ -10,6 +10,7 @@ import { refreshUserPurchases } from '../utils/paymentUtils';
 import { refreshTokenExpiry } from '../utils/authUtils';
 import { Socket } from 'socket.io-client';
 import { getUserStoragePrefix } from '../utils/homeContentUtils';
+import { cognitoAuthService } from '../services/CognitoAuthService';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -400,6 +401,42 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     setError(null);
     try {
+      // 使用Cognito认证服务登录
+      const cognitoResult = await cognitoAuthService.cognitoLogin(username, password);
+      
+      if (cognitoResult.success && cognitoResult.user) {
+        // 设置用户状态
+        setUser(cognitoResult.user);
+        
+        // 清除之前的错误
+        setError(null);
+        
+        // 触发用户变更事件
+        const newUserChangeEvent = { userId: cognitoResult.user.id, timestamp: Date.now() };
+        setUserChangeEvent(newUserChangeEvent);
+        
+        console.log('[UserContext] Cognito登录成功');
+        return true;
+      } else {
+        // 登录失败
+        setError(cognitoResult.message || '登录失败');
+        console.log('[UserContext] Cognito登录失败:', cognitoResult.message);
+        return false;
+      }
+    } catch (error) {
+      console.error('[UserContext] 登录过程中发生错误:', error);
+      setError('登录过程中发生错误');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 保留原有的登录函数作为备用
+  const legacyLogin = async (username: string, password: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    try {
       // 清除之前登录用户的所有数据
       const oldToken = localStorage.getItem('token');
       const oldUserId = localStorage.getItem('activeUserId');
@@ -440,12 +477,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             sessionKeysToRemove.push(key);
           }
         }
-        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+        sessionKeysToRemove.forEach(key => sessionStorage.removeKey(key));
         console.log(`[UserContext] 已清除 ${sessionKeysToRemove.length} 个会话存储数据项`);
       }
       
       // 清空状态
-      setUserPurchases([]);
+      // setUserPurchases([]);
       
       // 清除API客户端缓存和状态
       apiClient.clearCache();
@@ -610,19 +647,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     setError(null);
     try {
-      const response = await userApi.register(userData);
-      if (response.success && response.data) {
-        localStorage.setItem('token', response.data.token);
-        setUser(response.data.user);
-        notifyUserChange(response.data.user); // 通知用户变化
+      // 使用Cognito认证服务注册
+      if (!userData.username || !userData.email || !userData.password) {
+        setError('用户名、邮箱和密码都是必需的');
+        return false;
+      }
+
+      const cognitoResult = await cognitoAuthService.cognitoRegister({
+        username: userData.username,
+        email: userData.email,
+        password: userData.password
+      });
+      
+      if (cognitoResult.success) {
+        setError(null);
+        console.log('[UserContext] Cognito注册成功');
         return true;
       } else {
-        setError(response.message || 'Registration failed');
+        setError(cognitoResult.message || '注册失败');
+        console.log('[UserContext] Cognito注册失败:', cognitoResult.message);
         return false;
       }
     } catch (error) {
-      console.error('[UserProvider] Registration failed:', error);
-      setError('An error occurred during registration');
+      console.error('[UserContext] 注册过程中发生错误:', error);
+      setError('注册过程中发生错误');
       return false;
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import SocketStatus from './SocketStatus';
-import LoginModal from './LoginModal';
+import AuthModal from './AuthModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import { homepageService } from '../services/api';
@@ -268,9 +268,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </footer>
 
       {/* 登录弹窗 */}
-      <LoginModal 
+      <AuthModal 
         isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+        onClose={() => setIsLoginModalOpen(false)}
+        useCognito={true}
       />
     </div>
   );

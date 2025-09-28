@@ -8,6 +8,10 @@ export interface User {
   purchases?: Purchase[];
   userPurchases?: Purchase[];
   redeemCodes?: RedeemCode[];
+  cognitoUserId?: string; // AWS Cognito用户ID
+  createdAt?: string;
+  lastLogin?: string;
+  accessRights?: any[];
 }
 
 export interface UserProgress {
