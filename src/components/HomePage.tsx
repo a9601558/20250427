@@ -573,7 +573,7 @@ const HomePage = () => {
             ? 'border-blue-200 hover:border-blue-300'
             : 'border-gray-200 hover:border-gray-300'
       }`}
-           style={{ height: '320px' }}>
+           style={{ height: '340px' }}>
         
         {/* 状态标签 (Ribbon) */}
         <div className="absolute top-0 right-0 z-20">
@@ -645,16 +645,22 @@ const HomePage = () => {
 
         {/* 内容区域 */}
         <div className="p-6 h-[calc(100%-8rem)] flex flex-col">
-          {/* 标题 */}
-          <h3 className="text-lg font-bold text-gray-900 mb-3 line-clamp-2 leading-tight">
-            {/* 临时调试：检查是否title被icon字段覆盖 */}
-            {/* 调试日志已移除以避免在JSX中返回void */}
-            {/* 临时修复：如果title是"default"，显示备用标题 */}
-            {(set.title && set.title !== 'default') ? set.title : '問題集 ID: ' + set.id.slice(0, 8)}
-          </h3>
+          {/* 标题区域 - 优化设计让标题更突出 */}
+          <div className="mb-4">
+            <h3 className="text-xl font-black text-gray-900 mb-2 line-clamp-2 leading-snug tracking-tight">
+              {/* 临时修复：如果title是"default"，显示备用标题 */}
+              {(set.title && set.title !== 'default') ? set.title : '問題集 ID: ' + set.id.slice(0, 8)}
+            </h3>
+            {/* 添加标题下方的装饰线 */}
+            <div className={`h-1 w-16 rounded-full ${
+              cardState === 'free' ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 
+              cardState === 'pro' ? 'bg-gradient-to-r from-blue-400 to-indigo-500' : 
+              'bg-gradient-to-r from-gray-400 to-gray-500'
+            }`}></div>
+          </div>
           
           {/* 统计信息 */}
-          <div className="flex items-center text-sm text-gray-600 space-x-4 mb-4">
+          <div className="flex items-center text-sm text-gray-600 space-x-4 mb-3">
             <div className="flex items-center">
               <div className={`w-2 h-2 rounded-full mr-2 ${
                 cardState === 'free' ? 'bg-green-500' : 
