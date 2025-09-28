@@ -80,7 +80,7 @@ export const initializeSocket = (server: HttpServer): void => {
         try {
           // Fall back to traditional JWT verification with explicit algorithm
           const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
-          decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
+          decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as any;
           userId = decoded.id; // Traditional JWT uses 'id'
           console.log('Socket traditional JWT token verified successfully');
         } catch (jwtError) {
