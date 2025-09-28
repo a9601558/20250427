@@ -51,13 +51,18 @@ const protect = async (req, res, next) => {
             }
             catch (cognitoError) {
                 try {
-                    // Fall back to traditional JWT verification
-                    decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || '');
+                    // Fall back to traditional JWT verification with explicit algorithm
+                    const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
+                    // Explicitly specify HS256 algorithm for traditional JWT
+                    decoded = jsonwebtoken_1.default.verify(token, jwtSecret, { algorithms: ['HS256'] });
                     userId = decoded.id; // Traditional JWT uses 'id'
                     console.log('Traditional JWT token verified successfully');
                 }
                 catch (jwtError) {
-                    console.error('Both token verification methods failed:', { cognitoError, jwtError });
+                    console.error('Both token verification methods failed:', {
+                        cognitoError: cognitoError instanceof Error ? cognitoError.message : cognitoError,
+                        jwtError: jwtError instanceof Error ? jwtError.message : jwtError
+                    });
                     throw new Error('Token verification failed');
                 }
             }
@@ -119,10 +124,10 @@ const admin = (req, res, next) => {
 exports.admin = admin;
 // Generate JWT token (for traditional authentication)
 const generateToken = (id) => {
-    const secret = process.env.JWT_SECRET || '';
+    const secret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
     const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
-    // @ts-ignore - JWT sign type issues
-    return jsonwebtoken_1.default.sign({ id }, secret, { expiresIn });
+    // Use type assertion to bypass TypeScript strict checking
+    return jsonwebtoken_1.default.sign({ id }, secret, { expiresIn, algorithm: 'HS256' });
 };
 exports.generateToken = generateToken;
 /*

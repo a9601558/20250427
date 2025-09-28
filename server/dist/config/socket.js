@@ -64,14 +64,17 @@ const initializeSocket = (server) => {
             }
             catch (cognitoError) {
                 try {
-                    // Fall back to traditional JWT verification
-                    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
-                    decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
+                    // Fall back to traditional JWT verification with explicit algorithm
+                    const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
+                    decoded = jsonwebtoken_1.default.verify(token, jwtSecret, { algorithms: ['HS256'] });
                     userId = decoded.id; // Traditional JWT uses 'id'
                     console.log('Socket traditional JWT token verified successfully');
                 }
                 catch (jwtError) {
-                    console.error('Socket: Both token verification methods failed:', { cognitoError, jwtError });
+                    console.error('Socket: Both token verification methods failed:', {
+                        cognitoError: cognitoError instanceof Error ? cognitoError.message : cognitoError,
+                        jwtError: jwtError instanceof Error ? jwtError.message : jwtError
+                    });
                     // 允许连接但不设置userId，这样后续操作会知道用户未认证
                     console.log('Socket允许匿名连接 - token验证失败');
                     return next();

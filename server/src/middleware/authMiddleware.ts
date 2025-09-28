@@ -68,12 +68,18 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         console.log('AWS Cognito token verified successfully');
       } catch (cognitoError) {
         try {
-          // Fall back to traditional JWT verification
-          decoded = jwt.verify(token, process.env.JWT_SECRET || '') as JwtPayload;
+          // Fall back to traditional JWT verification with explicit algorithm
+          const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
+          
+          // Explicitly specify HS256 algorithm for traditional JWT
+          decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as JwtPayload;
           userId = decoded.id; // Traditional JWT uses 'id'
           console.log('Traditional JWT token verified successfully');
         } catch (jwtError) {
-          console.error('Both token verification methods failed:', { cognitoError, jwtError });
+          console.error('Both token verification methods failed:', { 
+            cognitoError: cognitoError instanceof Error ? cognitoError.message : cognitoError, 
+            jwtError: jwtError instanceof Error ? jwtError.message : jwtError 
+          });
           throw new Error('Token verification failed');
         }
       }
@@ -138,10 +144,11 @@ export const admin = (req: Request, res: Response, next: NextFunction) => {
 
 // Generate JWT token (for traditional authentication)
 export const generateToken = (id: string): string => {
-  const secret = process.env.JWT_SECRET || '';
+  const secret = process.env.JWT_SECRET || 'default-dev-secret-key-change-in-production';
   const expiresIn = process.env.JWT_EXPIRES_IN || '30d';
-  // @ts-ignore - JWT sign type issues
-  return jwt.sign({ id }, secret, { expiresIn });
+  
+  // Use type assertion to bypass TypeScript strict checking
+  return jwt.sign({ id }, secret, { expiresIn, algorithm: 'HS256' } as any);
 };
 
 /*
