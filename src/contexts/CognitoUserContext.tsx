@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { getCurrentUser, fetchUserAttributes, signOut, signIn, signUp } from 'aws-amplify/auth';
+import { getCurrentUser, fetchUserAttributes, signOut, signIn, signUp, fetchAuthSession } from 'aws-amplify/auth';
 import { User } from '../types';
 import { toast } from 'react-toastify';
 
@@ -56,6 +56,21 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
     try {
       const currentUser = await getCurrentUser();
       const attributes = await fetchUserAttributes();
+      
+      // AWS Cognitoセッションからトークンを取得
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+      const accessToken = session.tokens?.accessToken?.toString();
+      
+      // 既存システムとの互換性のためlocalStorageにトークンを保存
+      if (idToken) {
+        localStorage.setItem('token', idToken);
+        console.log('[CognitoUserContext] AWS Cognito IDトークンを既存システムに設定しました');
+      }
+      
+      if (accessToken) {
+        localStorage.setItem('cognitoAccessToken', accessToken);
+      }
 
       const userData: User = {
         id: currentUser.userId,
@@ -69,10 +84,19 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
         isAdmin: false, // ユーザーグループまたはカスタム属性で決定可能
         accessRights: [],
       };
+      
+      // ユーザーIDも既存システムに保存
+      localStorage.setItem('activeUserId', currentUser.userId);
 
       setUser(userData);
       setIsAuthenticated(true);
       setError(null);
+      
+      // Socket接続とAPI呼び出しが正常に動作するように、新しいトークンを通知
+      window.dispatchEvent(new CustomEvent('tokenUpdated', { 
+        detail: { token: idToken, userId: currentUser.userId } 
+      }));
+      
     } catch (error) {
       console.error('ユーザー情報の読み込みに失敗しました:', error);
       setError('ユーザー情報の読み込みに失敗しました');
@@ -168,6 +192,12 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
     try {
       setLoading(true);
       await signOut();
+      
+      // 既存システムのトークンとユーザー情報をクリア
+      localStorage.removeItem('token');
+      localStorage.removeItem('cognitoAccessToken');
+      localStorage.removeItem('activeUserId');
+      
       setUser(null);
       setIsAuthenticated(false);
       setError(null);

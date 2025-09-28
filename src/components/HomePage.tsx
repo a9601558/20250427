@@ -497,10 +497,10 @@ const HomePage = () => {
     const getAccessTypeLabel = () => {
       if (set.accessType === 'free') return '免费';
       if (!set.isPaid) return '免费';  // 备用检查
-      if (set.accessType === 'paid') return hasAccess ? '已购买' : '付费';
-      if (set.accessType === 'redeemed') return '已兑换';
+      if (set.accessType === 'paid') return hasAccess ? '購入済み' : '有料';
+      if (set.accessType === 'redeemed') return '交換済み';
       if (set.accessType === 'expired') return '已过期';
-      if (set.accessType === 'trial') return '试用';
+      if (set.accessType === 'trial') return 'お試し';
       return '付费';
     };
     
@@ -651,7 +651,7 @@ const HomePage = () => {
                     <span className="apple-title text-2xl text-gray-900">¥{set.price}</span>
                     {set.trialQuestions && (
                       <div className="apple-text text-xs text-gray-500 mt-1">
-                        可试用{set.trialQuestions}题
+                        {set.trialQuestions}問お試し可能
                       </div>
                     )}
                   </div>
@@ -684,7 +684,7 @@ const HomePage = () => {
                     <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                   </svg>
                 )}
-                {isFree ? '免费开始' : hasAccess ? '开始练习' : '试用练习'}
+                {isFree ? '無料で開始' : hasAccess ? '練習開始' : 'お試し練習'}
               </span>
             </button>
           </div>
@@ -1522,7 +1522,7 @@ const HomePage = () => {
       clearTimeout(loadingTimeoutRef.current);
       
       // Show error message to user
-      toast.error('获取题库时发生错误，请刷新页面重试');
+      toast.error('問題集の取得中にエラーが発生しました。ページを更新して再試行してください');
       return questionSets;
     } finally {
       pendingFetchRef.current = false;
@@ -2851,7 +2851,7 @@ const HomePage = () => {
           setHomeContent(localContent);
           
           if (options.showNotification) {
-            toast.warning('服务器错误，使用本地缓存的内容', { position: 'bottom-center' });
+            toast.warning('サーバーエラー、ローカルキャッシュの内容を使用します', { position: 'bottom-center' });
           }
           
           // Default to "all" category if featuredCategories are available
@@ -2887,7 +2887,7 @@ const HomePage = () => {
         setHomeContent(localContent);
         
         if (options.showNotification) {
-          toast.warning('服务器错误，使用本地缓存的内容', { position: 'bottom-center' });
+          toast.warning('サーバーエラー、ローカルキャッシュの内容を使用します', { position: 'bottom-center' });
         }
         
         // Default to "all" category if featuredCategories are available
@@ -3520,24 +3520,24 @@ const HomePage = () => {
           <div className="relative z-10 flex flex-col md:flex-row items-center">
             <div className="w-full md:w-3/5 text-center md:text-left mb-8 md:mb-0">
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-4 tracking-wider">
-                {homeContent.welcomeTitle || "欢迎来到在线考试中心"}
+                {homeContent.welcomeTitle || "オンライン試験センターへようこそ"}
               </h1>
               <p className="text-blue-100 text-sm md:text-base mb-6">
-                {homeContent.welcomeDescription || "选择下面的题库开始练习，提升你的专业技能"}
+                {homeContent.welcomeDescription || "下記の問題集を選択して練習を開始し、専門スキルを向上させましょう"}
               </p>
               <div className="flex flex-wrap justify-center md:justify-start">
                 <Link
                   to="/question-sets" 
                   className="relative overflow-hidden bg-white text-blue-600 font-medium px-5 py-2 rounded-lg shadow-md hover:bg-blue-50 transition-all mr-3 mb-2 text-sm group"
                 >
-                  <span className="relative z-10">浏览题库</span>
+                  <span className="relative z-10">問題集を参照</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 via-transparent to-blue-400/20 translate-x-[-100%] group-hover:animate-shimmer"></div>
                 </Link>
                 <Link
                   to="/profile" 
                   className="relative overflow-hidden bg-blue-700 bg-opacity-30 text-white font-medium px-5 py-2 rounded-lg border border-blue-400 border-opacity-40 hover:bg-opacity-40 transition-all mb-2 text-sm group"
                 >
-                  <span className="relative z-10">个人中心</span>
+                  <span className="relative z-10">マイページ</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-white/10 to-white/5 translate-x-[-100%] group-hover:animate-shimmer"></div>
                 </Link>
               </div>
@@ -3625,7 +3625,7 @@ const HomePage = () => {
                 <svg className={`w-3.5 h-3.5 ${activeCategory === 'all' ? 'text-white' : 'text-blue-500 dark:text-blue-400'} mr-1`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                全部
+                すべて
               </div>
           </button>
             
@@ -3710,10 +3710,10 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-green-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">我的题库</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">マイ問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
-                      {categorized.purchased.length}个已购买/兑换
+                      {categorized.purchased.length}個購入済み/交換済み
                     </span>
                       <div className="ml-3 h-px w-12 bg-gradient-to-r from-green-600 to-transparent"></div>
                   </div>
@@ -3750,10 +3750,10 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-blue-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">免费题库</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">無料問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
-                      {categorized.free.length}个免费题库
+                      {categorized.free.length}個の無料問題集
                     </span>
                       <div className="ml-3 h-px w-12 bg-gradient-to-r from-blue-600 to-transparent"></div>
                   </div>
@@ -3790,10 +3790,10 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-purple-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">付费题库</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">有料問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">
-                      {categorized.paid.length}个待购买
+                      {categorized.paid.length}個の購入待ち
                     </span>
                       <div className="ml-3 h-px w-12 bg-gradient-to-r from-purple-600 to-transparent"></div>
                   </div>

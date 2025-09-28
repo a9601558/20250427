@@ -104,6 +104,27 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  // 监听token更新事件（AWS Cognito认证后）
+  useEffect(() => {
+    const handleTokenUpdate = (event: CustomEvent) => {
+      const { token, userId } = event.detail;
+      console.log('[UserContext] 收到token更新事件，重新初始化用户会话');
+      
+      // 更新API客户端配置
+      apiClient.setAuthHeader(token);
+      apiClient.setUserId(userId);
+      
+      // 重新初始化用户会话
+      initializeUserSession();
+    };
+
+    window.addEventListener('tokenUpdated', handleTokenUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('tokenUpdated', handleTokenUpdate as EventListener);
+    };
+  }, []);
+
   // 初始加载时检查用户登录状态并确保数据不是来自之前的登录会话
   useEffect(() => {
     const token = localStorage.getItem('token');

@@ -28,6 +28,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [showNotification, setShowNotification] = useState<boolean>(true);
   const { user } = useUser();
   
+  // 监听token更新事件，重新连接Socket
+  useEffect(() => {
+    const handleTokenUpdate = () => {
+      console.log('[Socket] 收到token更新事件，重新初始化Socket连接');
+      initSocket();
+    };
+
+    window.addEventListener('tokenUpdated', handleTokenUpdate);
+    
+    return () => {
+      window.removeEventListener('tokenUpdated', handleTokenUpdate);
+    };
+  }, []);
+  
   // 使用useRef存储重连计数器和定时器引用，减少不必要的渲染
   const reconnectCount = useRef(0);
   const reconnectTimerId = useRef<NodeJS.Timeout | null>(null);
