@@ -629,7 +629,7 @@ const HomePage = () => {
               {(isPaid || isRedeemed) && hasAccess && !isExpired ? (
                 <div className="w-full">
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="apple-text text-gray-500">有效期</span>
+                    <span className="apple-text text-gray-500">有効期限</span>
                     <span className={`apple-text font-medium ${
                       percent < 20 ? 'text-red-600' : 
                       percent < 50 ? 'text-amber-600' : 
@@ -2588,7 +2588,7 @@ const HomePage = () => {
       fetchQuestionSets({ forceFresh: true });
       
       if (options.showNotification) {
-        toast.success('首页内容已从管理员更新直接加载', { position: 'bottom-center' });
+        toast.success('管理者から直接ホームページコンテンツが読み込まれました', { position: 'bottom-center' });
       }
       
       // Dispatch event for Layout.tsx with footer text
@@ -2649,7 +2649,7 @@ const HomePage = () => {
               fetchQuestionSets({ forceFresh: true });
               
           if (options.showNotification) {
-            toast.info('首页内容已从本地缓存加载', { position: 'bottom-center' });
+            toast.info('ローカルキャッシュからホームページコンテンツが読み込まれました', { position: 'bottom-center' });
           }
           
           // Clear the force reload flag
@@ -2755,7 +2755,7 @@ const HomePage = () => {
               
               // Show notification if requested
               if (options.showNotification) {
-                toast.success('首页内容已从服务器更新', { position: 'bottom-center' });
+                toast.success('サーバーからホームページコンテンツが更新されました', { position: 'bottom-center' });
               }
               
               // Clear the force reload flag after processing
@@ -2797,7 +2797,7 @@ const HomePage = () => {
                 
                 // Show notification if requested
                 if (options.showNotification) {
-                  toast.success('首页内容已更新', { position: 'bottom-center' });
+                  toast.success('ホームページコンテンツが更新されました', { position: 'bottom-center' });
                 }
                 
                 // Notify Layout about the update with footer text
@@ -2818,7 +2818,7 @@ const HomePage = () => {
             setHomeContent(localContent);
             
             if (options.showNotification) {
-              toast.warning('服务器连接失败，使用本地缓存的内容', { position: 'bottom-center' });
+              toast.warning('サーバー接続に失敗しました。ローカルキャッシュの内容を使用します', { position: 'bottom-center' });
             }
             
             // Default to "all" category if featuredCategories are available
@@ -3208,7 +3208,7 @@ const HomePage = () => {
           }
           
           // 显示通知
-          toast.info('已从本地缓存加载最新内容', { position: 'bottom-center' });
+          toast.info('ローカルキャッシュから最新のコンテンツが読み込まれました', { position: 'bottom-center' });
         }
         
         // 无论是否有本地内容，都发起网络请求确保内容最新
@@ -3247,12 +3247,12 @@ const HomePage = () => {
     
     if (questionSets.length === 0) {
       console.log('[HomePage] No question sets to refresh counts for');
-      toast.info('没有可刷新的题库');
+      toast.info('更新可能な問題集がありません');
       return;
     }
     
     // 显示加载中通知
-    const toastId = toast.info('正在刷新题目数量...', { 
+    const toastId = toast.info('問題数を更新中...', { 
       autoClose: false,
       closeButton: false,
       closeOnClick: false
@@ -3306,7 +3306,7 @@ const HomePage = () => {
         console.log(`[HomePage] Updated question counts for ${updatedCount} question sets`);
         setQuestionSets(updatedSets);
         toast.update(toastId, { 
-          render: `成功更新${updatedCount}个题库的题目数量`, 
+          render: `${updatedCount}個の問題集の問題数を正常に更新しました`, 
           type: toast.TYPE.SUCCESS,
           autoClose: 3000,
           closeButton: true,
@@ -3315,7 +3315,7 @@ const HomePage = () => {
       } else {
         console.log('[HomePage] No question counts needed to be updated');
         toast.update(toastId, { 
-          render: '所有题库数量已是最新', 
+          render: 'すべての問題集の問題数は最新です', 
           type: toast.TYPE.INFO,
           autoClose: 2000,
           closeButton: true,
@@ -3420,7 +3420,7 @@ const HomePage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center pt-32 pb-20">
-        <div className="text-xl">正在加载...</div>
+        <div className="text-xl">読み込み中...</div>
       </div>
     );
   }
@@ -3575,7 +3575,7 @@ const HomePage = () => {
               <svg className="w-5 h-5 mr-2 text-yellow-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
-              推荐题库
+              おすすめ問題集
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3593,14 +3593,14 @@ const HomePage = () => {
               <svg className="w-5 h-5 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
           </svg>
-              题库列表
+              問題集一覧
             </h2>
             
             {/* 搜索框 */}
             <div className="relative">
               <input 
                 type="text" 
-                placeholder="搜索题库..." 
+                placeholder="問題集を検索..." 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64"
@@ -3681,12 +3681,12 @@ const HomePage = () => {
                 refreshQuestionCounts(true);
               }}
               className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 flex items-center"
-              title="刷新题目数量"
+              title="問題数を更新"
             >
               <svg className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-              刷新题目数量
+              問題数を更新
             </button>
                 </div>
 
@@ -3830,7 +3830,7 @@ const HomePage = () => {
                     </div>
                       <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-red-400 blur-md opacity-50 animate-pulse"></div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">已过期题库</h2>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">期限切れの問題集</h2>
                     <div className="flex items-center ml-3">
                       <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">
                       {categorized.expired.length}个已过期
@@ -3847,7 +3847,7 @@ const HomePage = () => {
                       <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      更新状态
+                      ステータス更新
                     </button>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -3885,9 +3885,9 @@ const HomePage = () => {
                     <div className="absolute inset-0 rounded-full animate-glow"></div>
                   </div>
                   
-                  <h3 className="text-xl font-medium text-gray-700 dark:text-gray-200 mb-2">未找到题库</h3>
+                  <h3 className="text-xl font-medium text-gray-700 dark:text-gray-200 mb-2">問題集が見つかりません</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-8">
-                    没有符合当前筛选条件的题库。请尝试更改筛选条件或搜索关键词。
+                    現在のフィルター条件に一致する問題集がありません。フィルター条件や検索キーワードを変更してみてください。
                   </p>
                   
                   <button
@@ -3900,7 +3900,7 @@ const HomePage = () => {
                     <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    重置筛选条件
+                    フィルターをリセット
                   </button>
                   
                   {/* 装饰性技术元素 */}
