@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, Timestamp, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '../../config/firebase'; // 导入已初始化的Firestore实例
 

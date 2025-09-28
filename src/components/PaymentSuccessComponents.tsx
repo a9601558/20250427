@@ -12,8 +12,8 @@ interface PaymentSuccessAnimationProps {
 export const PaymentSuccessAnimation: React.FC<PaymentSuccessAnimationProps> = ({
   isVisible,
   onComplete,
-  title = '支付成功！',
-  subtitle = '恭喜您完成购买',
+  title = 'お支払い完了！',
+  subtitle = '購入が完了しました',
   duration = 3000
 }) => {
   const [animationStep, setAnimationStep] = useState<'hidden' | 'showing' | 'complete'>('hidden');
@@ -167,26 +167,26 @@ export const PaymentConfirmationCard: React.FC<PaymentConfirmationCardProps> = (
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">购买成功</h3>
-        <p className="text-gray-600">您已成功购买题库访问权限</p>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">購入完了</h3>
+        <p className="text-gray-600">問題集へのアクセス権を正常に購入しました</p>
       </div>
 
       {/* 购买详情 */}
       <div className="bg-gray-50 rounded-xl p-6 mb-6">
-        <h4 className="font-bold text-gray-900 mb-3">购买详情</h4>
+        <h4 className="font-bold text-gray-900 mb-3">購入詳細</h4>
         
         <div className="space-y-3">
           <div className="flex justify-between">
-            <span className="text-gray-600">题库名称</span>
+            <span className="text-gray-600">問題集名</span>
             <span className="font-medium text-gray-900 text-right max-w-48 truncate" title={questionSetTitle}>
               {questionSetTitle}
             </span>
           </div>
           
           <div className="flex justify-between">
-            <span className="text-gray-600">支付金额</span>
+            <span className="text-gray-600">支払金額</span>
             <span className="font-bold text-green-600">
-              {currency === 'CNY' ? '¥' : currency} {amount.toFixed(2)}
+              {currency === 'JPY' ? '¥' : currency} {amount.toFixed(0)}
             </span>
           </div>
           

@@ -1,4 +1,14 @@
-import { getCurrentUser, fetchUserAttributes, signIn, signUp, signOut, confirmSignUp } from 'aws-amplify/auth';
+import { 
+  getCurrentUser, 
+  fetchUserAttributes, 
+  signIn, 
+  signUp, 
+  signOut, 
+  confirmSignUp,
+  resetPassword,
+  confirmResetPassword,
+  resendSignUpCode
+} from 'aws-amplify/auth';
 import { User } from '../types';
 // import { userApi } from '../utils/api'; // TODO: 集成现有API时启用
 
@@ -7,6 +17,19 @@ export interface CognitoAuthResult {
   user?: User;
   message?: string;
   needsVerification?: boolean;
+  challengeName?: string;
+  session?: string;
+}
+
+export interface PasswordResetResult {
+  success: boolean;
+  message?: string;
+  destination?: string;
+}
+
+export interface ConfirmPasswordResetResult {
+  success: boolean;
+  message?: string;
 }
 
 class CognitoAuthService {
@@ -223,6 +246,112 @@ class CognitoAuthService {
       console.log('未找到认证用户:', error);
       return null;
     }
+  }
+
+  /**
+   * 忘记密码 - 发送重置密码验证码
+   */
+  async forgotPassword(username: string): Promise<PasswordResetResult> {
+    try {
+      const output = await resetPassword({ username });
+      
+      return {
+        success: true,
+        message: '密码重置验证码已发送',
+        destination: output.nextStep.resetPasswordStep === 'CONFIRM_RESET_PASSWORD_WITH_CODE' 
+          ? output.nextStep.codeDeliveryDetails?.destination || '您的邮箱或手机'
+          : '您的邮箱或手机'
+      };
+    } catch (error: any) {
+      console.error('忘记密码失败:', error);
+      return {
+        success: false,
+        message: error.message || '发送重置密码验证码失败，请稍后重试'
+      };
+    }
+  }
+
+  /**
+   * 确认重置密码
+   */
+  async confirmForgotPassword(
+    username: string, 
+    confirmationCode: string, 
+    newPassword: string
+  ): Promise<ConfirmPasswordResetResult> {
+    try {
+      await confirmResetPassword({ 
+        username, 
+        confirmationCode, 
+        newPassword 
+      });
+      
+      return {
+        success: true,
+        message: '密码重置成功，请使用新密码登录'
+      };
+    } catch (error: any) {
+      console.error('确认密码重置失败:', error);
+      return {
+        success: false,
+        message: error.message || '密码重置失败，请检查验证码是否正确'
+      };
+    }
+  }
+
+  /**
+   * 重新发送注册验证码
+   */
+  async resendVerificationCode(username: string): Promise<{ success: boolean; message: string; destination?: string }> {
+    try {
+      const output = await resendSignUpCode({ username });
+      
+      return {
+        success: true,
+        message: '验证码已重新发送',
+        destination: output.destination || '您的邮箱或手机'
+      };
+    } catch (error: any) {
+      console.error('重新发送验证码失败:', error);
+      return {
+        success: false,
+        message: error.message || '重新发送验证码失败，请稍后重试'
+      };
+    }
+  }
+
+  /**
+   * 重新发送密码重置验证码
+   */
+  async resendPasswordResetCode(username: string): Promise<PasswordResetResult> {
+    // 密码重置验证码的重新发送实际上就是重新发起忘记密码流程
+    return await this.forgotPassword(username);
+  }
+
+  /**
+   * 验证用户输入格式（判断是邮箱还是手机号）
+   */
+  validateUserInput(input: string): { type: 'email' | 'phone' | 'username'; isValid: boolean } {
+    // 简单的邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(input)) {
+      return { type: 'email', isValid: true };
+    }
+
+    // 简单的手机号格式验证（支持日本手机号）
+    // 日本手机号格式：080-xxxx-xxxx, 090-xxxx-xxxx, 070-xxxx-xxxx等
+    const phoneRegex = /^(\+81|81)?[0-9]{10,11}$|^0[789]0-?[0-9]{4}-?[0-9]{4}$/;
+    if (phoneRegex.test(input.replace(/[\s-]/g, ''))) {
+      return { type: 'phone', isValid: true };
+    }
+
+    // 用户名格式验证（4-20位字母数字下划线）
+    const usernameRegex = /^[a-zA-Z0-9_]{4,20}$/;
+    if (usernameRegex.test(input)) {
+      return { type: 'username', isValid: true };
+    }
+
+    return { type: 'username', isValid: false };
   }
 
   /**

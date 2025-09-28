@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { redeemCodeService, questionSetService } from '../services/api';
-import { QuestionSet, RedeemCode } from '../types';
+import { QuestionSet } from '../types';
 
 const RedeemCodeAdmin: React.FC = () => {
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
@@ -38,8 +38,8 @@ const RedeemCodeAdmin: React.FC = () => {
           setRedeemCodes(redeemCodesResponse.data as any[]);
         }
       } catch (error) {
-        console.error('加载数据失败:', error);
-        toast.error('加载数据失败，请刷新页面重试');
+        console.error('データの読み込みに失敗:', error);
+        toast.error('データの読み込みに失敗しました。ページを更新して再試行してください');
       } finally {
         setIsLoading(false);
       }
@@ -53,17 +53,17 @@ const RedeemCodeAdmin: React.FC = () => {
     e.preventDefault();
     
     if (!selectedQuestionSetId) {
-      toast.error('请选择题库');
+      toast.error('問題集を選択してください');
       return;
     }
     
     if (validityDays < 1) {
-      toast.error('有效期必须至少为1天');
+      toast.error('有効期限は最低1日必要です');
       return;
     }
     
     if (quantity < 1 || quantity > 100) {
-      toast.error('生成数量必须在1-100之间');
+      toast.error('生成数は1～100の範囲で入力してください');
       return;
     }
     
@@ -82,13 +82,13 @@ const RedeemCodeAdmin: React.FC = () => {
         setRedeemCodes(prev => [...newCodes, ...prev]);
         setGeneratedCodes(newCodes);
         setShowGeneratedCodes(true);
-        toast.success(`成功生成 ${quantity} 个兑换码`);
+        toast.success(`${quantity}個の引き換えコードを正常に生成しました`);
       } else {
-        throw new Error(response.message || '生成兑换码失败');
+        throw new Error(response.message || '引き換えコードの生成に失敗しました');
       }
     } catch (error: any) {
-      console.error('生成兑换码失败:', error);
-      toast.error(error.message || '生成兑换码失败，请重试');
+      console.error('引き換えコードの生成に失敗:', error);
+      toast.error(error.message || '引き換えコードの生成に失敗しました。再試行してください');
     } finally {
       setIsGenerating(false);
     }
@@ -97,10 +97,10 @@ const RedeemCodeAdmin: React.FC = () => {
   // 复制兑换码到剪贴板
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-      .then(() => toast.success('已复制到剪贴板'))
+      .then(() => toast.success('クリップボードにコピーしました'))
       .catch(err => {
-        console.error('复制失败:', err);
-        toast.error('复制失败');
+        console.error('コピーに失敗:', err);
+        toast.error('コピーに失敗しました');
       });
   };
   
@@ -111,13 +111,13 @@ const RedeemCodeAdmin: React.FC = () => {
       
       if (response.success) {
         setRedeemCodes(prev => prev.filter(code => code.id !== codeId));
-        toast.success('兑换码已删除');
+        toast.success('引き換えコードを削除しました');
       } else {
-        throw new Error(response.message || '删除兑换码失败');
+        throw new Error(response.message || '引き換えコードの削除に失敗しました');
       }
     } catch (error: any) {
-      console.error('删除兑换码失败:', error);
-      toast.error(error.message || '删除兑换码失败');
+      console.error('引き換えコードの削除に失敗:', error);
+      toast.error(error.message || '引き換えコードの削除に失敗しました');
     }
   };
   
@@ -130,13 +130,13 @@ const RedeemCodeAdmin: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     };
-    return new Date(dateString).toLocaleDateString('zh-CN', options);
+    return new Date(dateString).toLocaleDateString('ja-JP', options);
   };
   
   // 根据题库ID获取题库标题
   const getQuestionSetTitle = (questionSetId: string) => {
     const questionSet = questionSets.find(qs => qs.id === questionSetId);
-    return questionSet ? questionSet.title : '未知题库';
+    return questionSet ? questionSet.title : '不明な問題集';
   };
   
   if (isLoading) {
@@ -149,17 +149,17 @@ const RedeemCodeAdmin: React.FC = () => {
   
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">兑换码管理</h1>
+      <h1 className="text-2xl font-bold mb-6">引き換えコード管理</h1>
       
-      {/* 生成兑换码表单 */}
+      {/* 引き換えコード生成フォーム */}
       <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <h2 className="text-lg font-semibold mb-4">生成兑换码</h2>
+        <h2 className="text-lg font-semibold mb-4">引き換えコードを生成</h2>
         
         <form onSubmit={handleGenerateCodes}>
           <div className="grid gap-6 md:grid-cols-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                选择题库
+                問題集を選択
               </label>
               <select
                 value={selectedQuestionSetId}
@@ -167,7 +167,7 @@ const RedeemCodeAdmin: React.FC = () => {
                 className="block w-full py-2 px-3 border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               >
-                <option value="">选择题库</option>
+                <option value="">問題集を選択</option>
                 {questionSets.map(qs => (
                   <option key={qs.id} value={qs.id}>{qs.title}</option>
                 ))}
@@ -176,7 +176,7 @@ const RedeemCodeAdmin: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                有效期（天）
+                有効期限（日）
               </label>
               <input
                 type="number"
@@ -191,7 +191,7 @@ const RedeemCodeAdmin: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                生成数量
+                生成数
               </label>
               <input
                 type="number"
@@ -213,7 +213,7 @@ const RedeemCodeAdmin: React.FC = () => {
                 isGenerating ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >
-              {isGenerating ? '生成中...' : '生成兑换码'}
+              {isGenerating ? '生成中...' : '引き換えコードを生成'}
             </button>
           </div>
         </form>
@@ -223,7 +223,7 @@ const RedeemCodeAdmin: React.FC = () => {
       {showGeneratedCodes && generatedCodes.length > 0 && (
         <div className="bg-green-50 border border-green-200 p-4 rounded-lg mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-green-800">新生成的兑换码</h2>
+            <h2 className="text-lg font-semibold text-green-800">新しく生成された引き換えコード</h2>
             <button
               onClick={() => setShowGeneratedCodes(false)}
               className="text-green-800 hover:text-green-900"

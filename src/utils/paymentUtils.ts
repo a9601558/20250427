@@ -123,7 +123,7 @@ function shouldRetry(error: any): boolean {
  */
 export const processPayment = async (
   amount: number,
-  currency: string = 'cny',
+  currency: string = 'jpy',
   metadata: PaymentMetadata
 ): Promise<PaymentResult> => {
   console.log(`[PaymentUtils] 创建支付意向，金额: ${amount} ${currency}`, metadata);

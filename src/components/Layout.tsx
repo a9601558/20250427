@@ -60,6 +60,55 @@ const layoutStyles = `
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z' fill='%23ffffff'/%3E%3C/svg%3E");
     background-size: cover;
   }
+  
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  
+  @keyframes textGlow {
+    0%, 100% { text-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
+    50% { text-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(139, 92, 246, 0.3); }
+  }
+  
+  .montopi-text {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    position: relative;
+    background: linear-gradient(
+      90deg,
+      #3b82f6 0%,
+      #6366f1 25%,
+      #8b5cf6 50%,
+      #a855f7 75%,
+      #3b82f6 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+  
+  .montopi-text:hover {
+    animation: shimmer 1.5s linear infinite, textGlow 2s ease-in-out infinite;
+  }
+  
+  .montopi-text::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
 `;
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
@@ -193,6 +242,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               alt="MonTopi" 
               className="h-12 sm:h-14 md:h-16 lg:h-18 w-auto group-hover:scale-105 transition-transform duration-200 max-w-none"
             />
+            <span className="ml-3 text-2xl md:text-3xl montopi-text select-none">
+              MonTopi
+            </span>
           </Link>
           
           <div className="flex items-center space-x-4">

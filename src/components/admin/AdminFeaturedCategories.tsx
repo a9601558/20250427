@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { homepageService, questionSetService } from '../../services/api';
-import { logger } from '../../utils/logger';
+
 import { useSocket } from '../../contexts/SocketContext';
 
 const AdminFeaturedCategories: React.FC = () => {

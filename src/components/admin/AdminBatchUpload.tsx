@@ -55,11 +55,11 @@ const AdminBatchUpload: React.FC = () => {
         if (response.success && response.data) {
           setQuestionSets(response.data);
         } else {
-          toast.error('获取题库列表失败');
+          toast.error('問題集リスト取得失敗');
         }
       } catch (error) {
-        console.error('获取题库列表出错:', error);
-        toast.error('获取题库列表出错');
+        console.error('問題集リスト取得エラー:', error);
+        toast.error('問題集リスト取得エラー');
       } finally {
         setIsLoading(false);
       }
@@ -80,7 +80,7 @@ const AdminBatchUpload: React.FC = () => {
       // 检查文件类型
     const fileType = selectedFile.name.split('.').pop()?.toLowerCase();
     if (fileType !== 'csv' && fileType !== 'txt') {
-      toast.error('只支持 CSV 或 TXT 文件格式');
+      toast.error('CSVまたはTXTファイル形式のみサポート');
       e.target.value = '';
         return;
       }
@@ -111,30 +111,30 @@ const AdminBatchUpload: React.FC = () => {
     e.preventDefault();
     
     if (uploadMode === 'add' && !selectedQuestionSet) {
-      toast.error('请选择目标题库');
+      toast.error('ターゲット問題集を選択してください');
       return;
     }
     
     if (uploadMode === 'create') {
-      // 验证新题库数据
+      // 新しい問題集データの検証
       if (!newQuestionSetData.title) {
-        toast.error('请输入题库标题');
+        toast.error('問題集タイトルを入力してください');
         return;
       }
       
       if (!newQuestionSetData.description) {
-        toast.error('请输入题库描述');
+        toast.error('問題集説明を入力してください');
         return;
       }
       
       if (!newQuestionSetData.category) {
-        toast.error('请输入题库分类');
+        toast.error('問題集カテゴリを入力してください');
         return;
       }
     }
     
     if (!file) {
-      toast.error('请选择要上传的文件');
+      toast.error('アップロードするファイルを選択してください');
       return;
     }
 
@@ -158,23 +158,51 @@ const AdminBatchUpload: React.FC = () => {
         // Force a slight delay to ensure the form is properly built
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // 导入修改后的questionSetService而不是使用API
-        const myQuestionSetService = await import('../../services/questionSetService');
-
-        // 发送请求
-        const response = await myQuestionSetService.default.batchAddQuestions(formData, (progress: number) => {
-          setUploadProgress(progress);
+        // 使用正确的API端点进行批量上传
+        const token = localStorage.getItem('token');
+        const xhr = new XMLHttpRequest();
+        
+        // 创建Promise来处理上传
+        const response = await new Promise((resolve, reject) => {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const progress = Math.round((e.loaded / e.total) * 100);
+              setUploadProgress(progress);
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const result = JSON.parse(xhr.responseText);
+                resolve(result);
+              } catch (e) {
+                reject(new Error('無効なレスポンス形式'));
+              }
+            } else {
+              reject(new Error(`アップロードエラー: ${xhr.status}`));
+            }
+          });
+          
+          xhr.addEventListener('error', () => {
+            reject(new Error('ネットワークエラー'));
+          });
+          
+          xhr.open('POST', `/api/questions/batch-upload/${selectedQuestionSet}`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.send(formData);
         });
 
-        if (response.success) {
-          toast.success('问题批量添加成功！');
+        const typedResponse = response as any;
+        if (typedResponse.success) {
+          toast.success('問題一括追加成功！');
           setUploadResult({
-            success: response.data?.success || 0,
-            failed: response.data?.failed || 0,
-            errors: response.data?.errors
+            success: typedResponse.data?.success || 0,
+            failed: typedResponse.data?.failed || 0,
+            errors: typedResponse.data?.errors
           });
         } else {
-          toast.error(`批量添加失败: ${response.message || response.error}`);
+          toast.error(`一括追加失敗: ${typedResponse.message || typedResponse.error}`);
         }
       } else {
         // 创建新题库模式
@@ -186,37 +214,80 @@ const AdminBatchUpload: React.FC = () => {
         console.log('[Upload] 创建新题库:', newQuestionSetData.title);
         console.log('[Upload] FormData file name:', file.name);
         
-        // 导入修改后的questionSetService
-        const myQuestionSetService = await import('../../services/questionSetService');
+        // 首先创建题库，然后上传题目
+        const { questionSetService } = await import('../../services/api');
         
-        // 发送创建新题库的请求
-        const response = await myQuestionSetService.default.batchCreateQuestionSet(formData, (progress: number) => {
-          setUploadProgress(progress);
-        });
+        // 创建新题库
+        const createResponse = await questionSetService.createQuestionSet(newQuestionSetData);
         
-        if (response.success) {
-          toast.success('题库创建成功！');
-          setUploadResult({
-            success: response.data?.success || 0,
-            failed: response.data?.failed || 0,
-            errors: response.data?.errors
+        if (!createResponse.success || !createResponse.data) {
+          throw new Error(createResponse.message || '題庫作成失敗');
+        }
+        
+        const newQuestionSetId = createResponse.data.id;
+        
+        // 然后批量上传题目到新创建的题库
+        const token = localStorage.getItem('token');
+        const xhr = new XMLHttpRequest();
+        
+        const response = await new Promise((resolve, reject) => {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const progress = Math.round((e.loaded / e.total) * 100);
+              setUploadProgress(progress);
+            }
           });
           
-          // 刷新题库列表
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const result = JSON.parse(xhr.responseText);
+                resolve(result);
+              } catch (e) {
+                reject(new Error('無効なレスポンス形式'));
+              }
+            } else {
+              reject(new Error(`アップロードエラー: ${xhr.status}`));
+            }
+          });
+          
+          xhr.addEventListener('error', () => {
+            reject(new Error('ネットワークエラー'));
+          });
+          
+          // 创建新的FormData只包含文件
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', file);
+          
+          xhr.open('POST', `/api/questions/batch-upload/${newQuestionSetId}`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.send(uploadFormData);
+        });
+        
+        const typedUploadResponse = response as any;
+        if (typedUploadResponse.success) {
+          toast.success('問題集作成成功！');
+          setUploadResult({
+            success: typedUploadResponse.data?.success || 0,
+            failed: typedUploadResponse.data?.failed || 0,
+            errors: typedUploadResponse.data?.errors
+          });
+          
+          // 問題集リストを更新
           const refreshResponse = await questionSetService.getAllQuestionSets();
           if (refreshResponse.success && refreshResponse.data) {
             setQuestionSets(refreshResponse.data);
           }
         } else {
-          toast.error(`创建题库失败: ${response.message || response.error}`);
+          toast.error(`問題集作成失敗: ${(response as any)?.message || (response as any)?.error || '未知エラー'}`);
         }
       }
       
       // 重置表单
       resetForm(e);
     } catch (error) {
-      console.error('批量操作出错:', error);
-      toast.error('批量操作出错，请重试');
+      console.error('一括操作エラー:', error);
+      toast.error('一括操作エラー、もう一度お試しください');
     } finally {
       setIsUploading(false);
     }
@@ -257,10 +328,10 @@ const AdminBatchUpload: React.FC = () => {
         <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        批量题目管理
+        一括問題管理
       </h2>
 
-      {/* 模式选择 */}
+      {/* モード選択 */}
         <div className="mb-6">
         <div className="flex space-x-4 border-b border-gray-200">
           <button
@@ -272,7 +343,7 @@ const AdminBatchUpload: React.FC = () => {
             }`}
             onClick={() => toggleUploadMode('add')}
           >
-            批量添加题目到现有题库
+            既存問題集に一括追加
           </button>
           <button
             type="button"
@@ -283,7 +354,7 @@ const AdminBatchUpload: React.FC = () => {
             }`}
             onClick={() => toggleUploadMode('create')}
           >
-            创建新题库并批量导入题目
+            新しい問題集作成と一括インポート
           </button>
         </div>
         </div>
@@ -296,19 +367,19 @@ const AdminBatchUpload: React.FC = () => {
             </svg>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium">文件格式说明</p>
+            <p className="text-sm font-medium">ファイル形式説明</p>
             <div className="mt-2 text-sm">
-              <p>支持 TXT 或 CSV 格式文件，每行一个问题，格式如下：</p>
+              <p>TXTまたはCSV形式のファイルに対応、一行に一つの問題、形式は以下の通り：</p>
               <pre className="mt-1 font-mono text-xs bg-blue-100 p-2 rounded overflow-x-auto mb-2">
                 问题?|选项A|选项B|选项C|选项D|正确答案|解析
               </pre>
               <ul className="list-disc list-inside text-xs mt-2">
-                <li>每个字段之间使用竖线 | 分隔</li>
-                <li><strong>单选题</strong>：正确答案填写单个选项字母，如：A、B、C 或 D</li>
-                <li><strong>多选题</strong>：正确答案用英文逗号分隔多个选项字母，如：A,B 或 A,C,D</li>
-                <li>注意：单选题请勿在答案中添加逗号，否则会被识别为多选题</li>
-                <li>必须包含至少两个选项（问题后至少有两列）</li>
-                <li>解析是可选的，可以为空</li>
+                <li>各フィールドは縦線 | で区切ります</li>
+                <li><strong>単選問題</strong>：正解は単一の選択肢文字を入力、例：A、B、CまたはD</li>
+                <li><strong>複選問題</strong>：正解は英語カンマで複数の選択肢文字を区切り、例：A,BまたはA,C,D</li>
+                <li>注意：単選問題の答えにカンマを付けないでください。複選問題と認識されます</li>
+                <li>最低2つの選択肢が必要です（問題の後に最低2列）</li>
+                <li>解説はオプションで、空白でも構いません</li>
               </ul>
               
               <div className="mt-3 p-2 rounded bg-blue-100">
@@ -322,23 +393,23 @@ const AdminBatchUpload: React.FC = () => {
             </div>
             
               <p className="mt-3 text-xs bg-yellow-100 p-3 rounded">
-                <strong>示例:</strong><br />
+                <strong>例：</strong><br />
                 <span className="block mb-1 border-l-2 border-green-500 pl-2">
-                  <strong className="text-green-700">单选题：</strong> 
-                  以下哪个是水的化学式?|H2O|CO2|NaCl|CH4|<strong>A</strong>|水的化学式是H2O
+                  <strong className="text-green-700">単選問題：</strong> 
+                  水の化学式は以下のどれですか?|H2O|CO2|NaCl|CH4|<strong>A</strong>|水の化学式はH2Oです
                 </span>
                 <span className="block border-l-2 border-purple-500 pl-2">
-                  <strong className="text-purple-700">多选题：</strong> 
-                  以下哪些是编程语言?|Java|篮球|Python|足球|<strong>A,C</strong>|Java和Python是编程语言
+                  <strong className="text-purple-700">複選問題：</strong> 
+                  以下の中でプログラミング言語はどれですか?|Java|バスケットボール|Python|サッカー|<strong>A,C</strong>|JavaとPythonはプログラミング言語です
                 </span>
               </p>
               
               <div className="bg-red-50 p-2 mt-3 rounded border-l-2 border-red-500">
-                <p className="text-red-700 font-medium">常见错误：</p>
+                <p className="text-red-700 font-medium">よくあるエラー：</p>
                 <ul className="list-disc list-inside text-xs text-red-600">
-                  <li>答案字段包含空格：正确写法 <code>A,B</code>，错误写法 <code>A, B</code></li>
-                  <li>使用中文逗号：正确写法 <code>A,B</code>，错误写法 <code>A，B</code></li>
-                  <li>答案字母大小写不对应：请使用大写字母 <code>A</code> 而非 <code>a</code></li>
+                  <li>答えフィールドにスペースが含まれる：正しい書き方 <code>A,B</code>、間違い <code>A, B</code></li>
+                  <li>中国語のカンマを使用：正しい書き方 <code>A,B</code>、間違い <code>A，B</code></li>
+                  <li>答えの文字の大文字小文字不一致：大文字 <code>A</code> を使用、<code>a</code> は使用しない</li>
                 </ul>
               </div>
             </div>
@@ -352,7 +423,7 @@ const AdminBatchUpload: React.FC = () => {
           // 添加题目到现有题库的表单
           <div>
             <label htmlFor="questionSet" className="block text-sm font-medium text-gray-700 mb-1">
-              选择目标题库
+              ターゲット問題集を選択
             </label>
             <select
               id="questionSet"
@@ -362,7 +433,7 @@ const AdminBatchUpload: React.FC = () => {
               disabled={isLoading || isUploading}
               required
             >
-              <option value="">-- 请选择题库 --</option>
+              <option value="">-- 問題集を選択してください --</option>
               {questionSets.map((set) => (
                 <option key={set.id} value={set.id}>
                   {set.title} {set.questionCount ? `(${set.questionCount}题)` : ''}
@@ -370,7 +441,7 @@ const AdminBatchUpload: React.FC = () => {
               ))}
             </select>
             {isLoading && (
-              <p className="mt-1 text-sm text-gray-500">加载题库中...</p>
+              <p className="mt-1 text-sm text-gray-500">問題集を読み込み中...</p>
             )}
           </div>
         ) : (
@@ -379,7 +450,7 @@ const AdminBatchUpload: React.FC = () => {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                  题库标题 <span className="text-red-500">*</span>
+                  問題集タイトル <span className="text-red-500">*</span>
                 </label>
               <input
                 type="text"
@@ -394,7 +465,7 @@ const AdminBatchUpload: React.FC = () => {
             
             <div>
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-                  分类 <span className="text-red-500">*</span>
+                  カテゴリ <span className="text-red-500">*</span>
                 </label>
               <input
                 type="text"
@@ -410,7 +481,7 @@ const AdminBatchUpload: React.FC = () => {
             
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                题库描述 <span className="text-red-500">*</span>
+                問題集説明 <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="description"
@@ -433,7 +504,7 @@ const AdminBatchUpload: React.FC = () => {
                 disabled={isUploading}
               />
               <label htmlFor="isPaid" className="ml-2 block text-sm text-gray-700">
-                付费题库
+                有料問題集
               </label>
             </div>
             
@@ -441,7 +512,7 @@ const AdminBatchUpload: React.FC = () => {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                    价格 (￥)
+                    価格 (¥)
                   </label>
                   <input
                     type="number"
@@ -457,7 +528,7 @@ const AdminBatchUpload: React.FC = () => {
                 
                 <div>
                   <label htmlFor="trialQuestions" className="block text-sm font-medium text-gray-700">
-                    试用题目数量
+                    お試し問題数
                   </label>
                   <input
                     type="number"
@@ -477,7 +548,7 @@ const AdminBatchUpload: React.FC = () => {
         {/* 文件上传 - 两种模式下都需要 */}
         <div>
           <label htmlFor="file" className="block text-sm font-medium text-gray-700 mb-1">
-            选择文件 (CSV 或 TXT)
+            ファイル選択 (CSV または TXT)
           </label>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
             <div className="space-y-1 text-center">
@@ -486,7 +557,7 @@ const AdminBatchUpload: React.FC = () => {
               </svg>
               <div className="flex text-sm text-gray-600">
                 <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
-                  <span>上传文件</span>
+                  <span>ファイルをアップロード</span>
                   <input 
                     id="file-upload" 
                     name="file-upload" 
@@ -497,10 +568,10 @@ const AdminBatchUpload: React.FC = () => {
                     disabled={isUploading}
                   />
                 </label>
-                <p className="pl-1">或拖放文件到此处</p>
+                <p className="pl-1">またはファイルをここにドラッグ＆ドロップ</p>
               </div>
               <p className="text-xs text-gray-500">
-                支持 CSV, TXT 文件，最大 10MB
+                CSV、TXTファイルに対応、最大3110MB
               </p>
             </div>
           </div>
@@ -510,22 +581,22 @@ const AdminBatchUpload: React.FC = () => {
         {filePreview && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              文件预览 (前10行)
+              ファイルプレビュー (最初の10行)
             </label>
             <div className="mt-1 bg-gray-50 p-3 rounded-md border border-gray-200 max-h-60 overflow-auto">
               <pre className="text-xs font-mono whitespace-pre-wrap">{filePreview}</pre>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              文件名: {file?.name} | 大小: {file ? (file.size / 1024).toFixed(2) : 0} KB
+              ファイル名: {file?.name} | サイズ: {file ? (file.size / 1024).toFixed(2) : 0} KB
             </p>
           </div>
         )}
 
-        {/* 上传进度 */}
+        {/* アップロード進行状況 */}
         {isUploading && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              上传进度
+              アップロード進行状況
             </label>
             <div className="w-full bg-gray-200 rounded-full h-2.5">
               <div 
@@ -547,11 +618,11 @@ const AdminBatchUpload: React.FC = () => {
                 </svg>
                       </div>
               <div className="ml-3">
-                <p className="text-sm font-medium">上传完成</p>
+                <p className="text-sm font-medium">アップロード完了</p>
                 <div className="mt-2 text-sm">
-                  <p>成功添加: <span className="font-bold">{uploadResult.success}</span> 道题目</p>
+                  <p>成功追加: <span className="font-bold">{uploadResult.success}</span> 問の問題</p>
                   {uploadResult.failed > 0 && (
-                    <p>失败: <span className="font-bold">{uploadResult.failed}</span> 道题目</p>
+                    <p>失敗: <span className="font-bold">{uploadResult.failed}</span> 問の問題</p>
                   )}
                 </div>
               </div>
@@ -575,14 +646,14 @@ const AdminBatchUpload: React.FC = () => {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                处理中...
+                処理中...
               </>
             ) : (
               <>
                 <svg className="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-                {uploadMode === 'add' ? '开始上传题目' : '创建题库并上传题目'}
+                {uploadMode === 'add' ? '問題アップロード開始' : '問題集作成と問題アップロード'}
               </>
             )}
           </button>
@@ -595,12 +666,12 @@ const AdminBatchUpload: React.FC = () => {
           type="button"
           className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           onClick={() => {
-            const templateContent = "以下哪个是水的化学式?|H2O|CO2|NaCl|CH4|A|水的化学式是H2O\n以下哪些是编程语言?|Java|篮球|Python|足球|A,C|Java和Python是编程语言\n1+1等于多少?|1|2|3|4|B|1+1=2";
+            const templateContent = "水の化学式は以下のどれですか?|H2O|CO2|NaCl|CH4|A|水の化学式はH2Oです\n以下の中でプログラミング言語はどれですか?|Java|バスケットボール|Python|サッカー|A,C|JavaとPythonはプログラミング言語です\n1+1はいくつですか?|1|2|3|4|B|1+1=2";
             const blob = new Blob([templateContent], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = '批量添加题目模板.txt';
+            a.download = '一括問題追加テンプレート.txt';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -610,7 +681,7 @@ const AdminBatchUpload: React.FC = () => {
           <svg className="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-          下载模板
+          テンプレートダウンロード
             </button>
       </div>
     </div>

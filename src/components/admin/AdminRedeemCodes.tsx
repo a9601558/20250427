@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { QuestionSet } from '../../types';
 import { questionSetApi } from '../../utils/api';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 
 const AdminRedeemCodes: React.FC = () => {
   const { generateRedeemCode, getRedeemCodes } = useUser();

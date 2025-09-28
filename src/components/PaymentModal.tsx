@@ -31,7 +31,7 @@ const PaymentForm: React.FC<{
       try {
         const response = await axios.post(`${API_BASE_URL}/api/payments/create-intent`, {
           amount: amount,
-          currency: 'cny'
+          currency: 'jpy'
         }, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -42,7 +42,7 @@ const PaymentForm: React.FC<{
           setClientSecret(response.data.clientSecret);
         }
       } catch (err: any) {
-        setError('创建支付失败，请重试');
+        setError('お支払いの作成に失敗しました。再試行してください');
         console.error('创建支付意图失败:', err);
       }
     };
@@ -57,7 +57,7 @@ const PaymentForm: React.FC<{
     event.preventDefault();
 
     if (!stripe || !elements || !clientSecret) {
-      setError('支付系统未就绪，请稍后重试');
+      setError('決済システムの準備ができていません。しばらく後に再試行してください');
       return;
     }
 
@@ -67,7 +67,7 @@ const PaymentForm: React.FC<{
     try {
       const cardElement = elements.getElement(CardElement);
       if (!cardElement) {
-        throw new Error('无法获取卡片信息');
+        throw new Error('カード情報を取得できません');
       }
 
       const result = await stripe.confirmCardPayment(clientSecret, {
@@ -77,16 +77,16 @@ const PaymentForm: React.FC<{
       });
 
       if (result.error) {
-        setError(result.error.message || '支付失败');
+        setError(result.error.message || 'お支払いに失敗しました');
       } else if (result.paymentIntent?.status === 'succeeded') {
-        toast.success('支付成功！');
+        toast.success('お支払いが完了しました！');
         onSuccess({
           paymentIntentId: result.paymentIntent.id,
           amount: amount
         });
       }
     } catch (err: any) {
-      setError(err.message || '支付过程中发生错误');
+      setError(err.message || 'お支払い処理中にエラーが発生しました');
     } finally {
       setIsProcessing(false);
     }
@@ -122,7 +122,7 @@ const PaymentForm: React.FC<{
           disabled={!stripe || isProcessing}
           className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {isProcessing ? '处理中...' : `支付 ¥${amount}`}
+          {isProcessing ? '処理中...' : `支払う ¥${amount}`}
         </button>
         <button
           type="button"
@@ -169,7 +169,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         );
 
         if (hasPurchased) {
-          toast.info('您已购买过此题库');
+          toast.info('この問題集は既に購入済みです');
           onSuccess({
             questionSetId: questionSet.id,
             remainingDays: 30
@@ -244,12 +244,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           // 成功页面
           <div className="text-center" style={{ animation: 'celebration 0.6s ease-out' }}>
             <div className="text-6xl mb-4">🎉</div>
-            <h3 className="text-xl font-bold text-green-600 mb-2">购买成功！</h3>
+            <h3 className="text-xl font-bold text-green-600 mb-2">購入完了！</h3>
             <p className="text-gray-600 mb-4">
-              您已成功购买《{questionSet.title}》题库
+              《{questionSet.title}》問題集の購入が完了しました
             </p>
             <p className="text-sm text-gray-500">
-              正在跳转到题库页面...
+              問題集ページに移動しています...
             </p>
             <style>{`
               @keyframes celebration {
@@ -263,7 +263,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           // 支付页面
           <>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">购买题库</h3>
+              <h3 className="text-xl font-bold">問題集を購入</h3>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600"
@@ -276,7 +276,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               <h4 className="font-medium mb-2">{questionSet.title}</h4>
               <p className="text-gray-600 text-sm mb-4">{questionSet.description}</p>
               <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                <span>价格:</span>
+                <span>価格:</span>
                 <span className="text-xl font-bold text-blue-600">
                   ¥{questionSet.price}
                 </span>
