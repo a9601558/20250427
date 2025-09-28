@@ -392,7 +392,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       socket.disconnect();
     }
     
-    // 保留学习进度和相关数据，只清理会话相关的数据
+    // 保留学習進捗和相关数据，只清理会话相关的数据
     // 不要删除所有本地存储，而是有选择地清理
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {

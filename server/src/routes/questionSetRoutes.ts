@@ -9,7 +9,8 @@ import {
   getQuestionSetCategories,
   getQuestionSetsByCategory,
   addQuestionToQuestionSet,
-  setFeaturedQuestionSet
+  setFeaturedQuestionSet,
+  updateQuestionSetQuestions
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -49,6 +50,7 @@ router.delete('/:id', protect, admin, deleteQuestionSet);
 
 // 题目相关路由
 router.post('/:id/questions', protect, admin, addQuestionToQuestionSet);
+router.put('/:id/questions', protect, admin, updateQuestionSetQuestions);
 
 // Featured status update route
 router.put('/:id/featured', protect, admin, setFeaturedQuestionSet);

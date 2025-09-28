@@ -139,7 +139,7 @@ interface WrongAnswer {
   };
 }
 
-// 错题集分组
+// 誤答集分组
 interface WrongAnswerGroup {
   questionSetId: string;
   questionSetTitle: string;
@@ -943,7 +943,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
   );
 };
 
-// 错题集分组组件
+// 誤答集分组组件
 interface WrongAnswerGroupProps {
   group: WrongAnswerGroup;
   onDelete: (id: string) => void;
@@ -1734,7 +1734,7 @@ const ProfilePage: React.FC = () => {
     }
   }, [user]);
 
-  // 获取错题集
+  // 获取誤答集
   const fetchWrongAnswers = useCallback(async () => {
     if (!user) return;
     
@@ -1782,7 +1782,7 @@ const ProfilePage: React.FC = () => {
             });
             
             setWrongAnswers(enhancedWrongAnswers);
-            console.log('[ProfilePage] 错题集增强完成，数量:', enhancedWrongAnswers.length);
+            console.log('[ProfilePage] 誤答集增强完成，数量:', enhancedWrongAnswers.length);
           } catch (err) {
             console.error('[ProfilePage] 获取题库信息失败:', err);
             setWrongAnswers(response.data); // 失败时使用原始数据
@@ -1791,7 +1791,7 @@ const ProfilePage: React.FC = () => {
           setWrongAnswers(response.data);
         }
       } else {
-        throw new Error(response.message || '获取错题集失败');
+        throw new Error(response.message || '获取誤答集失败');
       }
     } catch (error) {
       toast.error('間違い問題集の取得に失敗しました');
@@ -1903,7 +1903,7 @@ const ProfilePage: React.FC = () => {
         if (restoredCount > 0) {
           console.log(`[ProfilePage] 已成功恢复 ${restoredCount} 条进度数据`);
           // 显示一条恢复成功的提示
-          toast.success(`已恢复${restoredCount}条学习进度`);
+          toast.success(`已恢复${restoredCount}条学習進捗`);
           
           // 刷新显示的进度数据
           fetchProgressData();
@@ -1918,18 +1918,18 @@ const ProfilePage: React.FC = () => {
     }
   }, [user?.id, fetchProgressData]);
 
-  // 添加一个新函数，确保学习进度数据不会被意外删除
+  // 添加一个新函数，确保学習進捗数据不会被意外删除
   const protectLearningProgressData = useCallback(() => {
     if (!user?.id) return;
     
     try {
-      console.log('[ProfilePage] 检查并保护学习进度数据');
+      console.log('[ProfilePage] 检查并保护学習進捗数据');
       
       // 获取所有localStorage中的进度数据
       const progressData: Record<string, any> = {};
       const keysToProtect: string[] = [];
       
-      // 遍历localStorage中的所有键，找出学习进度数据
+      // 遍历localStorage中的所有键，找出学習進捗数据
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('quiz_progress_')) {
@@ -1963,15 +1963,15 @@ const ProfilePage: React.FC = () => {
           protectedKeys: keysToProtect,
           timestamp: Date.now()
         }));
-        console.log(`[ProfilePage] 已保护 ${keysToProtect.length} 条学习进度数据`);
+        console.log(`[ProfilePage] 已保护 ${keysToProtect.length} 条学習進捗数据`);
         
         // 创建备份
         const backupKey = `progress_backup_${user.id}`;
         localStorage.setItem(backupKey, JSON.stringify(progressData));
-        console.log(`[ProfilePage] 已备份 ${Object.keys(progressData).length} 条学习进度数据`);
+        console.log(`[ProfilePage] 已备份 ${Object.keys(progressData).length} 条学習進捗数据`);
       }
     } catch (error) {
-      console.error('[ProfilePage] 保护学习进度数据失败:', error);
+      console.error('[ProfilePage] 保护学習進捗数据失败:', error);
     }
   }, [user?.id]);
 
@@ -2013,13 +2013,13 @@ const ProfilePage: React.FC = () => {
     
     // 设置Socket重连后的数据重载
     socket.on('connect', () => {
-      console.log('[ProfilePage] Socket重新连接，刷新数据');
+      console.log('[ProfilePage] Socket重新连接，データを更新する');
       fetchProgressData();
     });
     
     // 设置轮询定时器 - 每5分钟刷新一次数据
     const pollInterval = setInterval(() => {
-      console.log('[ProfilePage] 定时刷新数据');
+      console.log('[ProfilePage] 定时データを更新する');
       fetchProgressData();
       fetchPurchases();
       fetchRedeemCodes();
@@ -2137,12 +2137,12 @@ const ProfilePage: React.FC = () => {
       const isRecentLogin = now - lastLoginTime < 5 * 60 * 1000; // 登录后5分钟内不清理缓存
       
       if (isRecentLogin) {
-        console.log('[ProfilePage] 检测到最近登录，跳过缓存清理以保护学习进度');
+        console.log('[ProfilePage] 检测到最近登录，跳过缓存清理以保护学習進捗');
         return;
       }
       
-      // 重要：不要清理学习进度数据，只清理题库访问权限缓存
-      // 学习进度数据使用 quiz_progress_ 前缀的键存储，这些应该保留
+      // 重要：不要清理学習進捗数据，只清理题库访问权限缓存
+      // 学習進捗数据使用 quiz_progress_ 前缀的键存储，这些应该保留
       
       let hasUpdates = false;
       const userCache = cacheData[user.id];
@@ -2206,7 +2206,7 @@ const ProfilePage: React.FC = () => {
         const progressDataKeys: string[] = [];
         const progressDataMap: Record<string, any> = {};
         
-        // 遍历localStorage中的所有键，找出学习进度数据
+        // 遍历localStorage中的所有键，找出学習進捗数据
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith('quiz_progress_')) {
@@ -2243,7 +2243,7 @@ const ProfilePage: React.FC = () => {
           const backupKey = `progress_backup_${user.id}`;
           localStorage.setItem(backupKey, JSON.stringify(progressDataMap));
           
-          console.log(`[ProfilePage] 定期任务：已保护并备份 ${progressDataKeys.length} 条学习进度数据`);
+          console.log(`[ProfilePage] 定期任务：已保护并备份 ${progressDataKeys.length} 条学習進捗数据`);
         }
       } catch (error) {
         console.error('[ProfilePage] 定期保护数据任务失败:', error);
@@ -2277,7 +2277,7 @@ const ProfilePage: React.FC = () => {
               <svg className={`w-4 h-4 mr-2 ${activeTab === 'progress' ? 'text-blue-500' : 'text-gray-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              学习进度
+              学習進捗
             </button>
             
             <button
@@ -2380,7 +2380,7 @@ const ProfilePage: React.FC = () => {
         
         // 3. 从UI中移除进度卡片
         setProgressStats(prevStats => prevStats.filter(stat => stat.questionSetId !== questionSetId));
-        toast.success('学习进度已删除');
+        toast.success('学習進捗已删除');
         console.log(`[ProfilePage] 题库进度删除成功 ${questionSetId}`);
       } else {
         throw new Error('网络连接失败，请刷新页面重试');
@@ -2604,7 +2604,7 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 渲染错题集内容
+  // 渲染誤答集内容
   const renderWrongAnswersContent = () => {
     if (wrongAnswersLoading) {
       return (
@@ -2647,7 +2647,7 @@ const ProfilePage: React.FC = () => {
             <svg className="w-6 h-6 mr-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            错题集 ({wrongAnswers.length}题)
+            誤答集 (計{wrongAnswers.length}問)
           </h2>
           <div className="bg-red-50 text-red-600 text-sm px-3 py-1 rounded-full border border-red-100">
             間違えた問題は自動的に間違い問題集に追加されます。
@@ -2667,7 +2667,7 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 分组错题集
+  // 分组誤答集
   const groupedWrongAnswers = useCallback(() => {
     const groups: { [key: string]: WrongAnswerGroup } = {};
     
@@ -2809,7 +2809,7 @@ const ProfilePage: React.FC = () => {
                 <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                刷新数据
+                データを更新する
               </button>
             </div>
           </div>

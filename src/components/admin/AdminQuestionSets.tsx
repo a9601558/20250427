@@ -803,15 +803,10 @@ const AdminQuestionSets = () => {
     setLoadingAction('updateQuestions');
     
     try {
-      // 更新题库中的問題列表
-      const updatedQuestionSet = {
-        ...currentQuestionSet,
-        questions
-      };
-      
-      const response = await questionSetApi.updateQuestionSet(
+      // 使用专门的问题列表更新端点
+      const response = await questionSetApi.updateQuestionSetQuestions(
         currentQuestionSet.id, 
-        updatedQuestionSet
+        { questions }
       );
       
       if (response.success && response.data) {
@@ -923,8 +918,8 @@ const AdminQuestionSets = () => {
       await loadQuestionSets();
       showStatusMessage('success', '数据刷新成功');
     } catch (error) {
-      console.error("刷新数据出错:", error);
-      showStatusMessage('error', '刷新数据时发生错误');
+      console.error("データを更新する出错:", error);
+      showStatusMessage('error', 'データを更新する时发生错误');
     } finally {
       setLoading(false);
       setLoadingAction('');

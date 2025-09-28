@@ -189,98 +189,167 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
-      <div className="fixed inset-0" onClick={onClose}></div>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full relative z-10 max-h-[95vh] overflow-y-auto transform transition-all">
-        {/* 关闭按钮 */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:px-6 lg:px-10 bg-black/70 backdrop-blur-md">
+      <div className="absolute inset-0" onClick={onClose}></div>
+      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-[0_40px_80px_-40px_rgba(15,23,42,0.55)] ring-1 ring-slate-900/10">
+        {/* 閉じるボタン */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
-          aria-label="关闭"
+          className="absolute top-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-gray-500 shadow-lg transition-all hover:bg-white hover:text-gray-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
+          aria-label="閉じる"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        
-        {/* 认证表单容器 */}
-        <div className="p-6 sm:p-8 auth-container">
-          <style>{`
-            .auth-container .amplify-authenticator {
-              --amplify-components-authenticator-router-background-color: transparent;
-              --amplify-components-authenticator-router-border-radius: 0;
-              --amplify-components-authenticator-router-box-shadow: none;
-              --amplify-components-button-primary-background-color: #3b82f6;
-              --amplify-components-button-primary-hover-background-color: #2563eb;
-              --amplify-components-button-border-radius: 0.5rem;
-              --amplify-components-fieldcontrol-border-radius: 0.5rem;
-              --amplify-components-fieldcontrol-focus-border-color: #3b82f6;
-              --amplify-space-medium: 1.5rem;
-              --amplify-space-small: 1rem;
-            }
-            
-            .auth-container .amplify-button--primary {
-              background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%) !important;
-              border: none !important;
-              font-weight: 600 !important;
-              padding: 0.75rem 1.5rem !important;
-              transition: all 0.2s ease !important;
-            }
-            
-            .auth-container .amplify-button--primary:hover {
-              transform: translateY(-1px) !important;
-              box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
-            }
-            
-            .auth-container .amplify-input {
-              border: 2px solid #e5e7eb !important;
-              transition: all 0.2s ease !important;
-            }
-            
-            .auth-container .amplify-input:focus {
-              border-color: #3b82f6 !important;
-              box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-            }
-            
-            .auth-container .amplify-tabs-item {
-              font-weight: 600 !important;
-              color: #6b7280 !important;
-            }
-            
-            .auth-container .amplify-tabs-item[data-state="active"] {
-              color: #3b82f6 !important;
-              border-bottom-color: #3b82f6 !important;
-            }
-            
-            .auth-container .amplify-alert--error {
-              background-color: #fef2f2 !important;
-              border-color: #fecaca !important;
-              color: #dc2626 !important;
-              border-radius: 0.5rem !important;
-            }
-            
-            .auth-container .amplify-link {
-              color: #3b82f6 !important;
-              font-weight: 500 !important;
-            }
-            
-            .auth-container .amplify-link:hover {
-              color: #2563eb !important;
-            }
-          `}</style>
-          
-          <Authenticator
-            formFields={formFields}
-            components={components}
-            socialProviders={[]}
-            signUpAttributes={['email', 'phone_number']}
-            loginMechanisms={['username', 'email']}
-            variation="modal"
-            hideSignUp={false}
-            initialState="signIn"
-          >
-            <AuthWrapper onClose={onClose} />
-          </Authenticator>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1.08fr_1fr] min-h-[560px]">
+          <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-blue-600 via-indigo-500 to-purple-500 px-10 py-12 text-blue-50">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">
+                安全な認証
+              </span>
+              <h2 className="mt-6 text-3xl font-bold leading-tight text-white">
+                学習に集中できる、スムーズなログイン体験。
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-blue-100">
+                AWS Cognito による多要素認証で、どのデバイスからでも安心してアクセスできます。
+              </p>
+            </div>
+            <ul className="mt-8 space-y-5 text-sm leading-relaxed">
+              <li className="flex items-start gap-3">
+                <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">1</span>
+                <span>SMS・メールコードの二段階認証に対応し、パスワードを忘れてもすぐ復旧。</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">2</span>
+                <span>購入済み教材と学習記録を自動同期し、どこでも継続学習が可能。</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">3</span>
+                <span>管理者チームが 24 時間モニタリングし、安全な学習環境を維持します。</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="relative flex flex-col justify-center bg-white p-6 sm:p-8 lg:p-10 auth-container">
+            <div className="mb-6 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-500 to-purple-500 p-6 text-white shadow-xl lg:hidden">
+              <h2 className="text-2xl font-bold">安全な認証でログイン</h2>
+              <p className="mt-2 text-sm text-blue-100">
+                AWS Cognito を利用したマルチ認証で、モバイルからでも安心してアクセスできます。
+              </p>
+            </div>
+            <style>{`
+              .auth-container {
+                position: relative;
+                isolation: isolate;
+              }
+
+              .auth-container [data-amplify-authenticator] {
+                width: 100%;
+                --amplify-components-authenticator-modal-width: clamp(360px, 92vw, 920px);
+                --amplify-components-authenticator-modal-height: auto;
+                --amplify-components-authenticator-modal-top: auto;
+                --amplify-components-authenticator-modal-left: auto;
+                --amplify-components-authenticator-container-width-max: clamp(320px, 80vw, 560px);
+                --amplify-components-authenticator-router-background-color: transparent;
+                --amplify-components-authenticator-router-border-radius: 1.25rem;
+                --amplify-components-authenticator-router-box-shadow: none;
+                --amplify-components-button-primary-background-color: #3b82f6;
+                --amplify-components-button-primary-hover-background-color: #2563eb;
+                --amplify-components-button-border-radius: 0.75rem;
+                --amplify-components-fieldcontrol-border-radius: 0.75rem;
+                --amplify-components-fieldcontrol-focus-border-color: #3b82f6;
+                --amplify-space-medium: 1.75rem;
+                --amplify-space-small: 1.1rem;
+              }
+
+              .auth-container [data-amplify-authenticator][data-variation="modal"] {
+                position: static;
+                inset: auto;
+                background-color: transparent;
+                width: 100%;
+                height: auto;
+              }
+
+              .auth-container [data-amplify-container] {
+                width: 100%;
+                max-width: none;
+              }
+
+              .auth-container [data-amplify-router] {
+                background: #ffffff;
+                border-radius: 1.25rem;
+                border: 1px solid rgba(226, 232, 240, 0.8);
+                padding: clamp(1.5rem, 2.6vw, 2.5rem);
+                box-shadow: 0 35px 60px -40px rgba(15, 23, 42, 0.45);
+              }
+
+              .auth-container .amplify-button--primary {
+                background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%) !important;
+                border: none !important;
+                font-weight: 600 !important;
+                padding: 0.85rem 1.6rem !important;
+                transition: all 0.2s ease !important;
+              }
+
+              .auth-container .amplify-button--primary:hover {
+                transform: translateY(-2px) !important;
+                box-shadow: 0 8px 18px rgba(59, 130, 246, 0.35) !important;
+              }
+
+              .auth-container .amplify-input {
+                border: 2px solid #e5e7eb !important;
+                transition: all 0.2s ease !important;
+                padding-block: 0.85rem !important;
+                font-size: 1rem !important;
+              }
+
+              .auth-container .amplify-input:focus {
+                border-color: #3b82f6 !important;
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
+              }
+
+              .auth-container .amplify-tabs-item {
+                font-weight: 600 !important;
+                color: #6b7280 !important;
+              }
+
+              .auth-container .amplify-tabs-item[data-state="active"] {
+                color: #3b82f6 !important;
+                border-bottom-color: #3b82f6 !important;
+              }
+
+              .auth-container .amplify-alert--error {
+                background-color: #fef2f2 !important;
+                border-color: #fecaca !important;
+                color: #dc2626 !important;
+                border-radius: 0.75rem !important;
+              }
+
+              .auth-container .amplify-link {
+                color: #3b82f6 !important;
+                font-weight: 500 !important;
+              }
+
+              .auth-container .amplify-link:hover {
+                color: #2563eb !important;
+              }
+            `}</style>
+
+            <Authenticator
+              formFields={formFields}
+              components={components}
+              socialProviders={[]}
+              signUpAttributes={['email', 'phone_number']}
+              loginMechanisms={['username', 'email']}
+              variation="modal"
+              hideSignUp={false}
+              initialState="signIn"
+            >
+              <AuthWrapper onClose={onClose} />
+            </Authenticator>
+          </div>
         </div>
       </div>
     </div>

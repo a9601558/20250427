@@ -202,20 +202,20 @@ const markAsMastered = async (req, res) => {
         if (!wrongAnswer) {
             return res.status(404).json({
                 success: false,
-                message: '错题记录不存在'
+                message: '誤答記録が存在しません'
             });
         }
         await wrongAnswer.destroy();
         return res.json({
             success: true,
-            message: '已标记为掌握，该题已从誤答集中移除'
+            message: '習得済みに設定されたため、この問題は間違い問題集から外されました。'
         });
     }
     catch (error) {
-        console.error('标记为已掌握失败:', error);
+        console.error('習得済みの設定に失敗しました:', error);
         return res.status(500).json({
             success: false,
-            message: '服务器错误，标记为已掌握失败'
+            message: '「サーバーエラーのため、習得済みの設定に失敗しました。'
         });
     }
 };

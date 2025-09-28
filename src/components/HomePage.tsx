@@ -2510,7 +2510,7 @@ const HomePage = () => {
     const handleNavigation = (event: CustomEvent<{path: string, reason: string}>) => {
       console.log('[HomePage] 接收到导航事件:', event.detail);
       
-      // 如果当前已在首页，则刷新数据
+      // 如果当前已在首页，则データを更新する
       if (event.detail.reason === 'logout') {
         setQuestionSets([]);
         // 重新加载数据

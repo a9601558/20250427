@@ -36,6 +36,7 @@ router.put('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSet
 router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.deleteQuestionSet);
 // 题目相关路由
 router.post('/:id/questions', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.addQuestionToQuestionSet);
+router.put('/:id/questions', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.updateQuestionSetQuestions);
 // Featured status update route
 router.put('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.setFeaturedQuestionSet);
 // Base routes

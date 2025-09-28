@@ -13,7 +13,7 @@ interface UserProgressDisplayProps {
 
 /**
  * 用户进度展示组件
- * 用于在首页或其他页面展示用户在各个题库的学习进度
+ * 用于在首页或其他页面展示用户在各个题库的学習進捗
  */
 const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
   questionSets,

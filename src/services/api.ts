@@ -251,6 +251,20 @@ export const questionSetService = {
     }
   },
   
+  // 更新题库问题列表 (仅管理员)
+  async updateQuestionSetQuestions(id: string, data: { questions: any[] }): Promise<ApiResponse<QuestionSet>> {
+    try {
+      const response = await api.put(`/question-sets/${id}/questions`, data);
+      return handleResponse<QuestionSet>(response);
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.error
+      };
+    }
+  },
+
   // 删除题库 (仅管理员)
   async deleteQuestionSet(id: string): Promise<ApiResponse<void>> {
     try {
@@ -981,7 +995,7 @@ export const homepageService = {
   }
 };
 
-// 错题集服务
+// 誤答集服务
 export const wrongAnswerService = {
   // 获取用户的所有错题
   getWrongAnswers: async () => {
@@ -989,8 +1003,8 @@ export const wrongAnswerService = {
       const response = await api.get('/wrong-answers');
       return response.data;
     } catch (error) {
-      console.error('获取错题集失败:', error);
-      return { success: false, message: '获取错题集失败' };
+      console.error('获取誤答集失败:', error);
+      return { success: false, message: '获取誤答集失败' };
     }
   },
 

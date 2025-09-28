@@ -344,7 +344,7 @@ const AdminRedeemCodes: React.FC = () => {
       if (response.data.success) {
         setStatusMessage(response.data.message || '成功修复兑换码');
         
-        // 刷新数据
+        // データを更新する
         const updatedCodes = await getRedeemCodes();
         setRedeemCodes(updatedCodes);
         

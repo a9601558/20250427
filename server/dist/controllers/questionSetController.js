@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addQuestionToQuestionSet = exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
+exports.updateQuestionSetQuestions = exports.addQuestionToQuestionSet = exports.getQuestionSetsByCategory = exports.getQuestionSetCategories = exports.uploadQuestionSets = exports.setFeaturedQuestionSet = exports.getFeaturedQuestionSets = exports.getAllCategories = exports.deleteQuestionSet = exports.updateQuestionSet = exports.createQuestionSet = exports.getQuestionSetById = exports.getAllQuestionSets = void 0;
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const database_1 = __importDefault(require("../config/database"));
 const Question_1 = __importDefault(require("../models/Question"));
@@ -208,7 +208,14 @@ const updateQuestionSet = async (req, res) => {
                 isPaid: questionSet.isPaid,
                 price: questionSet.price,
             });
-            const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions } = req.body;
+            const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions, questions, // 添加questions字段以防止传递给数据库
+            ...otherFields // 捕获其他不应该传递给数据库的字段
+             } = req.body;
+            // 如果包含questions字段，记录但不处理（避免传递给Sequelize）
+            if (questions !== undefined) {
+                console.log('收到问题列表更新请求，但此端点仅处理题库基本信息。问题数量:', questions.length);
+                console.log('如需更新问题列表，请使用专门的问题管理端点');
+            }
             // 如果是付费题库，验证価格
             if (isPaid && (price === undefined || price <= 0)) {
                 console.log('価格验证失败:', { isPaid, price });
@@ -817,3 +824,77 @@ const addQuestionToQuestionSet = async (req, res) => {
     }
 };
 exports.addQuestionToQuestionSet = addQuestionToQuestionSet;
+// @desc    Update questions in question set
+// @route   PUT /api/v1/question-sets/:id/questions
+// @access  Private/Admin
+const updateQuestionSetQuestions = async (req, res) => {
+    try {
+        console.log('题库问题列表更新请求:', {
+            id: req.params.id,
+            questionsCount: req.body.questions ? req.body.questions.length : 0
+        });
+        const questionSet = await QuestionSet_1.default.findByPk(req.params.id);
+        if (!questionSet) {
+            return sendError(res, 404, '題庫が存在しません');
+        }
+        const { questions } = req.body;
+        if (!questions || !Array.isArray(questions)) {
+            return sendError(res, 400, '有効な問題リストが必要です');
+        }
+        // 使用事务确保数据一致性
+        const transaction = await database_1.default.transaction();
+        try {
+            // 删除该题库的所有现有问题
+            await Question_1.default.destroy({
+                where: { questionSetId: req.params.id },
+                transaction
+            });
+            // 添加新的问题列表
+            const createdQuestions = [];
+            for (let i = 0; i < questions.length; i++) {
+                const questionData = questions[i];
+                const newQuestion = await Question_1.default.create({
+                    questionSetId: req.params.id,
+                    text: questionData.text || `問題 ${i + 1}`,
+                    questionType: questionData.questionType || 'single',
+                    explanation: questionData.explanation || '',
+                    orderIndex: i
+                }, { transaction });
+                // 添加选项
+                if (questionData.options && Array.isArray(questionData.options)) {
+                    const optionsData = questionData.options.map((option, optionIndex) => ({
+                        questionId: newQuestion.id,
+                        text: option.text || `選択肢 ${optionIndex + 1}`,
+                        isCorrect: Boolean(option.isCorrect),
+                        orderIndex: optionIndex
+                    }));
+                    await Option_1.default.bulkCreate(optionsData, { transaction });
+                }
+                createdQuestions.push(newQuestion);
+            }
+            await transaction.commit();
+            console.log(`题库 ${req.params.id} 的问题列表更新成功，共 ${createdQuestions.length} 个问题`);
+            // 返回更新后的题库信息
+            const updatedQuestionSet = await QuestionSet_1.default.findByPk(req.params.id, {
+                include: [{
+                        model: Question_1.default,
+                        as: 'questionSetQuestions',
+                        include: [{
+                                model: Option_1.default,
+                                as: 'options'
+                            }]
+                    }]
+            });
+            sendResponse(res, 200, updatedQuestionSet, '問題リストが正常に更新されました');
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+    catch (error) {
+        console.error('Update question set questions error:', error);
+        sendError(res, 500, '問題リストの更新に失敗しました', error);
+    }
+};
+exports.updateQuestionSetQuestions = updateQuestionSetQuestions;
