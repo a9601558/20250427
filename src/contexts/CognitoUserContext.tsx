@@ -63,13 +63,14 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       const accessToken = session.tokens?.accessToken?.toString();
       
       // 既存システムとの互換性のためlocalStorageにトークンを保存
-      if (idToken) {
-        localStorage.setItem('token', idToken);
-        console.log('[CognitoUserContext] AWS Cognito IDトークンを既存システムに設定しました');
+      // 後端認証では access token が期待されるため、access token を使用
+      if (accessToken) {
+        localStorage.setItem('token', accessToken);
+        console.log('[CognitoUserContext] AWS Cognito Access Tokenを既存システムに設定しました');
       }
       
-      if (accessToken) {
-        localStorage.setItem('cognitoAccessToken', accessToken);
+      if (idToken) {
+        localStorage.setItem('cognitoIdToken', idToken);
       }
 
       const userData: User = {
@@ -195,7 +196,7 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       
       // 既存システムのトークンとユーザー情報をクリア
       localStorage.removeItem('token');
-      localStorage.removeItem('cognitoAccessToken');
+      localStorage.removeItem('cognitoIdToken');
       localStorage.removeItem('activeUserId');
       
       setUser(null);
