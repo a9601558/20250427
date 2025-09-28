@@ -7,6 +7,42 @@ import { userProgressService, questionSetService, purchaseService, wrongAnswerSe
 import { useNavigate } from 'react-router-dom';
 import { CalendarIcon, CreditCardIcon, ClockIcon, CashIcon } from './Icons';
 
+// 验证和清理questionSetId的工具函数
+const validateAndCleanQuestionSetId = (questionSetId: string): string | null => {
+  if (!questionSetId) return null;
+  
+  // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (uuidRegex.test(questionSetId)) {
+    return questionSetId; // 已经是正确格式
+  }
+  
+  // 如果包含下划线，可能是复合ID格式（用户ID_题库ID），优先提取题库ID（第二部分）
+  if (questionSetId.includes('_')) {
+    const parts = questionSetId.split('_');
+    
+    console.warn('[ProfilePage] 检测到复合ID格式:', questionSetId);
+    
+    // 优先尝试第二部分（题库ID）
+    const secondPart = parts[1];
+    if (secondPart && uuidRegex.test(secondPart)) {
+      console.log('[ProfilePage] 成功提取题库ID（第二部分）:', secondPart);
+      return secondPart;
+    }
+    
+    // 如果第二部分无效，尝试第一部分
+    const firstPart = parts[0];
+    if (uuidRegex.test(firstPart)) {
+      console.warn('[ProfilePage] 第二部分无效，使用第一部分:', firstPart);
+      return firstPart;
+    }
+  }
+  
+  console.error('[ProfilePage] 无法清理异常的questionSetId:', questionSetId);
+  return null;
+};
+
 // 原始进度记录类型
 interface ProgressRecord {
   id: string;
@@ -179,42 +215,6 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
     } catch (e) {
       console.error('[ProfilePage] 检查本地进度数据失败:', e);
     }
-    return null;
-  };
-  
-  // 验证和清理questionSetId的函数
-  const validateAndCleanQuestionSetId = (questionSetId: string): string | null => {
-    if (!questionSetId) return null;
-    
-    // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    if (uuidRegex.test(questionSetId)) {
-      return questionSetId; // 已经是正确格式
-    }
-    
-    // 如果包含下划线，可能是复合ID格式（用户ID_题库ID），优先提取题库ID（第二部分）
-    if (questionSetId.includes('_')) {
-      const parts = questionSetId.split('_');
-      
-      console.warn('[ProfilePage] 检测到复合ID格式:', questionSetId);
-      
-      // 优先尝试第二部分（题库ID）
-      const secondPart = parts[1];
-      if (secondPart && uuidRegex.test(secondPart)) {
-        console.log('[ProfilePage] 成功提取题库ID（第二部分）:', secondPart);
-        return secondPart;
-      }
-      
-      // 如果第二部分无效，尝试第一部分
-      const firstPart = parts[0];
-      if (uuidRegex.test(firstPart)) {
-        console.warn('[ProfilePage] 第二部分无效，使用第一部分:', firstPart);
-        return firstPart;
-      }
-    }
-    
-    console.error('[ProfilePage] 无法清理异常的questionSetId:', questionSetId);
     return null;
   };
   

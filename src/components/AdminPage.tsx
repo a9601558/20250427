@@ -4,13 +4,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 
 import AdminUserManagement from './admin/AdminUserManagement';
-import AdminHomeContent from './admin/AdminHomeContent';
 import AdminRedeemCodes from './admin/AdminRedeemCodes';
 import AddQuestionSet from './AddQuestionSet';
 import ManageQuestionSets from './ManageQuestionSets';
-import AdminFeaturedManagement from './admin/AdminFeaturedManagement';
 import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 import AdminBatchUpload from './admin/AdminBatchUpload';
+import AdminContentManagement from './admin/AdminContentManagement';
+import QuestionCountTest from './admin/QuestionCountTest';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -18,16 +18,16 @@ enum AdminTab {
   QUESTION_SETS = 'questionSets',
   ADD_QUESTION_SET = 'addQuestionSet',
   MANAGE_QUESTION_SETS = 'manageQuestionSets',
-  FEATURED_MANAGEMENT = 'featuredManagement',
-  HOME_CONTENT = 'homeContent',
+  CONTENT_MANAGEMENT = 'contentManagement',
   QUESTION_SET_INFO = 'questionSetInfo',
   BATCH_QUESTION_UPLOAD = 'batchQuestionUpload',
+  QUESTION_COUNT_TEST = 'questionCountTest',
 }
 
 const AdminPage: React.FC = () => {
   const { user, isAdmin } = useUser();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.HOME_CONTENT);
+  const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.CONTENT_MANAGEMENT);
   
   // 验证用户是否为管理员
   useEffect(() => {
@@ -126,22 +126,22 @@ const AdminPage: React.FC = () => {
                   题库兑换码管理
                 </button>
                 <button
-                  onClick={() => setActiveTab(AdminTab.FEATURED_MANAGEMENT)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.FEATURED_MANAGEMENT ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  onClick={() => setActiveTab(AdminTab.CONTENT_MANAGEMENT)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.CONTENT_MANAGEMENT ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
-                  精选内容管理
+                  内容管理
                 </button>
                 <button
-                  onClick={() => setActiveTab(AdminTab.HOME_CONTENT)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.HOME_CONTENT ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                  onClick={() => setActiveTab(AdminTab.QUESTION_COUNT_TEST)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.QUESTION_COUNT_TEST ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
-                  首页内容管理
+                  题目数量测试
                 </button>
               </nav>
             </div>
@@ -153,10 +153,10 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.ADD_QUESTION_SET && <AddQuestionSet />}
                 {activeTab === AdminTab.MANAGE_QUESTION_SETS && <ManageQuestionSets />}
                 {activeTab === AdminTab.REDEEM_CODES && <AdminRedeemCodes />}
-                {activeTab === AdminTab.FEATURED_MANAGEMENT && <AdminFeaturedManagement />}
-                {activeTab === AdminTab.HOME_CONTENT && <AdminHomeContent />}
+                {activeTab === AdminTab.CONTENT_MANAGEMENT && <AdminContentManagement />}
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
                 {activeTab === AdminTab.BATCH_QUESTION_UPLOAD && <AdminBatchUpload />}
+                {activeTab === AdminTab.QUESTION_COUNT_TEST && <QuestionCountTest />}
               </div>
             </div>
           </div>
