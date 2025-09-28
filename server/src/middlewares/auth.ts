@@ -32,7 +32,7 @@ export const authenticateJwt = async (req: Request, res: Response, next: NextFun
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
     
     try {
-      const decoded: any = jwt.verify(token, jwtSecret);
+      const decoded: any = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
       
       // 查找用户
       const user = await User.findByPk(decoded.id);

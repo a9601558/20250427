@@ -21,7 +21,7 @@ const authenticateJwt = async (req, res, next) => {
         }
         const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
         try {
-            const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
+            const decoded = jsonwebtoken_1.default.verify(token, jwtSecret, { algorithms: ['HS256'] });
             // 查找用户
             const user = await User_1.default.findByPk(decoded.id);
             if (!user) {
