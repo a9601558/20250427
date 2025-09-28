@@ -1316,7 +1316,7 @@ const AdminQuestionSets = () => {
                     className="mr-2"
                     disabled={loading}
                   >
-                    取消
+                    キャンセル
                   </Button>
                   {currentQuestion ? (
                     <Button

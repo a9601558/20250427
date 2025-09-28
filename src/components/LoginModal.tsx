@@ -180,11 +180,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen = true, onClose }) => {
         onClose();
         toast.success('账号切换成功');
       } else {
-        toast.error('账号切换失败，请使用用户名密码登录');
+        toast.error('アカウントの切り替えに失敗しました。ユーザー名とパスワードでログインしてください');
       }
     } catch (error) {
       console.error('[LoginModal] 快速登录出错:', error);
-      toast.error('快速登录失败');
+      toast.error('クイックログインに失敗しました');
     }
   };
   

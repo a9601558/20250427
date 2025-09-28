@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useUser } from '../contexts/UserContext';
+import { useNavigate } from 'react-router-dom';
 import { homepageService, questionSetService } from '../services/api';
-import apiClient from '../utils/api-client';
 import { toast } from 'react-toastify';
-import { questionService } from '../services/api';
 
 // 复用HomePage.tsx中的类型定义
 type AccessType = 'free' | 'trial' | 'paid' | 'expired' | 'redeemed';
@@ -32,12 +29,9 @@ interface QuestionSet {
   accessType?: AccessType;
 }
 
-interface HomeContentData {
-  featuredCategories: string[];
-}
+
 
 const QuestionSetSearchPage: React.FC = () => {
-  const { user } = useUser();
   const navigate = useNavigate();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [filteredSets, setFilteredSets] = useState<QuestionSet[]>([]);
@@ -46,7 +40,6 @@ const QuestionSetSearchPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [homeContent, setHomeContent] = useState<HomeContentData>({ featuredCategories: [] });
   const [view, setView] = useState<'grid' | 'list'>('list');
   const [sortOption, setSortOption] = useState<string>('newest');
   const [showFilters, setShowFilters] = useState(false);
@@ -117,7 +110,7 @@ const QuestionSetSearchPage: React.FC = () => {
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
-      toast.error('获取题库列表失败');
+      toast.error('問題集リストの取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -128,7 +121,7 @@ const QuestionSetSearchPage: React.FC = () => {
     try {
       const response = await homepageService.getHomeContent();
       if (response.success && response.data) {
-        setHomeContent(response.data);
+        // Home content handling removed
       }
     } catch (error) {
       console.error('获取首页内容失败:', error);

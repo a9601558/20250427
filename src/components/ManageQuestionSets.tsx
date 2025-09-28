@@ -83,7 +83,7 @@ const ManageQuestionSets: React.FC = () => {
   // 删除题库
   const handleDelete = async (id: string) => {
     // 确认删除
-    if (!window.confirm('确定要删除这个题库吗？此操作不可恢复。')) {
+    if (!window.confirm('この問題集を削除しますか？この操作は元に戻せません。')) {
       return;
     }
 
@@ -318,7 +318,7 @@ const ManageQuestionSets: React.FC = () => {
     if (!currentQuestionSet) return;
     
     // 确认删除
-    if (!window.confirm('确定要删除这个题目吗？此操作不可恢复。')) {
+    if (!window.confirm('この問題を削除しますか？この操作は元に戻せません。')) {
       return;
     }
     

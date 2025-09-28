@@ -1,8 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Question } from '../types';
-import QuestionOption from './QuestionOption';
-import RedeemCodeForm from './RedeemCodeForm';
 import { toast } from 'react-toastify';
 import { useUser } from '../contexts/UserContext';
 
@@ -10,7 +7,6 @@ interface QuestionCardProps {
   question: Question;
   onAnswerSubmitted?: (isCorrect: boolean, selectedOption: string | string[]) => void;
   onNext?: () => void;
-  isLast?: boolean;
   isSubmittingAnswer?: boolean;
   questionNumber?: number;
   totalQuestions?: number;
@@ -30,7 +26,7 @@ interface QuestionCardProps {
 
 // 提示语精简：提取为常量，便于后期i18n多语言
 const MESSAGES = {
-  SUBMIT_ANSWER: '提交答案',
+  SUBMIT_ANSWER: '回答を送信',
   SELECT_ONE_OPTION: '请选择一个选项',
   SUBMIT_ALL_OPTIONS: '提交所有选项',
   SELECT_AT_LEAST_ONE: '请选择至少一个选项',
@@ -50,23 +46,18 @@ const QuestionCard = ({
   onAnswerSubmitted, 
   questionNumber = 1, 
   totalQuestions = 1, 
-  quizTitle = '',
   userAnsweredQuestion,
   onJumpToQuestion,
   isPaid = false,
   hasFullAccess = false,
   trialQuestions = 0,
   questionSetId,
-  isLast = false,
-  isSubmittingAnswer = false,
   trialLimitReached = false
 }: QuestionCardProps) => {
   // 状态管理
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
-  const [showRedeemCodeModal, setShowRedeemCodeModal] = useState(false);
-  const navigate = useNavigate();
   let timeoutId: NodeJS.Timeout | undefined;
   
   // 防止重复提交的ref - 减少使用引用，改为状态，便于用户操作
@@ -262,7 +253,7 @@ const QuestionCard = ({
       }, 2500);
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
-      toast.error('提交答案时出错，请重试');
+      toast.error('答案の提出中にエラーが発生しました。再試行してください');
     } finally {
       // 延迟释放提交锁，防止重复点击
       setTimeout(() => {
@@ -361,34 +352,9 @@ const QuestionCard = ({
     };
   }, [isPaid, hasFullAccess]);
 
-  // 修改简化isQuestionAccessible函数，将复杂逻辑转移到QuizPage
-  const isQuestionAccessible = useCallback((questionIndex: number) => {
-    // If question set is free, all questions are accessible
-    if (!isPaid) return true;
-    
-    // First check if user has full access
-    if (hasFullAccess) return true;
-    
-    // 对于试用题库，使用onJumpToQuestion来判断，不在QuestionCard内部实现
-    // 这样可以确保QuestionCard和QuizPage的访问控制逻辑一致
-    if (onJumpToQuestion) {
-      // 仅检查是否为当前题目之前的题目，这些题目应该都可访问
-      return questionIndex < questionNumber;
-    }
-    
-    // 默认行为：在试用模式下仅允许访问试用题目数量内的题目
-    return questionIndex < (trialQuestions || 0);
-  }, [isPaid, hasFullAccess, trialQuestions, questionNumber, onJumpToQuestion]);
 
-  // 修改处理题号跳转函数，简化逻辑
-  const handleJumpToQuestion = (index: number) => {
-    if (!onJumpToQuestion || isSubmitting) {
-      return;
-    }
-    
-    // 直接调用父组件的处理函数，由父组件决定是否可以跳转
-    onJumpToQuestion(index);
-  };
+
+
 
   // 清理定时器
   useEffect(() => {
@@ -443,18 +409,9 @@ const QuestionCard = ({
     }
   };
   
-  // 合并所有访问权限检查
-  const hasCompleteAccess = 
-    hasFullAccess || 
-    checkLocalRedeemedStatus(questionSetId) || 
-    checkLocalAccessRights(questionSetId) ||
-    isPaid === false; // 免费题库
 
-  // 修改renderNumberButtons函数 - 显示带分页效果的纯数字导航
-  const renderNumberButtons = () => {
-    // Return null to hide the pagination
-    return null;
-  };
+
+
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6 mb-6">
@@ -582,7 +539,7 @@ const QuestionCard = ({
               <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              {isLast ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
+              {questionNumber >= totalQuestions ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
             </>
           ) : (
             <>

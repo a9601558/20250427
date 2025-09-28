@@ -401,12 +401,12 @@ const HomePage = () => {
   }> = ({ set, onStartQuiz }) => {
     // 格式化剩余天数的显示
     const formatRemainingDays = (days: number | null) => {
-      if (days === null) return "永久有效";
-      if (days <= 0) return "已过期";
-      if (days === 1) return "剩余1天";
-      if (days < 30) return `剩余${days}天`;
+      if (days === null) return "無期限";
+      if (days <= 0) return "期限切れ";
+      if (days === 1) return "あと1日";
+      if (days < 30) return `あと${days}日`;
       const months = Math.floor(days / 30);
-      return `剩余${months}个月${days % 30 > 0 ? ` ${days % 30}天` : ''}`;
+      return `あと${months}ヶ月${days % 30 > 0 ? `${days % 30}日` : ''}`;
     };
 
     // 获取题目数量
@@ -495,25 +495,16 @@ const HomePage = () => {
     
     // 确定卡片的访问类型标签
     const getAccessTypeLabel = () => {
-      if (set.accessType === 'free') return '免费';
-      if (!set.isPaid) return '免费';  // 备用检查
+      if (set.accessType === 'free') return '無料';
+      if (!set.isPaid) return '無料';  // 備用チェック
       if (set.accessType === 'paid') return hasAccess ? '購入済み' : '有料';
       if (set.accessType === 'redeemed') return '交換済み';
-      if (set.accessType === 'expired') return '已过期';
+      if (set.accessType === 'expired') return '期限切れ';
       if (set.accessType === 'trial') return 'お試し';
-      return '付费';
+      return '有料';
     };
     
-    // 确定标签的颜色
-    const getAccessTypeBadgeClass = () => {
-      if (set.accessType === 'free') return 'bg-blue-100 text-blue-800 border border-blue-200';
-      if (!set.isPaid) return 'bg-blue-100 text-blue-800 border border-blue-200';  // 备用检查
-      if (set.accessType === 'paid') return hasAccess ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200';
-      if (set.accessType === 'redeemed') return 'bg-purple-100 text-purple-800 border border-purple-200';
-      if (set.accessType === 'expired') return 'bg-red-100 text-red-800 border border-red-200';
-      if (set.accessType === 'trial') return 'bg-gray-100 text-gray-800 border border-gray-200';
-      return 'bg-amber-100 text-amber-800 border border-amber-200';
-    };
+
 
     return (
       <div className={`apple-card relative group rounded-2xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] ${
@@ -714,7 +705,7 @@ const HomePage = () => {
     // 防御性检查：确保题库数据有效
     if (!set || !set.id || !set.title) {
       console.error('[handleStartQuiz] 无效题库数据:', set);
-      toast.error('无法访问题库：数据无效');
+      toast.error('問題集にアクセスできません：データが無効です');
       return;
     }
     
@@ -1512,7 +1503,7 @@ const HomePage = () => {
         clearTimeout(loadingTimeoutRef.current);
         
         // Show error message to user
-        toast.error('获取题库数据失败，请稍后重试');
+        toast.error('問題集データの取得に失敗しました。しばらくしてから再試行してください');
         return questionSets;
       }
     } catch (error) {
@@ -2288,7 +2279,7 @@ const HomePage = () => {
       } catch (error) {
         console.error('[HomePage] 登录流程处理出错:', error);
         setLoading(false);
-        toast.error('请求失败，请稍后重试');
+        toast.error('リクエストに失敗しました。しばらくしてから再試行してください');
         
         // 清理事件监听
         window.removeEventListener('accessRights:updated', handleSyncComplete);
@@ -3071,17 +3062,17 @@ const HomePage = () => {
                    contentData.welcome_title || '';
       
       // Set notification message based on update type
-      let message = '首页内容已更新';
+      let message = 'ホームページのコンテンツが更新されました';
       if (contentType === 'featuredCategories' || contentType === 'featured_categories') {
         if (action === 'added') {
-          message = `新增分类: ${category}`;
+          message = `カテゴリを追加: ${category}`;
         } else if (action === 'deleted' || action === 'removed') {
-          message = `删除分类: ${category}`;
+          message = `カテゴリを削除: ${category}`;
         } else if (action === 'updated') {
-          message = `分类更新: ${oldCategory} → ${category}`;
+          message = `カテゴリ更新: ${oldCategory} → ${category}`;
         }
       } else if (contentType === 'featuredQuestionSet' || contentType === 'featured_question_set') {
-        message = `题库 "${title}" 已更新`;
+        message = `問題集 "${title}" が更新されました`;
       }
       
       setNotificationMessage(message);

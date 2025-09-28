@@ -213,7 +213,7 @@ const AdminContentManagement: React.FC = () => {
   const deleteCategory = (index: number) => {
     const categoryToDelete = featuredCategories[index];
     if (inUseCategories[categoryToDelete] > 0) {
-      if (!confirm(`分类 "${categoryToDelete}" 正在被 ${inUseCategories[categoryToDelete]} 个题库使用，确定要删除吗？`)) {
+      if (!confirm(`カテゴリ "${categoryToDelete}" は ${inUseCategories[categoryToDelete]} 個の問題集で使用されています。削除しますか？`)) {
         return;
       }
     }
@@ -517,7 +517,7 @@ const AdminContentManagement: React.FC = () => {
                   onChange={(e) => setCategoryFilter(e.target.value)}
                   className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">全部题库</option>
+                  <option value="all">全ての問題集</option>
                   <option value="featured">已精选</option>
                   <option value="unfeatured">未精选</option>
                   {featuredCategories.map(category => (
@@ -558,7 +558,7 @@ const AdminContentManagement: React.FC = () => {
                                 onClick={() => updateQuestionSetFeatured(set.id, false)}
                                 className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
                               >
-                                取消精选
+                                おすすめ解除
                               </button>
                             ) : (
                               <select

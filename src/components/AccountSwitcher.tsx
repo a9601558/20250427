@@ -111,7 +111,7 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
   
   // 清除指定账号的数据
   const handleClearAccountData = (userId: string) => {
-    if (window.confirm('确定要清除此账号的所有本地数据吗？这将删除所有缓存的状态和设置。')) {
+    if (window.confirm('このアカウントのすべてのローカルデータをクリアしますか？すべてのキャッシュされた状態と設定が削除されます。')) {
       try {
         // 如果正在清除当前登录的账号，先登出
         if (userId === user?.id) {

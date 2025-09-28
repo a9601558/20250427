@@ -127,7 +127,7 @@ const AdminFeaturedCategories: React.FC = () => {
     // 检查分类是否被使用
     if (inUseCategories[category] && inUseCategories[category] > 0) {
       const confirmation = window.confirm(
-        `此分类正在被 ${inUseCategories[category]} 个题库使用。删除此分类会影响这些题库在首页的显示方式。确定要删除吗？`
+        `このカテゴリは ${inUseCategories[category]} 個の問題集で使用されています。このカテゴリを削除すると、これらの問題集のホームページでの表示方式に影響します。削除しますか？`
       );
       
       if (!confirmation) {

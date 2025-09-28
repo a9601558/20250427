@@ -129,7 +129,7 @@ const PaymentForm: React.FC<{
           onClick={onCancel}
           className="px-6 py-3 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600"
         >
-          取消
+          キャンセル
         </button>
       </div>
     </form>
@@ -231,7 +231,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     } catch (error: any) {
       console.error('完成购买失败:', error);
-      toast.error('购买确认失败，请联系客服');
+      toast.error('購入確認に失敗しました。カスタマーサポートにお問い合わせください');
     }
   };
 

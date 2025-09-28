@@ -1,14 +1,10 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
 import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
-import { initializeSocket, authenticateUser } from '../config/socket';
 import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
 import { userProgressService } from '../services/UserProgressService';
-import { toast } from 'react-toastify';
 import { refreshUserPurchases } from '../utils/paymentUtils';
-import { refreshTokenExpiry } from '../utils/authUtils';
-import { Socket } from 'socket.io-client';
 import { getUserStoragePrefix } from '../utils/homeContentUtils';
 import { cognitoAuthService } from '../services/CognitoAuthService';
 
@@ -83,7 +79,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [userChangeEvent, setUserChangeEvent] = useState<{ userId: string | null; timestamp: number }>({ userId: null, timestamp: Date.now() });
-  const [userPurchases, setUserPurchases] = useState<Purchase[]>([]);
   // 添加一个上次通知时间引用，用于防抖
   const lastNotifyTimeRef = useRef<number>(0);
   // 添加当前用户ID引用，用于比较
@@ -382,7 +377,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // 重置用户状态
     setUser(null);
-    setUserPurchases([]);
     
     // 清除API客户端状态
     apiClient.setAuthHeader(null);
@@ -453,216 +447,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // 保留原有的登录函数作为备用
-  const legacyLogin = async (username: string, password: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-    try {
-      // 清除之前登录用户的所有数据
-      const oldToken = localStorage.getItem('token');
-      const oldUserId = localStorage.getItem('activeUserId');
-      
-      if (oldToken && oldUserId) {
-        console.log(`[UserContext] 检测到之前的登录会话 (ID: ${oldUserId})，清除当前会话数据...`);
-        
-        // 保存之前用户的token，以便将来可以切换回来
-        localStorage.setItem(`user_${oldUserId}_token`, oldToken);
-        
-        // 清除与旧用户相关联的会话数据（除了token）
-        const oldUserKeysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (
-            (key.startsWith(`user_${oldUserId}_`) && !key.endsWith('_token')) ||
-            key.startsWith('quiz_progress_') ||
-            key.startsWith('quiz_payment_completed_') ||
-            key.startsWith('quiz_state_') ||
-            key.startsWith('lastAttempt_') ||
-            key.startsWith('quizAccessRights') ||
-            key === 'redeemedQuestionSetIds' ||
-            key === 'questionSetAccessCache'))
-          {
-            oldUserKeysToRemove.push(key);
-          }
-        }
-        
-        // 批量删除与旧用户相关的存储项
-        oldUserKeysToRemove.forEach(key => localStorage.removeItem(key));
-        console.log(`[UserContext] 已清除 ${oldUserKeysToRemove.length} 个旧用户相关的存储项`);
-        
-        // 清除会话存储中与上一用户相关的数据
-        const sessionKeysToRemove = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (key && (key.startsWith('quiz_') || key.startsWith('user_'))) {
-            sessionKeysToRemove.push(key);
-          }
-        }
-        sessionKeysToRemove.forEach(key => sessionStorage.removeKey(key));
-        console.log(`[UserContext] 已清除 ${sessionKeysToRemove.length} 个会话存储数据项`);
-      }
-      
-      // 清空状态
-      // setUserPurchases([]);
-      
-      // 清除API客户端缓存和状态
-      apiClient.clearCache();
-      apiClient.setAuthHeader(null);
-      apiClient.setUserId(null);
-      userProgressService.clearCachedUserId();
-      
-      const response = await userApi.login(username, password);
-      if (response.success && response.data) {
-        const token = response.data.token || '';
-        localStorage.setItem('token', token);
-        
-        // 处理用户数据存在的情况
-        if (response.data.user) {
-          const userData = response.data.user;
-          
-          // 使用用户ID作为前缀，隔离不同用户的数据
-          const userPrefix = `user_${userData.id}_`;
-          
-          // 也存储用户专用令牌，用于账号切换
-          localStorage.setItem(`${userPrefix}token`, token);
-          
-          // 存储当前活跃用户ID，用于会话管理
-          localStorage.setItem('activeUserId', userData.id);
-          
-          // 设置用户状态
-          setUser(userData);
-          
-          // 设置API客户端的用户ID
-          apiClient.setUserId(userData.id);
-          
-          // 更新令牌过期时间
-          refreshTokenExpiry(userData.id);
-          
-          // 登录后初始化Socket连接
-          const socketInstance = initializeSocket();
-          authenticateUser(userData.id, token);
-          
-          // 登录成功后立即同步访问权限
-          setTimeout(async () => {
-            console.log("[UserContext] 登录成功，立即进行数据库权限同步");
-            
-            try {
-              // 1. 从服务器重新获取最新的用户数据，确保购买记录是最新的
-              const refreshedUserData = await userApi.getCurrentUser();
-              if (refreshedUserData.success && refreshedUserData.data) {
-                // 使用最新的用户数据更新状态
-                setUser(refreshedUserData.data);
-                
-                // 2. 通过socket请求最新的访问权限
-                if (socketInstance) {
-                  socketInstance.emit('user:syncAccessRights', {
-                    userId: userData.id,
-                    forceRefresh: true
-                  });
-                }
-                
-                // 3a. 检查购买记录并同步到本地存储
-                if (refreshedUserData.data.purchases && refreshedUserData.data.purchases.length > 0) {
-                  console.log(`[UserContext] 同步 ${refreshedUserData.data.purchases.length} 条购买记录到本地`);
-                  
-                  const now = new Date();
-                  refreshedUserData.data.purchases.forEach(purchase => {
-                    if (!purchase.questionSetId) return;
-                    
-                    const expiryDate = purchase.expiryDate ? new Date(purchase.expiryDate) : null;
-                    const isExpired = expiryDate && expiryDate <= now;
-                    const isActive = purchase.status === 'active' || purchase.status === 'completed';
-                    
-                    if (!isExpired && isActive) {
-                      // 使用用户ID前缀保存访问权限
-                      localStorage.setItem(
-                        `${userPrefix}access_${purchase.questionSetId}`,
-                        JSON.stringify({
-                          hasAccess: true,
-                          expiryDate: purchase.expiryDate,
-                          purchaseId: purchase.id
-                        })
-                      );
-                    }
-                  });
-                }
-                
-                // 3b. 处理已兑换的题库，确保跨设备同步
-                if (refreshedUserData.data.redeemCodes && refreshedUserData.data.redeemCodes.length > 0) {
-                  console.log(`[UserContext] 同步 ${refreshedUserData.data.redeemCodes.length} 条兑换码记录到本地`);
-                  
-                  // 收集所有已兑换的题库ID
-                  const redeemedQuestionSetIds: string[] = [];
-                  
-                  refreshedUserData.data.redeemCodes.forEach(code => {
-                    if (!code.questionSetId) return;
-                    
-                    // 添加到已兑换题库ID列表
-                    redeemedQuestionSetIds.push(code.questionSetId);
-                    
-                    // 使用用户ID前缀保存到本地存储
-                    localStorage.setItem(
-                      `${userPrefix}redeemed_${code.questionSetId}`,
-                      JSON.stringify({
-                        redeemedAt: code.usedAt,
-                        expiryDate: code.expiryDate
-                      })
-                    );
-                  });
-                  
-                  // 将所有兑换码对应的题库ID保存到localStorage
-                  try {
-                    localStorage.setItem(
-                      `${userPrefix}redeemedQuestionSetIds`,
-                      JSON.stringify(redeemedQuestionSetIds)
-                    );
-                    console.log(`[UserContext] 已保存${redeemedQuestionSetIds.length}个已兑换题库ID到本地存储`);
-                  } catch (error) {
-                    console.error('[UserContext] 保存兑换记录到本地存储失败:', error);
-                  }
-                }
-                
-                // 4. 触发全局事件通知组件更新状态
-                window.dispatchEvent(new CustomEvent('accessRights:updated', {
-                  detail: {
-                    userId: userData.id,
-                    timestamp: Date.now(),
-                    source: 'login_refresh'
-                  }
-                }));
-              }
-            } catch (error) {
-              console.error('[UserContext] 登录后同步访问权限失败:', error);
-            }
-          }, 500);
-          
-          notifyUserChange(userData);
-          return true;
-        } else {
-          // 用户数据不存在，尝试获取
-          const userResponse = await fetchCurrentUser(); 
-          if (userResponse) {
-            // 同样需要立即同步数据库权限
-            setTimeout(async () => {
-              await syncAccessRights();
-            }, 500);
-            
-            notifyUserChange(userResponse);
-          }
-          return userResponse !== null;
-        }
-      } else {
-        setError(response.message || 'Invalid username or password');
-        return false;
-      }
-    } catch (error) {
-      console.error('[UserProvider] Login failed:', error);
-      setError('An error occurred during login');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const register = async (userData: Partial<User>): Promise<boolean> => {
     setLoading(true);
@@ -876,24 +661,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // 添加检查数据库购买记录函数
-  const hasAccessInDatabase = useCallback(async (questionSetId: string): Promise<boolean> => {
-    if (!user?.id) return false;
-    
-    try {
-      // 从服务器获取最新购买状态
-      const response = await apiClient.get(`/api/purchases/check/${questionSetId}`, {
-        userId: user.id
-      }, { 
-        cacheDuration: 60000 // 1分钟缓存，避免频繁请求
-      });
-      
-      return response?.success && response?.data?.hasAccess === true;
-    } catch (error) {
-      console.error(`[UserContext] 检查数据库购买记录失败:`, error);
-      return false;
-    }
-  }, [user?.id]);
+
 
   // 增强的访问权限检查函数
   const hasAccessToQuestionSet = useCallback(async (questionSetId: string): Promise<boolean> => {
@@ -1259,8 +1027,20 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const adminRegister = async (userData: Partial<User>): Promise<{ success: boolean; message: string }> => {
     if (!isAdmin()) return { success: false, message: '无权限执行此操作' };
     try {
-      const response = await userApi.register(userData);
-      return response.success ? { success: true, message: '用户创建成功' } : { success: false, message: response.message || '用户创建失败' };
+      // 使用Cognito注册服务
+      if (!userData.username || !userData.email || !userData.password) {
+        return { success: false, message: '用户名、邮箱和密码为必填项' };
+      }
+      
+      const cognitoResult = await cognitoAuthService.cognitoRegister({
+        username: userData.username,
+        email: userData.email,
+        password: userData.password
+      });
+      
+      return cognitoResult.success ? 
+        { success: true, message: '用户创建成功' } : 
+        { success: false, message: cognitoResult.message || '用户创建失败' };
     } catch (error) {
       return { success: false, message: '创建用户过程中发生错误' };
     }
@@ -1295,7 +1075,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user || !user.id || !socket) return;
     
     console.log('[UserContext] 开始跨设备访问权限同步');
-    const userPrefix = `user_${user.id}_`;
     
     try {
       // 1. 首先从服务器获取最新用户数据
@@ -1380,7 +1159,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       if (purchases && Array.isArray(purchases)) {
         console.log(`[用户] 刷新购买记录成功，获取 ${purchases.length} 条记录`);
-        setUserPurchases(purchases);
         return purchases;
       } else {
         console.error('[用户] 刷新购买记录返回无效数据:', purchases);
@@ -1474,8 +1252,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         notifyUserChange(response.data);
         
         // 重新初始化Socket连接
-        const socketInstance = initializeSocket();
-        authenticateUser(userId, targetUserToken);
+        initializeSocket();
         
         // 同步访问权限
         setTimeout(async () => {

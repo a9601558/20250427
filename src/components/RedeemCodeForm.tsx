@@ -46,13 +46,13 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
     
     if (!redeemCode.trim()) {
       setStatus('error');
-      setMessage('请输入兑换码');
+      setMessage('引き換えコードを入力してください');
       return;
     }
     
     // 重置状态
     setStatus('loading');
-    setMessage('正在验证兑换码...');
+    setMessage('引き換えコードを検証中...');
     
     try {
       console.log('[RedeemCodeForm] 开始兑换码:', redeemCode.trim());
@@ -63,7 +63,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
       
       if (result.success) {
         setStatus('success');
-        setMessage(result.message || '兑换成功！');
+        setMessage(result.message || '引き換え成功！');
         
         // 查找已兑换的题库信息
         if (result.questionSetId) {
@@ -113,7 +113,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
             console.log('[RedeemCodeForm] 本地未找到题库，使用API返回的信息');
             setRedeemedSet({
               id: result.questionSetId,
-              title: result.quizTitle || '已兑换的题库',
+              title: result.quizTitle || '引き換え済みの問題集',
               icon: '📚'
             });
             
@@ -140,7 +140,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
         }
       } else {
         setStatus('error');
-        setMessage(result.message || '兑换失败，请检查兑换码是否正确');
+        setMessage(result.message || '引き換え失敗。コードが正しいか確認してください');
       }
     } catch (error: any) {
       console.error('[RedeemCodeForm] Redeem code error:', error);
@@ -159,7 +159,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
             
             // 通知用户可能需要刷新页面
             setStatus('warning');
-            setMessage('兑换可能已成功，但系统响应错误。请刷新页面查看最新权限，或联系客服。');
+            setMessage('引き換えは成功した可能性がありますが、システムエラーが発生しました。ページを更新して最新の権限を確認するか、カスタマーサポートにお問い合わせください。');
             
             // 触发全局事件以便应用程序可以刷新状态
             window.dispatchEvent(new CustomEvent('redeem:possibleSuccess', { 
@@ -174,7 +174,7 @@ const RedeemCodeForm: React.FC<RedeemCodeFormProps> = ({ onRedeemSuccess, questi
       }
       
       setStatus('error');
-      setMessage(typeof error === 'string' ? error : (error.message || '兑换过程中出现错误，请稍后再试。如果问题持续，请联系客服。'));
+      setMessage(typeof error === 'string' ? error : (error.message || '引き換え中にエラーが発生しました。しばらくしてから再度お試しください。問題が継続する場合は、カスタマーサポートにお問い合わせください。'));
     }
   };
   

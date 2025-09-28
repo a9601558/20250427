@@ -438,7 +438,7 @@ const AdminRedeemCodes: React.FC = () => {
                 className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-400"
                 disabled={updatingCode}
               >
-                取消
+                キャンセル
               </button>
             </div>
           ) : (
@@ -580,7 +580,7 @@ const AdminRedeemCodes: React.FC = () => {
               className="border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
               disabled={generatingCodes}
             >
-              <option value="all">所有题库</option>
+              <option value="all">全ての問題集</option>
               {questionSets.map(set => (
                 <option key={set.id} value={set.id}>{set.title}</option>
               ))}

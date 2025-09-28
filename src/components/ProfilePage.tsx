@@ -225,7 +225,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
     
     if (!cleanedId) {
       console.error('[ProfilePage] questionSetId格式异常，无法继续学习:', stats.questionSetId);
-      toast.error('题库ID格式异常，请刷新页面重试');
+      toast.error('問題集IDの形式が異常です。ページを更新して再試行してください');
       return;
     }
     
@@ -260,7 +260,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
       }
     } catch (e) {
       console.error('[ProfilePage] 删除进度数据失败:', e);
-      toast.error('删除进度失败，请重试');
+      toast.error('進行状況の削除に失敗しました。再試行してください');
     } finally {
       setIsDeleting(false);
       setShowConfirmDelete(false);
@@ -278,7 +278,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
           setShowConfirmDelete(true);
         }}
         className="absolute top-2 right-2 w-8 h-8 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-100 transition-all z-10"
-        title="删除学习进度"
+        title="学習進行状況を削除"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -295,9 +295,9 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800">确认删除</h3>
+              <h3 className="text-lg font-semibold text-gray-800">削除の確認</h3>
               <p className="text-sm text-gray-600 mt-1">
-                确定要删除 "{stats.title}" 的学习进度吗？此操作无法撤销。
+                "{stats.title}" の学習進行状況を削除しますか？この操作は元に戻せません。
               </p>
             </div>
             <div className="flex justify-end space-x-2">
@@ -308,7 +308,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
                 }}
                 className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
               >
-                取消
+                キャンセル
               </button>
               <button
                 onClick={(e) => {
@@ -326,7 +326,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
                     处理中...
                   </>
                 ) : (
-                  <>删除</>
+                  <>削除</>
                 )}
               </button>
             </div>
@@ -490,7 +490,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
     if (hasExpired) return '已过期';
     if (purchase.status === 'active') return '有效';
     if (purchase.status === 'pending') return '待处理';
-    if (purchase.status === 'cancelled') return '已取消';
+    if (purchase.status === 'cancelled') return 'キャンセル済み';
     return purchase.status || '未知';
   };
   
@@ -499,7 +499,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
       navigate(`/quiz/${questionSet.id}`);
     } else {
       console.error('[PurchaseCard] 无法导航，题库ID不存在');
-      toast.error('无法打开题库，ID不存在');
+      toast.error('問題集を開けません。IDが存在しません');
     }
   };
 
@@ -879,7 +879,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
               onClick={() => setIsEditing(false)}
               className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
             >
-              取消
+              キャンセル
             </button>
             <button 
               onClick={handleSaveMemo}
@@ -934,7 +934,7 @@ const WrongAnswerCard: React.FC<WrongAnswerCardProps> = ({
               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              删除
+              削除
             </button>
           </div>
         </div>
@@ -988,7 +988,7 @@ const WrongAnswerGroupComponent: React.FC<WrongAnswerGroupProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            练习全部
+            全て練習
           </button>
           <svg 
             className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isCollapsed ? 'transform rotate-180' : ''}`} 
@@ -1038,13 +1038,8 @@ const ProfilePage: React.FC = () => {
   // 添加一个ref来存储throttle的时间戳
   const lastProgressUpdateTimeRef = useRef<number>(0);
 
-  // 设置progress数据的状态
-  const [progress, setProgress] = useState<Record<string, ProgressData>>({});
-
   // 错误状态
   const [error, setError] = useState<string | null>(null);
-
-  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   
   // 获取题库数据
   const fetchQuestionSets = useCallback(async () => {
@@ -1625,7 +1620,7 @@ const ProfilePage: React.FC = () => {
       }
     } catch (error) {
       console.error('[ProfilePage] 获取购买记录异常:', error);
-      toast.error('获取购买记录失败，请刷新页面重试');
+      toast.error('購入履歴の取得に失敗しました。ページを更新して再試行してください');
     } finally {
       setPurchasesLoading(false);
     }
@@ -1721,18 +1716,18 @@ const ProfilePage: React.FC = () => {
           setRedeemCodes(processedCodes);
         } catch (dataError) {
           console.error('[ProfilePage] 处理兑换码数据时出错:', dataError);
-          toast.error('处理兑换码数据失败，请联系管理员');
+          toast.error('引き換えコードデータの処理に失敗しました。管理者にお問い合わせください');
           setRedeemCodes([]); // 设置空数组避免UI错误
         }
       } else {
         console.error('[ProfilePage] 获取兑换码数据失败:', response.message);
         setError(response.message || '获取兑换记录失败');
-        toast.error(response.message || '获取兑换记录失败');
+        toast.error(response.message || '引き換え履歴の取得に失敗しました');
         setRedeemCodes([]); // 设置空数组避免UI错误
       }
     } catch (error: any) {
       console.error('[ProfilePage] 获取兑换码异常:', error);
-      toast.error('获取兑换记录失败，请稍后重试');
+      toast.error('引き換え履歴の取得に失敗しました。しばらくしてから再試行してください');
       setRedeemCodes([]);
     } finally {
       setRedeemCodesLoading(false);
@@ -1799,7 +1794,7 @@ const ProfilePage: React.FC = () => {
         throw new Error(response.message || '获取错题集失败');
       }
     } catch (error) {
-      toast.error('获取错题集失败');
+      toast.error('間違い問題集の取得に失敗しました');
       console.error('[ProfilePage] Error fetching wrong answers:', error);
     } finally {
       setWrongAnswersLoading(false);
@@ -2047,14 +2042,6 @@ const ProfilePage: React.FC = () => {
     if (now - lastUpdate < 60000) { // 60秒内不重复刷新，从10秒延长到60秒
       console.log('[ProfilePage] 进度更新过于频繁，仅更新本地数据');
       // 仅更新当前进度数据，不触发完整数据重新加载
-      setProgress(prevProgress => {
-        if (!prevProgress) return { [data.questionSetId]: data };
-        
-        return {
-          ...prevProgress,
-          [data.questionSetId]: data
-        };
-      });
       return;
     }
     
@@ -2372,7 +2359,7 @@ const ProfilePage: React.FC = () => {
   // 添加删除进度函数
   const handleDeleteProgress = async (questionSetId: string): Promise<void> => {
     if (!user?.id) {
-      toast.error('请先登录');
+      toast.error('まずログインしてください');
       return;
     }
     
@@ -2727,7 +2714,7 @@ const ProfilePage: React.FC = () => {
         throw new Error(response.message || '删除失败');
       }
     } catch (error) {
-      toast.error('删除错题失败');
+      toast.error('間違い問題の削除に失敗しました');
       console.error('[ProfilePage] Error deleting wrong answer:', error);
     }
   };
@@ -2748,7 +2735,7 @@ const ProfilePage: React.FC = () => {
         throw new Error(response.message || '更新备注失败');
       }
     } catch (error) {
-      toast.error('更新备注失败');
+      toast.error('備考の更新に失敗しました');
       console.error('[ProfilePage] Error updating memo:', error);
     }
   };

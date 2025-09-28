@@ -268,11 +268,11 @@ const PurchasePage: React.FC<{
         onPurchase();
       } else {
         console.error('[PurchasePage] onPurchase is not a function');
-        toast.error('支付功能暂时不可用，请稍后再试');
+        toast.error('支払機能が一時的に利用できません。しばらくしてからお試しください');
       }
     } catch (err) {
       console.error('[PurchasePage] Purchase callback error:', err);
-      toast.error('处理购买请求时出错，请重试');
+      toast.error('購入リクエストの処理中にエラーが発生しました。再試行してください');
     }
     
     // Reset button state after delay
@@ -318,11 +318,11 @@ const PurchasePage: React.FC<{
         onRedeem();
       } else {
         console.error('[PurchasePage] onRedeem is not a function');
-        toast.error('兑换功能暂时不可用，请稍后再试');
+        toast.error('引き換え機能が一時的に利用できません。しばらくしてからお試しください');
       }
     } catch (err) {
       console.error('[PurchasePage] Redeem callback error:', err);
-      toast.error('处理兑换请求时出错，请重试');
+      toast.error('引き換えリクエストの処理中にエラーが発生しました。再試行してください');
     }
     
     // Reset button state after delay
@@ -367,7 +367,7 @@ const PurchasePage: React.FC<{
         onBack();
       } else {
         console.error('[PurchasePage] onBack is not a function');
-        toast.error('暂时无法返回，请刷新页面');
+        toast.error('一時的に戻ることができません。ページを更新してください');
       }
     } catch (err) {
       console.error('[PurchasePage] Back callback error:', err);
@@ -1046,13 +1046,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           // 继续购买流程
         } else {
           // 提供强制购买选项
-          if (confirm("该题库显示为免费题库，但您仍可尝试强制购买。\n\n- 点击「确定」强制购买\n- 点击「取消」退出购买流程")) {
+          if (confirm("この問題集は無料と表示されていますが、強制購入を試すことができます。\n\n- 「OK」をクリックして強制購入\n- 「キャンセル」で購入を中止")) {
             console.log("[PaymentModal] 用户选择强制购买，绕过免费题库检查");
             toast.warning("您选择了强制购买模式", { autoClose: 2000 });
           } else {
             console.error('[PaymentModal] API直接调用也确认这是免费题库');
             setError("服务器确认该题库为免费题库，无需购买");
-            toast.error("服务器确认该题库为免费题库，无需购买");
+            toast.error("サーバーがこの問題集は無料であることを確認しました。購入の必要はありません");
             
             // 强制刷新页面以获取正确数据
             setTimeout(() => window.location.reload(), 2000);
@@ -1068,7 +1068,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         if (confirm("无法验证题库状态。您希望继续尝试购买吗？")) {
           console.log("[PaymentModal] 用户选择继续购买，尽管验证失败");
         } else {
-          setError("已取消购买");
+          setError("購入をキャンセルしました");
           setIsProcessing(false);
           setBtnClicked(false);
           return;
@@ -1266,7 +1266,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     } catch (error) {
       console.error('[PaymentModal] 处理购买请求时发生异常:', error);
       setError("购买请求处理失败，请稍后再试");
-      toast.error("购买请求处理失败");
+      toast.error("購入リクエストの処理に失敗しました");
     } finally {
       setIsProcessing(false);
       setBtnClicked(false);
@@ -1334,7 +1334,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
                 disabled={isProcessing}
               >
-                取消
+                キャンセル
               </button>
               <button
                 onClick={initiatePayment}
@@ -3513,7 +3513,7 @@ function QuizPage(): JSX.Element {
   // 修改syncProgressToServer函数为手动保存函数
   const saveProgressManually = useCallback(async () => {
     if (!user?.id || !questionSetId || !socket) {
-      toast.error('保存失败，请确认您已登录');
+      toast.error('保存に失敗しました。ログイン状態を確認してください');
       return;
     }
     
@@ -3583,7 +3583,7 @@ function QuizPage(): JSX.Element {
       console.log('[QuizPage] 进度数据保存完成');
     } catch (error) {
       console.error('[QuizPage] 保存进度数据异常:', error);
-      toast.error('保存失败，请重试');
+      toast.error('保存に失敗しました。再試行してください');
     } finally {
       setIsSaving(false);
     }
@@ -4061,7 +4061,7 @@ function QuizPage(): JSX.Element {
       }
     } catch (error) {
       console.error('重置测试失败:', error);
-      toast.error('重置测试失败，请刷新页面重试');
+      toast.error('テストのリセットに失敗しました。ページを更新して再試行してください');
     } finally {
       setQuizStatus({ ...quizStatus, loading: false });
     }
@@ -4771,7 +4771,7 @@ function QuizPage(): JSX.Element {
             {/* 添加清空进度按钮 */}
             <button
               onClick={() => {
-                if (confirm('确定要清空当前答题进度吗？这将重置所有答题记录，但不会影响已同步到服务器的数据。')) {
+                if (confirm('現在の回答進行状況をクリアしますか？これにより、すべての回答記録がリセットされますが、サーバーに同期済みのデータには影響しません。')) {
                   // 清空本地存储的进度数据
                   if (questionSet) {
                     // 使用与其他功能一致的localStorage键格式
@@ -5023,7 +5023,7 @@ function QuizPage(): JSX.Element {
         }, 2000);
       } catch (error) {
         console.error('[DirectPurchase] 直接购买错误:', error);
-        toast.error('直接购买失败，请刷新页面重试');
+        toast.error('直接購入に失敗しました。ページを更新して再試行してください');
       } finally {
         setIsLoading(false);
       }

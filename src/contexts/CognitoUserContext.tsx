@@ -31,10 +31,90 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
+  // 自动退出定时器
+  const autoLogoutTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30分钟
+
   // 初始化时检查用户认证状态
   useEffect(() => {
     checkAuthState();
+    setupAutoLogout();
+    
+    // 清理函数
+    return () => {
+      if (autoLogoutTimeoutRef.current) {
+        clearTimeout(autoLogoutTimeoutRef.current);
+      }
+    };
   }, []);
+
+  // 设置自动退出机制
+  const setupAutoLogout = () => {
+    // 监听用户活动
+    const resetTimeout = () => {
+      if (autoLogoutTimeoutRef.current) {
+        clearTimeout(autoLogoutTimeoutRef.current);
+      }
+      
+      // 只有在用户已登录时才设置超时
+      if (isAuthenticated) {
+        localStorage.setItem('lastActivity', Date.now().toString());
+        
+        autoLogoutTimeoutRef.current = setTimeout(() => {
+          handleAutoLogout();
+        }, INACTIVITY_TIMEOUT);
+      }
+    };
+
+    // 用户活动事件
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    events.forEach(event => {
+      document.addEventListener(event, resetTimeout, true);
+    });
+    
+    // 页面可见性变化时检查
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        checkLastActivity();
+      }
+    });
+
+    // 初始设置超时
+    if (isAuthenticated) {
+      resetTimeout();
+    }
+  };
+
+  // 检查最后活动时间
+  const checkLastActivity = () => {
+    const lastActivity = localStorage.getItem('lastActivity');
+    if (lastActivity && isAuthenticated) {
+      const timeDiff = Date.now() - parseInt(lastActivity);
+      if (timeDiff > INACTIVITY_TIMEOUT) {
+        handleAutoLogout();
+      }
+    }
+  };
+
+  // 处理自动退出
+  const handleAutoLogout = async () => {
+    if (isAuthenticated) {
+      toast.warning('由于长时间未操作，您已被自动退出登录');
+      await cognitoLogout();
+    }
+  };
+
+  // 监听认证状态变化
+  useEffect(() => {
+    if (isAuthenticated) {
+      setupAutoLogout();
+    } else {
+      if (autoLogoutTimeoutRef.current) {
+        clearTimeout(autoLogoutTimeoutRef.current);
+      }
+    }
+  }, [isAuthenticated]);
 
   const checkAuthState = async () => {
     try {
@@ -93,6 +173,9 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       setIsAuthenticated(true);
       setError(null);
       
+      // 记录登录活动时间
+      localStorage.setItem('lastActivity', Date.now().toString());
+      
       // Socket接続とAPI呼び出しが正常に動作するように、新しいトークンを通知
       window.dispatchEvent(new CustomEvent('tokenUpdated', { 
         detail: { token: idToken, userId: currentUser.userId } 
@@ -111,30 +194,82 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       setLoading(true);
       setError(null);
 
+      // 记录登录尝试
+      console.log('尝试登录:', { username: username.substring(0, 3) + '***' });
+
+      // 处理邮箱登录：AWS Cognito支持邮箱作为用户名
+      let loginUsername = username.trim();
+      
+      // 如果输入的是邮箱，确保格式正确
+      if (username.includes('@')) {
+        loginUsername = username.toLowerCase().trim();
+        console.log('检测到邮箱登录');
+      }
+
       const { isSignedIn } = await signIn({
-        username,
-        password,
+        username: loginUsername,
+        password: password.trim(),
       });
 
       if (isSignedIn) {
         await loadUserFromCognito();
-        toast.success('ログインが成功しました！');
+        
+        // 重置自动退出计时器
+        localStorage.setItem('lastActivity', Date.now().toString());
+        
+        toast.success('登录成功！');
         return true;
       }
       
       return false;
     } catch (error: any) {
-      console.error('ログインに失敗しました:', error);
+      console.error('登录失败:', error);
       
-      let errorMessage = 'ログインに失敗しました';
-      if (error.name === 'NotAuthorizedException') {
-        errorMessage = 'ユーザー名またはパスワードが間違っています';
-      } else if (error.name === 'UserNotConfirmedException') {
-        errorMessage = 'アカウントが未確認です。メールの確認リンクをチェックしてください';
-      } else if (error.name === 'UserNotFoundException') {
-        errorMessage = 'ユーザーが存在しません';
-      } else if (error.message) {
-        errorMessage = error.message;
+      let errorMessage = '登录失败';
+      
+      // 根据不同的错误类型提供更准确的错误信息
+      switch (error.name) {
+        case 'NotAuthorizedException':
+          if (error.message?.includes('Password attempts exceeded')) {
+            errorMessage = '密码尝试次数过多，账户已被临时锁定，请稍后再试';
+          } else if (error.message?.includes('Incorrect username or password')) {
+            errorMessage = '用户名或密码错误，请检查后重试';
+          } else {
+            errorMessage = '认证失败，请检查用户名和密码';
+          }
+          break;
+          
+        case 'UserNotConfirmedException':
+          errorMessage = '账户尚未验证，请检查邮件中的验证链接';
+          break;
+          
+        case 'UserNotFoundException':
+          errorMessage = '用户不存在，请检查用户名或先注册账户';
+          break;
+          
+        case 'InvalidParameterException':
+          errorMessage = '输入参数无效，请检查用户名和密码格式';
+          break;
+          
+        case 'TooManyRequestsException':
+          errorMessage = '请求过于频繁，请稍后再试';
+          break;
+          
+        case 'NetworkError':
+          errorMessage = '网络连接问题，请检查网络后重试';
+          break;
+          
+        default:
+          if (error.message) {
+            // 如果有具体的错误信息，使用它
+            if (error.message.includes('password')) {
+              errorMessage = '密码验证失败，请确认密码正确';
+            } else if (error.message.includes('username')) {
+              errorMessage = '用户名验证失败，请确认用户名或邮箱正确';
+            } else {
+              errorMessage = `登录失败: ${error.message}`;
+            }
+          }
       }
 
       setError(errorMessage);
@@ -194,18 +329,61 @@ export const CognitoUserProvider: React.FC<{ children: ReactNode }> = ({ childre
       setLoading(true);
       await signOut();
       
-      // 既存システムのトークンとユーザー情報をクリア
-      localStorage.removeItem('token');
-      localStorage.removeItem('cognitoIdToken');
-      localStorage.removeItem('activeUserId');
+      // 完全清除所有本地存储的登录信息
+      const keysToRemove = [
+        'token',
+        'cognitoIdToken', 
+        'activeUserId',
+        'authToken',
+        'refreshToken',
+        'userCredentials',
+        'lastActivity'
+      ];
       
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // 清除所有用户相关的缓存数据
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('user_') || key.startsWith('cognito_') || key.startsWith('auth_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      // 重置状态
       setUser(null);
       setIsAuthenticated(false);
       setError(null);
-      toast.success('ログアウトしました');
+      
+      // 触发全局登出事件
+      window.dispatchEvent(new CustomEvent('userLoggedOut'));
+      
+      toast.success('已成功退出登录');
+      
+      // 强制刷新页面确保完全清除状态
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1000);
+      
     } catch (error) {
-      console.error('ログアウトに失敗しました:', error);
-      toast.error('ログアウトに失敗しました');
+      console.error('登出失败:', error);
+      
+      // 即使AWS登出失败，也要清除本地数据
+      const keysToRemove = [
+        'token', 'cognitoIdToken', 'activeUserId', 'authToken', 
+        'refreshToken', 'userCredentials', 'lastActivity'
+      ];
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      setUser(null);
+      setIsAuthenticated(false);
+      
+      toast.error('ログアウト処理中に問題が発生しましたが、ローカルデータはクリアされました');
+      
+      // 即使出错也跳转到首页
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1000);
+      
     } finally {
       setLoading(false);
     }

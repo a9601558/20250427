@@ -473,7 +473,7 @@ const AdminHomeContent: React.FC = () => {
         setShowPreviewButton(true);
     } catch (error) {
       console.error('更新首页内容失败:', error);
-      toast.error('更新失败，请重试');
+      toast.error('更新に失敗しました。再試行してください');
       
       // Clear any flags on error to prevent infinite loops
       sessionStorage.removeItem('adminTriggeredUpdate');
@@ -486,7 +486,7 @@ const AdminHomeContent: React.FC = () => {
 
   // 重置为默认内容
   const handleReset = () => {
-    if (window.confirm('确定要重置为默认内容吗？此操作不可撤销。')) {
+    if (window.confirm('デフォルトコンテンツにリセットしますか？この操作は元に戻せません。')) {
       setHomeContent(defaultHomeContent);
     }
   };
@@ -619,14 +619,14 @@ const AdminHomeContent: React.FC = () => {
 
             {/* 公告 */}
             <div className="mb-4">
-              <label className="block mb-2 font-medium text-gray-700">网站公告</label>
+              <label className="block mb-2 font-medium text-gray-700">サイトお知らせ</label>
               <textarea
                 name="announcements"
                 value={homeContent.announcements}
                 onChange={handleInputChange}
                 className="w-full p-2 border border-gray-300 rounded-md h-24 focus:ring-blue-500 focus:border-blue-500"
               ></textarea>
-              <p className="mt-1 text-sm text-gray-500">显示在首页顶部的重要公告</p>
+              <p className="mt-1 text-sm text-gray-500">ホームページトップに表示される重要なお知らせ</p>
         </div>
 
         {/* 页脚文本 */}
@@ -813,7 +813,7 @@ const AdminHomeContent: React.FC = () => {
               </div>
               
               <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-blue-700 mb-4">
-                <div className="font-semibold">公告:</div>
+                <div className="font-semibold">お知らせ:</div>
                 <p>{homeContent.announcements}</p>
               </div>
               

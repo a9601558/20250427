@@ -6,6 +6,7 @@ import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
+import montopiLogo from '../assets/montopi-logo.svg';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -187,24 +188,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <header className={`sticky top-0 z-30 transition-all duration-300 ${scrolled ? 'shadow-md glass-header' : 'bg-white/90'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center group">
-            <div className="text-2xl font-bold text-gradient group-hover:scale-105 transition-transform">
-              Exam7
-            </div>
-            <div className="ml-2 bg-blue-500 w-2 h-2 rounded-full animate-pulse"></div>
+            <img 
+              src={montopiLogo} 
+              alt="MonTopi" 
+              className="h-10 w-auto group-hover:scale-105 transition-transform"
+            />
           </Link>
           
           <div className="flex items-center space-x-4">
             {/* Quick navigation */}
             <nav className="hidden md:flex items-center mr-6 space-x-6">
               <Link to="/" className="text-gray-700 hover:text-blue-600 transition-colors">
-                首页
+                ホーム
               </Link>
               <Link to="/question-sets" className="text-gray-700 hover:text-blue-600 transition-colors">
-                题库
+                問題集
               </Link>
               {user && (
                 <Link to="/profile" className="text-gray-700 hover:text-blue-600 transition-colors">
-                  个人中心
+                  マイページ
                 </Link>
               )}
             </nav>
@@ -217,7 +219,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={() => setIsLoginModalOpen(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
-                登录/注册
+                ログイン/登録
               </button>
             )}
           </div>

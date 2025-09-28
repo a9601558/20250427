@@ -427,7 +427,7 @@ const AdminQuestionSetInfo: React.FC = () => {
 
   // 删除题库
   const handleDeleteSet = async (id: string) => {
-    if (!window.confirm('确定要删除这个题库吗？此操作不可撤销，所有相关题目和用户数据也将被删除。')) {
+    if (!window.confirm('この問題集を削除しますか？この操作は元に戻せません。関連するすべての問題とユーザーデータも削除されます。')) {
       return;
     }
     
@@ -661,7 +661,7 @@ const AdminQuestionSetInfo: React.FC = () => {
                         onClick={() => setIsEditing(false)}
                         className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
                       >
-                        取消
+                        キャンセル
                       </button>
                     </>
                   )}

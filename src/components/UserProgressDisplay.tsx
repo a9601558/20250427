@@ -62,7 +62,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">我的学习进度</h2>
           <Link to="/profile" className="text-sm text-blue-600 hover:text-blue-800">
-            查看全部
+            全て表示
           </Link>
         </div>
       )}
@@ -126,7 +126,7 @@ const UserProgressDisplay: React.FC<UserProgressDisplayProps> = ({
                 to={`/quiz/${questionSet.id}`}
                 className="mt-2 text-xs text-blue-600 hover:text-blue-800 inline-block"
               >
-                {isCompleted ? '重新测试' : '继续学习'} →
+                {isCompleted ? '再試験' : '学習継続'} →
               </Link>
             </div>
           );

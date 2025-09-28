@@ -118,7 +118,7 @@ const RecentlyStudiedQuestionSets: React.FC<RecentlyStudiedQuestionSetsProps> = 
           to="/profile" 
           className={`text-sm ${theme === 'dark' ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-800'}`}
         >
-          查看全部
+          全て表示
         </Link>
       </div>
 

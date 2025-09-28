@@ -247,7 +247,7 @@ const AdminFeaturedManagement: React.FC = () => {
     // Check if category is in use
     if (inUseCategories[category] && inUseCategories[category] > 0) {
       const confirmation = window.confirm(
-        `此分类正在被 ${inUseCategories[category]} 个题库使用。删除此分类会影响这些题库的分类设置。确定要删除吗？`
+        `このカテゴリは ${inUseCategories[category]} 個の問題集で使用されています。このカテゴリを削除すると、これらの問題集のカテゴリ設定に影響します。削除しますか？`
       );
       
       if (!confirmation) {
@@ -856,7 +856,7 @@ const AdminFeaturedManagement: React.FC = () => {
                     onChange={(e) => setCategoryFilter(e.target.value)}
                     className="block w-full sm:w-auto rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   >
-                    <option value="all">全部分类</option>
+                    <option value="all">全カテゴリ</option>
                     <option value="uncategorized">未分类</option>
                     {featuredCategories.map((category, index) => (
                       <option key={index} value={category}>{category}</option>

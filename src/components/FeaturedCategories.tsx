@@ -93,7 +93,7 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
       const hasQuestionSets = questionSets.some(qs => qs.featuredCategory === category);
       if (hasQuestionSets) {
         // 提示用户有题库使用该分类
-        if (!window.confirm(`有题库正在使用该分类，删除将会清除这些题库的分类设置。确定删除？`)) {
+        if (!window.confirm(`問題集がこのカテゴリを使用しています。削除するとこれらの問題集のカテゴリ設定がクリアされます。削除しますか？`)) {
           return;
         }
 
