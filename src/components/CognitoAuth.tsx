@@ -123,48 +123,122 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
   const components = {
     Header() {
       return (
-        <div className="amplify-flex amplify-flex--column amplify-flex--center">
-          <h1 className="amplify-heading--1">欢迎</h1>
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">欢迎回来</h1>
+          <p className="text-gray-600 text-sm">请登录您的账户继续使用</p>
         </div>
       );
     },
     Footer() {
       return (
-        <div className="amplify-flex amplify-flex--center">
-          <p className="amplify-text--tertiary">
-            使用AWS Cognito安全认证
-          </p>
+        <div className="text-center mt-6 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <span>由 AWS Cognito 提供安全保障</span>
+          </div>
         </div>
       );
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black opacity-50" onClick={onClose}></div>
-      <div className="bg-white rounded-lg p-6 max-w-md w-full relative z-10 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-gray-900">
-            用户认证
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-            aria-label="关闭"
-          >
-            ×
-          </button>
-        </div>
-        
-        <Authenticator
-          formFields={formFields}
-          components={components}
-          socialProviders={[]}
-          signUpAttributes={['email']}
-          loginMechanisms={['username', 'email']}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
+      <div className="fixed inset-0" onClick={onClose}></div>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative z-10 max-h-[90vh] overflow-y-auto transform transition-all">
+        {/* 关闭按钮 */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
+          aria-label="关闭"
         >
-          <AuthWrapper onClose={onClose} />
-        </Authenticator>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        
+        {/* 认证表单容器 */}
+        <div className="p-8 auth-container">
+          <style>{`
+            .auth-container .amplify-authenticator {
+              --amplify-components-authenticator-router-background-color: transparent;
+              --amplify-components-authenticator-router-border-radius: 0;
+              --amplify-components-authenticator-router-box-shadow: none;
+              --amplify-components-button-primary-background-color: #3b82f6;
+              --amplify-components-button-primary-hover-background-color: #2563eb;
+              --amplify-components-button-border-radius: 0.5rem;
+              --amplify-components-fieldcontrol-border-radius: 0.5rem;
+              --amplify-components-fieldcontrol-focus-border-color: #3b82f6;
+              --amplify-space-medium: 1.5rem;
+              --amplify-space-small: 1rem;
+            }
+            
+            .auth-container .amplify-button--primary {
+              background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%) !important;
+              border: none !important;
+              font-weight: 600 !important;
+              padding: 0.75rem 1.5rem !important;
+              transition: all 0.2s ease !important;
+            }
+            
+            .auth-container .amplify-button--primary:hover {
+              transform: translateY(-1px) !important;
+              box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
+            }
+            
+            .auth-container .amplify-input {
+              border: 2px solid #e5e7eb !important;
+              transition: all 0.2s ease !important;
+            }
+            
+            .auth-container .amplify-input:focus {
+              border-color: #3b82f6 !important;
+              box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+            }
+            
+            .auth-container .amplify-tabs-item {
+              font-weight: 600 !important;
+              color: #6b7280 !important;
+            }
+            
+            .auth-container .amplify-tabs-item[data-state="active"] {
+              color: #3b82f6 !important;
+              border-bottom-color: #3b82f6 !important;
+            }
+            
+            .auth-container .amplify-alert--error {
+              background-color: #fef2f2 !important;
+              border-color: #fecaca !important;
+              color: #dc2626 !important;
+              border-radius: 0.5rem !important;
+            }
+            
+            .auth-container .amplify-link {
+              color: #3b82f6 !important;
+              font-weight: 500 !important;
+            }
+            
+            .auth-container .amplify-link:hover {
+              color: #2563eb !important;
+            }
+          `}</style>
+          
+          <Authenticator
+            formFields={formFields}
+            components={components}
+            socialProviders={[]}
+            signUpAttributes={['email']}
+            loginMechanisms={['username', 'email']}
+          >
+            <AuthWrapper onClose={onClose} />
+          </Authenticator>
+        </div>
       </div>
     </div>
   );
