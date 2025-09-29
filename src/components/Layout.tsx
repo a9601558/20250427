@@ -152,7 +152,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
       
       // 使用弹窗模式登录
-      await auth.signinPopup();
+      const result = await auth.signinPopup();
+      console.log('[Layout] 弹窗登录成功:', result);
+      
     } catch (error) {
       console.error('[Layout] 弹窗登录失败:', error);
       

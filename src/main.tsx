@@ -17,6 +17,12 @@ const getRedirectUri = () => {
   return "https://montopi.com"; // 使用AWS Cognito中配置的生产域名
 };
 
+// 弹窗回调处理器
+const getPopupRedirectUri = () => {
+  const baseUri = getRedirectUri();
+  return `${baseUri}/popup-callback.html`; // 使用专门的弹窗回调页面
+};
+
 const cognitoAuthConfig = {
   authority: "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_06Lr5s5h9",
   client_id: "3tdjflgaoojolmlau5thc9lv5c",
@@ -24,6 +30,8 @@ const cognitoAuthConfig = {
   response_type: "code",
   scope: "email openid phone",
   post_logout_redirect_uri: getRedirectUri(),
+  // 弹窗登录专用的重定向URI
+  popup_redirect_uri: getPopupRedirectUri(),
   // 简化extraQueryParams，确保兼容注册和登录
   extraQueryParams: {
     response_mode: "query",
@@ -50,8 +58,8 @@ const cognitoAuthConfig = {
   revokeTokenTypes: ["access_token", "refresh_token"],
   // 使用自定义弹窗打开器
   popupWindowFeatures: `width=500,height=700,left=${window.screen.width / 2 - 250},top=${window.screen.height / 2 - 350},scrollbars=yes,resizable=yes`,
-  // 可选：如果需要完全自定义弹窗行为，取消注释下面这行
-  // popupWindowTarget: "_blank"
+  // 弹窗窗口目标
+  popupWindowTarget: "_blank"
 }
 
 console.log("OIDC Cognito 已初始化，使用新的认证服务");
