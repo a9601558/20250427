@@ -6,14 +6,15 @@ import './App.css'
 import 'antd/dist/reset.css'
 import { initAutoRefresh } from './utils/autoRefresh'
 import { AuthProvider } from "react-oidc-context"
+import { WebStorageStateStore } from "oidc-client-ts"
 
 // Cognito OIDC 配置
 const getRedirectUri = () => {
-  // 在开发环境中使用本地地址，在生产环境中使用 CloudFront 地址
+  // 在开发环境中使用端口3000，在生产环境中使用montopi.com域名
   if (import.meta.env.DEV) {
-    return window.location.origin; // http://localhost:5173
+    return "http://localhost:3000"; // 使用Vite配置的端口3000
   }
-  return "https://d84l1y8p4kdic.cloudfront.net";
+  return "https://montopi.com"; // 使用AWS Cognito中配置的生产域名
 };
 
 const cognitoAuthConfig = {
@@ -23,6 +24,14 @@ const cognitoAuthConfig = {
   response_type: "code",
   scope: "email openid phone",
   post_logout_redirect_uri: getRedirectUri(),
+  // 添加额外的参数以确保使用正确的登录流程
+  extraQueryParams: {
+    response_mode: "query"
+  },
+  // 设置自动silent renew
+  automaticSilentRenew: true,
+  // 设置token存储
+  userStore: new WebStorageStateStore({ store: window.localStorage }),
 }
 
 console.log("OIDC Cognito 已初始化，使用新的认证服务");
