@@ -885,7 +885,12 @@ const updateQuestionSetQuestions = async (req, res) => {
                             }]
                     }]
             });
-            sendResponse(res, 200, updatedQuestionSet, '問題リストが正常に更新されました');
+            const questionCount = await Question_1.default.count({ where: { questionSetId: req.params.id } });
+            const responseData = updatedQuestionSet ? updatedQuestionSet.toJSON() : null;
+            if (responseData) {
+                responseData.questionCount = questionCount;
+            }
+            sendResponse(res, 200, responseData || updatedQuestionSet, '問題リストが正常に更新されました');
         }
         catch (error) {
             await transaction.rollback();
