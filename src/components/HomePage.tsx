@@ -87,10 +87,24 @@ const customStyles = `
     padding: 0;
   }
   
+  @media (max-width: 1024px) {
+    .apple-grid {
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+  }
+  
   @media (max-width: 768px) {
     .apple-grid {
       grid-template-columns: 1fr;
       gap: 16px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .apple-grid {
+      gap: 12px;
+      padding: 0 4px;
     }
   }
   
@@ -307,6 +321,35 @@ const customStyles = `
   .dark .tech-card:hover {
     box-shadow: 12px 12px 20px #0d1117, -12px -12px 20px #3d485c;
   }
+  
+  /* 移动端价格显示优化 */
+  @media (max-width: 640px) {
+    .price-display {
+      font-size: 1.5rem;
+    }
+    
+    .price-display-large {
+      font-size: 1.25rem;
+    }
+    
+    .card-content-mobile {
+      padding: 1rem;
+    }
+    
+    .card-price-container {
+      padding: 0.75rem;
+    }
+    
+    /* 移动端右上角标签优化 */
+    .card-ribbon-mobile {
+      max-width: 100px !important;
+      min-width: 70px !important;
+    }
+    
+    .card-ribbon-mobile .price-text {
+      font-size: 10px !important;
+    }
+  }
 `;
 
 // 题库访问类型
@@ -489,29 +532,13 @@ const HomePage = () => {
     };
 
     const { color, percent } = getRemainingTimeDisplay();
-    const isPaid = set.isPaid && set.accessType !== 'trial';
-    const isRedeemed = set.accessType === 'redeemed';
-    const isExpired = set.accessType === 'expired';
-    const hasAccess = set.hasAccess;
-    const isFree = !set.isPaid;
-    
-    // 确定卡片的访问类型标签
-    const getAccessTypeLabel = () => {
-      if (set.accessType === 'free') return '無料';
-      if (!set.isPaid) return '無料';  // 備用チェック
-      if (set.accessType === 'paid') return hasAccess ? '購入済み' : '有料';
-      if (set.accessType === 'redeemed') return '交換済み';
-      if (set.accessType === 'expired') return '期限切れ';
-      if (set.accessType === 'trial') return 'お試し';
-      return '有料';
-    };
     
 
 
     // 确定卡片状态类型：Free / Pro / Owned
     const getCardState = () => {
       if (!set.isPaid) return 'free';
-      if (hasAccess) return 'owned';
+      if (set.hasAccess) return 'owned';
       return 'pro';
     };
 
@@ -536,6 +563,7 @@ const HomePage = () => {
     };
 
     const priceInfo = getPriceInfo();
+
 
     // 获取状态标签信息
     const getStateLabel = () => {
@@ -566,31 +594,35 @@ const HomePage = () => {
     const ctaText = getCTAText();
 
     return (
-      <div className={`relative group rounded-2xl overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] bg-white shadow-lg hover:shadow-xl border ${
-        cardState === 'free' 
-          ? 'border-green-200 hover:border-green-300' 
-          : cardState === 'pro'
-            ? 'border-blue-200 hover:border-blue-300'
-            : 'border-gray-200 hover:border-gray-300'
-      }`}
-           style={{ height: '340px' }}>
+      <div
+        className={`relative group flex flex-col overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-[1.02] bg-white shadow-lg hover:shadow-xl border ${
+          cardState === 'free' 
+            ? 'border-green-200 hover:border-green-300' 
+            : cardState === 'pro'
+              ? 'border-blue-200 hover:border-blue-300'
+              : 'border-gray-200 hover:border-gray-300'
+        }`}
+        style={{ minHeight: cardState === 'pro' ? '340px' : '320px' }}
+      >
         
-        {/* 状态标签 (Ribbon) */}
+        {/* 状态标签 (Ribbon) - 包含价格信息 */}
         <div className="absolute top-0 right-0 z-20">
-          <div className={`${stateLabel.bgClass} ${stateLabel.textClass} px-3 py-1 text-xs font-bold rounded-bl-lg shadow-md`}>
-            {stateLabel.text}
+          <div className={`${stateLabel.bgClass} ${stateLabel.textClass} rounded-bl-lg shadow-md overflow-hidden`}
+               style={{ 
+                 minWidth: cardState === 'pro' && priceInfo ? '80px' : 'auto',
+                 maxWidth: cardState === 'pro' && priceInfo ? '120px' : 'auto'
+               }}>
+            <div className="px-2 py-1 text-xs font-bold text-center">
+              {stateLabel.text}
+            </div>
             {cardState === 'pro' && priceInfo && (
-              <div className="text-xs font-normal mt-0.5">
-                {priceInfo.hasDiscount && (
-                  <span className="line-through opacity-75 mr-1">¥{priceInfo.basePrice.toLocaleString()}</span>
-                )}
-                ¥{priceInfo.discountPrice.toLocaleString()} 
-                <span className="text-xs ml-1">税込</span>
-                {priceInfo.hasDiscount && (
-                  <div className="bg-red-500 text-white px-1 py-0.5 rounded text-xs font-bold mt-1">
-                    -{priceInfo.discountPercent}%
+              <div className="px-2 py-1 bg-black bg-opacity-15 border-t border-white border-opacity-25">
+                <div className="text-center">
+                  <div className="text-xs font-bold leading-tight break-all">
+                    ¥{priceInfo.discountPrice.toLocaleString()}
                   </div>
-                )}
+                  <div className="text-xs opacity-90 leading-tight">税込</div>
+                </div>
               </div>
             )}
           </div>
@@ -644,7 +676,7 @@ const HomePage = () => {
         </div>
 
         {/* 内容区域 */}
-        <div className="p-6 h-[calc(100%-8rem)] flex flex-col">
+        <div className="p-6 flex flex-col flex-1">
           {/* 标题区域 - 优化设计让标题更突出 */}
           <div className="mb-4">
             <h3 className="text-xl font-black text-gray-900 mb-2 line-clamp-2 leading-snug tracking-tight">
@@ -674,12 +706,12 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* 価格或有效期信息 */}
+          {/* 価格或有效期信息 - 优化布局 */}
           <div className="mb-4 flex-grow">
             {cardState === 'owned' ? (
               // 已购买状态 - 显示有效期
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">有効期限</span>
                   <span className={`font-medium ${
                     percent < 20 ? 'text-red-600' : 
@@ -697,41 +729,31 @@ const HomePage = () => {
                 </div>
               </div>
             ) : cardState === 'pro' && priceInfo ? (
-              // Pro状态 - 显示価格信息
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <div>
-                    {priceInfo.hasDiscount && (
-                      <div className="text-sm text-gray-500 line-through">
-                        ¥{priceInfo.basePrice.toLocaleString()}
-                      </div>
-                    )}
-                    <div className="flex items-baseline">
-                      <span className="text-2xl font-bold text-gray-900">
-                        ¥{priceInfo.discountPrice.toLocaleString()}
-                      </span>
-                      <span className="text-sm text-gray-600 ml-1">税込</span>
-                    </div>
-                    {priceInfo.hasDiscount && (
-                      <div className="inline-block bg-red-500 text-white px-2 py-1 rounded text-xs font-bold mt-1">
-                        -{priceInfo.discountPercent}%
-                      </div>
-                    )}
-                  </div>
-                </div>
+              // Pro状态 - 简化版本，价格在右上角显示
+              <div className="space-y-3">
+                {/* 试用信息 */}
                 {set.trialQuestions && (
-                  <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
-                    {set.trialQuestions}問お試し可能
+                  <div className="flex items-center text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm font-medium">{set.trialQuestions}問の体験版利用可能</span>
                   </div>
                 )}
+                {/* 产品特点或描述 */}
+                <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                  <span>高品質な問題で練習できます</span>
+                </div>
               </div>
             ) : cardState === 'free' ? (
               // 免费状态 - 显示免费标识
-              <div className="flex items-center text-green-600 bg-green-50 px-3 py-2 rounded-lg">
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm font-medium">完全無料</span>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center text-green-700">
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-medium">完全無料で利用可能</span>
+                </div>
               </div>
             ) : null}
           </div>
