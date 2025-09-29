@@ -6,6 +6,7 @@ const amplifyConfig = {
       loginWith: {
         username: true,
         email: true,
+        phone: true,
       },
       signUpVerificationMethod: 'code' as const,
       userAttributes: {
