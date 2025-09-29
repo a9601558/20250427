@@ -31,6 +31,35 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
   useEffect(() => {
     if (auth.error) {
       console.error('[OIDCAuth] 認証エラー:', auth.error);
+      
+      // 特殊处理"No matching state found in storage"错误
+      if (auth.error.message && auth.error.message.includes('No matching state found')) {
+        console.log('[OIDCAuth] 状態不一致错误，清理缓存并重新开始认证');
+        
+        // 清理存储的认证状态
+        try {
+          localStorage.removeItem('oidc.user');
+          sessionStorage.removeItem('oidc.user');
+          // 清理所有oidc相关的存储
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('oidc.')) {
+              localStorage.removeItem(key);
+            }
+          });
+          Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('oidc.')) {
+              sessionStorage.removeItem(key);
+            }
+          });
+        } catch (cleanupError) {
+          console.warn('[OIDCAuth] 清理存储时出错:', cleanupError);
+        }
+        
+        toast.warning('認証状態がリセットされました。再度ログインしてください。');
+        return;
+      }
+      
+      // 其他错误的处理
       toast.error(`認証エラー: ${auth.error.message}`);
     }
   }, [auth.error]);
@@ -39,6 +68,25 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
     try {
       setIsLoading(true);
       console.log('[OIDCAuth] サインインを開始します...');
+      
+      // 在开始新的认证流程之前，清理之前的状态
+      try {
+        // 清理所有oidc相关的存储
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('oidc.')) {
+            localStorage.removeItem(key);
+          }
+        });
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.startsWith('oidc.')) {
+            sessionStorage.removeItem(key);
+          }
+        });
+        console.log('[OIDCAuth] 既存のOIDC状態をクリアしました');
+      } catch (cleanupError) {
+        console.warn('[OIDCAuth] 状態クリア中にエラー:', cleanupError);
+      }
+      
       await auth.signinRedirect();
     } catch (error) {
       console.error('[OIDCAuth] サインイン失敗:', error);
@@ -201,9 +249,42 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
                     認証中...
                   </>
                 ) : (
-                  'サインイン'
+                  'ログイン / 新規登録'
                 )}
               </button>
+              
+              {/* 认证状态清理按钮 */}
+              {auth.error && auth.error.message.includes('No matching state found') && (
+                <button
+                  onClick={() => {
+                    try {
+                      // 清理所有OIDC相关的存储
+                      Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith('oidc.')) {
+                          localStorage.removeItem(key);
+                        }
+                      });
+                      Object.keys(sessionStorage).forEach(key => {
+                        if (key.startsWith('oidc.')) {
+                          sessionStorage.removeItem(key);
+                        }
+                      });
+                      console.log('[OIDCAuth] 手動で認証状態をクリアしました');
+                      toast.success('認証状態をリセットしました。再度お試しください。');
+                      
+                      // 刷新页面以重新初始化OIDC
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 1000);
+                    } catch (error) {
+                      console.error('[OIDCAuth] 状態クリア中にエラー:', error);
+                    }
+                  }}
+                  className="w-full mt-2 flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  認証状態をリセット
+                </button>
+              )}
             </div>
 
             {/* 功能说明 */}
@@ -219,6 +300,8 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
                   <div className="mt-2 text-sm text-blue-700">
                     <ul className="list-disc list-inside space-y-1">
                       <li>AWS Cognito による安全な認証</li>
+                      <li>既存アカウントでのログイン</li>
+                      <li>新規ユーザーの自動登録</li>
                       <li>メール、電話番号での認証に対応</li>
                       <li>多要素認証（MFA）対応</li>
                       <li>パスワードリセット機能</li>

@@ -92,12 +92,47 @@ const App: React.FC = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const state = urlParams.get('state');
+      const error = urlParams.get('error');
+      const errorDescription = urlParams.get('error_description');
+      
+      if (error) {
+        console.error('[App] OIDC認証エラーを検出:', { error, errorDescription });
+        toast.error(`認証エラー: ${errorDescription || error}`);
+        
+        // 清理URL参数并重定向到首页
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
       
       if (code && state) {
         console.log('[App] 检测到OIDC认证回调');
         toast.info('認証を処理中...', {
           autoClose: 3000
         });
+        
+        // 检查认证状态管理
+        const checkAuthState = () => {
+          // 检查localStorage中是否有任何oidc用户状态
+          let hasOidcState = false;
+          try {
+            Object.keys(localStorage).forEach(key => {
+              if (key.includes('oidc.user:')) {
+                hasOidcState = true;
+              }
+            });
+          } catch (e) {
+            console.warn('[App] localStorage検查中にエラー:', e);
+          }
+          
+          if (!hasOidcState) {
+            console.warn('[App] 認証状態が見つかりません。状態をリセットします。');
+            // 清理URL参数
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        };
+        
+        // 延迟检查认证状态，给OIDC库时间处理
+        setTimeout(checkAuthState, 1000);
       }
     };
     
@@ -150,6 +185,9 @@ const App: React.FC = () => {
               <Layout>
                 <Routes>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/signup" element={<Navigate to="/" replace />} />
+                  <Route path="/login" element={<Navigate to="/" replace />} />
+                  <Route path="/register" element={<Navigate to="/" replace />} />
                   <Route path="/profile" element={
                     <ProtectedRoute>
                       <ProfilePage />

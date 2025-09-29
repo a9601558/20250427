@@ -24,20 +24,30 @@ const cognitoAuthConfig = {
   response_type: "code",
   scope: "email openid phone",
   post_logout_redirect_uri: getRedirectUri(),
-  // 添加额外的参数以确保使用正确的登录流程
+  // 简化extraQueryParams，确保兼容注册和登录
   extraQueryParams: {
     response_mode: "query",
-    // 强制显示用户名/密码登录界面
-    identity_provider: "COGNITO",
-    // 指定认证流程类型
-    prompt: "login",
-    // 确保显示完整的登录界面（包括忘记密码链接）
     ui_locales: "ja"
   },
   // 设置自动silent renew
   automaticSilentRenew: true,
   // 设置token存储
   userStore: new WebStorageStateStore({ store: window.localStorage }),
+  // 添加错误恢复设置
+  loadUserInfo: false,
+  // 设置更严格的状态验证
+  stateStore: new WebStorageStateStore({ 
+    store: window.sessionStorage,
+    prefix: "oidc.state." 
+  }),
+  // 增加超时设置
+  silentRequestTimeout: 10000,
+  // 确保不会自动重定向到特定页面
+  monitorSession: false,
+  // 设置检查会话间隔
+  checkSessionInterval: 2000,
+  // 启用更详细的日志
+  revokeTokenTypes: ["access_token", "refresh_token"]
 }
 
 console.log("OIDC Cognito 已初始化，使用新的认证服务");
