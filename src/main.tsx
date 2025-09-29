@@ -47,7 +47,11 @@ const cognitoAuthConfig = {
   // 设置检查会话间隔
   checkSessionInterval: 2000,
   // 启用更详细的日志
-  revokeTokenTypes: ["access_token", "refresh_token"]
+  revokeTokenTypes: ["access_token", "refresh_token"],
+  // 使用自定义弹窗打开器
+  popupWindowFeatures: `width=500,height=700,left=${window.screen.width / 2 - 250},top=${window.screen.height / 2 - 350},scrollbars=yes,resizable=yes`,
+  // 可选：如果需要完全自定义弹窗行为，取消注释下面这行
+  // popupWindowTarget: "_blank"
 }
 
 console.log("OIDC Cognito 已初始化，使用新的认证服务");

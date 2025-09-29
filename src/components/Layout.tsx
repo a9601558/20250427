@@ -5,7 +5,6 @@ import AuthModal from './AuthModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import { useAuth } from "react-oidc-context";
-import { toast } from 'react-toastify';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 import montopiLogo from '../assets/montopi-new-logo.svg';
@@ -130,10 +129,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [footerText, setFooterText] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
   
-  // 处理直接OIDC登录
-  const handleDirectLogin = async () => {
+  // 处理弹窗登录
+  const handlePopupLogin = async () => {
     try {
-      console.log('[Layout] 直接开始OIDC登录流程');
+      console.log('[Layout] 启动弹窗登录');
       
       // 清理之前的OIDC状态
       try {
@@ -152,15 +151,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         console.warn('[Layout] 清理OIDC状态时出错:', cleanupError);
       }
       
-      // 直接启动OIDC登录流程
-      await auth.signinRedirect();
+      // 使用弹窗模式登录
+      await auth.signinPopup();
     } catch (error) {
-      console.error('[Layout] 直接登录失败:', error);
+      console.error('[Layout] 弹窗登录失败:', error);
       
-      // 显示用户友好的错误信息
-      toast.error('ログインの開始に失敗しました。モーダルから再試行してください。');
-      
-      // 如果直接登录失败，则回退到显示弹窗
+      // 如果弹窗登录失败，回退到模态框模式
+      console.log('[Layout] 回退到模态框登录模式');
       setIsLoginModalOpen(true);
     }
   };
@@ -175,21 +172,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
   
-  // 监听OIDC认证错误
+  // 监听OIDC认证状态变化
   useEffect(() => {
+    if (auth.isAuthenticated && auth.user) {
+      console.log('[Layout] 弹窗登录成功:', auth.user.profile.email);
+      // 可以在这里添加成功提示，但通常UserContext会处理
+    }
+    
     if (auth.error) {
       console.error('[Layout] OIDC认证错误:', auth.error);
       
-      // 对于某些类型的错误，显示用户友好的消息
-      if (auth.error.message && auth.error.message.includes('No matching state found')) {
-        toast.warning('認証状態がリセットされました。再度ログインしてください。');
-      } else if (auth.error.message && auth.error.message.includes('access_denied')) {
-        toast.error('ログインがキャンセルされました。');
-      } else {
-        toast.error(`認証エラー: ${auth.error.message}`);
+      // 对特定错误给出用户友好的提示
+      if (auth.error.message && auth.error.message.includes('popup_closed_by_user')) {
+        console.log('[Layout] 用户关闭了登录弹窗');
+        // 用户主动关闭，不需要错误提示
+      } else if (auth.error.message && auth.error.message.includes('popup_blocked')) {
+        console.log('[Layout] 弹窗被浏览器阻止，回退到模态框模式');
+        setIsLoginModalOpen(true);
       }
     }
-  }, [auth.error]);
+  }, [auth.isAuthenticated, auth.user, auth.error]);
   
   // Handle click outside to close mobile menu
   useEffect(() => {
@@ -398,7 +400,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <UserMenu />
             ) : (
               <button
-                onClick={handleDirectLogin}
+                onClick={handlePopupLogin}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
                 ログイン/登録
