@@ -683,7 +683,7 @@ const createRedeemCode = async (req, res) => {
     }
 };
 exports.createRedeemCode = createRedeemCode;
-// 使用兑换码
+// 引換コードを入力する
 const useRedeemCode = async (req, res) => {
     const { code } = req.body;
     const userId = req.user?.id;
@@ -734,7 +734,7 @@ const useRedeemCode = async (req, res) => {
         return res.status(result.success ? 200 : 400).json(result);
     }
     catch (error) {
-        console.error('使用兑换码出错:', error);
+        console.error('引換コードを入力する出错:', error);
         return res.status(500).json({
             success: false,
             message: '服务器错误，兑换失败'

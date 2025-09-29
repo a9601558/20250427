@@ -207,15 +207,30 @@ const AdminQuestionSetInfo: React.FC = () => {
   const prepareDataForServer = (data: LocalQuestionSet): Partial<QuestionSet> => {
     const { questionCount, createdAt, updatedAt, ...serverData } = data;
     
+    console.log('准备发送到服务器的原始数据:', {
+      isFeatured: data.isFeatured,
+      featuredCategory: data.featuredCategory,
+      type_isFeatured: typeof data.isFeatured
+    });
+    
     // 确保数据格式正确
-    return {
+    const result = {
       ...serverData,
       price: serverData.isPaid ? (serverData.price || 0) : undefined,
       trialQuestions: serverData.isPaid ? (serverData.trialQuestions || 0) : undefined,
+      isFeatured: Boolean(serverData.isFeatured), // 确保是布尔值
       featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined,
       // 使用icon字段存储图片URL
       icon: serverData.icon === 'pending_upload' ? 'default' : serverData.icon
     };
+    
+    console.log('发送到服务器的处理后数据:', {
+      isFeatured: result.isFeatured,
+      featuredCategory: result.featuredCategory,
+      type_isFeatured: typeof result.isFeatured
+    });
+    
+    return result;
   };
 
   // Add image upload handler
@@ -586,8 +601,10 @@ const AdminQuestionSetInfo: React.FC = () => {
                         <div className="mr-2 text-xl">
                           {set.icon && set.icon !== 'default' && !set.icon.startsWith('📝') && !set.icon.startsWith('📚') && !set.icon.startsWith('💻') && !set.icon.startsWith('🔍') && !set.icon.startsWith('🧩') && !set.icon.startsWith('⚙️') && !set.icon.startsWith('📊') && !set.icon.startsWith('🔐') && !set.icon.startsWith('📡') && !set.icon.startsWith('🛠️') && !set.icon.startsWith('🧪') && !set.icon.startsWith('🔬') && !set.icon.startsWith('📱') && !set.icon.startsWith('🌐') && !set.icon.startsWith('🤖') && !set.icon.startsWith('🧠') && !set.icon.startsWith('🔥') && !set.icon.startsWith('💾') && !set.icon.startsWith('⚡') && !set.icon.startsWith('☁️') ? (
                             <img src={getImageUrl(set.icon)} alt="题库图标" className="h-6 w-6 object-cover rounded" />
+                          ) : set.icon && !['default', 'pending_upload'].includes(set.icon) ? (
+                            set.icon
                           ) : (
-                            set.icon || '📝'
+                            <img src="/montopi-logo.svg" alt="MonTopi Logo" className="h-6 w-6 object-cover rounded" />
                           )}
                         </div>
                         <div className="flex-grow">
@@ -842,8 +859,10 @@ const AdminQuestionSetInfo: React.FC = () => {
                     <div className="mr-4 text-4xl">
                       {selectedSet.icon && selectedSet.icon !== 'default' && !selectedSet.icon.startsWith('📝') && !selectedSet.icon.startsWith('📚') && !selectedSet.icon.startsWith('💻') && !selectedSet.icon.startsWith('🔍') && !selectedSet.icon.startsWith('🧩') && !selectedSet.icon.startsWith('⚙️') && !selectedSet.icon.startsWith('📊') && !selectedSet.icon.startsWith('🔐') && !selectedSet.icon.startsWith('📡') && !selectedSet.icon.startsWith('🛠️') && !selectedSet.icon.startsWith('🧪') && !selectedSet.icon.startsWith('🔬') && !selectedSet.icon.startsWith('📱') && !selectedSet.icon.startsWith('🌐') && !selectedSet.icon.startsWith('🤖') && !selectedSet.icon.startsWith('🧠') && !selectedSet.icon.startsWith('🔥') && !selectedSet.icon.startsWith('💾') && !selectedSet.icon.startsWith('⚡') && !selectedSet.icon.startsWith('☁️') ? (
                         <img src={getImageUrl(selectedSet.icon)} alt="题库图标" className="h-10 w-10 object-cover rounded" />
+                      ) : selectedSet.icon && !['default', 'pending_upload'].includes(selectedSet.icon) ? (
+                        selectedSet.icon
                       ) : (
-                        selectedSet.icon || '📝'
+                        <img src="/montopi-logo.svg" alt="MonTopi Logo" className="h-10 w-10 object-cover rounded" />
                       )}
                     </div>
                     <div>

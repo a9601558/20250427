@@ -902,10 +902,33 @@ const AdminQuestionSets = () => {
     setLoadingAction('updateQuestions');
     
     try {
+      // 转换问题数据格式以匹配后端期望的格式
+      const formattedQuestions = questions.map(question => {
+        console.log('正在格式化问题:', question);
+        
+        return {
+          id: question.id,
+          question: question.question || question.text, // 支持两种字段名
+          text: question.question || question.text,     // 后端期望的字段名
+          questionType: question.questionType || 'single',
+          explanation: question.explanation || '',
+          options: (question.options || []).map(opt => ({
+            id: opt.id,
+            text: opt.text,
+            isCorrect: Array.isArray(question.correctAnswer) 
+              ? question.correctAnswer.includes(opt.id)
+              : question.correctAnswer === opt.id
+          })),
+          correctAnswer: question.correctAnswer
+        };
+      });
+      
+      console.log('发送到后端的问题数据:', formattedQuestions);
+      
       // 使用专门的问题列表更新端点
       const response = await questionSetApi.updateQuestionSetQuestions(
         currentQuestionSet.id, 
-        { questions }
+        { questions: formattedQuestions }
       );
       
       if (response.success && response.data) {

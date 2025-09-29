@@ -356,8 +356,24 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
         }
       }
       
-      if (isFeatured !== undefined) questionSet.isFeatured = isFeatured;
-      if (featuredCategory !== undefined) questionSet.featuredCategory = featuredCategory;
+      // 特别处理精选题库字段
+      if (isFeatured !== undefined) {
+        console.log('更新精选状态:', { 
+          before: questionSet.isFeatured, 
+          after: isFeatured, 
+          type: typeof isFeatured 
+        });
+        questionSet.isFeatured = Boolean(isFeatured);
+      }
+      
+      if (featuredCategory !== undefined) {
+        console.log('更新精选分类:', { 
+          before: questionSet.featuredCategory, 
+          after: featuredCategory,
+          isFeatured: questionSet.isFeatured
+        });
+        questionSet.featuredCategory = featuredCategory;
+      }
 
       // 记录更新后的值
       const newValues = {
@@ -382,10 +398,35 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
         console.log('检测到数据变化，开始保存...');
         const updatedQuestionSet = await questionSet.save();
         console.log('题库更新成功:', updatedQuestionSet.toJSON());
-        sendResponse(res, 200, updatedQuestionSet, '題庫が正常に更新されました');
+        
+        // 确保返回的数据包含正确的字段映射
+        const responseData = {
+          ...updatedQuestionSet.toJSON(),
+          isPaid: updatedQuestionSet.isPaid,
+          isFeatured: updatedQuestionSet.isFeatured,
+          trialQuestions: updatedQuestionSet.trialQuestions,
+          featuredCategory: updatedQuestionSet.featuredCategory,
+          createdAt: updatedQuestionSet.createdAt,
+          updatedAt: updatedQuestionSet.updatedAt
+        };
+        
+        console.log('返回给前端的数据:', responseData);
+        sendResponse(res, 200, responseData, '題庫が正常に更新されました');
       } else {
         console.log('未检测到数据变化，返回当前数据');
-        sendResponse(res, 200, questionSet, '題庫データに変更はありません');
+        
+        // 确保返回的数据包含正确的字段映射
+        const responseData = {
+          ...questionSet.toJSON(),
+          isPaid: questionSet.isPaid,
+          isFeatured: questionSet.isFeatured,
+          trialQuestions: questionSet.trialQuestions,
+          featuredCategory: questionSet.featuredCategory,
+          createdAt: questionSet.createdAt,
+          updatedAt: questionSet.updatedAt
+        };
+        
+        sendResponse(res, 200, responseData, '題庫データに変更はありません');
       }
     } else {
       console.log('题库不存在:', req.params.id);
@@ -1030,29 +1071,54 @@ export const updateQuestionSetQuestions = async (req: Request, res: Response) =>
         transaction
       });
 
+      console.log(`已删除题库 ${req.params.id} 的所有旧问题`);
+
       // 添加新的问题列表
       const createdQuestions = [];
       for (let i = 0; i < questions.length; i++) {
         const questionData = questions[i];
         
+        // 处理从前端传来的问题数据格式
+        const questionText = questionData.question || questionData.text || `問題 ${i + 1}`;
+        const questionType = questionData.questionType || 'single';
+        const explanation = questionData.explanation || '';
+        
+        console.log(`正在处理问题 ${i + 1}:`, {
+          text: questionText,
+          type: questionType,
+          optionsCount: questionData.options?.length || 0
+        });
+        
         const newQuestion = await Question.create({
           questionSetId: req.params.id,
-          text: questionData.text || `問題 ${i + 1}`,
-          questionType: questionData.questionType || 'single',
-          explanation: questionData.explanation || '',
+          text: questionText,
+          questionType: questionType,
+          explanation: explanation,
           orderIndex: i
         }, { transaction });
 
         // 添加选项
         if (questionData.options && Array.isArray(questionData.options)) {
-          const optionsData = questionData.options.map((option: any, optionIndex: number) => ({
-            questionId: newQuestion.id,
-            text: option.text || `選択肢 ${optionIndex + 1}`,
-            isCorrect: Boolean(option.isCorrect),
-            orderIndex: optionIndex
-          }));
+          const optionsData = questionData.options.map((option: any, optionIndex: number) => {
+            // 处理正确答案标记
+            let isCorrect = false;
+            if (questionType === 'single') {
+              isCorrect = questionData.correctAnswer === option.id;
+            } else if (questionType === 'multiple') {
+              isCorrect = Array.isArray(questionData.correctAnswer) && 
+                         questionData.correctAnswer.includes(option.id);
+            }
+            
+            return {
+              questionId: newQuestion.id,
+              text: option.text || `選択肢 ${optionIndex + 1}`,
+              isCorrect: isCorrect,
+              orderIndex: optionIndex
+            };
+          });
 
           await Option.bulkCreate(optionsData, { transaction });
+          console.log(`为问题 ${i + 1} 创建了 ${optionsData.length} 个选项`);
         }
 
         createdQuestions.push(newQuestion);

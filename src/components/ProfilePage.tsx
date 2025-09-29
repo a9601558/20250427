@@ -2572,8 +2572,8 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">暂无兑换记录</h3>
-          <p className="text-gray-600 mb-6 max-w-md">使用兑换码可以快速解锁完整题库内容，获取更多学习资源！</p>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">引換履歴がありません。</h3>
+          <p className="text-gray-600 mb-6 max-w-md">引換コードを利用すると、完全な問題集の内容をすばやくアンロックし、より多くの学習リソースを手に入れることができます！资源！</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"

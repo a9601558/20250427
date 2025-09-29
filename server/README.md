@@ -105,7 +105,7 @@ npm run baota-deploy
 - `PUT /api/homepage`: 更新首页设置
 
 - `POST /api/redeem-codes/create`: 创建兑换码
-- `POST /api/redeem-codes/redeem`: 使用兑换码
+- `POST /api/redeem-codes/redeem`: 引換コードを入力する
 
 - `POST /api/purchases`: 创建购买记录
 - `GET /api/purchases/user`: 获取用户购买记录
