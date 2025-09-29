@@ -95,6 +95,12 @@ export const getUserProfile = async (req: Request, res: Response) => {
       // 确保返回的数据结构完整
       const userData = user.toJSON();
       
+      // 从Cognito token中获取最新的邮箱信息
+      if (req.cognitoUser && req.cognitoUser.email) {
+        console.log(`[用户资料] 使用Cognito邮箱: ${req.cognitoUser.email} (数据库邮箱: ${userData.email})`);
+        userData.email = req.cognitoUser.email; // 优先使用Cognito中的邮箱
+      }
+      
       // 为了保持兼容性，将userPurchases映射回purchases字段
       if (userData.userPurchases) {
         userData.purchases = userData.userPurchases;

@@ -266,7 +266,22 @@ const AdminQuestionSets = () => {
       console.error('[DEBUG] 获取题库题目数量失败', questionSetId, error);
     }
 
-    // 如果getQuestionCount失败，尝试直接获取题库详情
+    // 如果getQuestionCount失败，尝试使用直接的fetch调用（与AdminQuestionSetInfo相同的方式）
+    try {
+      console.log('[DEBUG] fetchQuestionCountDetails: 尝试直接fetch获取题目数量');
+      const response = await fetch(`/api/questions/count/${questionSetId}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[DEBUG] fetchQuestionCountDetails: fetch响应:', data);
+        if (data.success && typeof data.count === 'number') {
+          return { success: true, count: data.count };
+        }
+      }
+    } catch (fetchError) {
+      console.error('[DEBUG] fetchQuestionCountDetails: fetch调用失败:', fetchError);
+    }
+
+    // 最后尝试获取题库详情
     try {
       console.log('[DEBUG] fetchQuestionCountDetails: 尝试通过getQuestionSetById获取题目数量');
       const detailResponse = await questionSetApi.getQuestionSetById(questionSetId);
@@ -289,27 +304,36 @@ const AdminQuestionSets = () => {
   const loadQuestionSets = async () => {
     setLoadingQuestionSets(true);
     try {
-      console.log("正在从API加载题库...");
+      console.log("[AdminQuestionSets] 正在从API加载题库...");
       const response = await questionSetApi.getAllQuestionSets();
+      console.log("[AdminQuestionSets] API响应:", response);
 
       if (response.success && Array.isArray(response.data)) {
+        console.log(`[AdminQuestionSets] 收到${response.data.length}个题库，开始获取题目数量...`);
         const enrichedQuestionSets = await Promise.all(
-          response.data.map(async (questionSet: any) => {
+          response.data.map(async (questionSet: any, index: number) => {
+            console.log(`[AdminQuestionSets] 处理题库 ${index + 1}/${response.data.length}: ${questionSet.title} (ID: ${questionSet.id})`);
+            
             const localCount = deriveLocalCount(questionSet);
+            console.log(`[AdminQuestionSets] 题库 ${questionSet.title} 本地计数:`, localCount);
 
             if (localCount !== null) {
+              console.log(`[AdminQuestionSets] 使用本地计数 ${localCount} for ${questionSet.title}`);
               return { ...questionSet, questionCount: localCount };
             }
 
             const { success: countFetched, count } = await fetchQuestionCountDetails(questionSet.id);
+            console.log(`[AdminQuestionSets] 题库 ${questionSet.title} 获取到的计数: success=${countFetched}, count=${count}`);
 
             if (countFetched) {
               return { ...questionSet, questionCount: count };
             }
 
+            const fallbackCount = typeof questionSet?.questionCount === 'number' ? questionSet.questionCount : 0;
+            console.log(`[AdminQuestionSets] 题库 ${questionSet.title} 使用回退计数: ${fallbackCount}`);
             return {
               ...questionSet,
-              questionCount: typeof questionSet?.questionCount === 'number' ? questionSet.questionCount : 0
+              questionCount: fallbackCount
             };
           })
         );

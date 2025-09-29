@@ -117,8 +117,17 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         
         console.log(`Created Cognito user: ${username} (${email})`);
       } else {
-        // Update last login time
-        await user.update({ lastLoginAt: new Date() });
+        // Update last login time and sync email from Cognito if different
+        const cognitoEmail = payload.email;
+        if (cognitoEmail && user.email !== cognitoEmail) {
+          console.log(`[认证中间件] 同步Cognito邮箱: ${user.email} -> ${cognitoEmail}`);
+          await user.update({ 
+            email: cognitoEmail,
+            lastLoginAt: new Date()
+          });
+        } else {
+          await user.update({ lastLoginAt: new Date() });
+        }
       }
 
       // Attach both Cognito payload and user data to request

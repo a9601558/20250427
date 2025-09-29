@@ -11,6 +11,24 @@ interface CognitoAuthProps {
   onClose: () => void;
 }
 
+// 调试辅助函数
+const debugCognitoConfig = () => {
+  const config = {
+    userPoolId: 'ap-southeast-2_El0UTGvLD',
+    userPoolClientId: '3l9nrspcr34tjjs1isupccvb4t',
+    region: 'ap-southeast-2'
+  };
+  
+  console.log('[CognitoAuth Debug] 当前Cognito配置:', config);
+  console.log('[CognitoAuth Debug] 请确保以下配置在AWS控制台中正确设置:');
+  console.log('1. User Pool中启用了"Send verification via"设置');
+  console.log('2. SES邮件服务已正确配置并验证');
+  console.log('3. SNS SMS服务已启用并有足够配额');
+  console.log('4. User Pool的属性配置正确');
+  
+  return config;
+};
+
 // 自定义认证包装组件
 const AuthWrapper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user, route } = useAuthenticator((context) => [context.user, context.route]);
@@ -52,6 +70,13 @@ const AuthWrapper: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
 const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => {
   if (!isOpen) return null;
+  
+  // 在开发环境中显示调试信息
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      debugCognitoConfig();
+    }
+  }, []);
 
   const formFields = {
     signIn: {
@@ -285,7 +310,7 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
 
         <div className="p-6">
           <div className="text-left mb-6">
-            <h1 className="text-2xl font-semibold text-gray-800 mb-2">Log in to ExamTopics</h1>
+            <h1 className="text-2xl font-semibold text-gray-800 mb-2">Log in to MonTopi</h1>
           </div>
           
           <div className="auth-container">
@@ -574,6 +599,54 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
               variation="modal"
               hideSignUp={false}
               initialState="signIn"
+              services={{
+                async handleForgotPassword(formData) {
+                  try {
+                    console.log('[CognitoAuth] 开始忘记密码流程:', formData);
+                    const { resetPassword } = await import('aws-amplify/auth');
+                    const result = await resetPassword({
+                      username: formData.username,
+                    });
+                    console.log('[CognitoAuth] 忘记密码请求成功:', result);
+                    
+                    // 根据配置的delivery method显示相应提示
+                    if (result.nextStep?.resetPasswordStep === 'CONFIRM_RESET_PASSWORD_WITH_CODE') {
+                      const deliveryMedium = result.nextStep?.codeDeliveryDetails?.deliveryMedium;
+                      const destination = result.nextStep?.codeDeliveryDetails?.destination;
+                      
+                      if (deliveryMedium === 'SMS') {
+                        toast.success(`SMS验证码已发送到 ${destination}`);
+                      } else if (deliveryMedium === 'EMAIL') {
+                        toast.success(`邮件验证码已发送到 ${destination}`);
+                      } else {
+                        toast.success('验证码已发送，请检查您的邮箱和手机');
+                      }
+                    }
+                    
+                    return result;
+                  } catch (error: any) {
+                    console.error('[CognitoAuth] 忘记密码失败:', error);
+                    
+                    // 提供更详细的错误信息
+                    let errorMessage = '发送验证码失败';
+                    
+                    if (error.name === 'UserNotFoundException') {
+                      errorMessage = '用户不存在，请检查您的用户名、邮箱或手机号';
+                    } else if (error.name === 'LimitExceededException') {
+                      errorMessage = '请求过于频繁，请稍后再试';
+                    } else if (error.name === 'InvalidParameterException') {
+                      errorMessage = '输入参数无效，请检查格式';
+                    } else if (error.name === 'NotAuthorizedException') {
+                      errorMessage = '用户状态异常，无法重置密码';
+                    } else if (error.message) {
+                      errorMessage = `错误: ${error.message}`;
+                    }
+                    
+                    toast.error(errorMessage);
+                    throw error;
+                  }
+                }
+              }}
             >
               <AuthWrapper onClose={onClose} />
             </Authenticator>

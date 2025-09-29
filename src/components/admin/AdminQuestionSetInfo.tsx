@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { QuestionSet } from '../../types';
+import { questionSetService } from '../../services/api';
 
 // 定义本地使用的QuestionSet接口，与系统的QuestionSet接口保持兼容
 interface LocalQuestionSet {
@@ -79,8 +80,13 @@ const AdminQuestionSetInfo: React.FC = () => {
   // 获取题库真实的题目数量
   const getActualQuestionCount = async (questionSetId: string): Promise<number> => {
     try {
-      // 直接调用 API 获取题目数量
-      const response = await fetch(`/api/questions/count/${questionSetId}`);
+      // 直接调用 API 获取题目数量，添加认证头
+      const response = await fetch(`/api/questions/count/${questionSetId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) {
         console.error(`Error fetching question count: API returned ${response.status}`);
         return 0;
@@ -100,8 +106,7 @@ const AdminQuestionSetInfo: React.FC = () => {
     setLoading(true);
     try {
       console.log('題庫リストの取得を開始中...');
-      // 直接使用 API 服务获取题库列表
-      const { questionSetService } = await import('../../services/api');
+      // 使用静态导入的API服务获取题库列表
       const response = await questionSetService.getAllQuestionSets();
 
       if (response.success && response.data) {
