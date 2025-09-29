@@ -44,7 +44,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
             </button>
           </div>
         </div>
-        <AuthModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} useCognito={true} />
+        <AuthModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
       </>
     );
   }
