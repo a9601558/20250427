@@ -7,8 +7,6 @@ import 'antd/dist/reset.css'
 import { initAutoRefresh } from './utils/autoRefresh'
 import { AuthProvider } from "react-oidc-context"
 import { WebStorageStateStore } from "oidc-client-ts"
-// 导入调试工具
-import './utils/oidc-debug'
 
 // Cognito OIDC 配置
 const getRedirectUri = () => {

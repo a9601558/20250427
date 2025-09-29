@@ -4,6 +4,8 @@ import SocketStatus from './SocketStatus';
 import AuthModal from './AuthModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
+import { useAuth } from "react-oidc-context";
+import { toast } from 'react-toastify';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 import montopiLogo from '../assets/montopi-new-logo.svg';
@@ -124,10 +126,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useUser();
+  const auth = useAuth();
   const [footerText, setFooterText] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
   
-<<<<<<< HEAD
   // 临时使用模态框登录（更稳定）
   const handleLogin = () => {
     console.log('[Layout] 使用模态框登录');
@@ -185,8 +187,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
   
-=======
->>>>>>> parent of 982ed38 (99)
   // Handle scroll events for header effects
   useEffect(() => {
     const handleScroll = () => {
@@ -197,7 +197,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
   
-<<<<<<< HEAD
   // 监听OIDC认证状态变化
   useEffect(() => {
     if (auth.isAuthenticated && auth.user) {
@@ -219,8 +218,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [auth.isAuthenticated, auth.user, auth.error]);
   
-=======
->>>>>>> parent of 982ed38 (99)
   // Handle click outside to close mobile menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -428,11 +425,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <UserMenu />
             ) : (
               <button
-<<<<<<< HEAD
                 onClick={handleLogin}
-=======
-                onClick={() => setIsLoginModalOpen(true)}
->>>>>>> parent of 982ed38 (99)
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
                 ログイン/登録
@@ -489,7 +482,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <AuthModal 
         isOpen={isLoginModalOpen} 
         onClose={() => setIsLoginModalOpen(false)}
-        useCognito={true}
       />
     </div>
   );
