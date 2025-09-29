@@ -218,28 +218,34 @@ const AdminQuestionSets = () => {
 
   const fetchQuestionCountDetails = async (questionSetId: string) => {
     if (!questionSetId) {
+      console.log('[DEBUG] fetchQuestionCountDetails: questionSetId为空');
       return { success: false, count: 0 };
     }
 
     try {
+      console.log('[DEBUG] fetchQuestionCountDetails: 调用getQuestionCount API，questionSetId:', questionSetId);
       const response = await questionSetApi.getQuestionCount(questionSetId);
+      console.log('[DEBUG] fetchQuestionCountDetails: API响应:', response);
 
       if (response?.success) {
         const count = extractQuestionCount(response.data);
+        console.log('[DEBUG] fetchQuestionCountDetails: 提取的计数:', count);
 
         if (typeof count === 'number' && !Number.isNaN(count)) {
           return { success: true, count };
         }
 
         const fallbackCount = extractQuestionCount(response as any);
+        console.log('[DEBUG] fetchQuestionCountDetails: 回退计数:', fallbackCount);
         if (typeof fallbackCount === 'number' && !Number.isNaN(fallbackCount)) {
           return { success: true, count: fallbackCount };
         }
       } else {
-        console.warn('[AdminQuestionSets] 获取题库题目数量返回失败', questionSetId, response?.error || response?.message);
+        console.warn('[DEBUG] 获取题库题目数量返回失败', questionSetId, response?.error || response?.message);
+        console.warn('[DEBUG] 完整响应对象:', response);
       }
     } catch (error) {
-      console.error('[AdminQuestionSets] 获取题库题目数量失败', questionSetId, error);
+      console.error('[DEBUG] 获取题库题目数量失败', questionSetId, error);
     }
 
     return { success: false, count: 0 };
@@ -503,11 +509,14 @@ const AdminQuestionSets = () => {
   // 添加更新题目数量的函数
   const updateQuestionCount = async (questionSetId) => {
     if (!questionSetId) {
+      console.log('[DEBUG] updateQuestionCount: questionSetId为空');
       return false;
     }
 
     try {
+      console.log('[DEBUG] updateQuestionCount: 开始获取题目数量，questionSetId:', questionSetId);
       const { success, count } = await fetchQuestionCountDetails(questionSetId);
+      console.log('[DEBUG] updateQuestionCount: fetchQuestionCountDetails结果:', { success, count });
 
       if (success) {
         setQuestionSets((previousSets) =>
@@ -517,14 +526,14 @@ const AdminQuestionSets = () => {
               : questionSet
           )
         );
-        console.log('[AdminQuestionSets] 同步题库题目数量成功', questionSetId, count);
+        console.log('[DEBUG] 同步题库题目数量成功', questionSetId, count);
         return true;
       }
 
-      console.error('[AdminQuestionSets] 同步题库题目数量失败', questionSetId);
+      console.error('[DEBUG] 同步题库题目数量失败', questionSetId);
       return false;
     } catch (error) {
-      console.error('[AdminQuestionSets] 同步题库题目数量出错', questionSetId, error);
+      console.error('[DEBUG] 同步题库题目数量出错', questionSetId, error);
       return false;
     }
   };
@@ -720,7 +729,7 @@ const AdminQuestionSets = () => {
   };
 
   // 删除問題
-  const handleDeleteQuestion = (index) => {
+  const handleDeleteQuestion = async (index) => {
     if (!currentQuestionSet) return;
     
     if (!window.confirm('この問題を削除しますか？この操作は元に戻せません！')) {
@@ -735,8 +744,12 @@ const AdminQuestionSets = () => {
       questions: updatedQuestions
     });
     
+    console.log('[DEBUG] 开始删除问题，当前问题数量:', updatedQuestions.length);
+    
     // 直接更新题库中的問題列表
-    handleUpdateQuestions(updatedQuestions);
+    await handleUpdateQuestions(updatedQuestions);
+    
+    console.log('[DEBUG] 问题删除完成');
   };
 
   // 选择正确答案
@@ -902,6 +915,8 @@ const AdminQuestionSets = () => {
     setLoadingAction('updateQuestions');
     
     try {
+      console.log('[DEBUG] 更新问题列表开始，问题数量:', questions.length);
+      
       // 转换问题数据格式以匹配后端期望的格式
       const formattedQuestions = questions.map(question => {
         console.log('正在格式化问题:', question);
@@ -923,7 +938,8 @@ const AdminQuestionSets = () => {
         };
       });
       
-      console.log('发送到后端的问题数据:', formattedQuestions);
+      console.log('[DEBUG] 发送到后端的问题数据:', formattedQuestions);
+      console.log('[DEBUG] 调用API: updateQuestionSetQuestions');
       
       // 使用专门的问题列表更新端点
       const response = await questionSetApi.updateQuestionSetQuestions(
@@ -931,18 +947,24 @@ const AdminQuestionSets = () => {
         { questions: formattedQuestions }
       );
       
+      console.log('[DEBUG] API响应:', response);
+      
       if (response.success && response.data) {
+        console.log('[DEBUG] 问题列表更新成功，开始更新计数');
+        
         // 更新题目数量
-        await updateQuestionCount(currentQuestionSet.id);
+        const countResult = await updateQuestionCount(currentQuestionSet.id);
+        console.log('[DEBUG] 计数更新结果:', countResult);
         
         showStatusMessage('success', '問題列表更新成功');
         // 更新本地状态
         setCurrentQuestionSet(response.data);
       } else {
-        showStatusMessage('error', `更新問題列表失败: ${response.error || '未知错误'}`);
+        console.log('[DEBUG] 问题列表更新失败:', response);
+        showStatusMessage('error', `更新問題列表失败: ${response.error || response.message || '未知错误'}`);
       }
     } catch (error) {
-      console.error("更新問題列表出错:", error);
+      console.error("[DEBUG] 更新問題列表出错:", error);
       showStatusMessage('error', '更新問題列表时发生错误');
     } finally {
       setLoading(false);

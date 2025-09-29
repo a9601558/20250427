@@ -322,6 +322,111 @@ const customStyles = `
     box-shadow: 12px 12px 20px #0d1117, -12px -12px 20px #3d485c;
   }
   
+  /* 轮播功能样式 */
+  .carousel-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+  
+  .carousel-track {
+    display: flex;
+    transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    will-change: transform;
+  }
+  
+  .carousel-slide {
+    min-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  
+  .carousel-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    z-index: 10;
+  }
+  
+  .carousel-nav:hover {
+    background: rgba(255, 255, 255, 0.95);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+  
+  .carousel-nav-left {
+    left: -24px;
+  }
+  
+  .carousel-nav-right {
+    right: -24px;
+  }
+  
+  .carousel-indicators {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  
+  .carousel-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.3);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  .carousel-indicator.active {
+    background: #3B82F6;
+    transform: scale(1.2);
+  }
+  
+  .carousel-indicator:hover {
+    background: rgba(59, 130, 246, 0.6);
+    transform: scale(1.1);
+  }
+  
+  @media (max-width: 1024px) {
+    .carousel-slide {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .carousel-slide {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    
+    .carousel-nav {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .carousel-nav-left {
+      left: -20px;
+    }
+    
+    .carousel-nav-right {
+      right: -20px;
+    }
+  }
+  
   /* 移动端价格显示优化 */
   @media (max-width: 640px) {
     .price-display {
@@ -419,6 +524,11 @@ const HomePage = () => {
   const [homeContent, setHomeContent] = useState(defaultHomeContent);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // 轮播功能相关状态
+  const [currentCarouselIndex, setCurrentCarouselIndex] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const carouselIntervalRef = useRef<any>(null);
   
   // 添加题库列表初始加载标记，避免重复请求
   const isInitialLoad = useRef<boolean>(true);
@@ -657,8 +767,10 @@ const HomePage = () => {
                 <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-2xl text-white backdrop-blur-sm">
                   {set.icon && (set.icon.startsWith('/') || set.icon.includes('http')) ? (
                     <img src={set.icon} alt={set.title} className="w-10 h-10 object-cover rounded-full" />
+                  ) : set.icon && !['default', 'pending_upload'].includes(set.icon) ? (
+                    set.icon
                   ) : (
-                    set.icon || '📚'
+                    <img src="/montopi-logo.svg" alt="MonTopi Logo" className="w-10 h-10 object-cover rounded-full" />
                   )}
                 </div>
               </div>
@@ -823,6 +935,175 @@ const HomePage = () => {
     );
   };
   
+  // 轮播功能相关函数
+  const getCarouselSettings = useCallback(() => {
+    // 根据屏幕尺寸确定每页显示的卡片数量
+    const isMobile = window.innerWidth <= 768;
+    const isTablet = window.innerWidth <= 1024;
+    
+    let itemsPerPage = 3;
+    if (isMobile) {
+      itemsPerPage = 1;
+    } else if (isTablet) {
+      itemsPerPage = 2;
+    }
+    
+    return {
+      itemsPerPage,
+      totalPages: Math.ceil(recommendedSets.length / itemsPerPage)
+    };
+  }, [recommendedSets.length]);
+
+  const goToSlide = useCallback((index: number) => {
+    const { totalPages } = getCarouselSettings();
+    setCurrentCarouselIndex(index % totalPages);
+  }, [getCarouselSettings]);
+
+  const nextSlide = useCallback(() => {
+    const { totalPages } = getCarouselSettings();
+    setCurrentCarouselIndex(prev => (prev + 1) % totalPages);
+  }, [getCarouselSettings]);
+
+  const prevSlide = useCallback(() => {
+    const { totalPages } = getCarouselSettings();
+    setCurrentCarouselIndex(prev => (prev - 1 + totalPages) % totalPages);
+  }, [getCarouselSettings]);
+
+  const startCarousel = useCallback(() => {
+    if (carouselIntervalRef.current) {
+      clearInterval(carouselIntervalRef.current);
+    }
+    
+    const { totalPages } = getCarouselSettings();
+    if (totalPages > 1 && !isCarouselPaused) {
+      carouselIntervalRef.current = setInterval(() => {
+        nextSlide();
+      }, 6000); // 6秒轮播间隔
+    }
+  }, [nextSlide, isCarouselPaused, getCarouselSettings]);
+
+  const pauseCarousel = useCallback(() => {
+    setIsCarouselPaused(true);
+    if (carouselIntervalRef.current) {
+      clearInterval(carouselIntervalRef.current);
+    }
+  }, []);
+
+  const resumeCarousel = useCallback(() => {
+    setIsCarouselPaused(false);
+  }, []);
+
+  // 轮播自动播放效果
+  useEffect(() => {
+    startCarousel();
+    return () => {
+      if (carouselIntervalRef.current) {
+        clearInterval(carouselIntervalRef.current);
+      }
+    };
+  }, [startCarousel]);
+
+  // 当轮播暂停状态改变时重新启动轮播
+  useEffect(() => {
+    if (!isCarouselPaused) {
+      startCarousel();
+    } else {
+      if (carouselIntervalRef.current) {
+        clearInterval(carouselIntervalRef.current);
+      }
+    }
+  }, [isCarouselPaused, startCarousel]);
+
+  // 轮播组件
+  const CarouselComponent: React.FC<{
+    sets: PreparedQuestionSet[];
+    onStartQuiz: (set: PreparedQuestionSet) => void;
+  }> = ({ sets, onStartQuiz }) => {
+    const { itemsPerPage, totalPages } = getCarouselSettings();
+    
+    // 如果题库数量不足以轮播，使用原有的grid布局
+    if (sets.length <= itemsPerPage) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sets.map(set => (
+            <BaseCard key={set.id} set={set} onStartQuiz={() => onStartQuiz(set)} />
+          ))}
+        </div>
+      );
+    }
+
+    // 将题库分组，每页显示指定数量的卡片
+    const slides = [];
+    for (let i = 0; i < sets.length; i += itemsPerPage) {
+      slides.push(sets.slice(i, i + itemsPerPage));
+    }
+
+    return (
+      <div 
+        className="carousel-container relative"
+        onMouseEnter={pauseCarousel}
+        onMouseLeave={resumeCarousel}
+      >
+        <div 
+          className="carousel-track"
+          style={{
+            transform: `translateX(-${currentCarouselIndex * 100}%)`
+          }}
+        >
+          {slides.map((slide, slideIndex) => (
+            <div key={slideIndex} className="carousel-slide">
+              {slide.map(set => (
+                <BaseCard 
+                  key={set.id} 
+                  set={set} 
+                  onStartQuiz={() => onStartQuiz(set)} 
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* 导航箭头 */}
+        {totalPages > 1 && (
+          <>
+            <button
+              className="carousel-nav carousel-nav-left"
+              onClick={prevSlide}
+              aria-label="前のスライド"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              className="carousel-nav carousel-nav-right"
+              onClick={nextSlide}
+              aria-label="次のスライド"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </>
+        )}
+
+        {/* 轮播指示器 */}
+        {totalPages > 1 && (
+          <div className="carousel-indicators">
+            {Array.from({ length: totalPages }, (_, index) => (
+              <button
+                key={index}
+                className={`carousel-indicator ${index === currentCarouselIndex ? 'active' : ''}`}
+                onClick={() => goToSlide(index)}
+                aria-label={`スライド ${index + 1} に移動`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // 修改handleStartQuiz函数，添加试用模式参数
   const handleStartQuiz = useCallback((set: PreparedQuestionSet) => {
     console.log(`[HomePage] 开始答题:`, set);
@@ -1181,9 +1462,9 @@ const HomePage = () => {
 
   // Replace the above with this effect
   useEffect(() => {
-    // Update recommended sets from featured items
+    // Update recommended sets from featured items - 不再限制为3个，支持轮播显示
     const featuredSets = questionSets.filter(set => set.isFeatured);
-    setRecommendedSets(featuredSets.slice(0, 3));
+    setRecommendedSets(featuredSets); // 移除slice(0, 3)限制
     
     // Also update filtered sets based on search and category
     const filtered = getFilteredQuestionSets();
@@ -3709,11 +3990,10 @@ const HomePage = () => {
               おすすめ問題集
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recommendedSets.map(set => (
-                <BaseCard key={set.id} set={set} onStartQuiz={() => handleStartQuiz(set)} />
-              ))}
-              </div>
+            <CarouselComponent 
+              sets={recommendedSets} 
+              onStartQuiz={handleStartQuiz} 
+            />
             </div>
         )}
         
