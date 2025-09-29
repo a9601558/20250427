@@ -4,11 +4,10 @@ import SocketStatus from './SocketStatus';
 import AuthModal from './AuthModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
-import { useAuth } from "react-oidc-context";
-import { toast } from 'react-toastify';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 import montopiLogo from '../assets/montopi-new-logo.svg';
+import { useAuth } from 'react-oidc-context';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -126,63 +125,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useUser();
-  const auth = useAuth();
   const [footerText, setFooterText] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
+  const auth = useAuth(); // 添加OIDC认证hook
   
-  // 临时使用模态框登录（更稳定）
-  const handleLogin = () => {
-    console.log('[Layout] 使用模态框登录');
-    setIsLoginModalOpen(true);
-  };
-  
-  // 弹窗登录（暂时禁用，存在配置问题）
-  const handlePopupLogin_DISABLED = async () => {
+  // 直接调用OIDC登录的函数
+  const handleDirectLogin = async () => {
     try {
-      console.log('[Layout] 启动弹窗登录');
-      
-      // 清理之前的OIDC状态
-      try {
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('oidc.')) {
-            localStorage.removeItem(key);
-          }
-        });
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.startsWith('oidc.')) {
-            sessionStorage.removeItem(key);
-          }
-        });
-        console.log('[Layout] 已清理之前的OIDC状态');
-      } catch (cleanupError) {
-        console.warn('[Layout] 清理OIDC状态时出错:', cleanupError);
-      }
-      
-      // 尝试弹窗登录
-      try {
-        const result = await auth.signinPopup();
-        console.log('[Layout] 弹窗登录成功:', result);
-      } catch (popupError) {
-        console.warn('[Layout] 弹窗登录失败，尝试直接重定向:', popupError);
-        
-        // 如果弹窗失败，使用直接重定向
-        const errorMessage = popupError instanceof Error ? popupError.message : String(popupError);
-        if (errorMessage.includes('popup') || errorMessage.includes('blocked')) {
-          console.log('[Layout] 检测到弹窗问题，使用直接重定向');
-          await auth.signinRedirect();
-        } else {
-          throw popupError;
-        }
-      }
-      
+      console.log('[Layout] 直接调用OIDC登录');
+      await auth.signinRedirect();
     } catch (error) {
-      console.error('[Layout] 所有登录方式失败:', error);
-      
-      // 显示用户友好的错误提示
-      toast.error('ログインに問題が発生しました。モーダルから再試行してください。');
-      
-      // 最后回退到模态框模式
-      console.log('[Layout] 回退到模态框登录模式');
+      console.error('[Layout] OIDC登录错误:', error);
+      // 如果直接登录失败，则回退到原来的弹窗方式
       setIsLoginModalOpen(true);
     }
   };
@@ -196,27 +150,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  
-  // 监听OIDC认证状态变化
-  useEffect(() => {
-    if (auth.isAuthenticated && auth.user) {
-      console.log('[Layout] 弹窗登录成功:', auth.user.profile.email);
-      // 可以在这里添加成功提示，但通常UserContext会处理
-    }
-    
-    if (auth.error) {
-      console.error('[Layout] OIDC认证错误:', auth.error);
-      
-      // 对特定错误给出用户友好的提示
-      if (auth.error.message && auth.error.message.includes('popup_closed_by_user')) {
-        console.log('[Layout] 用户关闭了登录弹窗');
-        // 用户主动关闭，不需要错误提示
-      } else if (auth.error.message && auth.error.message.includes('popup_blocked')) {
-        console.log('[Layout] 弹窗被浏览器阻止，回退到模态框模式');
-        setIsLoginModalOpen(true);
-      }
-    }
-  }, [auth.isAuthenticated, auth.user, auth.error]);
   
   // Handle click outside to close mobile menu
   useEffect(() => {
@@ -425,7 +358,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <UserMenu />
             ) : (
               <button
-                onClick={handleLogin}
+                onClick={handleDirectLogin}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
                 ログイン/登録
