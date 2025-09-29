@@ -177,25 +177,43 @@ const AdminQuestionSets = () => {
   // 从API加载题库数据
   // 获取题库题目数量的辅助函数
   const extractQuestionCount = (payload: any): number | null => {
+    console.log('[DEBUG] extractQuestionCount - 输入数据:', payload);
+    
     if (payload === null || payload === undefined) {
+      console.log('[DEBUG] extractQuestionCount - 数据为null或undefined');
       return null;
     }
 
     if (typeof payload === 'number' && !Number.isNaN(payload)) {
+      console.log('[DEBUG] extractQuestionCount - 直接数字:', payload);
       return payload;
     }
 
     if (typeof payload === 'object') {
+      console.log('[DEBUG] extractQuestionCount - 对象属性:', Object.keys(payload));
+      
       const maybeCount = (payload as any).count;
       if (typeof maybeCount === 'number' && !Number.isNaN(maybeCount)) {
+        console.log('[DEBUG] extractQuestionCount - 找到count属性:', maybeCount);
         return maybeCount;
       }
 
+      // 尝试其他可能的属性名
+      const possibleKeys = ['questionCount', 'total', 'length'];
+      for (const key of possibleKeys) {  
+        if (typeof payload[key] === 'number' && !Number.isNaN(payload[key])) {
+          console.log(`[DEBUG] extractQuestionCount - 找到${key}属性:`, payload[key]);
+          return payload[key];
+        }
+      }
+
       if (Object.prototype.hasOwnProperty.call(payload, 'data')) {
+        console.log('[DEBUG] extractQuestionCount - 递归检查data属性');
         return extractQuestionCount((payload as any).data);
       }
     }
 
+    console.log('[DEBUG] extractQuestionCount - 无法提取计数，返回null');
     return null;
   };
 
@@ -246,6 +264,23 @@ const AdminQuestionSets = () => {
       }
     } catch (error) {
       console.error('[DEBUG] 获取题库题目数量失败', questionSetId, error);
+    }
+
+    // 如果getQuestionCount失败，尝试直接获取题库详情
+    try {
+      console.log('[DEBUG] fetchQuestionCountDetails: 尝试通过getQuestionSetById获取题目数量');
+      const detailResponse = await questionSetApi.getQuestionSetById(questionSetId);
+      console.log('[DEBUG] fetchQuestionCountDetails: 题库详情响应:', detailResponse);
+      
+      if (detailResponse?.success && detailResponse.data) {
+        const detailCount = extractQuestionCount(detailResponse.data);
+        if (typeof detailCount === 'number' && !Number.isNaN(detailCount)) {
+          console.log('[DEBUG] fetchQuestionCountDetails: 从题库详情中提取到计数:', detailCount);
+          return { success: true, count: detailCount };
+        }
+      }
+    } catch (detailError) {
+      console.error('[DEBUG] 获取题库详情失败', questionSetId, detailError);
     }
 
     return { success: false, count: 0 };
@@ -941,13 +976,20 @@ const AdminQuestionSets = () => {
       console.log('[DEBUG] 发送到后端的问题数据:', formattedQuestions);
       console.log('[DEBUG] 调用API: updateQuestionSetQuestions');
       
+      // 确保调用正确的API端点
+      console.log('[DEBUG] 准备调用updateQuestionSetQuestions，端点: /question-sets/:id/questions');
+      console.log('[DEBUG] questionSetApi对象检查:', Object.keys(questionSetApi));
+      console.log('[DEBUG] updateQuestionSetQuestions方法检查:', typeof questionSetApi.updateQuestionSetQuestions);
+      
       // 使用专门的问题列表更新端点
       const response = await questionSetApi.updateQuestionSetQuestions(
         currentQuestionSet.id, 
         { questions: formattedQuestions }
       );
       
-      console.log('[DEBUG] API响应:', response);
+      console.log('[DEBUG] API调用完成，响应:', response);
+      console.log('[DEBUG] 响应类型:', typeof response);
+      console.log('[DEBUG] 响应属性:', response ? Object.keys(response) : 'null');
       
       if (response.success && response.data) {
         console.log('[DEBUG] 问题列表更新成功，开始更新计数');
