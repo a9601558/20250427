@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { Socket } from 'socket.io-client';
 import { io } from 'socket.io-client';
 import { useUser } from './UserContext';
+import { useAuth } from "react-oidc-context";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -27,6 +28,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [lastError, setLastError] = useState<string | null>(null);
   const [showNotification, setShowNotification] = useState<boolean>(true);
   const { user } = useUser();
+  const auth = useAuth(); // 添加OIDC认证引用
   
   // 监听token更新事件，重新连接Socket
   useEffect(() => {
@@ -90,12 +92,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // 获取有效的认证token
   const getValidToken = () => {
-    // 优先使用AWS Cognito token
+    // 优先使用OIDC token
+    const oidcToken = auth.user?.access_token;
+    
+    // 备用：使用localStorage中的传统token
     const cognitoToken = localStorage.getItem('token');
     const fallbackToken = localStorage.getItem('authToken');
     
-    const token = cognitoToken || fallbackToken;
+    const token = oidcToken || cognitoToken || fallbackToken;
     console.log('[Socket] Token获取:', { 
+      oidcToken: oidcToken ? '存在' : '不存在',
       cognitoToken: cognitoToken ? '存在' : '不存在',
       fallbackToken: fallbackToken ? '存在' : '不存在',
       selectedToken: token ? '已选择' : '未找到'
@@ -245,7 +251,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         newSocket.disconnect();
       }
     };
-  }, [user?.id]); // 仅在用户ID变化时重新连接
+  }, [user?.id, auth.isAuthenticated, auth.user?.access_token]); // 监听用户ID和OIDC认证状态变化
   
   // 手动重连函数
   const reconnect = () => {

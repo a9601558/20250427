@@ -8,6 +8,7 @@ import { refreshUserPurchases } from '../utils/paymentUtils';
 import { getUserStoragePrefix } from '../utils/homeContentUtils';
 import { cognitoAuthService } from '../services/CognitoAuthService';
 import { useOIDCUser } from './OIDCUserContext';
+import { useAuth } from 'react-oidc-context';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -89,6 +90,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // 获取OIDC用户上下文
   const oidcUser = useOIDCUser();
+  const auth = useAuth(); // 添加原始auth对象
 
   // 计算剩余天数
   const calculateRemainingDays = (expiryDate: string | Date): number | null => {
@@ -109,18 +111,50 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: oidcUser.isAuthenticated,
       hasOidcUser: !!oidcUser.user,
       hasLocalUser: !!user,
-      loading: oidcUser.loading
+      loading: oidcUser.loading,
+      authIsAuthenticated: auth.isAuthenticated,
+      hasAuthUser: !!auth.user
     });
     
-    if (oidcUser.isAuthenticated && oidcUser.user && !user) {
-      console.log('[UserContext] OIDC用户已认证，同步用户数据:', oidcUser.user);
-      setUser(oidcUser.user);
-      setLoading(false);
-      setError(null);
+    if (oidcUser.isAuthenticated && auth.user && !user) {
+      console.log('[UserContext] OIDC用户已认证，从数据库同步用户数据:', auth.user);
       
-      // 触发用户变更事件
-      const newUserChangeEvent = { userId: oidcUser.user.id, timestamp: Date.now() };
-      setUserChangeEvent(newUserChangeEvent);
+      const syncOIDCUser = async () => {
+        try {
+          setLoading(true);
+          
+          // 使用原始auth.user中的access_token
+          if (auth.user?.access_token) {
+            // 设置认证令牌到API客户端
+            apiClient.setAuthHeader(auth.user.access_token);
+            apiClient.setUserId(auth.user.profile?.sub || '');
+            localStorage.setItem('token', auth.user.access_token);
+            localStorage.setItem('activeUserId', auth.user.profile?.sub || '');
+          }
+          
+          // 通过API获取完整的用户数据（这会触发数据库用户创建或获取）
+          const response = await userApi.getCurrentUser();
+          if (response.success && response.data) {
+            console.log('[UserContext] 从数据库获取到完整用户数据:', response.data);
+            setUser(response.data);
+            setError(null);
+            
+            // 触发用户变更事件
+            const newUserChangeEvent = { userId: response.data.id, timestamp: Date.now() };
+            setUserChangeEvent(newUserChangeEvent);
+          } else {
+            console.error('[UserContext] 获取用户数据失败:', response.message);
+            setError('获取用户数据失败');
+          }
+        } catch (error) {
+          console.error('[UserContext] OIDC用户同步失败:', error);
+          setError('用户数据同步失败');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      syncOIDCUser();
     } else if (!oidcUser.isAuthenticated && user) {
       console.log('[UserContext] OIDC用户未认证，清除用户数据');
       setUser(null);
@@ -130,7 +164,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else if (!oidcUser.loading && !oidcUser.isAuthenticated) {
       setLoading(false);
     }
-  }, [oidcUser.isAuthenticated, oidcUser.user, oidcUser.loading, user]);
+  }, [oidcUser.isAuthenticated, oidcUser.user, oidcUser.loading, auth.isAuthenticated, auth.user, user]);
 
   // 监听token更新事件（AWS Cognito认证后）
   useEffect(() => {
