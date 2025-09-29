@@ -7,7 +7,7 @@ import QuizPage from './components/QuizPage';
 import ProfilePage from './components/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
-import { UserProvider, useUser } from './contexts/UserContext';
+import { UserProvider } from './contexts/UserContext';
 import { OIDCUserProvider, useOIDCUser } from './contexts/OIDCUserContext';
 import AdminPage from './components/AdminPage';
 import RedeemCodeAdmin from './components/RedeemCodeAdmin';
@@ -21,16 +21,12 @@ import { useAuth } from "react-oidc-context";
 
 // 创建一个内部组件处理认证逻辑
 const AuthManager: React.FC = () => {
-  const { user, logout } = useUser();
   const auth = useAuth();
   const oidcUser = useOIDCUser();
   
   useEffect(() => {
-    // 监听 OIDC 认证状态变化
-    if (auth.isAuthenticated && auth.user && !oidcUser.user) {
-      console.log('[AuthManager] OIDC 认证成功，刷新用户信息');
-      oidcUser.refreshOIDCUser();
-    }
+    // 监听 OIDC 认证状态变化，但不触发额外的刷新
+    // 移除可能导致循环的refreshOIDCUser调用
     
     // 检查 token 过期（如果 OIDC 用户已过期）
     const checkTokenExpiry = () => {
@@ -54,7 +50,7 @@ const AuthManager: React.FC = () => {
     return () => {
       clearInterval(tokenCheckInterval);
     };
-  }, [user, logout, auth.isAuthenticated, auth.user, oidcUser]);
+  }, [auth.isAuthenticated, auth.user?.expired, oidcUser.oidcLogout]); // 精简依赖项
   
   return null;
 };

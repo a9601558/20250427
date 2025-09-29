@@ -116,10 +116,20 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       hasAuthUser: !!auth.user
     });
     
-    if (oidcUser.isAuthenticated && auth.user && !user) {
+    // 添加防止重复同步的标记
+    const syncInProgress = sessionStorage.getItem('oidc-sync-in-progress');
+    if (syncInProgress === 'true') {
+      console.log('[UserContext] OIDC同步已在进行中，跳过');
+      return;
+    }
+    
+    if (oidcUser.isAuthenticated && auth.user && !user && !oidcUser.loading) {
       console.log('[UserContext] OIDC用户已认证，从数据库同步用户数据:', auth.user);
       
       const syncOIDCUser = async () => {
+        // 设置同步标记
+        sessionStorage.setItem('oidc-sync-in-progress', 'true');
+        
         try {
           setLoading(true);
           
@@ -151,6 +161,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setError('用户数据同步失败');
         } finally {
           setLoading(false);
+          // 清除同步标记
+          sessionStorage.removeItem('oidc-sync-in-progress');
         }
       };
       
@@ -159,12 +171,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[UserContext] OIDC用户未认证，清除用户数据');
       setUser(null);
       setLoading(false);
+      // 清除同步标记
+      sessionStorage.removeItem('oidc-sync-in-progress');
     } else if (oidcUser.loading) {
       setLoading(true);
     } else if (!oidcUser.loading && !oidcUser.isAuthenticated) {
       setLoading(false);
     }
-  }, [oidcUser.isAuthenticated, oidcUser.user, oidcUser.loading, auth.isAuthenticated, auth.user, user]);
+  }, [oidcUser.isAuthenticated, oidcUser.loading, auth.isAuthenticated, auth.user?.access_token, user?.id]); // 精简依赖项
 
   // 监听token更新事件（AWS Cognito认证后）
   useEffect(() => {
