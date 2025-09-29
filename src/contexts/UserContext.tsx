@@ -135,15 +135,42 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           // 使用原始auth.user中的access_token
           if (auth.user?.access_token) {
+            console.log('[UserContext] 设置API认证信息, token前缀:', auth.user.access_token.substring(0, 20) + '...');
+            console.log('[UserContext] 用户sub:', auth.user.profile?.sub);
+            
+            // 检测token类型
+            try {
+              const tokenParts = auth.user.access_token.split('.');
+              if (tokenParts.length === 3) {
+                const payload = JSON.parse(atob(tokenParts[1]));
+                console.log('[UserContext] Token payload检查:', {
+                  sub: payload.sub,
+                  token_use: payload.token_use,
+                  iss: payload.iss,
+                  exp: new Date(payload.exp * 1000),
+                  isExpired: payload.exp * 1000 < Date.now()
+                });
+              }
+            } catch (e) {
+              console.warn('[UserContext] 无法解析JWT token:', e);
+            }
+            
             // 设置认证令牌到API客户端
             apiClient.setAuthHeader(auth.user.access_token);
             apiClient.setUserId(auth.user.profile?.sub || '');
             localStorage.setItem('token', auth.user.access_token);
             localStorage.setItem('activeUserId', auth.user.profile?.sub || '');
+          } else {
+            console.error('[UserContext] 没有找到access_token!', auth.user);
           }
           
           // 通过API获取完整的用户数据（这会触发数据库用户创建或获取）
+          console.log('[UserContext] 正在调用 userApi.getCurrentUser()...');
+          console.log('[UserContext] 当前API客户端token:', localStorage.getItem('token')?.substring(0, 20) + '...');
+          
           const response = await userApi.getCurrentUser();
+          console.log('[UserContext] userApi.getCurrentUser() 响应:', response);
+          
           if (response.success && response.data) {
             console.log('[UserContext] 从数据库获取到完整用户数据:', response.data);
             setUser(response.data);
@@ -154,7 +181,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setUserChangeEvent(newUserChangeEvent);
           } else {
             console.error('[UserContext] 获取用户数据失败:', response.message);
-            setError('获取用户数据失败');
+            console.error('[UserContext] 失败响应详情:', response);
+            setError('获取用户数据失败: ' + response.message);
           }
         } catch (error) {
           console.error('[UserContext] OIDC用户同步失败:', error);

@@ -7,6 +7,8 @@ import 'antd/dist/reset.css'
 import { initAutoRefresh } from './utils/autoRefresh'
 import { AuthProvider } from "react-oidc-context"
 import { WebStorageStateStore } from "oidc-client-ts"
+// 导入调试工具
+import './utils/oidc-debug'
 
 // Cognito OIDC 配置
 const getRedirectUri = () => {
@@ -33,8 +35,8 @@ const cognitoAuthConfig = {
   automaticSilentRenew: true,
   // 设置token存储
   userStore: new WebStorageStateStore({ store: window.localStorage }),
-  // 添加错误恢复设置
-  loadUserInfo: false,
+  // 启用用户信息加载以获取完整profile
+  loadUserInfo: true,  // 改为true以获取完整用户信息
   // 设置更严格的状态验证
   stateStore: new WebStorageStateStore({ 
     store: window.sessionStorage,

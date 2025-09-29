@@ -100,8 +100,7 @@ export class User extends Model<IUser, UserCreationAttributes> implements IUser 
 User.init(
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.STRING(36), // 改为STRING以支持Cognito sub格式
       primaryKey: true,
     },
     username: {

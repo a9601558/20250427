@@ -56,6 +56,8 @@ const getAllQuestionSets = async (req, res) => {
         let questionCountMap = new Map();
         if (questionSetIds.length > 0) {
             try {
+                // 使用与 getQuestionCount 相同的方式查询，确保一致性
+                console.log(`[QuestionSetController] 查询题库IDs: [${questionSetIds.join(', ')}]`);
                 const questionCountsQuery = await database_1.default.query(`
           SELECT questionSetId, COUNT(*) as count 
           FROM questions 
@@ -67,6 +69,7 @@ const getAllQuestionSets = async (req, res) => {
                     },
                     type: sequelize_1.QueryTypes.SELECT
                 });
+                console.log(`[QuestionSetController] 查询结果:`, questionCountsQuery);
                 // 转换为Map以便快速查找
                 questionCountsQuery.forEach(item => {
                     const qsId = item.questionSetId;
@@ -77,7 +80,26 @@ const getAllQuestionSets = async (req, res) => {
                 console.log(`[QuestionSetController] 成功获取 ${questionCountsQuery.length} 个题库的問題数量`);
             }
             catch (countError) {
-                console.error('[QuestionSetController] 获取题库問題数量失败:', countError);
+                console.error('[QuestionSetController] 批量获取题库問題数量失败:', countError);
+                console.log('[QuestionSetController] 尝试逐个查询题库問題数量...');
+                // 备用方案：逐个查询每个题库的问题数量
+                for (const questionSetId of questionSetIds) {
+                    try {
+                        const [result] = await database_1.default.query('SELECT COUNT(*) as count FROM questions WHERE questionSetId = :questionSetId', {
+                            replacements: { questionSetId },
+                            type: sequelize_1.QueryTypes.SELECT
+                        });
+                        const count = result && typeof result.count !== 'undefined'
+                            ? parseInt(result.count, 10)
+                            : 0;
+                        questionCountMap.set(questionSetId, count);
+                        console.log(`[QuestionSetController] 单独查询题库 ${questionSetId} 的問題数量: ${count}`);
+                    }
+                    catch (singleError) {
+                        console.error(`[QuestionSetController] 查询题库 ${questionSetId} 問題数量失败:`, singleError);
+                        questionCountMap.set(questionSetId, 0);
+                    }
+                }
             }
         }
         // 为每个题库添加問題数量
