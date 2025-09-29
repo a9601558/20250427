@@ -478,56 +478,60 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     console.log('[UserContext] 用户登出');
     
-    // 获取当前用户ID，用于保留某些数据
-    const currentUserId = user?.id;
-    
     // 移除身份验证令牌
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('authState');
+    localStorage.removeItem('activeUserId');
+    
+    // 清除OIDC相关的存储
+    localStorage.removeItem('oidc.user:https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_06Lr5s5h9:3tdjflgaoojolmlau5thc9lv5c');
+    sessionStorage.removeItem('oidc-sync-in-progress');
+    
+    // 清理所有OIDC相关的localStorage和sessionStorage
+    const allLocalStorageKeys = Object.keys(localStorage);
+    const allSessionStorageKeys = Object.keys(sessionStorage);
+    
+    [...allLocalStorageKeys, ...allSessionStorageKeys].forEach(key => {
+      if (key.includes('oidc.') || 
+          key.includes('cognito') || 
+          key.includes('aws-amplify') ||
+          key.includes('CognitoIdentityServiceProvider') ||
+          key.startsWith('oidc.state.') ||
+          key.includes('_auth_') ||
+          key.includes('_token') ||
+          key.includes('_session_')) {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+        console.log('[UserContext] 清理OIDC相关存储:', key);
+      }
+    });
     
     // 重置用户状态
     setUser(null);
     
     // 清除API客户端状态
     apiClient.setAuthHeader(null);
+    apiClient.setUserId(null);
     
     // 断开socket连接
     if (socket) {
       socket.disconnect();
     }
     
-    // 保留学習進捗和相关数据，只清理会话相关的数据
-    // 不要删除所有本地存储，而是有选择地清理
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-        key === 'token' || 
-        key === 'refreshToken' || 
-        key === 'authState' ||
-        key.startsWith('aws-amplify') ||
-        key.includes('CognitoIdentityServiceProvider') ||
-        (key.includes('_token') && !key.includes(`_${currentUserId}_`)) ||
-        key.includes('_auth_') ||
-        key.includes('_session_') ||
-        key.includes('_cognito_')
-      )) {
-        keysToRemove.push(key);
-      }
-    }
-    
-    keysToRemove.forEach(key => {
-      console.log('[UserContext] 清理本地存储key:', key);
-      localStorage.removeItem(key);
-    });
-    
-    // 清除会话存储中的数据，但先设置登出标记
+    // 设置登出标记
     sessionStorage.setItem('user_logged_out', 'true');
     
     // 清除自动登录设置
     localStorage.removeItem('auto_login_user');
-    localStorage.removeItem('activeUserId');
+    
+    // 调用OIDC登出
+    if (oidcUser?.oidcLogout) {
+      console.log('[UserContext] 调用OIDC登出');
+      oidcUser.oidcLogout().catch(error => {
+        console.warn('[UserContext] OIDC登出失败:', error);
+      });
+    }
     
     // 调用Cognito登出（如果使用Cognito）
     if (cognitoAuthService) {

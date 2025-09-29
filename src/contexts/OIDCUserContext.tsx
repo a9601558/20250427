@@ -188,6 +188,9 @@ export const OIDCUserProvider: React.FC<{ children: ReactNode }> = ({ children }
       // 清除本地状态
       setUser(null);
       setError(null);
+      
+      // 清除登出标记，允许重新登录
+      sessionStorage.removeItem('user_logged_out');
 
       // OIDC 登出重定向
       const clientId = "3tdjflgaoojolmlau5thc9lv5c";
