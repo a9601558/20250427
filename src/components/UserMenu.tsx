@@ -75,7 +75,6 @@ const UserMenu: React.FC = () => {
         <AuthModal 
           isOpen={isLoginModalOpen} 
           onClose={() => setIsLoginModalOpen(false)}
-          useCognito={true} 
         />
       </>
     );

@@ -48,10 +48,6 @@ interface UserContextType {
   error: string | null;
   userChangeEvent: { userId: string | null; timestamp: number };
   login: (username: string, password: string) => Promise<boolean>;
-  smsLogin: (phoneNumber: string, verificationCode: string) => Promise<boolean>;
-  sendSmsCode: (phoneNumber: string) => Promise<{ success: boolean; message: string; destination?: string }>;
-  emailLogin: (email: string, verificationCode: string) => Promise<boolean>;
-  sendEmailCode: (email: string) => Promise<{ success: boolean; message: string; destination?: string }>;
   logout: () => void;
   register: (userData: Partial<User>) => Promise<boolean>;
   updateUser: (userData: Partial<User>) => Promise<void>;
@@ -472,122 +468,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error('[UserContext] 登录过程中发生错误:', error);
       setError('登录过程中发生错误');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 发送SMS验证码
-  const sendSmsCode = async (phoneNumber: string): Promise<{ success: boolean; message: string; destination?: string }> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await cognitoAuthService.sendSmsVerificationCode(phoneNumber);
-      if (!result.success) {
-        setError(result.message || 'SMS認証コードの送信に失敗しました');
-      }
-      return result;
-    } catch (error) {
-      console.error('[UserContext] SMS验证码发送错误:', error);
-      const errorMessage = 'SMS認証コードの送信に失敗しました';
-      setError(errorMessage);
-      return { success: false, message: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // SMS验证码登录
-  const smsLogin = async (phoneNumber: string, verificationCode: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const cognitoResult = await cognitoAuthService.verifySmsCode(phoneNumber, verificationCode);
-      
-      if (cognitoResult.success && cognitoResult.user) {
-        // 设置用户状态
-        setUser(cognitoResult.user);
-        
-        // 清除之前的错误
-        setError(null);
-        
-        // 清除登出标记，允许后续自动登录
-        sessionStorage.removeItem('user_logged_out');
-        
-        // 触发用户变更事件
-        const newUserChangeEvent = { userId: cognitoResult.user.id, timestamp: Date.now() };
-        setUserChangeEvent(newUserChangeEvent);
-        
-        console.log('[UserContext] SMS登录成功');
-        return true;
-      } else {
-        // 登录失败
-        setError(cognitoResult.message || 'SMS認証ログインに失敗しました');
-        console.log('[UserContext] SMS登录失败:', cognitoResult.message);
-        return false;
-      }
-    } catch (error) {
-      console.error('[UserContext] SMS登录过程中发生错误:', error);
-      setError('SMS認証ログイン中にエラーが発生しました');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 发送邮箱验证码
-  const sendEmailCode = async (email: string): Promise<{ success: boolean; message: string; destination?: string }> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await cognitoAuthService.sendEmailVerificationCode(email);
-      if (!result.success) {
-        setError(result.message || 'メール認証コードの送信に失敗しました');
-      }
-      return result;
-    } catch (error) {
-      console.error('[UserContext] 邮箱验证码发送错误:', error);
-      const errorMessage = 'メール認証コードの送信に失敗しました';
-      setError(errorMessage);
-      return { success: false, message: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 邮箱验证码登录
-  const emailLogin = async (email: string, verificationCode: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const cognitoResult = await cognitoAuthService.verifyEmailCode(email, verificationCode);
-      
-      if (cognitoResult.success && cognitoResult.user) {
-        // 设置用户状态
-        setUser(cognitoResult.user);
-        
-        // 清除之前的错误
-        setError(null);
-        
-        // 清除登出标记，允许后续自动登录
-        sessionStorage.removeItem('user_logged_out');
-        
-        // 触发用户变更事件
-        const newUserChangeEvent = { userId: cognitoResult.user.id, timestamp: Date.now() };
-        setUserChangeEvent(newUserChangeEvent);
-        
-        console.log('[UserContext] 邮箱验证登录成功');
-        return true;
-      } else {
-        // 登录失败
-        setError(cognitoResult.message || 'メール認証ログインに失敗しました');
-        console.log('[UserContext] 邮箱验证登录失败:', cognitoResult.message);
-        return false;
-      }
-    } catch (error) {
-      console.error('[UserContext] 邮箱验证登录过程中发生错误:', error);
-      setError('メール認証ログイン中にエラーが発生しました');
       return false;
     } finally {
       setLoading(false);
@@ -1499,10 +1379,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     error,
     userChangeEvent,
     login,
-    smsLogin,
-    sendSmsCode,
-    emailLogin,
-    sendEmailCode,
     logout,
     register,
     updateUser,
@@ -1525,7 +1401,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     syncAccessRights,
     refreshPurchases,
     switchAccount
-  }), [user, loading, error, userChangeEvent, login, smsLogin, sendSmsCode, emailLogin, sendEmailCode, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases, switchAccount]);
+  }), [user, loading, error, userChangeEvent, login, logout, register, updateUser, addProgress, addPurchase, hasAccessToQuestionSet, getRemainingAccessDays, isQuizCompleted, getQuizScore, getUserProgress, getAnsweredQuestions, isAdmin, redeemCode, generateRedeemCode, getRedeemCodes, getAllUsers, deleteUser, adminRegister, updateUserProgress, syncAccessRights, refreshPurchases, switchAccount]);
 
   return (
     <UserContext.Provider value={contextValue}>

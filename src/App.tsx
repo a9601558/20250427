@@ -8,36 +8,45 @@ import ProfilePage from './components/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { UserProvider, useUser } from './contexts/UserContext';
-import { CognitoUserProvider } from './contexts/CognitoUserContext';
+import { OIDCUserProvider, useOIDCUser } from './contexts/OIDCUserContext';
 import AdminPage from './components/AdminPage';
 import RedeemCodeAdmin from './components/RedeemCodeAdmin';
 import { SocketProvider } from './contexts/SocketContext';
 import { ToastContainer } from 'react-toastify';
 import { UserProgressProvider } from './contexts/UserProgressContext';
-import { isTokenExpired, performAutoLogin } from './utils/authUtils';
 import { toast } from 'react-toastify';
 import QuestionSetSearchPage from './components/QuestionSetSearchPage';
 import { httpRateLimiter } from './utils/loopPrevention';
+import { useAuth } from "react-oidc-context";
 
 // 创建一个内部组件处理认证逻辑
 const AuthManager: React.FC = () => {
   const { user, logout } = useUser();
+  const auth = useAuth();
+  const oidcUser = useOIDCUser();
   
   useEffect(() => {
-    // 检查令牌是否过期
-    const checkTokenExpiry = async () => {
-      // 如果用户已登录且令牌过期，自动登出
-      if (user && isTokenExpired()) {
-        console.log('令牌已过期，自动登出');
+    // 监听 OIDC 认证状态变化
+    if (auth.isAuthenticated && auth.user && !oidcUser.user) {
+      console.log('[AuthManager] OIDC 认证成功，刷新用户信息');
+      oidcUser.refreshOIDCUser();
+    }
+    
+    // 检查 token 过期（如果 OIDC 用户已过期）
+    const checkTokenExpiry = () => {
+      if (auth.user?.expired) {
+        console.log('[AuthManager] OIDC token 已过期，自动登出');
         toast.info('ログインが期限切れです。再度ログインしてください', {
           autoClose: 3000
         });
-        logout();
+        oidcUser.oidcLogout();
       }
     };
     
     // 初始检查
-    checkTokenExpiry();
+    if (auth.isAuthenticated) {
+      checkTokenExpiry();
+    }
     
     // 设置定期检查
     const tokenCheckInterval = setInterval(checkTokenExpiry, 60 * 1000); // 每分钟检查一次
@@ -45,7 +54,7 @@ const AuthManager: React.FC = () => {
     return () => {
       clearInterval(tokenCheckInterval);
     };
-  }, [user, logout]);
+  }, [user, logout, auth.isAuthenticated, auth.user, oidcUser]);
   
   return null;
 };
@@ -76,28 +85,23 @@ const App: React.FC = () => {
     sessionStorage.setItem('lastAppRefreshTime', now.toString());
   }, []);
 
-  // 应用启动时尝试自动登录
+  // 应用启动时处理OIDC认证回调
   useEffect(() => {
-    const tryAutoLogin = async () => {
-      // 检查是否有明确的登出标记
-      const hasLoggedOut = sessionStorage.getItem('user_logged_out');
-      if (hasLoggedOut) {
-        console.log('[App] 用户已明确登出，跳过自动登录');
-        return;
-      }
+    const handleOIDCCallback = () => {
+      // 检查URL是否包含OIDC回调参数
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
       
-      // 只有在没有token的情况下才尝试自动登录
-      if (!localStorage.getItem('token')) {
-        const success = await performAutoLogin();
-        if (success) {
-          toast.success('自動ログイン成功', {
-            autoClose: 2000
-          });
-        }
+      if (code && state) {
+        console.log('[App] 检测到OIDC认证回调');
+        toast.info('認証を処理中...', {
+          autoClose: 3000
+        });
       }
     };
     
-    tryAutoLogin();
+    handleOIDCCallback();
   }, []);
   
   // 添加全局fetch拦截器，控制请求频率
@@ -138,7 +142,7 @@ const App: React.FC = () => {
   }, []);
   
   return (
-    <CognitoUserProvider>
+    <OIDCUserProvider>
       <UserProvider>
         <SocketProvider>
           <UserProgressProvider>
@@ -183,7 +187,7 @@ const App: React.FC = () => {
           </UserProgressProvider>
         </SocketProvider>
       </UserProvider>
-    </CognitoUserProvider>
+    </OIDCUserProvider>
   );
 };
 

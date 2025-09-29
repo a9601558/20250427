@@ -5,6 +5,8 @@ import '@aws-amplify/ui-react/styles.css';
 import { useCognitoUser } from '../contexts/CognitoUserContext';
 import { useUser } from '../contexts/UserContext';
 import { toast } from 'react-toastify';
+import { customForgotPassword } from '../services/forgotPasswordService';
+import SMSDebugComponent from './SMSDebugComponent';
 
 interface CognitoAuthProps {
   isOpen?: boolean;
@@ -233,6 +235,12 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
                 <strong>リセット方法:</strong> メールまたはSMSで確認コードを送信
               </p>
             </div>
+            
+            {/* 开发环境下显示调试工具 */}
+            {process.env.NODE_ENV === 'development' && (
+              <SMSDebugComponent />
+            )}
+            
             <div className="mt-4 text-center">
               <button 
                 type="button" 
@@ -600,50 +608,76 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
               hideSignUp={false}
               initialState="signIn"
               services={{
-                async handleForgotPassword(formData) {
+                async handleForgotPassword(formData: any) {
                   try {
-                    console.log('[CognitoAuth] 开始忘记密码流程:', formData);
+                    console.log('[CognitoAuth] 开始自定义忘记密码流程:', formData);
+                    
+                    // 使用自定义的忘记密码服务
+                    const result = await customForgotPassword(formData.username);
+                    
+                    if (result.success) {
+                      toast.success(result.message);
+                      console.log('[CognitoAuth] 自定义忘记密码成功:', result);
+                    } else {
+                      toast.error(result.message);
+                      console.error('[CognitoAuth] 自定义忘记密码失败:', result);
+                      // 继续执行标准流程作为回退
+                    }
+                    
+                    // 回退到标准流程以保持Amplify兼容性
                     const { resetPassword } = await import('aws-amplify/auth');
-                    const result = await resetPassword({
+                    return await resetPassword({
                       username: formData.username,
                     });
-                    console.log('[CognitoAuth] 忘记密码请求成功:', result);
                     
-                    // 根据配置的delivery method显示相应提示
-                    if (result.nextStep?.resetPasswordStep === 'CONFIRM_RESET_PASSWORD_WITH_CODE') {
-                      const deliveryMedium = result.nextStep?.codeDeliveryDetails?.deliveryMedium;
-                      const destination = result.nextStep?.codeDeliveryDetails?.destination;
-                      
-                      if (deliveryMedium === 'SMS') {
-                        toast.success(`SMS验证码已发送到 ${destination}`);
-                      } else if (deliveryMedium === 'EMAIL') {
-                        toast.success(`邮件验证码已发送到 ${destination}`);
-                      } else {
-                        toast.success('验证码已发送，请检查您的邮箱和手机');
-                      }
-                    }
-                    
-                    return result;
                   } catch (error: any) {
-                    console.error('[CognitoAuth] 忘记密码失败:', error);
+                    console.error('[CognitoAuth] 忘记密码异常:', error);
                     
-                    // 提供更详细的错误信息
-                    let errorMessage = '发送验证码失败';
-                    
-                    if (error.name === 'UserNotFoundException') {
-                      errorMessage = '用户不存在，请检查您的用户名、邮箱或手机号';
-                    } else if (error.name === 'LimitExceededException') {
-                      errorMessage = '请求过于频繁，请稍后再试';
-                    } else if (error.name === 'InvalidParameterException') {
-                      errorMessage = '输入参数无效，请检查格式';
-                    } else if (error.name === 'NotAuthorizedException') {
-                      errorMessage = '用户状态异常，无法重置密码';
-                    } else if (error.message) {
-                      errorMessage = `错误: ${error.message}`;
+                    // 使用标准流程作为回退
+                    try {
+                      const { resetPassword } = await import('aws-amplify/auth');
+                      const standardResult = await resetPassword({
+                        username: formData.username,
+                      });
+                      
+                      console.log('[CognitoAuth] 标准忘记密码请求成功:', standardResult);
+                      
+                      if (standardResult.nextStep?.resetPasswordStep === 'CONFIRM_RESET_PASSWORD_WITH_CODE') {
+                        const deliveryMedium = standardResult.nextStep?.codeDeliveryDetails?.deliveryMedium;
+                        const destination = standardResult.nextStep?.codeDeliveryDetails?.destination;
+                        
+                        if (deliveryMedium === 'SMS') {
+                          toast.success(`📱 SMS验证码已发送到 ${destination}`);
+                        } else if (deliveryMedium === 'EMAIL') {
+                          toast.success(`📧 邮件验证码已发送到 ${destination}`);
+                        } else {
+                          toast.success('✅ 验证码已发送，请检查您的邮箱和手机');
+                        }
+                      }
+                      
+                      return standardResult;
+                    } catch (standardError: any) {
+                      console.error('[CognitoAuth] 标准忘记密码也失败:', standardError);
+                      
+                      let errorMessage = '发送验证码失败';
+                      
+                      if (standardError.name === 'UserNotFoundException') {
+                        errorMessage = 'ユーザーが見つかりません。ユーザー名、メール、または電話番号を確認してください';
+                      } else if (standardError.name === 'LimitExceededException') {
+                        errorMessage = 'リクエストが多すぎます。しばらく待ってから再試行してください';
+                      } else if (standardError.name === 'InvalidParameterException') {
+                        errorMessage = 'パラメータが正しくありません。入力形式を確認してください';
+                      } else if (standardError.name === 'NotAuthorizedException') {
+                        errorMessage = 'このアカウントはパスワードリセットを行う権限がありません';
+                      } else if (standardError.name === 'CodeDeliveryFailureException') {
+                        errorMessage = 'コード送信に失敗しました。しばらく待ってから再試行してください';
+                      } else if (standardError.message) {
+                        errorMessage = `エラー: ${standardError.message}`;
+                      }
+                      
+                      toast.error(errorMessage);
+                      throw standardError;
                     }
-                    
-                    toast.error(errorMessage);
-                    throw error;
                   }
                 }
               }}
