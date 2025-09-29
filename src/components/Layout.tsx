@@ -5,6 +5,7 @@ import AuthModal from './AuthModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
 import { useAuth } from "react-oidc-context";
+import { toast } from 'react-toastify';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 import montopiLogo from '../assets/montopi-new-logo.svg';
@@ -129,8 +130,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [footerText, setFooterText] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
   
-  // 处理弹窗登录
-  const handlePopupLogin = async () => {
+  // 临时使用模态框登录（更稳定）
+  const handleLogin = () => {
+    console.log('[Layout] 使用模态框登录');
+    setIsLoginModalOpen(true);
+  };
+  
+  // 弹窗登录（暂时禁用，存在配置问题）
+  const handlePopupLogin_DISABLED = async () => {
     try {
       console.log('[Layout] 启动弹窗登录');
       
@@ -151,14 +158,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         console.warn('[Layout] 清理OIDC状态时出错:', cleanupError);
       }
       
-      // 使用弹窗模式登录
-      const result = await auth.signinPopup();
-      console.log('[Layout] 弹窗登录成功:', result);
+      // 尝试弹窗登录
+      try {
+        const result = await auth.signinPopup();
+        console.log('[Layout] 弹窗登录成功:', result);
+      } catch (popupError) {
+        console.warn('[Layout] 弹窗登录失败，尝试直接重定向:', popupError);
+        
+        // 如果弹窗失败，使用直接重定向
+        const errorMessage = popupError instanceof Error ? popupError.message : String(popupError);
+        if (errorMessage.includes('popup') || errorMessage.includes('blocked')) {
+          console.log('[Layout] 检测到弹窗问题，使用直接重定向');
+          await auth.signinRedirect();
+        } else {
+          throw popupError;
+        }
+      }
       
     } catch (error) {
-      console.error('[Layout] 弹窗登录失败:', error);
+      console.error('[Layout] 所有登录方式失败:', error);
       
-      // 如果弹窗登录失败，回退到模态框模式
+      // 显示用户友好的错误提示
+      toast.error('ログインに問題が発生しました。モーダルから再試行してください。');
+      
+      // 最后回退到模态框模式
       console.log('[Layout] 回退到模态框登录模式');
       setIsLoginModalOpen(true);
     }
@@ -402,7 +425,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <UserMenu />
             ) : (
               <button
-                onClick={handlePopupLogin}
+                onClick={handleLogin}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
                 ログイン/登録

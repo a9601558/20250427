@@ -17,12 +17,6 @@ const getRedirectUri = () => {
   return "https://montopi.com"; // 使用AWS Cognito中配置的生产域名
 };
 
-// 弹窗回调处理器
-const getPopupRedirectUri = () => {
-  const baseUri = getRedirectUri();
-  return `${baseUri}/popup-callback.html`; // 使用专门的弹窗回调页面
-};
-
 const cognitoAuthConfig = {
   authority: "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_06Lr5s5h9",
   client_id: "3tdjflgaoojolmlau5thc9lv5c",
@@ -30,8 +24,8 @@ const cognitoAuthConfig = {
   response_type: "code",
   scope: "email openid phone",
   post_logout_redirect_uri: getRedirectUri(),
-  // 弹窗登录专用的重定向URI
-  popup_redirect_uri: getPopupRedirectUri(),
+  // 暂时移除专用弹窗回调，使用标准回调
+  // popup_redirect_uri: getPopupRedirectUri(),
   // 简化extraQueryParams，确保兼容注册和登录
   extraQueryParams: {
     response_mode: "query",
