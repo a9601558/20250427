@@ -175,24 +175,113 @@ const AdminQuestionSets = () => {
   };
 
   // 从API加载题库数据
+  // 获取题库题目数量的辅助函数
+  const extractQuestionCount = (payload: any): number | null => {
+    if (payload === null || payload === undefined) {
+      return null;
+    }
+
+    if (typeof payload === 'number' && !Number.isNaN(payload)) {
+      return payload;
+    }
+
+    if (typeof payload === 'object') {
+      const maybeCount = (payload as any).count;
+      if (typeof maybeCount === 'number' && !Number.isNaN(maybeCount)) {
+        return maybeCount;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(payload, 'data')) {
+        return extractQuestionCount((payload as any).data);
+      }
+    }
+
+    return null;
+  };
+
+  const deriveLocalCount = (questionSet: QuestionSet): number | null => {
+    if (typeof questionSet?.questionCount === 'number' && questionSet.questionCount > 0) {
+      return questionSet.questionCount;
+    }
+
+    const embeddedQuestions = (questionSet as any)?.questionSetQuestions;
+    if (Array.isArray(embeddedQuestions) && embeddedQuestions.length > 0) {
+      return embeddedQuestions.length;
+    }
+
+    if (Array.isArray(questionSet?.questions) && questionSet.questions.length > 0) {
+      return questionSet.questions.length;
+    }
+
+    return null;
+  };
+
+  const fetchQuestionCountDetails = async (questionSetId: string) => {
+    if (!questionSetId) {
+      return { success: false, count: 0 };
+    }
+
+    try {
+      const response = await questionSetApi.getQuestionCount(questionSetId);
+
+      if (response?.success) {
+        const count = extractQuestionCount(response.data);
+
+        if (typeof count === 'number' && !Number.isNaN(count)) {
+          return { success: true, count };
+        }
+
+        const fallbackCount = extractQuestionCount(response as any);
+        if (typeof fallbackCount === 'number' && !Number.isNaN(fallbackCount)) {
+          return { success: true, count: fallbackCount };
+        }
+      } else {
+        console.warn('[AdminQuestionSets] 获取题库题目数量返回失败', questionSetId, response?.error || response?.message);
+      }
+    } catch (error) {
+      console.error('[AdminQuestionSets] 获取题库题目数量失败', questionSetId, error);
+    }
+
+    return { success: false, count: 0 };
+  };
+
   const loadQuestionSets = async () => {
     setLoadingQuestionSets(true);
     try {
       console.log("正在从API加载题库...");
       const response = await questionSetApi.getAllQuestionSets();
-      
-      if (response.success && response.data) {
-        // 确保response.data是数组
-        if (Array.isArray(response.data)) {
-          setQuestionSets(response.data);
-          console.log("成功加载题库:", response.data.length);
-        } else {
-          console.error("API返回的题库数据不是数组:", response.data);
-          showStatusMessage('error', '题库数据格式不正确');
-        }
+
+      if (response.success && Array.isArray(response.data)) {
+        const enrichedQuestionSets = await Promise.all(
+          response.data.map(async (questionSet: any) => {
+            const localCount = deriveLocalCount(questionSet);
+
+            if (localCount !== null) {
+              return { ...questionSet, questionCount: localCount };
+            }
+
+            const { success: countFetched, count } = await fetchQuestionCountDetails(questionSet.id);
+
+            if (countFetched) {
+              return { ...questionSet, questionCount: count };
+            }
+
+            return {
+              ...questionSet,
+              questionCount: typeof questionSet?.questionCount === 'number' ? questionSet.questionCount : 0
+            };
+          })
+        );
+
+        setQuestionSets(enrichedQuestionSets);
+        console.log("成功加载题库:", enrichedQuestionSets.length);
+      } else if (response.success && response.data && !Array.isArray(response.data)) {
+        console.error("API返回的题库数据不是数组:", response.data);
+        showStatusMessage('error', '题库数据格式不正确');
       } else {
-        console.error("加载题库失败:", response.error || response.message);
-        showStatusMessage('error', `加载题库失败: ${response.error || response.message || '未知错误'}`);
+        const errorMessage = response.error || response.message || '未知错误';
+        console.error("加载题库失败:", errorMessage);
+        showStatusMessage('error', `加载题库失败: ${errorMessage}`);
       }
     } catch (error) {
       console.error("加载题库出错:", error);
@@ -413,19 +502,29 @@ const AdminQuestionSets = () => {
 
   // 添加更新题目数量的函数
   const updateQuestionCount = async (questionSetId) => {
+    if (!questionSetId) {
+      return false;
+    }
+
     try {
-      console.log(`正在更新题库 ${questionSetId} 的题目数量`);
-      const response = await questionSetApi.updateQuestionCount(questionSetId);
-      
-      if (response.success) {
-        console.log(`成功更新题库 ${questionSetId} 的题目数量`);
+      const { success, count } = await fetchQuestionCountDetails(questionSetId);
+
+      if (success) {
+        setQuestionSets((previousSets) =>
+          previousSets.map((questionSet) =>
+            questionSet.id === questionSetId
+              ? { ...questionSet, questionCount: count }
+              : questionSet
+          )
+        );
+        console.log('[AdminQuestionSets] 同步题库题目数量成功', questionSetId, count);
         return true;
-      } else {
-        console.error(`更新题库 ${questionSetId} 题目数量失败:`, response.error);
-        return false;
       }
+
+      console.error('[AdminQuestionSets] 同步题库题目数量失败', questionSetId);
+      return false;
     } catch (error) {
-      console.error(`更新题库 ${questionSetId} 题目数量出错:`, error);
+      console.error('[AdminQuestionSets] 同步题库题目数量出错', questionSetId, error);
       return false;
     }
   };
@@ -930,12 +1029,19 @@ const AdminQuestionSets = () => {
   const refreshQuestionSetCount = async (questionSet) => {
     try {
       setLoadingAction(`refresh-count-${questionSet.id}`);
-      await updateQuestionCount(questionSet.id);
+
+      const countUpdated = await updateQuestionCount(questionSet.id);
+
+      if (!countUpdated) {
+        showStatusMessage('error', '题目数量同步失败，请稍后再试');
+        return;
+      }
+
       await loadQuestionSets();
-      showStatusMessage('success', `题库"${questionSet.title}"题目数量更新成功`);
+      showStatusMessage('success', `题库"${questionSet.title}"题目数量已刷新`);
     } catch (error) {
-      console.error(`刷新题库${questionSet.id}题目数量出错:`, error);
-      showStatusMessage('error', '刷新题目数量时发生错误');
+      console.error(`刷新题库${questionSet.id}题目数量失败:`, error);
+      showStatusMessage('error', '题目数量刷新失败');
     } finally {
       setLoadingAction('');
     }

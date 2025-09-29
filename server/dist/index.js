@@ -46,7 +46,8 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 // Middleware
 app.use((0, cors_1.default)());
-app.use(express_1.default.json());
+app.use(express_1.default.json({ limit: '10mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 app.use((0, morgan_1.default)('dev'));
 app.use((0, helmet_1.default)());
 // General rate limiting - more restrictive
