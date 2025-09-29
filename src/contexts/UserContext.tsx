@@ -7,6 +7,7 @@ import { userProgressService } from '../services/UserProgressService';
 import { refreshUserPurchases } from '../utils/paymentUtils';
 import { getUserStoragePrefix } from '../utils/homeContentUtils';
 import { cognitoAuthService } from '../services/CognitoAuthService';
+import { useOIDCUser } from './OIDCUserContext';
 
 // 添加事件类型定义
 interface ProgressUpdateEvent {
@@ -85,6 +86,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const prevUserIdRef = useRef<string | null>(null);
   
   const { socket } = useSocket();
+  
+  // 获取OIDC用户上下文
+  const oidcUser = useOIDCUser();
 
   // 计算剩余天数
   const calculateRemainingDays = (expiryDate: string | Date): number | null => {
@@ -98,6 +102,35 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const diffTime = expiry.getTime() - now.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
+
+  // 监听OIDC用户状态变化
+  useEffect(() => {
+    console.log('[UserContext] OIDC状态监听:', {
+      isAuthenticated: oidcUser.isAuthenticated,
+      hasOidcUser: !!oidcUser.user,
+      hasLocalUser: !!user,
+      loading: oidcUser.loading
+    });
+    
+    if (oidcUser.isAuthenticated && oidcUser.user && !user) {
+      console.log('[UserContext] OIDC用户已认证，同步用户数据:', oidcUser.user);
+      setUser(oidcUser.user);
+      setLoading(false);
+      setError(null);
+      
+      // 触发用户变更事件
+      const newUserChangeEvent = { userId: oidcUser.user.id, timestamp: Date.now() };
+      setUserChangeEvent(newUserChangeEvent);
+    } else if (!oidcUser.isAuthenticated && user) {
+      console.log('[UserContext] OIDC用户未认证，清除用户数据');
+      setUser(null);
+      setLoading(false);
+    } else if (oidcUser.loading) {
+      setLoading(true);
+    } else if (!oidcUser.loading && !oidcUser.isAuthenticated) {
+      setLoading(false);
+    }
+  }, [oidcUser.isAuthenticated, oidcUser.user, oidcUser.loading, user]);
 
   // 监听token更新事件（AWS Cognito认证后）
   useEffect(() => {
@@ -1372,6 +1405,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
   }, [socket]);
+
 
   const contextValue = useMemo(() => ({
     user,

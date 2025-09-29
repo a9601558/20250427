@@ -26,7 +26,13 @@ const cognitoAuthConfig = {
   post_logout_redirect_uri: getRedirectUri(),
   // 添加额外的参数以确保使用正确的登录流程
   extraQueryParams: {
-    response_mode: "query"
+    response_mode: "query",
+    // 强制显示用户名/密码登录界面
+    identity_provider: "COGNITO",
+    // 指定认证流程类型
+    prompt: "login",
+    // 确保显示完整的登录界面（包括忘记密码链接）
+    ui_locales: "ja"
   },
   // 设置自动silent renew
   automaticSilentRenew: true,
