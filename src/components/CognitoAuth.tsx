@@ -144,10 +144,42 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         );
       },
       Footer() {
+        const { toSignUp, toForgotPassword } = useAuthenticator();
+        
         return (
           <div className="mt-6 text-sm text-gray-600">
-            <p>Don't have an account yet? just <button type="button" className="text-blue-500 hover:text-blue-600 font-medium">sign-up</button>.</p>
-            <p className="mt-2">📧 <button type="button" className="text-blue-500 hover:text-blue-600">Resend activation email</button></p>
+            <p>Don't have an account yet? just <button 
+              type="button" 
+              className="text-blue-500 hover:text-blue-600 font-medium"
+              onClick={() => toSignUp()}
+            >sign-up</button>.</p>
+            <p className="mt-2">� <button 
+              type="button" 
+              className="text-blue-500 hover:text-blue-600"
+              onClick={() => toForgotPassword()}
+            >パスワードを忘れましたか？</button></p>
+          </div>
+        );
+      }
+    },
+    SignUp: {
+      Header() {
+        return (
+          <div className="mb-6">
+            <h2 className="text-lg font-medium text-gray-700 mb-4">アカウントを作成:</h2>
+          </div>
+        );
+      },
+      Footer() {
+        const { toSignIn } = useAuthenticator();
+        
+        return (
+          <div className="mt-6 text-sm text-gray-600">
+            <p>既にアカウントをお持ちですか？ <button 
+              type="button" 
+              className="text-blue-500 hover:text-blue-600 font-medium"
+              onClick={() => toSignIn()}
+            >サインイン</button></p>
           </div>
         );
       }
@@ -167,12 +199,21 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         );
       },
       Footer() {
+        const { toSignIn } = useAuthenticator();
+        
         return (
           <div className="mt-4">
             <div className="apple-badge rounded-xl p-3 text-center">
               <p className="apple-text text-xs text-gray-600">
                 <strong>リセット方法:</strong> メールまたはSMSで確認コードを送信
               </p>
+            </div>
+            <div className="mt-4 text-center">
+              <button 
+                type="button" 
+                className="text-blue-500 hover:text-blue-600 font-medium text-sm"
+                onClick={() => toSignIn()}
+              >← サインインに戻る</button>
             </div>
           </div>
         );
@@ -193,12 +234,26 @@ const CognitoAuth: React.FC<CognitoAuthProps> = ({ isOpen = true, onClose }) => 
         );
       },
       Footer() {
+        const { toSignIn, toForgotPassword } = useAuthenticator();
+        
         return (
           <div className="mt-4">
             <div className="apple-badge rounded-xl p-3 text-center">
               <p className="apple-text text-xs text-gray-600">
                 確認コードが送られてこない場合は、迷惑メールをチェックしてください
               </p>
+            </div>
+            <div className="mt-4 text-center space-x-4">
+              <button 
+                type="button" 
+                className="text-blue-500 hover:text-blue-600 font-medium text-sm"
+                onClick={() => toForgotPassword()}
+              >← コード再送信</button>
+              <button 
+                type="button" 
+                className="text-gray-500 hover:text-gray-600 font-medium text-sm"
+                onClick={() => toSignIn()}
+              >サインインに戻る</button>
             </div>
           </div>
         );
