@@ -4,6 +4,8 @@ import SocketStatus from './SocketStatus';
 import AuthModal from './AuthModal';
 import UserMenu from './UserMenu';
 import { useUser } from '../contexts/UserContext';
+import { useAuth } from "react-oidc-context";
+import { toast } from 'react-toastify';
 import { homepageService } from '../services/api';
 import { getHomeContentFromLocalStorage, getUserStoragePrefix } from '../utils/homeContentUtils';
 import montopiLogo from '../assets/montopi-new-logo.svg';
@@ -124,8 +126,44 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useUser();
+  const auth = useAuth();
   const [footerText, setFooterText] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
+  
+  // 处理直接OIDC登录
+  const handleDirectLogin = async () => {
+    try {
+      console.log('[Layout] 直接开始OIDC登录流程');
+      
+      // 清理之前的OIDC状态
+      try {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('oidc.')) {
+            localStorage.removeItem(key);
+          }
+        });
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.startsWith('oidc.')) {
+            sessionStorage.removeItem(key);
+          }
+        });
+        console.log('[Layout] 已清理之前的OIDC状态');
+      } catch (cleanupError) {
+        console.warn('[Layout] 清理OIDC状态时出错:', cleanupError);
+      }
+      
+      // 直接启动OIDC登录流程
+      await auth.signinRedirect();
+    } catch (error) {
+      console.error('[Layout] 直接登录失败:', error);
+      
+      // 显示用户友好的错误信息
+      toast.error('ログインの開始に失敗しました。モーダルから再試行してください。');
+      
+      // 如果直接登录失败，则回退到显示弹窗
+      setIsLoginModalOpen(true);
+    }
+  };
   
   // Handle scroll events for header effects
   useEffect(() => {
@@ -136,6 +174,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+  
+  // 监听OIDC认证错误
+  useEffect(() => {
+    if (auth.error) {
+      console.error('[Layout] OIDC认证错误:', auth.error);
+      
+      // 对于某些类型的错误，显示用户友好的消息
+      if (auth.error.message && auth.error.message.includes('No matching state found')) {
+        toast.warning('認証状態がリセットされました。再度ログインしてください。');
+      } else if (auth.error.message && auth.error.message.includes('access_denied')) {
+        toast.error('ログインがキャンセルされました。');
+      } else {
+        toast.error(`認証エラー: ${auth.error.message}`);
+      }
+    }
+  }, [auth.error]);
   
   // Handle click outside to close mobile menu
   useEffect(() => {
@@ -344,7 +398,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <UserMenu />
             ) : (
               <button
-                onClick={() => setIsLoginModalOpen(true)}
+                onClick={handleDirectLogin}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all"
               >
                 ログイン/登録
@@ -401,7 +455,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <AuthModal 
         isOpen={isLoginModalOpen} 
         onClose={() => setIsLoginModalOpen(false)}
-        useCognito={true}
       />
     </div>
   );
