@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
-import { userApi, redeemCodeApi } from '../utils/api';
+import { userService as userApi, redeemCodeService as redeemCodeApi } from '../services/api';
 import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
 import { userProgressService, redeemCodeService } from '../services/api';

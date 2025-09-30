@@ -36,56 +36,6 @@ const defaultProgress: ProgressStats = {
   lastAccessed: new Date(0).toISOString()
 };
 
-/**
- * 确保对象具有有效的 lastAccessed 属性
- */
-const ensureValidLastAccessed = (obj: any): string => {
-  if (!obj) return new Date(0).toISOString();
-  
-  try {
-    // 如果存在有效的 lastAccessed 属性，直接返回
-    if (obj.lastAccessed && !isNaN(new Date(obj.lastAccessed).getTime())) {
-      return obj.lastAccessed;
-    }
-    
-    // 尝试使用 updatedAt 或其他属性
-    if (obj.updatedAt && !isNaN(new Date(obj.updatedAt).getTime())) {
-      return new Date(obj.updatedAt).toISOString();
-    }
-    
-    // 都不存在时返回当前时间
-    return new Date().toISOString();
-  } catch (error) {
-    console.error('处理 lastAccessed 时出错:', error);
-    return new Date().toISOString();
-  }
-};
-
-/**
- * 安全地处理一个进度记录，确保所有必要的字段都存在
- */
-const processSingleProgressRecord = (key: string, value: any): ProgressStats => {
-  if (!value) {
-    return {
-      ...defaultProgress,
-      questionSetId: key
-    };
-  }
-  
-  return {
-    ...defaultProgress,
-    ...value,
-    questionSetId: key,
-    completedQuestions: value.completedQuestions || 0,
-    totalQuestions: value.totalQuestions || 0,
-    correctAnswers: value.correctAnswers || 0,
-    totalTimeSpent: value.totalTimeSpent || 0,
-    averageTimeSpent: value.averageTimeSpent || 0,
-    accuracy: value.accuracy || 0,
-    lastAccessed: ensureValidLastAccessed(value)
-  };
-};
-
 export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
   const { socket } = useSocket();

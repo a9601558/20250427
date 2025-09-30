@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { questionSetApi } from '../utils/api';
+import { questionSetService as questionSetApi } from '../services/api';
 import { QuestionSet } from '../types';
 
 // 扩展返回类型以匹配实际使用

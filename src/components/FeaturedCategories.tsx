@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchWithAuth } from '../utils/api';
+import { apiClient } from '../services/api';
 import { QuestionSet } from '../types';
 
 interface FeaturedQuestionSet extends QuestionSet {
@@ -30,10 +30,10 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
     setIsLoading(true);
     try {
       // 获取所有题库
-      const qsResponse = await fetchWithAuth<QuestionSet[]>('/question-sets');
+      const qsResponse = await apiClient.get<{ success: boolean; data?: QuestionSet[]; error?: string }>('/question-sets');
       
       // 获取精选分类
-      const fcResponse = await fetchWithAuth<string[]>('/homepage/featured-categories');
+      const fcResponse = await apiClient.get<{ success: boolean; data?: string[]; error?: string }>('/homepage/featured-categories');
       
       if (qsResponse.success && qsResponse.data) {
         setQuestionSets(qsResponse.data as FeaturedQuestionSet[]);
@@ -66,10 +66,7 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
 
     try {
       const updatedCategories = [...featuredCategories, newCategory.trim()];
-      const response = await fetchWithAuth('/homepage/featured-categories', {
-        method: 'PUT',
-        body: JSON.stringify({ featuredCategories: updatedCategories })
-      });
+      const response = await apiClient.put('/homepage/featured-categories', { featuredCategories: updatedCategories });
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);
@@ -105,10 +102,7 @@ const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({ onCategoriesUpd
       }
 
       const updatedCategories = featuredCategories.filter(c => c !== category);
-      const response = await fetchWithAuth('/homepage/featured-categories', {
-        method: 'PUT',
-        body: JSON.stringify({ featuredCategories: updatedCategories })
-      });
+      const response = await apiClient.put('/homepage/featured-categories', { featuredCategories: updatedCategories });
 
       if (response.success) {
         setFeaturedCategories(updatedCategories);

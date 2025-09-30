@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import { QuestionSet } from '../../types';
-import { questionSetApi } from '../../utils/api';
+import { questionSetService as questionSetApi } from '../../services/api';
 import axios from 'axios';
 
 const AdminRedeemCodes: React.FC = () => {
@@ -21,13 +21,11 @@ const AdminRedeemCodes: React.FC = () => {
   const [debuggingResults, setDebuggingResults] = useState<any>(null);
   const [isDebugging, setIsDebugging] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
   // 加载题库和兑换码数据
   useEffect(() => {
     const loadData = async () => {
       try {
-        setIsLoading(true);
         
         // 加载题库数据
         const qsResponse = await questionSetApi.getAllQuestionSets();
@@ -110,8 +108,6 @@ const AdminRedeemCodes: React.FC = () => {
       } catch (error: any) {
         console.error('[AdminRedeemCodes] 加载数据失败:', error);
         setStatusMessage('加载数据失败，请刷新页面重试');
-      } finally {
-        setIsLoading(false);
       }
     };
     

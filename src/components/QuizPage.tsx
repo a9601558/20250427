@@ -6,7 +6,7 @@ import type React from 'react';
 import { Question } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 
-import { questionSetApi } from '../utils/api';
+import { questionSetService as questionSetApi } from '../services/api';
 import { useSocket } from '../contexts/SocketContext';
 import { userProgressService, wrongAnswerService } from '../services/api';
 import { purchaseService, redeemCodeService, userService } from '../services/api';

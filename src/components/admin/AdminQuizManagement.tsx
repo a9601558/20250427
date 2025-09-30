@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { QuestionSet } from '../../types';
-import { questionSetApi } from '../../utils/api';
+import { questionSetService as questionSetApi } from '../../services/api';
 
 const AdminQuizManagement: React.FC = () => {
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
@@ -267,7 +267,7 @@ const AdminQuizManagement: React.FC = () => {
                   <div className="text-sm text-gray-900">{quizSet.category}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {quizSet.questions.length}
+                  {quizSet.questions?.length || 0}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {quizSet.isPaid ? `付费 (¥${quizSet.price})` : '免费'}

@@ -184,11 +184,13 @@ const ManageQuestionSets: React.FC = () => {
       // 如果题库没有题目或题目需要刷新，则从服务器获取完整题目
       if (!questionSet.questions || questionSet.questions.length === 0 || !questionSet.questions[0]?.options) {
         console.log('正在获取题库的详细题目数据...');
-        const response = await questionSetService.getQuestionSetById(questionSet.id);
         
-        if (response.success && response.data) {
+        // 使用questionService获取题目列表
+        const questionsResponse = await questionService.getQuestions(questionSet.id, true);
+        
+        if (questionsResponse.success && questionsResponse.data) {
           // 更新当前选中的题库，包含完整的题目数据
-          const questions = response.data.questions || [];
+          const questions = questionsResponse.data;
           const updatedQuestionSet = {
             ...questionSet,
             questions: questions,
@@ -203,6 +205,26 @@ const ManageQuestionSets: React.FC = () => {
               set.id === questionSet.id ? updatedQuestionSet : set
             )
           );
+        } else {
+          // 如果题目获取失败，尝试从题库详情获取
+          const detailResponse = await questionSetService.getQuestionSetById(questionSet.id);
+          if (detailResponse.success && detailResponse.data) {
+            // 服务端返回的是questionSetQuestions，需要转换
+            const questions = detailResponse.data.questionSetQuestions || detailResponse.data.questions || [];
+            const updatedQuestionSet = {
+              ...questionSet,
+              questions: questions,
+              questionCount: questions.length
+            };
+            
+            setCurrentQuestionSet(updatedQuestionSet);
+            
+            setQuestionSets(prev => 
+              prev.map(set => 
+                set.id === questionSet.id ? updatedQuestionSet : set
+              )
+            );
+          }
         }
       }
     } catch (error) {

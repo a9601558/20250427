@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Question, Option, QuestionSet } from '../../types';
 import { useUser } from '../../contexts/UserContext';
-import { questionSetApi, questionApi, redeemCodeApi } from '../../utils/api';
+import { questionSetService as questionSetApi, questionService as questionApi, redeemCodeService as redeemCodeApi } from '../../services/api';
 import axios from 'axios';  // 添加axios导入
 import Modal from 'react-modal';
 import { Alert, Form, Input, Radio, Button, Checkbox } from 'antd';

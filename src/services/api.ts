@@ -768,6 +768,27 @@ export const wrongAnswerService = {
         error: error.message
       };
     }
+  },
+
+  // 保存错题
+  async saveWrongAnswer(wrongAnswerData: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.post<ApiResponse<any>>('/wrong-answers', wrongAnswerData);
+      
+      if (response.success) {
+        // 清除相关缓存
+        apiClient.clearCacheFor('/wrong-answers');
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('保存错题失败:', error);
+      return {
+        success: false,
+        message: '間違い問題の保存に失敗しました',
+        error: error.message
+      };
+    }
   }
 };
 
