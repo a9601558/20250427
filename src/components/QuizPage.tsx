@@ -2713,11 +2713,7 @@ function QuizPage(): JSX.Element {
                 sessionStorage.setItem(`quiz_${questionSetId}_trial_limit`, String(determinedTrialCount));
               }
               
-              // 只显示提示，不显示购买窗口
-              toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}道题`, {
-                autoClose: 5000,
-                icon: '🔍'
-              });
+          
             }
           }
 
@@ -2783,7 +2779,7 @@ function QuizPage(): JSX.Element {
             
             // 如果是试用模式，显示提示
             if (isExplicitTrialMode) {
-              toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}道题`, {
+              toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}問`, {
                 autoClose: 5000,
                 icon: '🔍'
               });
@@ -2831,7 +2827,7 @@ function QuizPage(): JSX.Element {
                             selectedOption: q.selectedOption || ''
                           }));
                         
-                        console.log('[QuizPage] 将URL索引与本地回答记录合并:', validAnsweredQuestions.length, '道题');
+                        console.log('[QuizPage] 将URL索引与本地回答记录合并:', validAnsweredQuestions.length, '問');
                         setAnsweredQuestions(validAnsweredQuestions);
                         
                         // 计算正确答题数
@@ -2896,7 +2892,7 @@ function QuizPage(): JSX.Element {
                       selectedOption: q.selectedOption || ''
                     }));
                   
-                  console.log('[QuizPage] 恢复已回答問題列表:', validAnsweredQuestions.length, '道题');
+                  console.log('[QuizPage] 恢复已回答問題列表:', validAnsweredQuestions.length, '問');
                   setAnsweredQuestions(validAnsweredQuestions);
                   
                   // 计算正确答题数
@@ -4205,7 +4201,7 @@ function QuizPage(): JSX.Element {
                 <span className="text-blue-600 font-bold mx-1">{answeredCount}</span> 問，
                 限制 <span className="text-blue-600 font-bold mx-1">{totalTrialQuestions}</span> 問
                 <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                  还可答 {remainingTrialQuestions} 問
+                  あと {remainingTrialQuestions} 問
                 </span>
               </p>
             )}

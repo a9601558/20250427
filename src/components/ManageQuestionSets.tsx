@@ -161,7 +161,8 @@ const ManageQuestionSets: React.FC = () => {
           
         const updatedCurrentSet = {
           ...currentQuestionSet,
-          questions: updatedQuestions
+          questions: updatedQuestions,
+          questionCount: updatedQuestions.length
         };
         
         setCurrentQuestionSet(updatedCurrentSet);
@@ -215,10 +216,11 @@ const ManageQuestionSets: React.FC = () => {
         
         if (response.data && response.data.data) {
           // 更新当前选中的题库，包含完整的题目数据
+          const questions = response.data.data.questionSetQuestions || [];
           const updatedQuestionSet = {
             ...questionSet,
-            questions: response.data.data.questionSetQuestions || [],
-            questionCount: response.data.data.questionSetQuestions?.length || 0
+            questions: questions,
+            questionCount: questions.length
           };
           
           setCurrentQuestionSet(updatedQuestionSet);
@@ -264,10 +266,11 @@ const ManageQuestionSets: React.FC = () => {
         q.id === editingQuestion.id ? updatedQuestion : q
       );
       
-      // 创建更新后的题库对象
+      // 创建更新后的题库对象，并更新题目数量
       const updatedQuestionSet = {
         ...currentQuestionSet,
-        questions: updatedQuestions
+        questions: updatedQuestions,
+        questionCount: updatedQuestions.length
       };
       
       // 发送更新请求
@@ -329,10 +332,11 @@ const ManageQuestionSets: React.FC = () => {
       // 更新题目数组，移除要删除的题目
       const updatedQuestions = currentQuestionSet.questions.filter(q => q.id !== question.id);
       
-      // 创建更新后的题库对象
+      // 创建更新后的题库对象，并更新题目数量
       const updatedQuestionSet = {
         ...currentQuestionSet,
-        questions: updatedQuestions
+        questions: updatedQuestions,
+        questionCount: updatedQuestions.length
       };
       
       // 发送更新请求
@@ -343,12 +347,15 @@ const ManageQuestionSets: React.FC = () => {
         }
       });
       
-      // 更新本地状态
+      // 更新本地状态 - 题库列表
       setQuestionSets(prev => 
         prev.map(set => 
           set.id === currentQuestionSet.id ? updatedQuestionSet : set
         )
       );
+      
+      // 更新当前管理的题库状态
+      setCurrentQuestionSet(updatedQuestionSet);
       
       setSuccessMessage('問題が正常に削除されました');
       
@@ -442,7 +449,7 @@ const ManageQuestionSets: React.FC = () => {
               <p className="text-gray-600 mb-4">{questionSet.description}</p>
               
               <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                <span>問題数: {questionSet.questionCount || 0}</span>
+                <span>問題数: {Array.isArray(questionSet.questions) ? questionSet.questions.length : (questionSet.questionCount || 0)}</span>
                 {questionSet.isPaid && (
                   <span className="text-yellow-600">¥{questionSet.price}</span>
                 )}
