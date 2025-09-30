@@ -1,5 +1,4 @@
-import { Question, User, QuestionSet, UserProgress, ApiResponse } from '../types';
-import { AccessCheckResult } from './purchaseService';
+import { Question, User, QuestionSet, UserProgress, ApiResponse, AccessCheckResult } from '../types';
 import apiClient from '../utils/unified-api-client';
 
 // API基础URL
@@ -391,6 +390,53 @@ export const userProgressService = {
         success: false,
         message: 'ユーザー進捗の更新に失敗しました',
         error: error.message
+      };
+    }
+  },
+
+  // 获取用户进度记录
+  async getUserProgressRecords(questionSetId?: string): Promise<ApiResponse<any[]>> {
+    try {
+      const url = questionSetId 
+        ? `/user-progress/records?questionSetId=${questionSetId}`
+        : `/user-progress/records`;
+      
+      const response = await apiClient.get<ApiResponse<any[]>>(url, null, {
+        cacheDuration: 60000, // 缓存1分钟
+        retries: 2
+      });
+
+      // 确保返回数据的安全性和一致性
+      if (response.success && Array.isArray(response.data)) {
+        // 确保每条记录都有必要的字段
+        const processedRecords = response.data.map((record: any) => {
+          return {
+            ...record,
+            questionId: record.questionId || '',
+            questionSetId: record.questionSetId || '',
+            selectedOption: record.selectedOption || [],
+            isCorrect: Boolean(record.isCorrect),
+            timeSpent: record.timeSpent || 0,
+            createdAt: record.createdAt || new Date().toISOString(),
+            updatedAt: record.updatedAt || new Date().toISOString()
+          };
+        });
+        
+        return {
+          success: true,
+          data: processedRecords
+        };
+      }
+      
+      return response.success 
+        ? response 
+        : { success: false, message: response.message || '获取记录失败', data: [] };
+    } catch (error: any) {
+      console.error('获取用户进度记录失败:', error);
+      return { 
+        success: false, 
+        message: 'ユーザー進捗記録の取得に失敗しました',
+        data: [] // 返回空数组而不是 undefined
       };
     }
   }

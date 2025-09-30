@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useSocket } from './SocketContext';
-import { userProgressService } from '../services/UserProgressService';
+import { userProgressService } from '../services/api';
 import { useUser } from './UserContext';
 
 interface ProgressStats {
@@ -87,7 +87,7 @@ const processSingleProgressRecord = (key: string, value: any): ProgressStats => 
 };
 
 export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, userChangeEvent } = useUser();
+  const { user } = useUser();
   const { socket } = useSocket();
   const [progressStats, setProgressStats] = useState<Record<string, ProgressStats>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -130,8 +130,8 @@ export const UserProgressProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
   }, []);
 
-  // 获取用户进度，支持强制更新，添加防抖和重复请求控制
-  const fetchUserProgress = useCallback(async (forceUpdate = true) => {
+  // 获取用户进度，添加防抖和重复请求控制
+  const fetchUserProgress = useCallback(async () => {
     // 防止无用户时请求
     if (!user) {
       console.log('用户未登录，无法获取进度');

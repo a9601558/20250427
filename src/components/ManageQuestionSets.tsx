@@ -188,7 +188,7 @@ const ManageQuestionSets: React.FC = () => {
         
         if (response.success && response.data) {
           // 更新当前选中的题库，包含完整的题目数据
-          const questions = response.data.data.questionSetQuestions || [];
+          const questions = response.data.questions || [];
           const updatedQuestionSet = {
             ...questionSet,
             questions: questions,
@@ -252,16 +252,8 @@ const ManageQuestionSets: React.FC = () => {
         throw new Error(response.message || '更新题库失败');
       }
       
-      let updatedData = updatedQuestionSet;
-      
-      // 处理不同的响应格式
-      if (response.data) {
-        if (response.data.success && response.data.data) {
-          updatedData = response.data.data;
-        } else if (response.data.id) {
-          updatedData = response.data;
-        }
-      }
+      // 使用API返回的数据或本地更新的数据
+      const updatedData = response.data || updatedQuestionSet;
       
       // 更新本地状态
       setQuestionSets(prev => 

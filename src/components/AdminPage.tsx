@@ -10,7 +10,6 @@ import ManageQuestionSets from './ManageQuestionSets';
 import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 import AdminBatchUpload from './admin/AdminBatchUpload';
 import AdminContentManagement from './admin/AdminContentManagement';
-import QuestionCountTest from './admin/QuestionCountTest';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -21,7 +20,6 @@ enum AdminTab {
   CONTENT_MANAGEMENT = 'contentManagement',
   QUESTION_SET_INFO = 'questionSetInfo',
   BATCH_QUESTION_UPLOAD = 'batchQuestionUpload',
-  QUESTION_COUNT_TEST = 'questionCountTest',
 }
 
 const AdminPage: React.FC = () => {
@@ -134,15 +132,6 @@ const AdminPage: React.FC = () => {
                   </svg>
                   内容管理
                 </button>
-                <button
-                  onClick={() => setActiveTab(AdminTab.QUESTION_COUNT_TEST)}
-                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.QUESTION_COUNT_TEST ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 19a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14zm8-10h4m-4 4h4m-4 4h4M7 9h.01M7 13h.01M7 17h.01" />
-                  </svg>
-                  题目数量测试
-                </button>
               </nav>
             </div>
             
@@ -156,7 +145,6 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.CONTENT_MANAGEMENT && <AdminContentManagement />}
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
                 {activeTab === AdminTab.BATCH_QUESTION_UPLOAD && <AdminBatchUpload />}
-                {activeTab === AdminTab.QUESTION_COUNT_TEST && <QuestionCountTest />}
               </div>
             </div>
           </div>

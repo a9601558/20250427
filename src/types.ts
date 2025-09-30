@@ -143,4 +143,11 @@ export interface Announcement {
   title: string;
   content: string;
   date: string;
+}
+
+export interface AccessCheckResult {
+  hasAccess: boolean;
+  isPaid: boolean;
+  remainingDays?: number;
+  expiryDate?: string;
 } 
