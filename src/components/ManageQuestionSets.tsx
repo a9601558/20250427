@@ -119,16 +119,15 @@ const ManageQuestionSets: React.FC = () => {
         }))
       };
       
-      // 使用新的API端点直接添加题目
-      const response = await axios.post(`/api/question-sets/${currentQuestionSet.id}/questions`, newQuestion, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      // 使用统一API服务创建题目
+      const response = await questionService.createQuestion(currentQuestionSet.id, newQuestion);
+      
+      if (!response.success) {
+        throw new Error(response.message || '创建题目失败');
+      }
       
       // 获取添加的题目
-      const addedQuestion = response.data.data;
+      const addedQuestion = response.data;
       
       // 更新本地状态
       if (addedQuestion) {
@@ -185,14 +184,9 @@ const ManageQuestionSets: React.FC = () => {
       // 如果题库没有题目或题目需要刷新，则从服务器获取完整题目
       if (!questionSet.questions || questionSet.questions.length === 0 || !questionSet.questions[0]?.options) {
         console.log('正在获取题库的详细题目数据...');
-        const response = await axios.get(`/api/question-sets/${questionSet.id}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+        const response = await questionSetService.getQuestionSetById(questionSet.id);
         
-        if (response.data && response.data.data) {
+        if (response.success && response.data) {
           // 更新当前选中的题库，包含完整的题目数据
           const questions = response.data.data.questionSetQuestions || [];
           const updatedQuestionSet = {
@@ -251,13 +245,12 @@ const ManageQuestionSets: React.FC = () => {
         questionCount: updatedQuestions.length
       };
       
-      // 发送更新请求
-      const response = await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      // 使用统一API服务更新题库
+      const response = await questionSetService.updateQuestionSet(currentQuestionSet.id, updatedQuestionSet);
+      
+      if (!response.success) {
+        throw new Error(response.message || '更新题库失败');
+      }
       
       let updatedData = updatedQuestionSet;
       

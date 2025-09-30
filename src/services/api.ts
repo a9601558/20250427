@@ -520,7 +520,7 @@ export const purchaseService = {
   // 获取用户购买历史
   async getUserPurchases(): Promise<any> {
     try {
-      const response = await apiClient.get<ApiResponse<any>>('/purchases/user', null, {
+      const response = await apiClient.get<ApiResponse<any>>('/purchases', null, {
         cacheDuration: 60000 // 购买历史缓存1分钟
       });
       
