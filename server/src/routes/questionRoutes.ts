@@ -7,6 +7,7 @@ import {
   deleteQuestion,
   getRandomQuestion,
   getQuestionCount,
+  getBatchQuestionCounts,
   batchUploadQuestions
 } from '../controllers/questionController';
 import { protect, admin } from '../middleware/authMiddleware';
@@ -18,6 +19,7 @@ const router = express.Router();
 router.get('/', getQuestions);
 // 特殊路由放在通用路由前面
 router.get('/count/:questionSetId', getQuestionCount);
+router.post('/batch-count', getBatchQuestionCounts);  // 批量查询题目数量
 router.get('/random/:questionSetId', getRandomQuestion);
 
 // Batch upload route - ensure proper middleware and handling

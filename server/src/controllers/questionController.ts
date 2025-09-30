@@ -218,6 +218,67 @@ export const getQuestionCount = async (req: Request, res: Response) => {
   }
 };
 
+// @desc    Get count of questions for multiple question sets (批量查询)
+// @route   POST /api/questions/batch-count
+// @access  Public
+export const getBatchQuestionCounts = async (req: Request, res: Response) => {
+  try {
+    console.log('[API] Received request for batch question counts:', req.body);
+    const { questionSetIds } = req.body;
+    
+    // 验证参数
+    if (!Array.isArray(questionSetIds) || questionSetIds.length === 0) {
+      console.log('[API] Invalid questionSetIds in request body');
+      return res.status(400).json({ 
+        success: false, 
+        message: '题库ID列表不能为空',
+        data: {}
+      });
+    }
+    
+    // 使用原生SQL批量查询，提高性能
+    const results = await sequelize.query(
+      `SELECT questionSetId, COUNT(*) as count 
+       FROM questions 
+       WHERE questionSetId IN (:questionSetIds) 
+       GROUP BY questionSetId`,
+      {
+        replacements: { questionSetIds },
+        type: QueryTypes.SELECT
+      }
+    );
+    
+    // 构建结果映射，确保所有请求的题库都有结果（即使是0）
+    const countMap: Record<string, number> = {};
+    
+    // 初始化所有题库的计数为0
+    questionSetIds.forEach(id => {
+      countMap[id] = 0;
+    });
+    
+    // 填入实际查询结果
+    (results as any[]).forEach(row => {
+      countMap[row.questionSetId] = parseInt(row.count, 10);
+    });
+    
+    console.log(`[API] Batch question counts for ${questionSetIds.length} sets:`, countMap);
+    
+    return res.status(200).json({
+      success: true,
+      data: countMap,
+      message: `成功获取${questionSetIds.length}个题库的题目数量`
+    });
+  } catch (error) {
+    console.error('[API] Error getting batch question counts:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: '批量获取题目数量失败',
+      data: {},
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+};
+
 // @desc    Batch upload questions for a question set
 // @route   POST /api/questions/batch-upload/:questionSetId
 // @access  Admin

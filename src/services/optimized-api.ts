@@ -507,9 +507,9 @@ export const redeemCodeService = {
 // =============================================================================
 export const homepageService = {
   // 获取首页内容
-  async getHomeContent(params?: any): Promise<ApiResponse<any>> {
+  async getHomeContent(): Promise<ApiResponse<any>> {
     try {
-      return await apiClient.get<ApiResponse<any>>('/homepage/content', params, {
+      return await apiClient.get<ApiResponse<any>>('/homepage/content', null, {
         cacheDuration: 300000 // 首页内容变化较少，缓存5分钟
       });
     } catch (error: any) {
@@ -517,24 +517,6 @@ export const homepageService = {
       return {
         success: false,
         message: 'ホームページコンテンツの取得に失敗しました',
-        error: error.message
-      };
-    }
-  },
-
-  // 更新首页内容 (管理员功能)
-  async updateHomeContent(contentData: any): Promise<ApiResponse<any>> {
-    try {
-      const response = await apiClient.put<ApiResponse<any>>('/homepage/content', contentData);
-      // 清除首页内容相关缓存
-      apiClient.clearCacheFor('/homepage/content');
-      apiClient.clearCacheFor('/homepage/featured-categories');
-      return response;
-    } catch (error: any) {
-      console.error('更新首页内容失败:', error);
-      return {
-        success: false,
-        message: 'ホームページコンテンツの更新に失敗しました',
         error: error.message
       };
     }

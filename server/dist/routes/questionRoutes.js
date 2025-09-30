@@ -12,6 +12,7 @@ const router = express_1.default.Router();
 router.get('/', questionController_1.getQuestions);
 // 特殊路由放在通用路由前面
 router.get('/count/:questionSetId', questionController_1.getQuestionCount);
+router.post('/batch-count', questionController_1.getBatchQuestionCounts); // 批量查询题目数量
 router.get('/random/:questionSetId', questionController_1.getRandomQuestion);
 // Batch upload route - ensure proper middleware and handling
 router.post('/batch-upload/:questionSetId', authMiddleware_1.protect, authMiddleware_1.admin, fileUploadMiddleware_1.upload.single('file'), questionController_1.batchUploadQuestions);

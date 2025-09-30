@@ -1,3 +1,26 @@
+// =============================================================================
+// API 响应类型定义 (统一的API响应格式)
+// =============================================================================
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  count?: number;  // 用于计数相关的API响应
+}
+
+export interface BatchCountResponse {
+  success: boolean;
+  data: Record<string, number>;  // questionSetId -> count
+  message?: string;
+  error?: string;
+}
+
+// =============================================================================
+// 核心业务类型定义
+// =============================================================================
+
 export interface User {
   id: string;
   username: string;

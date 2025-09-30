@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import SocketStatus from './SocketStatus';
 import AuthModal from './AuthModal';
@@ -129,12 +129,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [scrolled, setScrolled] = useState(false);
   const auth = useAuth(); // 添加OIDC认证hook
   
-  // 检查OIDC认证状态，优化登录体验
+  // 防止无限刷新的状态同步机制
+  const syncAttemptRef = useRef(0);
+  const maxSyncAttempts = 3;
+  const lastSyncTimeRef = useRef(0);
+  
   useEffect(() => {
+    // 防护：检查是否在短时间内多次尝试同步
+    const now = Date.now();
+    if (now - lastSyncTimeRef.current < 5000) { // 5秒内不重复同步
+      return;
+    }
+    
     if (auth.isAuthenticated && !auth.isLoading && !user) {
-      console.log('[Layout] OIDC已认证但用户上下文未同步，刷新页面');
-      // 如果OIDC已认证但用户上下文还没更新，可能需要刷新
-      window.location.reload();
+      syncAttemptRef.current += 1;
+      console.log(`[Layout] OIDC已认证但用户上下文未同步，尝试第${syncAttemptRef.current}次同步`);
+      
+      if (syncAttemptRef.current <= maxSyncAttempts) {
+        lastSyncTimeRef.current = now;
+        // 给用户上下文时间同步，而不是立即刷新页面
+        setTimeout(() => {
+          if (auth.isAuthenticated && !user) {
+            console.log('[Layout] 用户上下文同步超时，尝试手动触发同步');
+            // 这里可以触发用户上下文的刷新，而不是页面刷新
+            window.dispatchEvent(new CustomEvent('oidc-user-sync-needed'));
+          }
+        }, 2000);
+      } else {
+        console.warn('[Layout] 用户上下文同步达到最大尝试次数，停止尝试');
+      }
+    } else if (user) {
+      // 用户已同步，重置计数器
+      syncAttemptRef.current = 0;
     }
   }, [auth.isAuthenticated, auth.isLoading, user]);
   

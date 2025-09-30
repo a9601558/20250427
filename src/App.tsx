@@ -56,22 +56,31 @@ const AuthManager: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  // 页面刷新防护
+  // 页面刷新防护 - 调整为更宽松的条件
   useEffect(() => {
     const refreshCount = parseInt(sessionStorage.getItem('appRefreshCount') || '0');
     const lastRefreshTime = parseInt(sessionStorage.getItem('lastAppRefreshTime') || '0');
     const now = Date.now();
     
-    // 如果在30秒内刷新超过3次，显示警告
-    if (refreshCount >= 3 && (now - lastRefreshTime) < 30000) {
+    // 检查是否是OIDC认证回调，如果是则不计入刷新次数
+    const urlParams = new URLSearchParams(window.location.search);
+    const isOIDCCallback = urlParams.has('code') && urlParams.has('state');
+    
+    if (isOIDCCallback) {
+      console.log('[App] 检测到OIDC认证回调，跳过刷新计数');
+      return;
+    }
+    
+    // 如果在60秒内刷新超过5次，显示警告 (放宽条件)
+    if (refreshCount >= 5 && (now - lastRefreshTime) < 60000) {
       console.warn('[App] 检测到频繁刷新，可能存在无限循环問題');
-      toast.warning('ページが頻繁に更新されています。ネットワーク接続を確認するか、技術サポートにお問い合わせください', {
+      toast.warning('ページが頻繁に更新されています。OIDC認証が完了するまでお待ちください', {
         autoClose: 5000,
         toastId: 'refresh-warning'
       });
       sessionStorage.setItem('appRefreshCount', '0'); // 重置计数
-    } else if ((now - lastRefreshTime) > 30000) {
-      // 超过30秒，重置计数
+    } else if ((now - lastRefreshTime) > 60000) {
+      // 超过60秒，重置计数
       sessionStorage.setItem('appRefreshCount', '1');
     } else {
       // 增加计数

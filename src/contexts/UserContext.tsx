@@ -1,9 +1,9 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { User, Purchase, RedeemCode, UserProgress } from '../types';
-import { userApi, redeemCodeApi, userProgressApi } from '../utils/api';
+import { userApi, redeemCodeApi } from '../utils/api';
 import { useSocket } from './SocketContext';
 import apiClient from '../utils/api-client';
-import { userProgressService } from '../services/UserProgressService';
+import { userProgressService, redeemCodeService } from '../services/api';
 import { refreshUserPurchases } from '../utils/paymentUtils';
 import { getUserStoragePrefix } from '../utils/homeContentUtils';
 import { cognitoAuthService } from '../services/CognitoAuthService';
@@ -105,6 +105,92 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  // 监听来自Layout的手动同步事件
+  useEffect(() => {
+    const handleManualSync = async () => {
+      if (auth.isAuthenticated && auth.user && !user) {
+        console.log('[UserContext] 接收到手动同步请求');
+        await syncOIDCUserData();
+      }
+    };
+
+    window.addEventListener('oidc-user-sync-needed', handleManualSync);
+    return () => {
+      window.removeEventListener('oidc-user-sync-needed', handleManualSync);
+    };
+  }, [auth.isAuthenticated, auth.user, user]);
+
+  // 提取同步函数，避免重复代码
+  const syncOIDCUserData = async () => {
+    const syncInProgress = sessionStorage.getItem('oidc-sync-in-progress');
+    if (syncInProgress === 'true') {
+      console.log('[UserContext] OIDC同步已在进行中，跳过');
+      return;
+    }
+
+    sessionStorage.setItem('oidc-sync-in-progress', 'true');
+    
+    try {
+      setLoading(true);
+      
+      // 使用原始auth.user中的access_token
+      if (auth.user?.access_token) {
+        console.log('[UserContext] 设置API认证信息, token前缀:', auth.user.access_token.substring(0, 20) + '...');
+        console.log('[UserContext] 用户sub:', auth.user.profile?.sub);
+        
+        // 检测token类型
+        try {
+          const tokenParts = auth.user.access_token.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            console.log('[UserContext] Token payload检查:', {
+              sub: payload.sub,
+              token_use: payload.token_use,
+              iss: payload.iss,
+              exp: new Date(payload.exp * 1000),
+              isExpired: payload.exp * 1000 < Date.now()
+            });
+          }
+        } catch (e) {
+          console.warn('[UserContext] 无法解析JWT token:', e);
+        }
+        
+        // 设置认证令牌到API客户端
+        apiClient.setAuthHeader(auth.user.access_token);
+        apiClient.setUserId(auth.user.profile?.sub || '');
+        localStorage.setItem('token', auth.user.access_token);
+        localStorage.setItem('activeUserId', auth.user.profile?.sub || '');
+      } else {
+        console.error('[UserContext] 没有找到access_token!', auth.user);
+        return;
+      }
+      
+      // 通过API获取完整的用户数据
+      console.log('[UserContext] 正在调用 userApi.getCurrentUser()...');
+      const response = await userApi.getCurrentUser();
+      console.log('[UserContext] userApi.getCurrentUser() 响应:', response);
+      
+      if (response.success && response.data) {
+        console.log('[UserContext] 从数据库获取到完整用户数据:', response.data);
+        setUser(response.data);
+        setError(null);
+        
+        // 触发用户变更事件
+        const newUserChangeEvent = { userId: response.data.id, timestamp: Date.now() };
+        setUserChangeEvent(newUserChangeEvent);
+      } else {
+        console.error('[UserContext] 获取用户数据失败:', response.message);
+        setError('获取用户数据失败: ' + response.message);
+      }
+    } catch (error) {
+      console.error('[UserContext] OIDC用户同步失败:', error);
+      setError('用户数据同步失败');
+    } finally {
+      setLoading(false);
+      sessionStorage.removeItem('oidc-sync-in-progress');
+    }
+  };
+
   // 监听OIDC用户状态变化
   useEffect(() => {
     console.log('[UserContext] OIDC状态监听:', {
@@ -116,85 +202,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       hasAuthUser: !!auth.user
     });
     
-    // 添加防止重复同步的标记
-    const syncInProgress = sessionStorage.getItem('oidc-sync-in-progress');
-    if (syncInProgress === 'true') {
-      console.log('[UserContext] OIDC同步已在进行中，跳过');
-      return;
-    }
-    
     if (oidcUser.isAuthenticated && auth.user && !user && !oidcUser.loading) {
       console.log('[UserContext] OIDC用户已认证，从数据库同步用户数据:', auth.user);
-      
-      const syncOIDCUser = async () => {
-        // 设置同步标记
-        sessionStorage.setItem('oidc-sync-in-progress', 'true');
-        
-        try {
-          setLoading(true);
-          
-          // 使用原始auth.user中的access_token
-          if (auth.user?.access_token) {
-            console.log('[UserContext] 设置API认证信息, token前缀:', auth.user.access_token.substring(0, 20) + '...');
-            console.log('[UserContext] 用户sub:', auth.user.profile?.sub);
-            
-            // 检测token类型
-            try {
-              const tokenParts = auth.user.access_token.split('.');
-              if (tokenParts.length === 3) {
-                const payload = JSON.parse(atob(tokenParts[1]));
-                console.log('[UserContext] Token payload检查:', {
-                  sub: payload.sub,
-                  token_use: payload.token_use,
-                  iss: payload.iss,
-                  exp: new Date(payload.exp * 1000),
-                  isExpired: payload.exp * 1000 < Date.now()
-                });
-              }
-            } catch (e) {
-              console.warn('[UserContext] 无法解析JWT token:', e);
-            }
-            
-            // 设置认证令牌到API客户端
-            apiClient.setAuthHeader(auth.user.access_token);
-            apiClient.setUserId(auth.user.profile?.sub || '');
-            localStorage.setItem('token', auth.user.access_token);
-            localStorage.setItem('activeUserId', auth.user.profile?.sub || '');
-          } else {
-            console.error('[UserContext] 没有找到access_token!', auth.user);
-          }
-          
-          // 通过API获取完整的用户数据（这会触发数据库用户创建或获取）
-          console.log('[UserContext] 正在调用 userApi.getCurrentUser()...');
-          console.log('[UserContext] 当前API客户端token:', localStorage.getItem('token')?.substring(0, 20) + '...');
-          
-          const response = await userApi.getCurrentUser();
-          console.log('[UserContext] userApi.getCurrentUser() 响应:', response);
-          
-          if (response.success && response.data) {
-            console.log('[UserContext] 从数据库获取到完整用户数据:', response.data);
-            setUser(response.data);
-            setError(null);
-            
-            // 触发用户变更事件
-            const newUserChangeEvent = { userId: response.data.id, timestamp: Date.now() };
-            setUserChangeEvent(newUserChangeEvent);
-          } else {
-            console.error('[UserContext] 获取用户数据失败:', response.message);
-            console.error('[UserContext] 失败响应详情:', response);
-            setError('获取用户数据失败: ' + response.message);
-          }
-        } catch (error) {
-          console.error('[UserContext] OIDC用户同步失败:', error);
-          setError('用户数据同步失败');
-        } finally {
-          setLoading(false);
-          // 清除同步标记
-          sessionStorage.removeItem('oidc-sync-in-progress');
-        }
-      };
-      
-      syncOIDCUser();
+      syncOIDCUserData();
     } else if (!oidcUser.isAuthenticated && user) {
       console.log('[UserContext] OIDC用户未认证，清除用户数据');
       setUser(null);
@@ -674,9 +684,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       // Sync with backend
-      const response = await userProgressApi.updateProgress(updatedProgress);
+      const response = await userProgressService.updateProgress(updatedProgress);
       if (!response.success) {
-        throw new Error(response.message || 'Failed to update progress on server');
+        console.error('更新进度失败:', response);
+        throw new Error('Failed to update progress on server');
       }
 
       const newProgress: Record<string, UserProgress> = {
@@ -1081,7 +1092,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const generateRedeemCode = async (questionSetId: string, validityDays: number, quantity: number): Promise<{ success: boolean; codes?: RedeemCode[]; message: string }> => {
     if (!isAdmin()) return { success: false, message: '无权限执行此操作' };
     try {
-      const response = await redeemCodeApi.generateRedeemCodes(questionSetId, validityDays, quantity);
+      const response = await redeemCodeService.generateRedeemCodes(questionSetId, validityDays, quantity);
       
       if (response.success && response.data) {
         // Ensure we have a proper array of redeem codes
@@ -1119,7 +1130,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getRedeemCodes = async (): Promise<RedeemCode[]> => {
     if (!isAdmin()) return [];
     try {
-      const response = await redeemCodeApi.getAllRedeemCodes();
+      const response = await redeemCodeService.getAllRedeemCodes();
       
       if (response.success && response.data) {
         // Ensure we have a proper array of redeem codes
@@ -1368,7 +1379,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 清除API客户端缓存和状态
       apiClient.clearCache();
       apiClient.setAuthHeader(null);
-      userProgressService.clearCachedUserId();
+      // userProgressService.clearCachedUserId(); // 此方法不存在，删除或替代
+      console.log('清除用户进度服务缓存');
       
       // 清除Socket连接
       if (socket) {
