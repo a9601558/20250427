@@ -417,6 +417,75 @@ export const questionService = {
         error: error.message
       };
     }
+  },
+
+  // 删除题目 (管理员功能)
+  async deleteQuestion(questionSetId: string, questionId: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await apiClient.delete<ApiResponse<void>>(`/questions/${questionId}`);
+      
+      if (response.success) {
+        // 清除相关缓存
+        apiClient.clearCacheFor(`/question-sets/${questionSetId}`);
+        apiClient.clearCacheFor('/questions');
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('删除题目失败:', error);
+      return {
+        success: false,
+        message: '問題の削除に失敗しました',
+        error: error.message
+      };
+    }
+  },
+
+  // 创建题目 (管理员功能)
+  async createQuestion(questionSetId: string, questionData: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.post<ApiResponse<any>>('/questions', {
+        ...questionData,
+        questionSetId
+      });
+      
+      if (response.success) {
+        // 清除相关缓存
+        apiClient.clearCacheFor(`/question-sets/${questionSetId}`);
+        apiClient.clearCacheFor('/questions');
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('创建题目失败:', error);
+      return {
+        success: false,
+        message: '問題の作成に失敗しました',
+        error: error.message
+      };
+    }
+  },
+
+  // 更新题目 (管理员功能)
+  async updateQuestion(questionSetId: string, questionId: string, questionData: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.put<ApiResponse<any>>(`/questions/${questionId}`, questionData);
+      
+      if (response.success) {
+        // 清除相关缓存
+        apiClient.clearCacheFor(`/question-sets/${questionSetId}`);
+        apiClient.clearCacheFor('/questions');
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('更新题目失败:', error);
+      return {
+        success: false,
+        message: '問題の更新に失敗しました',
+        error: error.message
+      };
+    }
   }
 };
 
@@ -445,6 +514,42 @@ export const purchaseService = {
         hasAccess: false,
         isPaid: false
       };
+    }
+  },
+
+  // 获取用户购买历史
+  async getUserPurchases(): Promise<any> {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>('/purchases/user', null, {
+        cacheDuration: 60000 // 购买历史缓存1分钟
+      });
+      
+      if (response.success) {
+        return response;
+      } else {
+        throw new Error(response.message || '获取购买历史失败');
+      }
+    } catch (error: any) {
+      console.error('获取购买历史失败:', error);
+      throw error;
+    }
+  },
+
+  // 获取用户兑换码历史
+  async getUserRedeemCodes(): Promise<any> {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>('/redeem-codes/user', null, {
+        cacheDuration: 60000 // 兑换历史缓存1分钟
+      });
+      
+      if (response.success) {
+        return response;
+      } else {
+        throw new Error(response.message || '获取兑换历史失败');
+      }
+    } catch (error: any) {
+      console.error('获取兑换历史失败:', error);
+      throw error;
     }
   }
 };
@@ -572,6 +677,48 @@ export const wrongAnswerService = {
       return {
         success: false,
         message: '間違い問題リストの取得に失敗しました',
+        error: error.message
+      };
+    }
+  },
+
+  // 删除错题
+  async deleteWrongAnswer(wrongAnswerId: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.delete<ApiResponse<any>>(`/wrong-answers/${wrongAnswerId}`);
+      
+      if (response.success) {
+        // 清除相关缓存
+        apiClient.clearCacheFor('/wrong-answers');
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('删除错题失败:', error);
+      return {
+        success: false,
+        message: '間違い問題の削除に失敗しました',
+        error: error.message
+      };
+    }
+  },
+
+  // 更新错题备注
+  async updateMemo(wrongAnswerId: string, memo: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.put<ApiResponse<any>>(`/wrong-answers/${wrongAnswerId}/memo`, { memo });
+      
+      if (response.success) {
+        // 清除相关缓存
+        apiClient.clearCacheFor('/wrong-answers');
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('更新备注失败:', error);
+      return {
+        success: false,
+        message: 'メモの更新に失敗しました',
         error: error.message
       };
     }

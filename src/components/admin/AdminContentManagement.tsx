@@ -95,7 +95,18 @@ const AdminContentManagement: React.FC = () => {
     try {
       const response = await homepageService.getHomeContent();
       if (response.success && response.data) {
-        setHomeContent(response.data);
+        // 转换后端数据结构为前端期望的格式
+        const backendData = response.data;
+        const frontendData: HomeContentData = {
+          title: backendData.title || 'MonTopi オンライン問題集',
+          subtitle: backendData.subtitle || '質の高い問題集で効率的な学習を',
+          welcomeTitle: backendData.welcomeTitle || 'MonTopiへようこそ',
+          welcomeDescription: backendData.welcomeDescription || '豊富な問題集で知識を深めましょう',
+          featuredCategories: backendData.featuredCategories || [],
+          bannerImageUrl: backendData.bannerImageUrl || backendData.bannerImage || '',
+          footerText: backendData.footerText || '© 2025 MonTopi. All rights reserved.'
+        };
+        setHomeContent(frontendData);
       }
     } catch (error) {
       console.error('首页内容加载失败:', error);
@@ -140,7 +151,21 @@ const AdminContentManagement: React.FC = () => {
   const saveHomeContent = async () => {
     setSaving(true);
     try {
-      const response = await homepageService.updateHomeContent(homeContent);
+      // 转换前端数据格式为后端期望的格式
+      const backendData = {
+        title: homeContent.title,
+        subtitle: homeContent.subtitle,
+        welcomeTitle: homeContent.welcomeTitle,
+        welcomeDescription: homeContent.welcomeDescription,
+        featuredCategories: homeContent.featuredCategories,
+        bannerImage: homeContent.bannerImageUrl,
+        bannerImageUrl: homeContent.bannerImageUrl,
+        footerText: homeContent.footerText,
+        announcements: '', // 默认值
+        theme: 'light' // 默认值
+      };
+      
+      const response = await homepageService.updateHomeContent(backendData);
       if (response.success) {
         toast.success('首页内容保存成功');
         // 触发前端刷新
@@ -148,9 +173,9 @@ const AdminContentManagement: React.FC = () => {
       } else {
         throw new Error(response.message || '保存失败');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('首页内容保存失败:', error);
-      toast.error('首页内容保存失败');
+      toast.error('首页内容保存失败: ' + (error.message || '未知错误'));
     } finally {
       setSaving(false);
     }

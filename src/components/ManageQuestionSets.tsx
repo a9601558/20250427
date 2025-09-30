@@ -4,7 +4,7 @@ import { QuestionSet } from '../data/questionSets';
 import { Question } from '../data/questions';
 import AddQuestion from './AddQuestion';
 import EditQuestion from './EditQuestion';
-import axios from 'axios';
+import { questionSetService, questionService } from '../services/api';
 import { useUser } from '../contexts/UserContext';
 
 const ManageQuestionSets: React.FC = () => {
@@ -35,33 +35,12 @@ const ManageQuestionSets: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        // 使用新的方式获取数据，提高可靠性
-        const response = await axios.get('/api/question-sets', {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+        const response = await questionSetService.getAllQuestionSets();
         
-        // 检查响应格式
-        if (response.data) {
-          if (response.data.success && response.data.data) {
-            // 标准API响应格式
-            setQuestionSets(response.data.data);
-          } else if (Array.isArray(response.data)) {
-            // 直接返回数组的格式
-            setQuestionSets(response.data);
-          } else {
-            // 其他格式，尝试处理
-            console.warn('Unexpected response format:', response.data);
-            if (response.data.questionSets) {
-              setQuestionSets(response.data.questionSets);
-            } else {
-              throw new Error('响应数据格式不正确');
-            }
-          }
+        if (response.success && response.data) {
+          setQuestionSets(response.data);
         } else {
-          throw new Error('获取题库失败');
+          throw new Error(response.message || '获取题库失败');
         }
       } catch (err) {
         console.error('加载题库失败:', err);
@@ -88,21 +67,20 @@ const ManageQuestionSets: React.FC = () => {
     }
 
     try {
-      await axios.delete(`/api/question-sets/${id}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await questionSetService.deleteQuestionSet(id);
       
-      // 更新状态，移除已删除的题库
-      setQuestionSets(prev => prev.filter(set => set.id !== id));
-      setSuccessMessage('問題集が正常に削除されました');
-      
-      // 3秒后清除成功消息
-      setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
+      if (response.success) {
+        // 更新状态，移除已删除的题库
+        setQuestionSets(prev => prev.filter(set => set.id !== id));
+        setSuccessMessage('問題集が正常に削除されました');
+        
+        // 3秒后清除成功消息
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        throw new Error(response.message || '删除失败');
+      }
     } catch (err) {
       console.error('删除题库失败:', err);
       setError(`問題集の削除に失敗しました: ${err.message || '不明なエラー'}`);
@@ -329,40 +307,39 @@ const ManageQuestionSets: React.FC = () => {
     setError(null);
     
     try {
-      // 更新题目数组，移除要删除的题目
-      const updatedQuestions = currentQuestionSet.questions.filter(q => q.id !== question.id);
+      // 使用统一API服务删除题目
+      const response = await questionService.deleteQuestion(currentQuestionSet.id, question.id);
       
-      // 创建更新后的题库对象，并更新题目数量
-      const updatedQuestionSet = {
-        ...currentQuestionSet,
-        questions: updatedQuestions,
-        questionCount: updatedQuestions.length
-      };
-      
-      // 发送更新请求
-      await axios.put(`/api/question-sets/${currentQuestionSet.id}`, updatedQuestionSet, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      // 更新本地状态 - 题库列表
-      setQuestionSets(prev => 
-        prev.map(set => 
-          set.id === currentQuestionSet.id ? updatedQuestionSet : set
-        )
-      );
-      
-      // 更新当前管理的题库状态
-      setCurrentQuestionSet(updatedQuestionSet);
-      
-      setSuccessMessage('問題が正常に削除されました');
-      
-      // 3秒后清除成功消息
-      setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
+      if (response.success) {
+        // 更新题目数组，移除要删除的题目
+        const updatedQuestions = currentQuestionSet.questions.filter(q => q.id !== question.id);
+        
+        // 创建更新后的题库对象
+        const updatedQuestionSet = {
+          ...currentQuestionSet,
+          questions: updatedQuestions,
+          questionCount: updatedQuestions.length
+        };
+        
+        // 更新本地状态 - 题库列表
+        setQuestionSets(prev => 
+          prev.map(set => 
+            set.id === currentQuestionSet.id ? updatedQuestionSet : set
+          )
+        );
+        
+        // 更新当前管理的题库状态
+        setCurrentQuestionSet(updatedQuestionSet);
+        
+        setSuccessMessage('問題が正常に削除されました');
+        
+        // 3秒后清除成功消息
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        throw new Error(response.message || '删除失败');
+      }
     } catch (err) {
       console.error('删除题目失败:', err);
       setError('問題の削除に失敗しました。しばらく待ってから再試行してください');
