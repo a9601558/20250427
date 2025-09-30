@@ -72,9 +72,13 @@ class UnifiedApiClient {
         // 统一错误处理
         if (error.response?.status === 401) {
           localStorage.removeItem('token');
-          console.log('会话已过期，请重新登录');
+          console.log('セッションが期限切れです。再度ログインしてください');
         } else if (error.response?.status === 429) {
-          console.warn('请求过于频繁，请稍后再试');
+          console.warn('リクエストが多すぎます。しばらくお待ちください');
+        } else if (error.response?.status === 502) {
+          console.warn('[API] サーバーが一時的に利用できません (502 Bad Gateway)');
+        } else if (error.response?.status >= 500) {
+          console.warn('[API] サーバーエラーが発生しました:', error.response?.status);
         }
         return Promise.reject(error);
       }
@@ -210,14 +214,20 @@ class UnifiedApiClient {
         
         const isTooManyRequestsError = error.response?.status === 429;
         const isServerError = error.response?.status >= 500;
-        const shouldRetry = (isTooManyRequestsError || isServerError) && attempt < retries;
+        const isBadGateway = error.response?.status === 502;
+        
+        // 对502错误减少重试次数，避免无效重试
+        const maxRetries = isBadGateway ? Math.min(1, retries) : retries;
+        const shouldRetry = (isTooManyRequestsError || isServerError) && attempt < maxRetries;
         
         if (shouldRetry) {
           const delay = isTooManyRequestsError 
             ? (error.response?.headers?.['retry-after'] * 1000 || 5000)
-            : retryDelay * Math.pow(2, attempt); // 指数退避
+            : isBadGateway 
+              ? Math.min(retryDelay * Math.pow(2, attempt), 5000) // 502错误限制最大延迟
+              : retryDelay * Math.pow(2, attempt); // 指数退避
           
-          console.log(`[API] Retrying request for ${url} in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+          console.log(`[API] Retrying ${url} after ${delay}ms (${attempt + 1}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return executeRequest(attempt + 1);
         }

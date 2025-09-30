@@ -34,7 +34,17 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
       
       // 特殊处理"No matching state found in storage"错误
       if (auth.error.message && auth.error.message.includes('No matching state found')) {
+        // 检查是否已经处理过这个错误，避免重复清理
+        const lastStateError = localStorage.getItem('oidc_state_error_time');
+        const now = Date.now();
+        
+        if (lastStateError && (now - parseInt(lastStateError)) < 5000) {
+          console.log('[OIDCAuth] 最近已处理过状态错误，跳过清理');
+          return;
+        }
+        
         console.log('[OIDCAuth] 状態不一致错误，清理缓存并重新开始认证');
+        localStorage.setItem('oidc_state_error_time', now.toString());
         
         // 清理存储的认证状态
         try {
@@ -42,7 +52,7 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
           sessionStorage.removeItem('oidc.user');
           // 清理所有oidc相关的存储
           Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('oidc.')) {
+            if (key.startsWith('oidc.') && key !== 'oidc_state_error_time') {
               localStorage.removeItem(key);
             }
           });
@@ -55,7 +65,9 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
           console.warn('[OIDCAuth] 清理存储时出错:', cleanupError);
         }
         
-        toast.warning('認証状態がリセットされました。再度ログインしてください。');
+        toast.warning('認証状態がリセットされました。再度ログインしてください。', {
+          toastId: 'oidc-state-reset'
+        });
         return;
       }
       

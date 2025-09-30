@@ -43,6 +43,63 @@ export const OIDCUserProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     if (auth.error) {
       console.error('[OIDCUserContext] 認証エラー:', auth.error);
+      
+      // 特殊处理"No matching state found in storage"错误
+      if (auth.error.message && auth.error.message.includes('No matching state found')) {
+        // 检查是否已经处理过这个错误，避免重复清理
+        const lastStateError = localStorage.getItem('oidc_context_state_error_time');
+        const now = Date.now();
+        
+        if (lastStateError && (now - parseInt(lastStateError)) < 10000) {
+          console.log('[OIDCUserContext] 最近已处理过状态错误，跳过清理');
+          setError('認証状態エラー');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('[OIDCUserContext] 状態不一致错误，清理缓存');
+        localStorage.setItem('oidc_context_state_error_time', now.toString());
+        
+        // 清理存储的认证状态，但更保守
+        try {
+          // 只清理用户相关的状态，保留其他配置
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('oidc.user:') || key.includes('oidc.access_token') || key.includes('oidc.id_token')) {
+              localStorage.removeItem(key);
+            }
+          });
+          Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('oidc.user:') || key.includes('oidc.access_token') || key.includes('oidc.id_token')) {
+              sessionStorage.removeItem(key);
+            }
+          });
+        } catch (cleanupError) {
+          console.warn('[OIDCUserContext] 清理存储时出错:', cleanupError);
+        }
+        
+        setError('認証状態がリセットされました');
+        setLoading(false);
+        
+        // 增加错误计数，帮助App.tsx做决策
+        const errorCount = parseInt(localStorage.getItem('oidc_error_count') || '0') + 1;
+        localStorage.setItem('oidc_error_count', errorCount.toString());
+        
+        // 如果错误次数太多，清理错误计数并重置
+        if (errorCount > 3) {
+          console.warn('[OIDCUserContext] OIDC错误次数过多，重置计数器');
+          localStorage.removeItem('oidc_error_count');
+          localStorage.removeItem('oidc_context_state_error_time');
+        }
+        
+        // 清理URL参数，避免重复触发
+        if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
+          setTimeout(() => {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }, 1000);
+        }
+        return;
+      }
+      
       setError(auth.error.message);
       setLoading(false);
       return;
@@ -50,6 +107,12 @@ export const OIDCUserProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     if (auth.isAuthenticated && auth.user) {
       console.log('[OIDCUserContext] ユーザー認証成功:', auth.user.profile);
+      
+      // 成功认证时清理错误计数
+      localStorage.removeItem('oidc_error_count');
+      localStorage.removeItem('oidc_context_state_error_time');
+      localStorage.removeItem('oidc_state_error_time');
+      
       handleAuthenticatedUser();
     } else {
       console.log('[OIDCUserContext] ユーザーが認証されていません');

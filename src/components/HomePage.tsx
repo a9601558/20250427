@@ -1921,14 +1921,24 @@ const HomePage = () => {
         toast.error('問題集データの取得に失敗しました。しばらくしてから再試行してください');
         return questionSets;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[HomePage] 获取题库异常:', error);
       // Set loading to false even if an error occurred
       setLoading(false);
       clearTimeout(loadingTimeoutRef.current);
       
-      // Show error message to user
-      toast.error('問題集の取得中にエラーが発生しました。ページを更新して再試行してください');
+      // 根据错误类型提供不同的错误消息
+      if (error?.response?.status === 502) {
+        toast.error('サーバーが一時的に利用できません。しばらくしてから再度お試しください。', {
+          toastId: 'server-502-error'
+        });
+      } else if (error?.response?.status >= 500) {
+        toast.error('サーバーエラーが発生しました。しばらくしてから再度お試しください。', {
+          toastId: 'server-error'
+        });
+      } else {
+        toast.error('問題集の取得中にエラーが発生しました。ページを更新して再試行してください');
+      }
       return questionSets;
     } finally {
       pendingFetchRef.current = false;

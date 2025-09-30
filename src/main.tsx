@@ -34,10 +34,13 @@ const cognitoAuthConfig = {
   // 优化token管理
   automaticSilentRenew: true,
   includeIdTokenInSilentRenew: true,
-  // 优化存储配置
-  userStore: new WebStorageStateStore({ store: window.localStorage }),
+  // 优化存储配置，避免状态丢失
+  userStore: new WebStorageStateStore({ 
+    store: window.localStorage,
+    prefix: "oidc.user."
+  }),
   stateStore: new WebStorageStateStore({ 
-    store: window.sessionStorage,
+    store: window.localStorage, // 改用localStorage以避免会话丢失
     prefix: "oidc.state." 
   }),
   // 启用完整用户信息加载

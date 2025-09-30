@@ -115,29 +115,52 @@ const App: React.FC = () => {
           autoClose: 3000
         });
         
-        // 检查认证状态管理
+        // 检查认证状态管理（更保守的检查机制）
         const checkAuthState = () => {
-          // 检查localStorage中是否有任何oidc用户状态
+          // 检查是否已经出现"No matching state"錯误
+          const hasStateError = localStorage.getItem('oidc_context_state_error_time');
+          const now = Date.now();
+          
+          if (hasStateError && (now - parseInt(hasStateError)) < 15000) {
+            console.log('[App] 检测到最近的状态错误，跳过URL清理');
+            return;
+          }
+          
           let hasOidcState = false;
+          let hasOidcError = false;
+          
           try {
+            // 检查localStorage中的状态
             Object.keys(localStorage).forEach(key => {
-              if (key.includes('oidc.user:')) {
+              if (key.includes('oidc.user:') || key.includes('oidc.state.')) {
                 hasOidcState = true;
               }
             });
+            
+            // 检查是否有持续的错误状态
+            const oidcErrorCount = localStorage.getItem('oidc_error_count') || '0';
+            if (parseInt(oidcErrorCount) > 2) {
+              hasOidcError = true;
+            }
           } catch (e) {
-            console.warn('[App] localStorage検查中にエラー:', e);
+            console.warn('[App] ストレージ检查中にエラー:', e);
           }
           
-          if (!hasOidcState) {
-            console.warn('[App] 認証状態が見つかりません。状態をリセットします。');
-            // 清理URL参数
+          // 只有在确实没有状态且没有连续错误时才清理URL
+          if (!hasOidcState && !hasOidcError) {
+            setTimeout(() => {
+              console.warn('[App] 認証状態が見つかりません。URLをクリアします。');
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }, 3000);
+          } else if (hasOidcError) {
+            // 如果有连续错误，更快地清理URL，但保留其他处理
+            console.warn('[App] OIDC連続エラーを検出、URLをクリアします');
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         };
         
-        // 延迟检查认证状态，给OIDC库时间处理
-        setTimeout(checkAuthState, 1000);
+        // 给OIDC库充足的时间处理认证回调
+        setTimeout(checkAuthState, 5000);
       }
     };
     
