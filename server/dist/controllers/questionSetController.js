@@ -14,6 +14,66 @@ const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
 const applyFieldMappings_1 = require("../utils/applyFieldMappings");
+// 题目更新的内部辅助函数
+const updateQuestionsLogic = async (questionSetId, questions) => {
+    if (!questions || !Array.isArray(questions)) {
+        throw new Error('有效な問題リストが必要です');
+    }
+    // 使用事务确保数据一致性
+    const transaction = await database_1.default.transaction();
+    try {
+        // 删除该题库的所有现有问题
+        await Question_1.default.destroy({
+            where: { questionSetId },
+            transaction
+        });
+        console.log(`已删除题库 ${questionSetId} 的所有旧问题`);
+        // 添加新的问题列表
+        const createdQuestions = [];
+        for (let i = 0; i < questions.length; i++) {
+            const questionData = questions[i];
+            // 处理从前端传来的问题数据格式
+            const questionText = questionData.question || questionData.text || `問題 ${i + 1}`;
+            const questionType = questionData.questionType || 'single';
+            const explanation = questionData.explanation || '';
+            console.log(`正在处理问题 ${i + 1}:`, {
+                text: questionText,
+                type: questionType,
+                optionsCount: questionData.options?.length || 0
+            });
+            const newQuestion = await Question_1.default.create({
+                questionSetId,
+                text: questionText,
+                questionType: questionType,
+                explanation: explanation,
+                orderIndex: i
+            }, { transaction });
+            // 添加选项
+            if (questionData.options && Array.isArray(questionData.options)) {
+                const optionsData = questionData.options.map((option, optionIndex) => {
+                    // 直接使用前端已处理好的isCorrect字段
+                    const isCorrect = option.isCorrect || false;
+                    return {
+                        questionId: newQuestion.id,
+                        text: option.text !== undefined ? option.text : `選択肢 ${optionIndex + 1}`,
+                        isCorrect: isCorrect,
+                        optionIndex: option.optionIndex || String.fromCharCode(65 + optionIndex) // A, B, C, D...
+                    };
+                });
+                await Option_1.default.bulkCreate(optionsData, { transaction });
+                console.log(`为问题 ${i + 1} 创建了 ${optionsData.length} 个选项`);
+            }
+            createdQuestions.push(newQuestion);
+        }
+        await transaction.commit();
+        console.log(`题库 ${questionSetId} 的问题列表更新成功，共 ${createdQuestions.length} 个问题`);
+        return createdQuestions;
+    }
+    catch (error) {
+        await transaction.rollback();
+        throw error;
+    }
+};
 // 统一响应格式
 const sendResponse = (res, status, data, message) => {
     res.status(status).json({
@@ -234,10 +294,20 @@ const updateQuestionSet = async (req, res) => {
             const { title, description, category, icon, isFeatured, featuredCategory, isPaid, price, trialQuestions, questions, // 添加questions字段以防止传递给数据库
             ...otherFields // 捕获其他不应该传递给数据库的字段
              } = req.body;
-            // 如果包含questions字段，记录但不处理（避免传递给Sequelize）
-            if (questions !== undefined) {
-                console.log('收到问题列表更新请求，但此端点仅处理题库基本信息。问题数量:', questions.length);
-                console.log('如需更新问题列表，请使用专门的问题管理端点');
+            // 处理题目更新
+            let questionsUpdated = false;
+            if (questions && Array.isArray(questions) && questions.length > 0) {
+                console.log('开始更新题目列表，题目数量:', questions.length);
+                try {
+                    // 调用现有的题目更新逻辑
+                    await updateQuestionsLogic(req.params.id, questions);
+                    questionsUpdated = true;
+                    console.log('题目列表更新成功');
+                }
+                catch (error) {
+                    console.error('题目列表更新失败:', error);
+                    return sendError(res, 500, '題目リストの更新に失敗しました', error);
+                }
             }
             // 如果是付费题库，验证価格
             if (isPaid && (price === undefined || price <= 0)) {
@@ -971,24 +1041,22 @@ const updateQuestionSetQuestions = async (req, res) => {
                 // 添加选项
                 if (questionData.options && Array.isArray(questionData.options)) {
                     const optionsData = questionData.options.map((option, optionIndex) => {
-                        // 处理正确答案标记
-                        let isCorrect = false;
-                        if (questionType === 'single') {
-                            isCorrect = questionData.correctAnswer === option.id;
-                        }
-                        else if (questionType === 'multiple') {
-                            isCorrect = Array.isArray(questionData.correctAnswer) &&
-                                questionData.correctAnswer.includes(option.id);
-                        }
+                        // 直接使用前端已处理好的isCorrect字段
+                        const isCorrect = option.isCorrect || false;
+                        console.log(`选项 ${optionIndex + 1}:`, {
+                            text: option.text,
+                            isCorrect: isCorrect,
+                            optionIndex: option.optionIndex || String.fromCharCode(65 + optionIndex)
+                        });
                         return {
                             questionId: newQuestion.id,
-                            text: option.text || `選択肢 ${optionIndex + 1}`,
+                            text: option.text !== undefined ? option.text : `選択肢 ${optionIndex + 1}`,
                             isCorrect: isCorrect,
-                            optionIndex: String.fromCharCode(65 + optionIndex) // A, B, C, D...
+                            optionIndex: option.optionIndex || String.fromCharCode(65 + optionIndex) // A, B, C, D...
                         };
                     });
                     await Option_1.default.bulkCreate(optionsData, { transaction });
-                    console.log(`为问题 ${i + 1} 创建了 ${optionsData.length} 个选项`);
+                    console.log(`为问题 ${i + 1} 创建了 ${optionsData.length} 个选项，正确答案:`, optionsData.filter((opt) => opt.isCorrect).map((opt) => opt.optionIndex).join(', '));
                 }
                 createdQuestions.push(newQuestion);
             }
