@@ -2,13 +2,6 @@ import express from 'express';
 import { protect, admin } from '../middleware/authMiddleware';
 import * as homepageController from '../controllers/homepageController';
 
-// 打印调试信息
-console.log('Debug homepage routes:');
-console.log('homepageController:', typeof homepageController);
-for (const key in homepageController) {
-  console.log(`${key}:`, typeof (homepageController as any)[key]);
-}
-
 const router = express.Router();
 
 // 获取首页内容

@@ -39,12 +39,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const homepageController = __importStar(require("../controllers/homepageController"));
-// 打印调试信息
-console.log('Debug homepage routes:');
-console.log('homepageController:', typeof homepageController);
-for (const key in homepageController) {
-    console.log(`${key}:`, typeof homepageController[key]);
-}
 const router = express_1.default.Router();
 // 获取首页内容
 router.get('/content', homepageController.getHomepageContent);

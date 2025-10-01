@@ -38,7 +38,7 @@ router.delete('/:id', authMiddleware_1.protect, authMiddleware_1.admin, question
 router.post('/:id/questions', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.addQuestionToQuestionSet);
 router.put('/:id/questions', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.updateQuestionSetQuestions);
 // Featured status update route
-router.put('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.setFeaturedQuestionSet);
+router.patch('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.setFeaturedQuestionSet);
 // Base routes
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.createQuestionSet);
 router.get('/:id', questionSetController_1.getQuestionSetById);

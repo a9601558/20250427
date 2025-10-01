@@ -75,7 +75,6 @@ const testFieldMappings = async () => {
         console.log('Purchase查询结果示例:', purchases.length > 0 ?
             JSON.stringify(purchases[0].toJSON(), null, 2).substring(0, 200) + '...' :
             '无数据');
-        console.log('字段映射测试完成');
         return true;
     }
     catch (error) {

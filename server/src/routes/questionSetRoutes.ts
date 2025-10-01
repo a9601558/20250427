@@ -53,7 +53,7 @@ router.post('/:id/questions', protect, admin, addQuestionToQuestionSet);
 router.put('/:id/questions', protect, admin, updateQuestionSetQuestions);
 
 // Featured status update route
-router.put('/:id/featured', protect, admin, setFeaturedQuestionSet);
+router.patch('/:id/featured', protect, admin, setFeaturedQuestionSet);
 
 // Base routes
 router.post('/', protect, admin, createQuestionSet);

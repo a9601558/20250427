@@ -103,28 +103,18 @@ export const getAllQuestionSets = async (req: Request, res: Response) => {
   try {
     console.log('[QuestionSetController] 开始获取题库列表');
     
-    // 明确指定要查询的字段，使用正确的数据库字段名和映射
-    const questionSets = await QuestionSet.findAll({
-      attributes: [
-        'id', 
-        'title', 
-        'description', 
-        'category', 
-        'icon', 
-        ['is_paid', 'isPaid'], 
-        'price', 
-        ['trial_questions', 'trialQuestions'], 
-        ['is_featured', 'isFeatured'], 
-        ['featured_category', 'featuredCategory'],
-        ['created_at', 'createdAt'], 
-        ['updated_at', 'updatedAt']
-      ]
-    });
+    // 使用简单的查询，让Sequelize自动处理字段映射
+    const questionSets = await QuestionSet.findAll();
     
     // 为每个题库获取准确的問題数量 - 使用更高效的批量查询
-    const questionSetIds = questionSets.map(set => set.id);
+    const questionSetIds = questionSets.map(set => set.id).filter(id => id); // 过滤掉undefined值
     
     console.log(`[QuestionSetController] 正在为 ${questionSetIds.length} 个题库获取問題数量...`);
+    console.log(`[QuestionSetController] 题库对象示例:`, questionSets[0] ? {
+      id: questionSets[0].id,
+      title: questionSets[0].title,
+      toJSON: questionSets[0].toJSON()
+    } : 'No question sets found');
     
     let questionCountMap = new Map();
     
@@ -327,11 +317,19 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
     const questionSet = await QuestionSet.findByPk(req.params.id);
 
     if (questionSet) {
+      const jsonData = questionSet.toJSON();
+      console.log('找到题库，完整数据:', jsonData);
       console.log('找到题库，当前数据:', {
         id: questionSet.id,
         title: questionSet.title,
         isPaid: questionSet.isPaid,
         price: questionSet.price,
+      });
+      console.log('JSON数据字段:', {
+        id: jsonData.id,
+        title: jsonData.title,
+        isPaid: jsonData.isPaid,
+        price: jsonData.price,
       });
 
       const { 
@@ -360,108 +358,97 @@ export const updateQuestionSet = async (req: Request, res: Response) => {
         return sendError(res, 400, '付费題庫には有効な価格を設定する必要があります');
       }
 
-      // 记录更新前的值
-      const oldValues = {
-        title: questionSet.title,
-        description: questionSet.description,
-        category: questionSet.category,
-        icon: questionSet.icon,
-        isPaid: questionSet.isPaid,
-        price: questionSet.price,
-        trialQuestions: questionSet.trialQuestions,
-        isFeatured: questionSet.isFeatured,
-        featuredCategory: questionSet.featuredCategory
-      };
+      // 构建更新数据对象
+      const updateData: any = {};
+      let hasChanges = false;
 
-      // 更新字段
-      if (title !== undefined) questionSet.title = title;
-      if (description !== undefined) questionSet.description = description;
-      if (category !== undefined) questionSet.category = category;
-      if (icon !== undefined) questionSet.icon = icon;
+      if (title !== undefined) {
+        updateData.title = title;
+        hasChanges = true;
+      }
+      
+      if (description !== undefined) {
+        updateData.description = description;
+        hasChanges = true;
+      }
+      
+      if (category !== undefined) {
+        updateData.category = category;
+        hasChanges = true;
+      }
+      
+      if (icon !== undefined) {
+        updateData.icon = icon;
+        hasChanges = true;
+      }
       
       // 更新付费相关字段
       if (isPaid !== undefined) {
-        questionSet.isPaid = isPaid;
+        updateData.isPaid = isPaid;
+        hasChanges = true;
+        
         if (isPaid) {
-          if (price !== undefined) questionSet.price = price;
-          if (trialQuestions !== undefined) questionSet.trialQuestions = trialQuestions;
+          if (price !== undefined) {
+            updateData.price = price;
+          }
+          if (trialQuestions !== undefined) {
+            updateData.trialQuestions = trialQuestions;
+          }
         } else {
-          questionSet.price = undefined;
-          questionSet.trialQuestions = undefined;
+          updateData.price = null;
+          updateData.trialQuestions = null;
         }
       }
       
       // 特别处理精选题库字段
       if (isFeatured !== undefined) {
         console.log('更新精选状态:', { 
-          before: questionSet.isFeatured, 
           after: isFeatured, 
           type: typeof isFeatured 
         });
-        questionSet.isFeatured = Boolean(isFeatured);
+        updateData.isFeatured = Boolean(isFeatured);
+        hasChanges = true;
+        
+        // 如果不是精选题库，清空精选分类
+        if (!isFeatured) {
+          updateData.featuredCategory = null;
+        }
       }
       
       if (featuredCategory !== undefined) {
         console.log('更新精选分类:', { 
-          before: questionSet.featuredCategory, 
-          after: featuredCategory,
-          isFeatured: questionSet.isFeatured
+          after: featuredCategory
         });
-        questionSet.featuredCategory = featuredCategory;
+        updateData.featuredCategory = featuredCategory;
+        hasChanges = true;
       }
 
-      // 记录更新后的值
-      const newValues = {
-        title: questionSet.title,
-        description: questionSet.description,
-        category: questionSet.category,
-        icon: questionSet.icon,
-        isPaid: questionSet.isPaid,
-        price: questionSet.price,
-        trialQuestions: questionSet.trialQuestions,
-        isFeatured: questionSet.isFeatured,
-        featuredCategory: questionSet.featuredCategory
-      };
+      console.log('准备更新的数据:', updateData);
+      console.log('是否有变化:', hasChanges);
 
-      console.log('题库更新对比:', {
-        old: oldValues,
-        new: newValues,
-        changed: questionSet.changed()
-      });
-
-      // 检查是否有变化
-      if (questionSet.changed()) {
-        console.log('检测到数据变化，开始保存...');
-        const updatedQuestionSet = await questionSet.save();
-        console.log('题库更新成功:', updatedQuestionSet.toJSON());
+      // 执行更新
+      if (hasChanges) {
+        console.log('检测到数据变化，开始更新...');
         
-        // 确保返回的数据包含正确的字段映射
-        const responseData = {
-          ...updatedQuestionSet.toJSON(),
-          isPaid: updatedQuestionSet.isPaid,
-          isFeatured: updatedQuestionSet.isFeatured,
-          trialQuestions: updatedQuestionSet.trialQuestions,
-          featuredCategory: updatedQuestionSet.featuredCategory,
-          createdAt: updatedQuestionSet.createdAt,
-          updatedAt: updatedQuestionSet.updatedAt
-        };
+        // 使用update方法直接更新数据库
+        await QuestionSet.update(updateData, {
+          where: { id: req.params.id }
+        });
         
-        console.log('返回给前端的数据:', responseData);
-        sendResponse(res, 200, responseData, '題庫が正常に更新されました');
+        // 重新查询更新后的数据
+        const updatedQuestionSet = await QuestionSet.findByPk(req.params.id);
+        
+        if (updatedQuestionSet) {
+          console.log('题库更新成功');
+          const responseData = updatedQuestionSet.toJSON();
+          console.log('返回给前端的数据:', responseData);
+          sendResponse(res, 200, responseData, '題庫が正常に更新されました');
+        } else {
+          sendError(res, 500, '更新后无法找到题库');
+        }
       } else {
         console.log('未检测到数据变化，返回当前数据');
-        
-        // 确保返回的数据包含正确的字段映射
-        const responseData = {
-          ...questionSet.toJSON(),
-          isPaid: questionSet.isPaid,
-          isFeatured: questionSet.isFeatured,
-          trialQuestions: questionSet.trialQuestions,
-          featuredCategory: questionSet.featuredCategory,
-          createdAt: questionSet.createdAt,
-          updatedAt: questionSet.updatedAt
-        };
-        
+        const responseData = questionSet.toJSON();
         sendResponse(res, 200, responseData, '題庫データに変更はありません');
       }
     } else {
@@ -605,10 +592,16 @@ export const setFeaturedQuestionSet = async (req: Request, res: Response) => {
     if (questionSet) {
       const { isFeatured, featuredCategory } = req.body;
       
-      questionSet.isFeatured = isFeatured;
-      questionSet.featuredCategory = featuredCategory;
+      // 使用静态方法直接更新
+      await QuestionSet.update({
+        isFeatured: isFeatured,
+        featuredCategory: featuredCategory
+      }, {
+        where: { id: req.params.id }
+      });
 
-      const updatedQuestionSet = await questionSet.save();
+      // 重新查询更新后的数据
+      const updatedQuestionSet = await QuestionSet.findByPk(req.params.id);
       sendResponse(res, 200, updatedQuestionSet, '精选题库设置成功');
     } else {
       sendError(res, 404, '题库不存在');
@@ -650,7 +643,7 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
       if (existingSet) {
         // 如果存在则更新
         console.log(`正在更新题库 ${setData.id}: ${setData.title}`);
-        await existingSet.update({
+        await QuestionSet.update({
           title: setData.title || existingSet.title,
           description: setData.description || existingSet.description,
           category: setData.category || existingSet.category,
@@ -658,6 +651,8 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
           isPaid: setData.isPaid !== undefined ? setData.isPaid : existingSet.isPaid,
           price: setData.isPaid && setData.price !== undefined ? setData.price : undefined,
           trialQuestions: setData.isPaid && setData.trialQuestions !== undefined ? setData.trialQuestions : undefined
+        }, {
+          where: { id: setData.id }
         });
         
         // 如果提供了题目，则更新题目
@@ -700,11 +695,13 @@ export const uploadQuestionSets = async (req: Request, res: Response) => {
             if (existingQuestion) {
               // 更新现有题目
               console.log(`更新题目 ${q.id}: ${q.text?.substring(0, 30)}...`);
-              await existingQuestion.update({
+              await Question.update({
                 text: q.text || '',
                 explanation: q.explanation || '',
                 questionType: q.questionType || 'single',
                 orderIndex: q.orderIndex !== undefined ? q.orderIndex : existingQuestion.orderIndex
+              }, {
+                where: { id: q.id, questionSetId: setData.id }
               });
               
               // 更新选项

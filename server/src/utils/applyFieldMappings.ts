@@ -86,7 +86,6 @@ export const testFieldMappings = async () => {
       '无数据'
     );
 
-    console.log('字段映射测试完成');
     return true;
   } catch (error) {
     console.error('字段映射测试失败:', error);
