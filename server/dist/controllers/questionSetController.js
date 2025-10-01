@@ -8,6 +8,9 @@ const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const database_1 = __importDefault(require("../config/database"));
 const Question_1 = __importDefault(require("../models/Question"));
 const Option_1 = __importDefault(require("../models/Option"));
+const Purchase_1 = __importDefault(require("../models/Purchase"));
+const RedeemCode_1 = __importDefault(require("../models/RedeemCode"));
+const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const sequelize_1 = require("sequelize");
 const uuid_1 = require("uuid");
 const applyFieldMappings_1 = require("../utils/applyFieldMappings");
@@ -230,7 +233,7 @@ const updateQuestionSet = async (req, res) => {
                 isPaid: questionSet.isPaid,
                 price: questionSet.price,
             });
-            const { title, description, category, isFeatured, featuredCategory, isPaid, price, trialQuestions, questions, // 添加questions字段以防止传递给数据库
+            const { title, description, category, icon, isFeatured, featuredCategory, isPaid, price, trialQuestions, questions, // 添加questions字段以防止传递给数据库
             ...otherFields // 捕获其他不应该传递给数据库的字段
              } = req.body;
             // 如果包含questions字段，记录但不处理（避免传递给Sequelize）
@@ -248,6 +251,7 @@ const updateQuestionSet = async (req, res) => {
                 title: questionSet.title,
                 description: questionSet.description,
                 category: questionSet.category,
+                icon: questionSet.icon,
                 isPaid: questionSet.isPaid,
                 price: questionSet.price,
                 trialQuestions: questionSet.trialQuestions,
@@ -261,6 +265,8 @@ const updateQuestionSet = async (req, res) => {
                 questionSet.description = description;
             if (category !== undefined)
                 questionSet.category = category;
+            if (icon !== undefined)
+                questionSet.icon = icon;
             // 更新付费相关字段
             if (isPaid !== undefined) {
                 questionSet.isPaid = isPaid;
@@ -297,6 +303,7 @@ const updateQuestionSet = async (req, res) => {
                 title: questionSet.title,
                 description: questionSet.description,
                 category: questionSet.category,
+                icon: questionSet.icon,
                 isPaid: questionSet.isPaid,
                 price: questionSet.price,
                 trialQuestions: questionSet.trialQuestions,
@@ -356,17 +363,63 @@ exports.updateQuestionSet = updateQuestionSet;
 // @route   DELETE /api/v1/question-sets/:id
 // @access  Private/Admin
 const deleteQuestionSet = async (req, res) => {
+    const transaction = await database_1.default.transaction();
     try {
-        const questionSet = await QuestionSet_1.default.findByPk(req.params.id);
-        if (questionSet) {
-            await questionSet.destroy();
-            sendResponse(res, 200, null, '题库删除成功');
+        const questionSetId = req.params.id;
+        const questionSet = await QuestionSet_1.default.findByPk(questionSetId);
+        if (!questionSet) {
+            await transaction.rollback();
+            return sendError(res, 404, '题库不存在');
         }
-        else {
-            sendError(res, 404, '题库不存在');
+        // Check if there are active purchases for this question set
+        const activePurchases = await Purchase_1.default.count({
+            where: {
+                questionSetId: questionSetId,
+                status: 'active'
+            }
+        });
+        if (activePurchases > 0) {
+            await transaction.rollback();
+            return sendError(res, 400, '无法删除题库：该题库有活跃的购买记录，请先处理相关购买记录');
         }
+        // Check if there are any purchases at all (including inactive ones)
+        const anyPurchases = await Purchase_1.default.count({
+            where: {
+                questionSetId: questionSetId
+            }
+        });
+        if (anyPurchases > 0) {
+            await transaction.rollback();
+            return sendError(res, 400, '无法删除题库：该题库存在购买记录，无法删除');
+        }
+        // Check if there are redeem codes for this question set
+        const redeemCodes = await RedeemCode_1.default.count({
+            where: {
+                questionSetId: questionSetId
+            }
+        });
+        if (redeemCodes > 0) {
+            await transaction.rollback();
+            return sendError(res, 400, '无法删除题库：该题库存在兑换码，请先删除相关兑换码');
+        }
+        // Check if there is user progress for this question set
+        const userProgress = await UserProgress_1.default.count({
+            where: {
+                questionSetId: questionSetId
+            }
+        });
+        if (userProgress > 0) {
+            await transaction.rollback();
+            return sendError(res, 400, '无法删除题库：该题库存在用户学习记录，无法删除');
+        }
+        // If we get here, it's safe to delete the question set
+        // The questions and options will be deleted automatically due to CASCADE constraints
+        await questionSet.destroy({ transaction });
+        await transaction.commit();
+        sendResponse(res, 200, null, '题库删除成功');
     }
     catch (error) {
+        await transaction.rollback();
         console.error('Delete question set error:', error);
         sendError(res, 500, '删除题库失败', error);
     }
@@ -942,7 +995,7 @@ const updateQuestionSetQuestions = async (req, res) => {
                             questionId: newQuestion.id,
                             text: option.text || `選択肢 ${optionIndex + 1}`,
                             isCorrect: isCorrect,
-                            orderIndex: optionIndex
+                            optionIndex: String.fromCharCode(65 + optionIndex) // A, B, C, D...
                         };
                     });
                     await Option_1.default.bulkCreate(optionsData, { transaction });
