@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { useSocket } from '../contexts/SocketContext';
-import { useUserProgress } from '../contexts/UserProgressContext';
 import apiClient from '../utils/api-client';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
@@ -493,9 +492,7 @@ interface PreparedQuestionSet extends BaseQuestionSet {
   cardImage?: string; // 添加题库卡片图片字段
 }
 
-// 添加全局请求限制变量 - 实际使用httpRateLimiter
-
-// 添加debounce工具函数
+// debounce工具函数
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   
@@ -510,12 +507,12 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (..
   };
 }
 
+
+
 const HomePage = () => {
   const { user, syncAccessRights } = useUser();
 
   const { socket } = useSocket();
-  // Remove unused destructured variables
-  const { /* progressStats, fetchUserProgress */ } = useUserProgress();
   const [questionSets, setQuestionSets] = useState<PreparedQuestionSet[]>([]);
   const [filteredSets, setFilteredSets] = useState<PreparedQuestionSet[]>([]);
   const [recommendedSets, setRecommendedSets] = useState<PreparedQuestionSet[]>([]);
@@ -993,17 +990,7 @@ const HomePage = () => {
     setIsCarouselPaused(false);
   }, []);
 
-  // 轮播自动播放效果
-  useEffect(() => {
-    startCarousel();
-    return () => {
-      if (carouselIntervalRef.current) {
-        clearInterval(carouselIntervalRef.current);
-      }
-    };
-  }, [startCarousel]);
-
-  // 当轮播暂停状态改变时重新启动轮播
+  // 轮播控制效果 - 合并自动播放和暂停状态管理
   useEffect(() => {
     if (!isCarouselPaused) {
       startCarousel();
@@ -1012,6 +999,12 @@ const HomePage = () => {
         clearInterval(carouselIntervalRef.current);
       }
     }
+    
+    return () => {
+      if (carouselIntervalRef.current) {
+        clearInterval(carouselIntervalRef.current);
+      }
+    };
   }, [isCarouselPaused, startCarousel]);
 
   // 轮播组件
@@ -1976,21 +1969,16 @@ const HomePage = () => {
     };
   }, []); // 空依赖数组，只在挂载时执行
 
-  // 用户登录状态改变时重新获取题库列表
-  useEffect(() => {
-    if (user?.id) {
-      console.log('[HomePage] 用户登录状态变化，重新获取题库列表');
-      fetchQuestionSets();
-    }
-  }, [user?.id, fetchQuestionSets]);
-
-  // 添加函数来清除本地存储中过期的缓存数据
+  // 用户状态变化综合处理 - 合并登录状态、缓存清理和兑换码监听
   useEffect(() => {
     if (!user?.id) return;
     
-    console.log('[HomePage] 用户登录，检查本地缓存');
+    console.log('[HomePage] 用户登录状态变化，执行综合初始化');
     
-    // 清除过期的访问权限缓存
+    // 1. 重新获取题库列表
+    fetchQuestionSets();
+    
+    // 2. 清理过期缓存
     try {
       const cacheKey = 'question_set_access';
       const cache = localStorage.getItem(cacheKey);
@@ -2030,10 +2018,8 @@ const HomePage = () => {
     } catch (error) {
       console.error('[HomePage] 清除缓存失败:', error);
     }
-  }, [user?.id]);
-
-  // 监听全局兑换码成功事件
-  useEffect(() => {
+    
+    // 3. 设置兑换码成功事件监听
     const handleRedeemSuccess = (e: Event) => {
       const customEvent = e as CustomEvent;
       
@@ -2077,7 +2063,7 @@ const HomePage = () => {
     return () => {
       window.removeEventListener('redeem:success', handleRedeemSuccess);
     };
-  }, [user?.id, saveAccessToLocalStorage]);
+  }, [user?.id, fetchQuestionSets, saveAccessToLocalStorage]);
 
   // 增强监听socket权限更新事件的实现
   useEffect(() => {

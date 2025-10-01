@@ -41,7 +41,10 @@ const updateQuestionsLogic = async (questionSetId, questions) => {
                 type: questionType,
                 optionsCount: questionData.options?.length || 0
             });
+            // 显式生成UUID确保ID不为undefined
+            const questionId = require('uuid').v4();
             const newQuestion = await Question_1.default.create({
+                id: questionId,
                 questionSetId,
                 text: questionText,
                 questionType: questionType,

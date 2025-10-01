@@ -31,6 +31,7 @@ const AdminQuestionSetInfo: React.FC = () => {
   const [updateLoading, setUpdateLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [featuredCategories, setFeaturedCategories] = useState<string[]>([]);
   
   // 添加一个辅助函数在显示图片前处理URL
   const getImageUrl = (path: string | null): string => {
@@ -144,9 +145,31 @@ const AdminQuestionSetInfo: React.FC = () => {
     }
   };
 
+  // 获取精选分类列表
+  const fetchFeaturedCategories = async () => {
+    try {
+      const response = await fetch('/api/homepage/featured-categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setFeaturedCategories(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('精選カテゴリの取得に失敗しました:', error);
+    }
+  };
+
   // 初始加载
   useEffect(() => {
     fetchQuestionSets();
+    fetchFeaturedCategories();
   }, []);
 
   // 搜索过滤
@@ -798,14 +821,35 @@ const AdminQuestionSetInfo: React.FC = () => {
                   {editFormData.isFeatured && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">注目カテゴリ</label>
-                      <input
-                        type="text"
-                        name="featuredCategory"
-                        value={editFormData.featuredCategory || ''}
-                        onChange={handleFormChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="注目カテゴリ名を入力"
-                      />
+                      {featuredCategories.length > 0 ? (
+                        <select
+                          name="featuredCategory"
+                          value={editFormData.featuredCategory || ''}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="">注目カテゴリを選択してください</option>
+                          {featuredCategories.map(category => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="flex flex-col space-y-2">
+                          <input
+                            type="text"
+                            name="featuredCategory"
+                            value={editFormData.featuredCategory || ''}
+                            onChange={handleFormChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="注目カテゴリ名を入力"
+                          />
+                          <p className="text-xs text-gray-500">
+                            利用可能な注目カテゴリがありません。手動で入力するか、コンテンツ管理で先に注目カテゴリを設定してください。
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                   

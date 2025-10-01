@@ -2,7 +2,7 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    try { userId
+    try {
       // Add isPaid column to question_sets table
       await queryInterface.addColumn('question_sets', 'is_paid', {
         type: Sequelize.BOOLEAN,
