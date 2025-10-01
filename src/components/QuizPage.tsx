@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type React from 'react';
-import { Question } from '../types/index';
+import { Question, IQuestionSet } from '../types/index';
 import { useUser } from '../contexts/UserContext';
 
 import { questionSetService as questionSetApi } from '../services/api';
@@ -28,7 +28,7 @@ import {
 import { API_BASE_URL } from '../services/api';
 
 // 导入paymentUtils中的函数
-import { isPaidQuiz, validatePaidQuizStatus, createDirectPurchase } from '../utils/paymentUtils';
+import { isPaidQuiz, validatePaidQuizStatus } from '../utils/paymentUtils';
 
 // 定义答题记录类型
 interface AnsweredQuestion {
@@ -186,23 +186,9 @@ const AnswerCard: React.FC<{
   );
 };
 
-// 添加接口定义用于保存的进度数据
-interface SavedQuestionProgress {
-  index: number;
-  questionIndex: number;
-  isCorrect: boolean;
-  selectedOption: string | string[];
-}
 
-// 添加 ExtendedSaveProgressParams 接口定义
-interface ExtendedSaveProgressParams {
-  questionId: string;
-  questionSetId: string;
-  selectedOption: string | string[];
-  isCorrect: boolean;
-  timeSpent: number;
-  lastQuestionIndex: number;
-}
+
+
 
 // 添加 ProgressData 接口定义
 interface ProgressData {
@@ -1649,26 +1635,7 @@ const StyleInjector = () => {
   return null;
 };
 
-// 在删除isPaidQuiz函数后，添加回IQuestionSet接口定义
-interface IQuestionSet {
-  id: string;
-  title: string;
-  description: string;
-  questionCount: number;
-  isPaid: boolean;
-  price: number;
-  trialQuestions: number;
-  questions?: Question[];
-  trialEnded?: boolean;
-  category?: string;
-  expiryDate?: string; // 添加题库有效期字段
-  icon?: string; // Add icon property that was missing
-  isFeatured?: boolean;
-  featuredCategory?: string;
-  hasAccess?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// IQuestionSet接口已从types/index.ts导入，无需重复定义
 
 // 验证questionSetId的函数，但不直接清理
 const validateQuestionSetId = (questionSetId: string | undefined): boolean => {
@@ -1826,42 +1793,9 @@ function QuizPage(): JSX.Element {
 
   // 添加支付检查effect，确保支付完成后不再显示支付弹窗
   useEffect(() => {
-    // 本地函数检查支付状态 - 因为isPaymentCompleted在外部定义
-    const checkPaymentStatus = (questionSetId: string): boolean => {
-      // 直接从localStorage检查支付状态
-      try {
-        // 检查直接支付完成标志
-        const paymentCompletedKey = `quiz_payment_completed_${questionSetId}`;
-        const directFlag = localStorage.getItem(paymentCompletedKey);
-        if (directFlag === 'true') return true;
-        
-        // 检查访问权限记录
-        const accessRightsStr = localStorage.getItem('quizAccessRights');
-        if (accessRightsStr) {
-          try {
-            const accessRights = JSON.parse(accessRightsStr);
-            if (accessRights && typeof accessRights === 'object') {
-              // 检查特定的_paid标志
-              const normalizedId = String(questionSetId).trim();
-              if (accessRights[`${normalizedId}_paid`] === true) {
-                return true;
-              }
-            }
-          } catch (e) {
-            console.error('[checkPaymentStatus] 解析访问权限失败:', e);
-          }
-        }
-        
-        return false;
-      } catch (e) {
-        console.error('[checkPaymentStatus] 检查支付状态失败:', e);
-        return false;
-      }
-    };
-
     if (questionSet && quizStatus.showPaymentModal) {
       const normalizedId = String(questionSet.id).trim();
-      if (checkPaymentStatus(normalizedId)) {
+      if (isPaymentCompleted(normalizedId)) {
         console.log(`[QuizPage] 已检测到题库 ${normalizedId} 支付完成，不再显示支付窗口`);
         setQuizStatus(prev => ({
           ...prev,
@@ -3508,25 +3442,77 @@ function QuizPage(): JSX.Element {
   
   // 修改syncProgressToServer函数为手动保存函数
   const saveProgressManually = useCallback(async () => {
-    if (!user?.id || !questionSetId || !socket) {
+    if (!user?.id || !questionSetId) {
+      console.error('[QuizPage] 保存失败：用户ID或题库ID缺失');
       toast.error('保存に失敗しました。ログイン状態を確認してください');
+      return;
+    }
+    
+    if (!socket) {
+      console.error('[QuizPage] 保存失败：Socket连接不可用');
+      toast.error('ネットワーク接続を確認してください');
       return;
     }
     
     setIsSaving(true);
     
     try {
-      console.log('[QuizPage] 开始手动保存进度数据');
+      console.log('[QuizPage] 开始手动保存进度数据', {
+        userId: user.id,
+        questionSetId,
+        currentQuestionIndex,
+        answeredQuestionsCount: answeredQuestions.length,
+        correctAnswers,
+        quizTotalTime
+      });
+      
+      // 确保我们获取的是最新状态 - 重新获取当前题目的选择状态
+      let currentAnsweredQuestions = [...answeredQuestions];
+      
+      // 如果当前题目有选择但还没有保存到answeredQuestions中，先保存
+      if (selectedOptions.length > 0 && questions[currentQuestionIndex]) {
+        const currentQuestion = questions[currentQuestionIndex];
+        const existingAnswerIndex = currentAnsweredQuestions.findIndex(
+          (answer) => answer.questionIndex === currentQuestionIndex
+        );
+        
+        // 检查答案是否正确
+        const isCorrect = currentQuestion.options.some(option => 
+          selectedOptions.includes(option.id) && option.isCorrect
+        );
+        
+        const currentAnswer = {
+          index: currentAnsweredQuestions.length,
+          questionIndex: currentQuestionIndex,
+          isCorrect: isCorrect,
+          selectedOption: selectedOptions.length === 1 ? selectedOptions[0] : selectedOptions
+        };
+        
+        if (existingAnswerIndex >= 0) {
+          // 更新现有答案
+          currentAnsweredQuestions[existingAnswerIndex] = currentAnswer;
+        } else {
+          // 添加新答案
+          currentAnsweredQuestions.push(currentAnswer);
+        }
+        
+        console.log('[QuizPage] 包含当前题目选择状态到保存数据中');
+      }
+      
+      // 重新计算正确答案数
+      const currentCorrectCount = currentAnsweredQuestions.filter(q => q.isCorrect).length;
       
       // 准备要发送的进度数据包
       const progressBundle = {
         userId: user.id,
         questionSetId,
         lastQuestionIndex: currentQuestionIndex,
-        answeredQuestions,
+        answeredQuestions: currentAnsweredQuestions,
         timeSpent: quizTotalTime,
         timestamp: new Date().toISOString()
       };
+      
+      console.log('[QuizPage] 发送进度数据到服务器:', progressBundle);
       
       // 通过socket将打包的进度数据同步到服务器
       socket.emit('progress:update', progressBundle);
@@ -3535,14 +3521,15 @@ function QuizPage(): JSX.Element {
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('保存超时'));
-        }, 5000);
+        }, 8000); // 增加超时时间到8秒
         
-        const handleSaveResponse = (response: {success: boolean}) => {
+        const handleSaveResponse = (response: {success: boolean, error?: string}) => {
           clearTimeout(timeout);
+          console.log('[QuizPage] 收到服务器保存响应:', response);
           if (response.success) {
             resolve();
           } else {
-            reject(new Error('服务器保存失败'));
+            reject(new Error(response.error || '服务器保存失败'));
           }
         };
         
@@ -3556,34 +3543,39 @@ function QuizPage(): JSX.Element {
         const localProgressKey = `quiz_progress${userIdStr}_${questionSetId}`;
         const localProgressUpdate = {
           lastQuestionIndex: currentQuestionIndex,
-          answeredQuestions,
-          correctAnswers,
-          totalAnswered: answeredQuestions.length,
+          answeredQuestions: currentAnsweredQuestions,
+          correctAnswers: currentCorrectCount,
+          totalAnswered: currentAnsweredQuestions.length,
           totalQuestions: questions.length,
           lastUpdated: new Date().toISOString()
         };
         localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
+        console.log('[QuizPage] 本地进度存储已更新');
       } catch (e) {
         console.error('[QuizPage] 保存本地进度失败:', e);
+        // 本地存储失败不应该影响整体保存成功
       }
       
-      // 更新保存状态
+      // 更新状态 - 使用最新的数据
+      setAnsweredQuestions(currentAnsweredQuestions);
+      setCorrectAnswers(currentCorrectCount);
       setLastSavedTime(Date.now());
       setHasUnsavedChanges(false);
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
       
       // 显示成功消息
-      toast.success('进度保存成功');
+      toast.success('進捗を保存しました');
       
       console.log('[QuizPage] 进度数据保存完成');
     } catch (error) {
       console.error('[QuizPage] 保存进度数据异常:', error);
-      toast.error('保存に失敗しました。再試行してください');
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      toast.error(`保存に失敗しました: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
-  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, quizTotalTime, correctAnswers, questions.length]);
+  }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, selectedOptions, questions, quizTotalTime, correctAnswers]);
   
   // 修改handleAnswerSubmit函数，不再自动同步，移除阻塞行为
   const handleAnswerSubmit = useCallback(async (
@@ -4767,14 +4759,22 @@ function QuizPage(): JSX.Element {
             {/* 添加清空进度按钮 */}
             <button
               onClick={() => {
-                if (confirm('現在の回答進行状況をクリアしますか？これにより、すべての回答記録がリセットされますが、サーバーに同期済みのデータには影響しません。')) {
-                  // 清空本地存储的进度数据
-                  if (questionSet) {
-                    // 使用与其他功能一致的localStorage键格式
+                if (confirm('現在の回答進行状況をクリアしますか？これにより、すべての回答記録がリセットされ、サーバーからも削除されます。')) {
+                  // 清空本地和服务器的进度数据
+                  if (questionSet && user?.id && socket) {
+                    console.log(`[QuizPage] 开始清除进度数据 - 题库ID: ${questionSet.id}`);
+                    
+                    // 1. 先清除服务器端进度
+                    socket.emit('progress:delete', {
+                      userId: user.id,
+                      questionSetId: questionSet.id
+                    });
+                    
+                    // 2. 清除本地存储的进度数据
                     const userIdStr = user?.id ? `_${user.id}` : '';
                     const localProgressKey = `quiz_progress${userIdStr}_${questionSet.id}`;
                     
-                    console.log(`[QuizPage] 清空进度 - 使用键: ${localProgressKey}`);
+                    console.log(`[QuizPage] 清空本地进度 - 使用键: ${localProgressKey}`);
                     
                     // 清除所有与进度相关的本地存储
                     localStorage.removeItem(localProgressKey);
@@ -4788,22 +4788,32 @@ function QuizPage(): JSX.Element {
                     // 清除旧格式的键（兼容性）
                     localStorage.removeItem(`quiz_progress_${questionSet.id}`);
                     
-                    // 重置状态
-                    setCurrentQuestionIndex(0);
+                    // 3. 重置前端状态（按正确顺序避免状态冲突）
+                    // 首先清空已回答题目和选择状态
                     setAnsweredQuestions([]);
-                    setCorrectAnswers(0);
                     setSelectedOptions([]);
-                    setQuizStatus(prev => ({ ...prev, showExplanation: false, quizComplete: false }));
+                    setCorrectAnswers(0);
                     
-                    // 重置计时器
-                    setQuizTotalTime(0);
-                    setQuizStartTime(Date.now());
+                    // 然后重置题目索引（这样useEffect执行时已回答题目列表是空的）
+                    setTimeout(() => {
+                      setCurrentQuestionIndex(0);
+                      setQuizStatus(prev => ({ ...prev, showExplanation: false, quizComplete: false }));
+                      
+                      // 重置计时器
+                      setQuizTotalTime(0);
+                      setQuizStartTime(Date.now());
+                      setQuestionStartTime(Date.now());
+                      
+                      // 重置同步状态
+                      unsyncedChangesRef.current = false;
+                      setHasUnsavedChanges(false);
+                    }, 0);
                     
-                    // 重置同步状态
-                    unsyncedChangesRef.current = false;
-                    setHasUnsavedChanges(false);
-                    
-                    toast.success('答题进度已清空');
+                    console.log(`[QuizPage] 进度数据清除完成`);
+                    toast.success('進捗データをクリアしました');
+                  } else {
+                    console.warn('[QuizPage] 清除进度失败：缺少必要的参数');
+                    toast.error('進捗のクリアに失敗しました');
                   }
                 }
               }}

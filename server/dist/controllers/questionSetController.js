@@ -48,6 +48,7 @@ const updateQuestionsLogic = async (questionSetId, questions) => {
                 explanation: explanation,
                 orderIndex: i
             }, { transaction });
+            console.log(`创建的问题ID: ${newQuestion.id}`);
             // 添加选项
             if (questionData.options && Array.isArray(questionData.options)) {
                 const optionsData = questionData.options.map((option, optionIndex) => {
@@ -60,7 +61,23 @@ const updateQuestionsLogic = async (questionSetId, questions) => {
                         optionIndex: option.optionIndex || String.fromCharCode(65 + optionIndex) // A, B, C, D...
                     };
                 });
-                await Option_1.default.bulkCreate(optionsData, { transaction });
+                console.log(`准备创建选项，数据:`, JSON.stringify(optionsData, null, 2));
+                console.log(`问题ID: ${newQuestion.id}, 选项数据中的questionId:`, optionsData.map((opt) => opt.questionId));
+                // 验证每个选项都有questionId
+                const missingQuestionId = optionsData.filter((opt) => !opt.questionId);
+                if (missingQuestionId.length > 0) {
+                    console.error('发现缺少questionId的选项数据:', missingQuestionId);
+                    throw new Error('选项数据缺少questionId字段');
+                }
+                // 逐个创建选项而不是使用bulkCreate，避免字段映射问题
+                for (const optionData of optionsData) {
+                    await Option_1.default.create({
+                        questionId: optionData.questionId,
+                        text: optionData.text,
+                        isCorrect: optionData.isCorrect,
+                        optionIndex: optionData.optionIndex
+                    }, { transaction });
+                }
                 console.log(`为问题 ${i + 1} 创建了 ${optionsData.length} 个选项`);
             }
             createdQuestions.push(newQuestion);
@@ -271,11 +288,25 @@ exports.createQuestionSet = createQuestionSet;
 // @access  Private/Admin
 const updateQuestionSet = async (req, res) => {
     try {
-        console.log('题库更新请求:', {
-            id: req.params.id,
-            body: req.body
-        });
+        console.log('=== 题库更新请求开始 ===');
+        console.log('请求ID:', req.params.id);
+        console.log('请求数据:', JSON.stringify(req.body, null, 2));
         const questionSet = await QuestionSet_1.default.findByPk(req.params.id);
+        if (!questionSet) {
+            console.log('❌ 题库不存在:', req.params.id);
+            return sendError(res, 404, '題庫が存在しません');
+        }
+        // 检查是否存在购买记录（仅用于日志，不阻止更新）
+        try {
+            const purchaseCount = await Purchase_1.default.count({
+                where: { questionSetId: req.params.id }
+            });
+            console.log(`📊 题库购买记录统计: ${purchaseCount} 条购买记录`);
+            console.log(`✅ 即使有购买记录，管理员仍可更新题库信息（包括标题）`);
+        }
+        catch (purchaseError) {
+            console.log(`⚠️ 无法检查购买记录:`, purchaseError);
+        }
         if (questionSet) {
             const jsonData = questionSet.toJSON();
             console.log('找到题库，完整数据:', jsonData);
@@ -318,6 +349,7 @@ const updateQuestionSet = async (req, res) => {
             const updateData = {};
             let hasChanges = false;
             if (title !== undefined) {
+                console.log(`[题库更新] 正在更新题库标题: "${questionSet.title}" -> "${title}"`);
                 updateData.title = title;
                 hasChanges = true;
             }
@@ -352,20 +384,23 @@ const updateQuestionSet = async (req, res) => {
             }
             // 特别处理精选题库字段
             if (isFeatured !== undefined) {
-                console.log('更新精选状态:', {
-                    after: isFeatured,
-                    type: typeof isFeatured
+                console.log('[注目题库] 更新精选状态:', {
+                    原值: questionSet.isFeatured,
+                    新值: isFeatured,
+                    类型: typeof isFeatured
                 });
                 updateData.isFeatured = Boolean(isFeatured);
                 hasChanges = true;
-                // 如果不是精选题库，清空精选分类
-                if (!isFeatured) {
+                // 如果设置为非精选题库，且没有明确指定featuredCategory，则清空精选分类
+                if (!isFeatured && featuredCategory === undefined) {
+                    console.log('[注目题库] 取消精选状态，清空分类');
                     updateData.featuredCategory = null;
                 }
             }
             if (featuredCategory !== undefined) {
-                console.log('更新精选分类:', {
-                    after: featuredCategory
+                console.log('[注目题库] 更新精选分类:', {
+                    原值: questionSet.featuredCategory,
+                    新值: featuredCategory
                 });
                 updateData.featuredCategory = featuredCategory;
                 hasChanges = true;
@@ -382,10 +417,14 @@ const updateQuestionSet = async (req, res) => {
                 // 重新查询更新后的数据
                 const updatedQuestionSet = await QuestionSet_1.default.findByPk(req.params.id);
                 if (updatedQuestionSet) {
-                    console.log('题库更新成功');
+                    console.log(`[题库更新] 题库更新成功，新标题: "${updatedQuestionSet.title}"`);
                     const responseData = updatedQuestionSet.toJSON();
                     console.log('返回给前端的数据:', responseData);
                     sendResponse(res, 200, responseData, '題庫が正常に更新されました');
+                    // 特别记录标题更新成功的日志
+                    if (title !== undefined && updatedQuestionSet.title === title) {
+                        console.log(`[题库更新] ✅ 题库标题成功更新为: "${title}"`);
+                    }
                 }
                 else {
                     sendError(res, 500, '更新后无法找到题库');
@@ -1038,6 +1077,7 @@ const updateQuestionSetQuestions = async (req, res) => {
                     explanation: explanation,
                     orderIndex: i
                 }, { transaction });
+                console.log(`创建的问题ID: ${newQuestion.id}`);
                 // 添加选项
                 if (questionData.options && Array.isArray(questionData.options)) {
                     const optionsData = questionData.options.map((option, optionIndex) => {

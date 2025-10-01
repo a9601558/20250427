@@ -223,7 +223,7 @@ const AdminQuestionSetInfo: React.FC = () => {
       price: serverData.isPaid ? (serverData.price || 0) : undefined,
       trialQuestions: serverData.isPaid ? (serverData.trialQuestions || 0) : undefined,
       isFeatured: Boolean(serverData.isFeatured), // 确保是布尔值
-      featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined,
+      featuredCategory: serverData.isFeatured ? (serverData.featuredCategory || '') : undefined, // 如果不是注目题库则设为undefined
       // 使用icon字段存储图片URL
       icon: serverData.icon === 'pending_upload' ? 'default' : serverData.icon
     };
@@ -403,7 +403,8 @@ const AdminQuestionSetInfo: React.FC = () => {
           questionCount: count,
           price: response.data.price === undefined ? null : response.data.price,
           trialQuestions: response.data.trialQuestions === undefined ? null : response.data.trialQuestions,
-          isFeatured: response.data.isFeatured || false,
+          isFeatured: Boolean(response.data.isFeatured), // 确保正确的布尔值处理
+          featuredCategory: response.data.featuredCategory || undefined, // 确保正确处理分类
           icon: response.data.icon || iconUrl, // 包含更新后的图标/图片
           createdAt: new Date(response.data.createdAt || Date.now()),
           updatedAt: new Date(response.data.updatedAt || Date.now())
