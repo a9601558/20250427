@@ -71,8 +71,21 @@ class UnifiedApiClient {
       (error) => {
         // 统一错误处理
         if (error.response?.status === 401) {
+          // 清除认证信息
           localStorage.removeItem('token');
+          localStorage.removeItem('activeUserId');
+          
+          // 清除API客户端的认证头
+          this.setAuthHeader(null);
+          this.setUserId(null);
+          
           console.log('セッションが期限切れです。再度ログインしてください');
+          
+          // 触发全局认证过期事件，通知其他组件
+          window.dispatchEvent(new CustomEvent('auth:expired', {
+            detail: { reason: 'token_expired', timestamp: Date.now() }
+          }));
+          
         } else if (error.response?.status === 429) {
           console.warn('リクエストが多すぎます。しばらくお待ちください');
         } else if (error.response?.status === 502) {

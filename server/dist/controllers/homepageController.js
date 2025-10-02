@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateQuestionSetFeaturedStatus = exports.getFeaturedQuestionSets = exports.updateFeaturedCategories = exports.getFeaturedCategories = exports.updateHomepageContent = exports.getHomepageContent = void 0;
+const sequelize_1 = require("sequelize");
 const HomepageSettings_1 = __importDefault(require("../models/HomepageSettings"));
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const defaultSettings_1 = require("../config/defaultSettings");
@@ -37,16 +38,45 @@ const getHomepageContent = async (req, res) => {
                 data: defaultContent
             });
         }
+        // Debug: 输出原始数据库值
+        console.log('[homepageController] Raw database settings:', {
+            featured_categories_raw: settings.getDataValue('featured_categories'),
+            featured_categories_getter: settings.featured_categories,
+            featured_categories_type: typeof settings.featured_categories,
+            featured_categories_isArray: Array.isArray(settings.featured_categories)
+        });
+        // 获取所有有效的分类名称
+        const validCategories = await QuestionSet_1.default.findAll({
+            attributes: ['category'],
+            where: {
+                category: {
+                    [sequelize_1.Op.ne]: null
+                }
+            },
+            group: ['category']
+        });
+        const validCategoryNames = validCategories
+            .map(qs => qs.category)
+            .filter(cat => cat && cat.trim() !== '');
+        console.log('[homepageController] Valid categories from database:', validCategoryNames);
+        // 验证并过滤featured_categories
+        let featuredCategories = settings.featured_categories || [];
+        if (Array.isArray(featuredCategories)) {
+            // 只保留有效的分类
+            featuredCategories = featuredCategories.filter(cat => validCategoryNames.includes(cat));
+            console.log('[homepageController] Filtered featuredCategories:', featuredCategories);
+        }
         // 将配置转换为HomeContent格式
         const content = {
             welcomeTitle: settings.welcome_title,
             welcomeDescription: settings.welcome_description,
-            featuredCategories: settings.featured_categories || [],
+            featuredCategories: featuredCategories,
             announcements: settings.announcements,
             footerText: settings.footer_text,
             bannerImage: settings.banner_image,
             theme: settings.theme
         };
+        console.log('[homepageController] Final content to send:', JSON.stringify(content, null, 2));
         res.status(200).json({
             success: true,
             data: content

@@ -239,6 +239,49 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
+  // 监听认证过期事件
+  useEffect(() => {
+    const handleAuthExpired = (event: CustomEvent) => {
+      console.log('[UserContext] 认证已过期，执行登出处理');
+      
+      // 清除用户状态
+      setUser(null);
+      setError('セッションが期限切れです。再度ログインしてください');
+      setLoading(false);
+      
+      // 显示友好的错误提示
+      import('react-toastify').then(({ toast }) => {
+        toast.error('セッションが期限切れです。再度ログインしてください', {
+          position: 'top-center',
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      });
+      
+      // 触发用户变更事件
+      notifyUserChange(null);
+      
+      // 清除Socket认证
+      if (socket) {
+        socket.disconnect();
+      }
+      
+      // 在短暂延迟后重定向到首页，让用户看到错误消息
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+    };
+
+    window.addEventListener('auth:expired', handleAuthExpired as EventListener);
+    
+    return () => {
+      window.removeEventListener('auth:expired', handleAuthExpired as EventListener);
+    };
+  }, [socket]);
+
   // 初始加载时检查用户登录状态并确保数据不是来自之前的登录会话
   useEffect(() => {
     const token = localStorage.getItem('token');

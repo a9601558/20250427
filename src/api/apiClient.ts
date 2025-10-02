@@ -47,8 +47,16 @@ class ApiClient {
       (error) => {
         // 处理token过期等错误
         if (error.response && error.response.status === 401) {
+          // 清除认证信息
           localStorage.removeItem('token');
-          // 可以在这里触发登出事件或重定向到登录页
+          localStorage.removeItem('activeUserId');
+          
+          console.log('セッションが期限切れです。再度ログインしてください');
+          
+          // 触发全局认证过期事件
+          window.dispatchEvent(new CustomEvent('auth:expired', {
+            detail: { reason: 'token_expired', timestamp: Date.now() }
+          }));
         }
         return Promise.reject(error);
       }

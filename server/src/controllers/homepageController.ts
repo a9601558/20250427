@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import HomepageSettings from '../models/HomepageSettings';
 import QuestionSet from '../models/QuestionSet';
 import { defaultHomepageSettings } from '../config/defaultSettings';
@@ -47,16 +48,53 @@ export const getHomepageContent = async (req: Request, res: Response) => {
       });
     }
 
+    // Debug: 输出原始数据库值
+    console.log('[homepageController] Raw database settings:', {
+      featured_categories_raw: settings.getDataValue('featured_categories'),
+      featured_categories_getter: settings.featured_categories,
+      featured_categories_type: typeof settings.featured_categories,
+      featured_categories_isArray: Array.isArray(settings.featured_categories)
+    });
+
+    // 获取所有有效的分类名称
+    const validCategories = await QuestionSet.findAll({
+      attributes: ['category'],
+      where: {
+        category: {
+          [Op.ne]: null as any
+        }
+      },
+      group: ['category']
+    });
+    
+    const validCategoryNames = validCategories
+      .map(qs => qs.category)
+      .filter(cat => cat && cat.trim() !== '');
+
+    console.log('[homepageController] Valid categories from database:', validCategoryNames);
+
+    // 验证并过滤featured_categories
+    let featuredCategories = settings.featured_categories || [];
+    if (Array.isArray(featuredCategories)) {
+      // 只保留有效的分类
+      featuredCategories = featuredCategories.filter(cat => 
+        validCategoryNames.includes(cat)
+      );
+      console.log('[homepageController] Filtered featuredCategories:', featuredCategories);
+    }
+
     // 将配置转换为HomeContent格式
     const content: HomeContent = {
       welcomeTitle: settings.welcome_title,
       welcomeDescription: settings.welcome_description,
-      featuredCategories: settings.featured_categories || [],
+      featuredCategories: featuredCategories,
       announcements: settings.announcements,
       footerText: settings.footer_text,
       bannerImage: settings.banner_image,
       theme: settings.theme
     };
+
+    console.log('[homepageController] Final content to send:', JSON.stringify(content, null, 2));
 
     res.status(200).json({
       success: true,

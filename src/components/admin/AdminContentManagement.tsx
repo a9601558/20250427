@@ -175,7 +175,20 @@ const AdminContentManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('首页内容保存失败:', error);
-      toast.error('首页内容保存失败: ' + (error.message || '未知错误'));
+      
+      // 检查是否是认证错误
+      if (error.response?.status === 401 || error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        toast.error('セッションが期限切れです。再度ログインしてください', {
+          position: 'top-center',
+          autoClose: 8000,
+        });
+        // 等待用户看到消息后重定向
+        setTimeout(() => {
+          navigate('/');
+        }, 3000);
+      } else {
+        toast.error('首页内容保存失败: ' + (error.message || '未知错误'));
+      }
     } finally {
       setSaving(false);
     }

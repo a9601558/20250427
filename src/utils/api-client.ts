@@ -295,13 +295,18 @@ class ApiClient {
       (error: AxiosError) => {
         // 统一错误处理
         if (error.response?.status === 401) {
-          // 401错误，清除token并可能跳转到登录页
+          // 清除认证信息
           localStorage.removeItem('token');
-          console.log('会话已过期，请重新登录');
-          // 如果需要自动跳转到登录页
-          // window.location.href = '/login';
+          localStorage.removeItem('activeUserId');
+          
+          console.log('セッションが期限切れです。再度ログインしてください');
+          
+          // 触发全局认证过期事件
+          window.dispatchEvent(new CustomEvent('auth:expired', {
+            detail: { reason: 'token_expired', timestamp: Date.now() }
+          }));
         } else if (error.response?.status === 429) {
-          console.warn('请求过于频繁，请稍后再试');
+          console.warn('請求过于频繁，请稍后再试');
         }
         
         return Promise.reject(error);

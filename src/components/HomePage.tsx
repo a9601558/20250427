@@ -3092,14 +3092,18 @@ const HomePage = () => {
         
         if (response.success && response.data) {
           console.log('[HomePage] Home content loaded successfully from server');
+          console.log('[HomePage] Raw server data:', JSON.stringify(response.data, null, 2));
           
           // 处理服务器返回的数据 - 可能是snake_case格式
           let processedData: HomeContentData;
           if ('welcome_title' in response.data) {
             // 数据库格式，需要转换
+            console.log('[HomePage] Converting from DB format to frontend format');
             processedData = convertDbToFrontend(response.data as HomeContentDataDB);
+            console.log('[HomePage] Converted data:', JSON.stringify(processedData, null, 2));
           } else {
             // 前端格式，直接使用
+            console.log('[HomePage] Using frontend format directly');
             processedData = response.data as HomeContentData;
           }
           
@@ -3107,6 +3111,26 @@ const HomePage = () => {
           if (typeof response.data.featured_categories === 'string' && 
               (response.data.featured_categories === '[]' || response.data.featured_categories === '')) {
             processedData.featuredCategories = [];
+          }
+          
+          // 验证featuredCategories是否包含有效的分类
+          if (processedData.featuredCategories && processedData.featuredCategories.length > 0) {
+            const validCategories = [...new Set(questionSets.map(set => set.category))].filter(cat => !!cat);
+            const validFeaturedCategories = processedData.featuredCategories.filter(cat => 
+              validCategories.includes(cat)
+            );
+            
+            console.log('[HomePage] Valid categories from question sets:', validCategories);
+            console.log('[HomePage] Original featured categories:', processedData.featuredCategories);
+            console.log('[HomePage] Filtered valid featured categories:', validFeaturedCategories);
+            
+            // 如果没有有效的featured categories，使用默认分类
+            if (validFeaturedCategories.length === 0 && validCategories.length > 0) {
+              processedData.featuredCategories = validCategories.slice(0, 3); // 使用前3个分类
+              console.log('[HomePage] Using default categories as featured:', processedData.featuredCategories);
+            } else {
+              processedData.featuredCategories = validFeaturedCategories;
+            }
           }
           
           // Check if server content is actually newer than our local content
