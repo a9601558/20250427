@@ -4,7 +4,10 @@ import fs from 'fs';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import QuestionSet from '../models/QuestionSet';
+import Purchase from '../models/Purchase';
+import User from '../models/User';
 import { protect, admin } from '../middleware/authMiddleware';
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -222,6 +225,131 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: '服务器错误'
+    });
+  }
+});
+
+/**
+ * 获取所有购买记录（管理员）
+ * GET /api/admin/purchases
+ */
+router.get('/purchases', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = '', status } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    // 构建查询条件
+    const whereClause: any = {};
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    // 搜索条件
+    let userIds: string[] = [];
+    let questionSetIds: string[] = [];
+    
+    if (search && typeof search === 'string') {
+      // 搜索用户
+      const users = await User.findAll({
+        where: {
+          [Op.or]: [
+            { username: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${search}%` } }
+          ]
+        },
+        attributes: ['id']
+      });
+      userIds = users.map(u => u.id);
+
+      // 搜索题库
+      const questionSets = await QuestionSet.findAll({
+        where: {
+          title: { [Op.like]: `%${search}%` }
+        },
+        attributes: ['id']
+      });
+      questionSetIds = questionSets.map(qs => qs.id);
+
+      // 如果有搜索结果，添加到查询条件
+      if (userIds.length > 0 || questionSetIds.length > 0) {
+        whereClause[Op.or] = [];
+        if (userIds.length > 0) {
+          whereClause[Op.or].push({ userId: { [Op.in]: userIds } });
+        }
+        if (questionSetIds.length > 0) {
+          whereClause[Op.or].push({ questionSetId: { [Op.in]: questionSetIds } });
+        }
+      }
+    }
+
+    // 查询购买记录
+    const { count, rows: purchases } = await Purchase.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email']
+        },
+        {
+          model: QuestionSet,
+          as: 'questionSet',
+          attributes: ['id', 'title', 'price']
+        }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: offset
+    });
+
+    const totalPages = Math.ceil(count / Number(limit));
+
+    return res.json({
+      success: true,
+      data: {
+        purchases,
+        currentPage: Number(page),
+        totalPages,
+        totalCount: count
+      }
+    });
+  } catch (error) {
+    console.error('获取购买记录失败:', error);
+    return res.status(500).json({
+      success: false,
+      message: '获取购买记录失败'
+    });
+  }
+});
+
+/**
+ * 删除购买记录（管理员）
+ * DELETE /api/admin/purchases/:purchaseId
+ */
+router.delete('/purchases/:purchaseId', async (req, res) => {
+  try {
+    const { purchaseId } = req.params;
+
+    const purchase = await Purchase.findByPk(purchaseId);
+    
+    if (!purchase) {
+      return res.status(404).json({
+        success: false,
+        message: '购买记录不存在'
+      });
+    }
+
+    await purchase.destroy();
+
+    return res.json({
+      success: true,
+      message: '购买记录已删除'
+    });
+  } catch (error) {
+    console.error('删除购买记录失败:', error);
+    return res.status(500).json({
+      success: false,
+      message: '删除购买记录失败'
     });
   }
 });

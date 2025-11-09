@@ -9,7 +9,10 @@ const fs_1 = __importDefault(require("fs"));
 const multer_1 = __importDefault(require("multer"));
 const uuid_1 = require("uuid");
 const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
+const Purchase_1 = __importDefault(require("../models/Purchase"));
+const User_1 = __importDefault(require("../models/User"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const sequelize_1 = require("sequelize");
 const router = express_1.default.Router();
 // 使用身份验证和管理员中间件
 router.use(authMiddleware_1.protect);
@@ -191,6 +194,119 @@ router.delete('/upload/card-image/:questionSetId', async (req, res) => {
         return res.status(500).json({
             success: false,
             message: '服务器错误'
+        });
+    }
+});
+/**
+ * 获取所有购买记录（管理员）
+ * GET /api/admin/purchases
+ */
+router.get('/purchases', async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = '', status } = req.query;
+        const offset = (Number(page) - 1) * Number(limit);
+        // 构建查询条件
+        const whereClause = {};
+        if (status && status !== 'all') {
+            whereClause.status = status;
+        }
+        // 搜索条件
+        let userIds = [];
+        let questionSetIds = [];
+        if (search && typeof search === 'string') {
+            // 搜索用户
+            const users = await User_1.default.findAll({
+                where: {
+                    [sequelize_1.Op.or]: [
+                        { username: { [sequelize_1.Op.like]: `%${search}%` } },
+                        { email: { [sequelize_1.Op.like]: `%${search}%` } }
+                    ]
+                },
+                attributes: ['id']
+            });
+            userIds = users.map(u => u.id);
+            // 搜索题库
+            const questionSets = await QuestionSet_1.default.findAll({
+                where: {
+                    title: { [sequelize_1.Op.like]: `%${search}%` }
+                },
+                attributes: ['id']
+            });
+            questionSetIds = questionSets.map(qs => qs.id);
+            // 如果有搜索结果，添加到查询条件
+            if (userIds.length > 0 || questionSetIds.length > 0) {
+                whereClause[sequelize_1.Op.or] = [];
+                if (userIds.length > 0) {
+                    whereClause[sequelize_1.Op.or].push({ userId: { [sequelize_1.Op.in]: userIds } });
+                }
+                if (questionSetIds.length > 0) {
+                    whereClause[sequelize_1.Op.or].push({ questionSetId: { [sequelize_1.Op.in]: questionSetIds } });
+                }
+            }
+        }
+        // 查询购买记录
+        const { count, rows: purchases } = await Purchase_1.default.findAndCountAll({
+            where: whereClause,
+            include: [
+                {
+                    model: User_1.default,
+                    as: 'user',
+                    attributes: ['id', 'username', 'email']
+                },
+                {
+                    model: QuestionSet_1.default,
+                    as: 'questionSet',
+                    attributes: ['id', 'title', 'price']
+                }
+            ],
+            order: [['createdAt', 'DESC']],
+            limit: Number(limit),
+            offset: offset
+        });
+        const totalPages = Math.ceil(count / Number(limit));
+        return res.json({
+            success: true,
+            data: {
+                purchases,
+                currentPage: Number(page),
+                totalPages,
+                totalCount: count
+            }
+        });
+    }
+    catch (error) {
+        console.error('获取购买记录失败:', error);
+        return res.status(500).json({
+            success: false,
+            message: '获取购买记录失败'
+        });
+    }
+});
+/**
+ * 删除购买记录（管理员）
+ * DELETE /api/admin/purchases/:purchaseId
+ */
+router.delete('/purchases/:purchaseId', async (req, res) => {
+    try {
+        const { purchaseId } = req.params;
+        const purchase = await Purchase_1.default.findByPk(purchaseId);
+        if (!purchase) {
+            return res.status(404).json({
+                success: false,
+                message: '购买记录不存在'
+            });
+        }
+        await purchase.destroy();
+        return res.json({
+            success: true,
+            message: '购买记录已删除'
+        });
+    }
+    catch (error) {
+        console.error('删除购买记录失败:', error);
+        return res.status(500).json({
+            success: false,
+            message: '删除购买记录失败'
         });
     }
 });

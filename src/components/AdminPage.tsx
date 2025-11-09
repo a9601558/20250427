@@ -11,6 +11,7 @@ import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 import AdminBatchUpload from './admin/AdminBatchUpload';
 import AdminContentManagement from './admin/AdminContentManagement';
 import AdminJSONUpload from './admin/AdminJSONUpload';
+import AdminPurchaseManagement from './admin/AdminPurchaseManagement';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -22,6 +23,7 @@ enum AdminTab {
   QUESTION_SET_INFO = 'questionSetInfo',
   BATCH_QUESTION_UPLOAD = 'batchQuestionUpload',
   JSON_QUESTION_UPLOAD = 'jsonQuestionUpload',
+  PURCHASE_MANAGEMENT = 'purchaseManagement',
 }
 
 const AdminPage: React.FC = () => {
@@ -143,6 +145,15 @@ const AdminPage: React.FC = () => {
                   </svg>
                   内容管理
                 </button>
+                <button
+                  onClick={() => setActiveTab(AdminTab.PURCHASE_MANAGEMENT)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.PURCHASE_MANAGEMENT ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  购买记录管理
+                </button>
               </nav>
             </div>
             
@@ -157,6 +168,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
                 {activeTab === AdminTab.BATCH_QUESTION_UPLOAD && <AdminBatchUpload />}
                 {activeTab === AdminTab.JSON_QUESTION_UPLOAD && <AdminJSONUpload />}
+                {activeTab === AdminTab.PURCHASE_MANAGEMENT && <AdminPurchaseManagement />}
               </div>
             </div>
           </div>
