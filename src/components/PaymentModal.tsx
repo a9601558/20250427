@@ -6,6 +6,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
+import './payment-styles.css';
 
 // Stripe公開可能キー - 環境変数から読み込み（.envファイルに設定）
 const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
@@ -123,7 +124,7 @@ const PaymentForm: React.FC<{
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="p-4 border border-gray-300 rounded-lg">
+      <div className="p-4 border border-gray-300 rounded-lg stripe-card-element-container">
         <CardElement
           options={{
             style: {
@@ -133,8 +134,11 @@ const PaymentForm: React.FC<{
                 '::placeholder': {
                   color: '#aab7c4',
                 },
+                iconColor: '#424770',
               },
             },
+            hideIcon: false,
+            iconStyle: 'default',
           }}
         />
       </div>

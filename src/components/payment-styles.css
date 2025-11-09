@@ -19,4 +19,41 @@
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* Stripeカードブランドアイコンの間隔調整 */
+.stripe-card-element-container .StripeElement {
+  padding: 12px 0;
+}
+
+/* カードブランドアイコンのコンテナに余白を追加 - より強力なセレクタ */
+.stripe-card-element-container .StripeElement .CardBrandIcon-container,
+.stripe-card-element-container .StripeElement--empty .CardBrandIcon-container,
+.stripe-card-element-container .StripeElement--focus .CardBrandIcon-container {
+  gap: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+}
+
+/* 各カードアイコンに右側の余白を追加 */
+.stripe-card-element-container .StripeElement .CardBrandIcon,
+.stripe-card-element-container .StripeElement--empty .CardBrandIcon,
+.stripe-card-element-container .StripeElement--focus .CardBrandIcon {
+  margin: 0 8px !important;
+  padding: 0 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.stripe-card-element-container .StripeElement .CardBrandIcon:first-child {
+  margin-left: 0 !important;
+}
+
+.stripe-card-element-container .StripeElement .CardBrandIcon:last-child {
+  margin-right: 0 !important;
+}
+
+/* SVGアイコン自体のサイズと間隔 */
+.stripe-card-element-container .StripeElement .CardBrandIcon svg {
+  margin: 0 4px !important;
 } 
