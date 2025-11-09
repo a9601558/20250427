@@ -1,11 +1,104 @@
-# 考试练习系统 (Exam Practice System)
+# MonTopi - モンゴル語試験練習システム
 
-一个基于 React + TypeScript + Node.js + Express + MySQL + AWS Cognito 的现代化考试练习平台。
+<div align="center">
+
+![MonTopi Logo](public/montopi-logo.svg)
+
+**現代的なオンライン試験練習プラットフォーム**
+
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/a9601558/20250427)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![React](https://img.shields.io/badge/React-18.3-61dafb.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-16+-339933.svg)](https://nodejs.org/)
+
+[デモ](https://your-demo-url.com) • [ドキュメント](./docs/) • [デプロイガイド](./PRODUCTION_DEPLOY.md)
+
+</div>
+
+---
+
+## 📖 About MonTopi
+
+**MonTopi**（モンゴル語 Topic の略）は、モンゴル語を中心とした多言語対応の試験練習プラットフォームです。AWS Cognitoを活用したセキュアな認証システム、柔軟な題庫管理、リアルタイムの学習進捗追跡機能を提供し、効率的な学習体験を実現します。
+
+### 🎯 主な特徴
+
+- **🌐 多言語対応**: モンゴル語、日本語、中国語のUI対応
+- **📚 柔軟な題庫管理**: JSON形式での一括インポート、カテゴリー分類
+- **🔐 セキュアな認証**: AWS Cognito統合、JWT認証
+- **📊 学習進捗追跡**: リアルタイムの正答率、学習履歴の可視化
+- **💳 決済機能**: Stripe統合による有料題庫の販売
+- **🎫 クーポンシステム**: 兌換コード発行・管理機能
+- **📱 レスポンシブデザイン**: デスクトップ・タブレット・モバイル対応
+- **⚡ 高速パフォーマンス**: Vite + React 18による最適化
+
+### 🛠️ 技術スタック
+
+#### Frontend
+- **Framework**: React 18.3 + TypeScript 5.5
+- **Build Tool**: Vite 5.4
+- **Styling**: Tailwind CSS 3.4
+- **State Management**: React Context API
+- **HTTP Client**: Axios
+- **Authentication**: AWS Amplify + Cognito
+
+#### Backend
+- **Runtime**: Node.js 16+
+- **Framework**: Express.js 4.21
+- **Language**: TypeScript 5.6
+- **Database**: MySQL 8.0+
+- **ORM**: Sequelize 6.37
+- **Authentication**: AWS Cognito + JWT
+- **Payment**: Stripe API
+
+#### Infrastructure
+- **Web Server**: Nginx
+- **Process Manager**: PM2
+- **Database**: MySQL
+- **Cloud Services**: AWS Cognito
+- **Version Control**: Git
+
+### 🎨 主要機能
+
+#### 👤 ユーザー機能
+- AWS Cognitoによる安全なユーザー登録・ログイン
+- プロフィール管理と学習統計
+- 複数アカウント切り替え機能
+- 学習進捗の自動保存
+
+#### 📝 題庫機能
+- カテゴリー別題庫検索・フィルタリング
+- 単選択・複数選択問題対応
+- JSON一括インポート（管理者）
+- 問題順序の完全制御
+- 試用モード（無料お試し）
+
+#### 🎓 学習機能
+- 2つの学習モード：練習モード・試験モード
+- リアルタイム採点
+- 間違えた問題の復習機能
+- 詳細な解説表示
+- 学習履歴の可視化
+
+#### 💰 課金機能
+- Stripe統合決済システム
+- 有料題庫の販売
+- 兌換コード（クーポン）システム
+- 購入履歴管理
+
+#### 🔧 管理機能
+- 題庫作成・編集・削除
+- JSON一括インポート
+- 兌換コード生成・管理
+- ユーザー管理
+- コンテンツ管理
 
 ## 📚 ドキュメント
 
 - **デプロイガイド**: [`PRODUCTION_DEPLOY.md`](./PRODUCTION_DEPLOY.md) - クイックデプロイ手順
 - **詳細ドキュメント**: [`docs/`](./docs/) - 全ドキュメント索引
+- **API仕様**: [`API_SPEC.md`](./API_SPEC.md) - RESTful APIドキュメント
 
 ## 项目简介
 
@@ -274,33 +367,259 @@ MIT
 - 支付处理：Stripe
 - 样式：Tailwind CSS
 
-## 开发与运行
+## 🚀 クイックスタート
 
-1. 安装依赖:
+### 前提条件
+- Node.js 16+ インストール済み
+- MySQL 8.0+ 稼働中
+- AWS Cognito設定済み（本番環境）
+
+### インストール
+
+1. **リポジトリのクローン**
+```bash
+git clone https://github.com/a9601558/20250427.git
+cd 20250427
 ```
+
+2. **依存関係のインストール**
+```bash
+# フロントエンド
+npm install
+
+# バックエンド
+cd server
 npm install
 ```
 
-2. 启动开发服务器:
-```
-npm run dev
+3. **環境変数の設定**
+```bash
+# ルートディレクトリ
+cp .env.example .env
+# .envファイルを編集
+
+# サーバーディレクトリ
+cd server
+cp .env.example .env
+# .envファイルを編集
 ```
 
-3. 构建生产版本:
+4. **データベースのセットアップ**
+```bash
+# MySQLデータベース作成
+mysql -u root -p
+CREATE DATABASE exam_system;
+
+# マイグレーション実行（サーバーディレクトリで）
+cd server
+npm run migrate
 ```
+
+### 開発環境での実行
+
+1. **バックエンドサーバー起動**
+```bash
+cd server
+npm run dev
+# http://localhost:5000 で起動
+```
+
+2. **フロントエンド開発サーバー起動**
+```bash
+# 新しいターミナルで、ルートディレクトリから
+npm run dev
+# http://localhost:3000 で起動
+```
+
+3. **ブラウザでアクセス**
+```
+http://localhost:3000
+```
+
+### 本番環境ビルド
+
+```bash
+# フロントエンド
+npm run build
+
+# バックエンド
+cd server
 npm run build
 ```
 
-## 兑换码和支付流程
+詳細は [`PRODUCTION_DEPLOY.md`](./PRODUCTION_DEPLOY.md) を参照してください。
 
-### 兑换码流程
-1. 管理员在管理后台为特定题库生成兑换码
-2. 用户在题库页面点击"引換コードを入力する"
-3. 输入有效兑换码后，获取该题库的完整访问权限
-4. 系统记录兑换情况和有效期
+## 📱 使い方
 
-### 支付流程
-1. 用户在题库页面点击"购买完整题库"
-2. 弹出支付窗口，用户输入支付信息
-3. 支付成功后，用户获得该题库6个月的访问权限
-4. 系统记录购买记录和到期时间
+### 一般ユーザー向け
+
+#### 1️⃣ アカウント登録・ログイン
+- AWS Cognitoによる安全な認証
+- Eメール認証
+- パスワードリセット機能
+
+#### 2️⃣ 題庫の閲覧と学習
+- **無料題庫**: すぐに利用開始
+- **有料題庫**: 試用モード（一部問題）→ 購入で完全アクセス
+- カテゴリー検索・フィルタリング
+
+#### 3️⃣ 学習モード
+- **練習モード**: 即座にフィードバック、解説表示
+- **試験モード**: 本番形式のテスト
+- 学習進捗の自動保存
+
+#### 4️⃣ 有料コンテンツへのアクセス
+- **Stripe決済**: クレジットカード・デビットカード対応
+- **兌換コード**: クーポンコード入力で無料アクセス
+- 購入後6ヶ月間有効
+
+#### 5️⃣ 学習管理
+- 学習統計の確認
+- 間違えた問題の復習
+- 購入履歴の確認
+
+### 管理者向け
+
+#### 🔧 題庫管理
+- 新規題庫作成
+- JSON一括インポート（順序保持）
+- 題庫編集・削除
+- 無料/有料設定
+
+#### 💳 決済管理
+- 兌換コード生成（一括対応）
+- 有効期限設定
+- 使用状況追跡
+- 購入記録管理
+
+#### 👥 ユーザー管理
+- ユーザー一覧
+- 権限管理
+- 学習状況確認
+
+#### 🎨 コンテンツ管理
+- ホームページ編集
+- カテゴリー管理
+- お知らせ設定
+
+## 🔑 兌換コードと決済フロー
+
+### 兌換コード（クーポン）の流れ
+
+1. **管理者**: 管理画面で題庫用の兌換コードを生成
+   - 対象題庫を選択
+   - 有効期限を設定（デフォルト180日）
+   - 生成数を指定（一括生成可能）
+
+2. **ユーザー**: 題庫ページで「引換コードを入力」をクリック
+   - 受け取ったコードを入力
+   - 有効なコードで完全アクセス権を獲得
+
+3. **システム**: 自動記録
+   - 兌換履歴保存
+   - 有効期限管理
+   - 使用済みマーク
+
+### Stripe決済の流れ
+
+1. **購入開始**: 題庫ページで「購入」ボタンをクリック
+
+2. **決済情報入力**: Stripeセキュア決済フォーム
+   - クレジットカード情報
+   - 自動検証
+
+3. **決済処理**: Stripe API経由で安全に処理
+
+4. **アクセス付与**: 
+   - 購入記録保存
+   - 6ヶ月間のアクセス権付与
+   - 購入履歴に記録
+
+5. **確認**: 購入完了通知とアクセス開始
+
+## 📊 プロジェクト統計
+
+- **開発期間**: 2025年10月〜11月
+- **総コミット数**: 100+
+- **コード行数**: 50,000+ lines
+- **コンポーネント数**: 30+ React components
+- **API エンドポイント数**: 40+ RESTful APIs
+- **サポート言語**: 日本語、中国語、モンゴル語
+
+## 🎯 最近の主要アップデート
+
+### v1.0.0 (2025-11-09)
+- ✅ JSON題庫一括インポート機能の順序制御修正
+- ✅ 質問表示順序の完全制御実装
+- ✅ 選択肢順序修正（A, B, C, D順）
+- ✅ Toast通知の無効化（127+ instances）
+- ✅ バックエンドORDER BY句追加
+- ✅ フロントエンドシャッフルロジック削除
+- ✅ コード品質改善とリファクタリング
+- ✅ 本番環境デプロイガイド整備
+
+詳細は [`docs/fix-records/`](./docs/fix-records/) を参照してください。
+
+## 🤝 貢献
+
+プルリクエストを歓迎します！大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+
+### 開発ワークフロー
+
+1. このリポジトリをフォーク
+2. フィーチャーブランチを作成 (`git checkout -b feature/AmazingFeature`)
+3. 変更をコミット (`git commit -m 'Add some AmazingFeature'`)
+4. ブランチにプッシュ (`git push origin feature/AmazingFeature`)
+5. プルリクエストを開く
+
+コミットメッセージは [`docs/GIT_COMMIT_GUIDE.md`](./docs/GIT_COMMIT_GUIDE.md) に従ってください。
+
+## 📄 ライセンス
+
+このプロジェクトは MIT ライセンスの下で公開されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。
+
+## 👥 開発チーム
+
+- **プロジェクトオーナー**: [@a9601558](https://github.com/a9601558)
+- **主要開発者**: GitHub Copilot AI Assistant
+
+## 🙏 謝辞
+
+このプロジェクトの開発にあたり、以下のオープンソースプロジェクトとサービスを利用しています：
+
+- [React](https://reactjs.org/) - UIフレームワーク
+- [TypeScript](https://www.typescriptlang.org/) - 型安全な開発
+- [Vite](https://vitejs.dev/) - 高速ビルドツール
+- [Tailwind CSS](https://tailwindcss.com/) - ユーティリティファーストCSS
+- [Express.js](https://expressjs.com/) - バックエンドフレームワーク
+- [Sequelize](https://sequelize.org/) - ORM
+- [AWS Cognito](https://aws.amazon.com/cognito/) - 認証サービス
+- [Stripe](https://stripe.com/) - 決済プラットフォーム
+- [MySQL](https://www.mysql.com/) - データベース
+
+## 📞 サポート
+
+問題が発生した場合や質問がある場合は、以下の方法でご連絡ください：
+
+- **Issues**: [GitHub Issues](https://github.com/a9601558/20250427/issues)
+- **ドキュメント**: [`docs/`](./docs/) ディレクトリ
+- **Email**: （メールアドレスがあれば記載）
+
+## 🔗 関連リンク
+
+- [本番デプロイガイド](./PRODUCTION_DEPLOY.md)
+- [詳細ドキュメント](./docs/)
+- [API仕様](./API_SPEC.md)
+- [修正記録](./docs/fix-records/)
+- [Nginx設定](./docs/deployment/nginx-setup.md)
+- [AWS Cognito設定](./docs/deployment/AWS_COGNITO_PRODUCTION_DEPLOYMENT.md)
+
+---
+
+<div align="center">
+
+**Made with ❤️ by MonTopi Team**
+
+[⬆ トップに戻る](#montopi---モンゴル語試験練習システム)
+
+</div>
