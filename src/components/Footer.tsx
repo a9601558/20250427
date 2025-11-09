@@ -27,6 +27,7 @@ const Footer: React.FC = () => {
               <ul className="text-sm text-gray-400">
                 <li className="mb-1"><Link to="/" className="hover:text-blue-300">题库列表</Link></li>
                 <li className="mb-1"><Link to="/profile" className="hover:text-blue-300">个人中心</Link></li>
+                <li className="mb-1"><Link to="/blog" className="hover:text-blue-300">博客</Link></li>
               </ul>
             </div>
             

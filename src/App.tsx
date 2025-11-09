@@ -16,6 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import { UserProgressProvider } from './contexts/UserProgressContext';
 import { toast } from 'react-toastify';
 import QuestionSetSearchPage from './components/QuestionSetSearchPage';
+import AboutPage from './components/AboutPage';
+import BlogPage from './components/BlogPage';
 import { httpRateLimiter } from './utils/loopPrevention';
 import { useAuth } from "react-oidc-context";
 
@@ -234,6 +236,8 @@ const App: React.FC = () => {
                   <Route path="/quiz/:questionSetId" element={<QuizPage />} />
                   <Route path="/payment/:id" element={<Navigate to="/" replace />} />
                   <Route path="/question-sets" element={<QuestionSetSearchPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/blog" element={<BlogPage />} />
                 </Routes>
               </Layout>
             </Router>
