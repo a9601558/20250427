@@ -1630,6 +1630,54 @@ const StyleInjector = () => {
 };
 
 // IQuestionSet接口已从types/index.ts导入，无需重复定义
+// 验证questionSetId的函数，但不直接清理
+const validateQuestionSetId = (questionSetId: string | undefined): boolean => {
+  if (!questionSetId) return false;
+  
+  // 检查是否为标准UUID格式 (8-4-4-4-12字符，总共36字符加连字符)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (uuidRegex.test(questionSetId)) {
+    return true; // 标准格式
+  }
+  
+  // 检查是否为错误格式但包含有效UUID (如 UUID_UUID 格式)
+  if (questionSetId.includes('_')) {
+    const parts = questionSetId.split('_');
+    return parts.some(part => uuidRegex.test(part));
+  }
+  
+  return false;
+};
+
+// 提取有效的UUID的函数
+const extractValidUuid = (questionSetId: string): string | null => {
+  if (!questionSetId) return null;
+  
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  if (uuidRegex.test(questionSetId)) {
+    return questionSetId; // 已经是正确格式
+  }
+  
+  // 如果包含下划线，尝试提取有效的UUID
+  if (questionSetId.includes('_')) {
+    const parts = questionSetId.split('_');
+    
+    for (const part of parts) {
+      if (uuidRegex.test(part)) {
+        console.warn('[QuizPage] 从错误格式ID中提取有效UUID:', questionSetId, '->', part);
+        return part;
+      }
+    }
+  }
+  
+  console.error('[QuizPage] 无法从异常ID中提取有效UUID:', questionSetId);
+  return null;
+};
+
+// 验证questionSetId的函数，但不直接清理
+
 
 
 
@@ -1642,6 +1690,7 @@ function QuizPage(): JSX.Element {
   const { fetchUserProgress } = useUserProgress();
   
   // 验证questionSetId，但保持原始格式用于API调用
+  const isValidId = validateQuestionSetId(rawQuestionSetId);
   const questionSetId = rawQuestionSetId; // 保持原始格式
   
   // 将 isSubmittingRef 移动到组件内部
