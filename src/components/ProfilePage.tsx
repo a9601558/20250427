@@ -1918,14 +1918,18 @@ const ProfilePage: React.FC = () => {
     }
   }, [user?.id, fetchProgressData]);
 
-  // 添加一个新函数，确保学習進捗数据不会被意外删除
+  // 添加一个新函数，确保学習進捗数据不会被意外删除（但不会恢复已手动删除的数据）
   const protectLearningProgressData = useCallback(() => {
     if (!user?.id) return;
     
     try {
-      console.log('[ProfilePage] 检查并保护学習進捗数据');
+      console.log('[ProfilePage] 學習進捗データを確認中');
       
-      // 获取所有localStorage中的进度数据
+      // 获取当前保护列表和备份键
+      const protectionKey = `protected_progress_${user.id}`;
+      const backupKey = `progress_backup_${user.id}`;
+      
+      // 获取所有localStorage中的进度数据（仅更新现有的，不恢复已删除的）
       const progressData: Record<string, any> = {};
       const keysToProtect: string[] = [];
       
@@ -1950,28 +1954,28 @@ const ProfilePage: React.FC = () => {
               }
             }
           } catch (e) {
-            console.error(`[ProfilePage] 解析进度数据失败: ${key}`, e);
+            console.error(`[ProfilePage] 進度データ解析失敗: ${key}`, e);
           }
         }
       }
       
       // 将要保护的键列表存储在单独的存储位置
       if (keysToProtect.length > 0) {
-        const protectionKey = `protected_progress_${user.id}`;
         localStorage.setItem(protectionKey, JSON.stringify({
           userId: user.id,
           protectedKeys: keysToProtect,
           timestamp: Date.now()
         }));
-        console.log(`[ProfilePage] 已保护 ${keysToProtect.length} 条学習進捗数据`);
+        console.log(`[ProfilePage] ${keysToProtect.length} 件の学習進捗データを保護しました`);
         
-        // 创建备份
-        const backupKey = `progress_backup_${user.id}`;
+        // 更新备份（仅包含当前存在的数据）
         localStorage.setItem(backupKey, JSON.stringify(progressData));
-        console.log(`[ProfilePage] 已备份 ${Object.keys(progressData).length} 条学習進捗数据`);
+        console.log(`[ProfilePage] ${Object.keys(progressData).length} 件の学習進捗データをバックアップしました`);
+      } else {
+        console.log('[ProfilePage] 保護する学習進捗データがありません');
       }
     } catch (error) {
-      console.error('[ProfilePage] 保护学習進捗数据失败:', error);
+      console.error('[ProfilePage] 学習進捗データの保護に失敗:', error);
     }
   }, [user?.id]);
 
@@ -2364,25 +2368,57 @@ const ProfilePage: React.FC = () => {
     }
     
     try {
-      console.log(`[ProfilePage] 开始删除题库进度 ${questionSetId}`);
+      console.log(`[ProfilePage] 開始刪除問題集進度 ${questionSetId}`);
       
       // 1. 删除本地存储中的进度
       const localProgressKey = `quiz_progress_${questionSetId}`;
       localStorage.removeItem(localProgressKey);
       
-      // 2. 调用API删除服务器上的进度数据
+      // 2. 从保护列表中移除
+      const protectionKey = `protected_progress_${user.id}`;
+      const protectionData = localStorage.getItem(protectionKey);
+      if (protectionData) {
+        try {
+          const parsed = JSON.parse(protectionData);
+          if (parsed.protectedKeys) {
+            parsed.protectedKeys = parsed.protectedKeys.filter((key: string) => key !== localProgressKey);
+            localStorage.setItem(protectionKey, JSON.stringify(parsed));
+            console.log(`[ProfilePage] 已從保護列表移除 ${localProgressKey}`);
+          }
+        } catch (e) {
+          console.error('[ProfilePage] 更新保護列表失敗:', e);
+        }
+      }
+      
+      // 3. 从备份中移除
+      const backupKey = `progress_backup_${user.id}`;
+      const backupData = localStorage.getItem(backupKey);
+      if (backupData) {
+        try {
+          const parsed = JSON.parse(backupData);
+          if (parsed[localProgressKey]) {
+            delete parsed[localProgressKey];
+            localStorage.setItem(backupKey, JSON.stringify(parsed));
+            console.log(`[ProfilePage] 已從備份移除 ${localProgressKey}`);
+          }
+        } catch (e) {
+          console.error('[ProfilePage] 更新備份失敗:', e);
+        }
+      }
+      
+      // 4. 调用API删除服务器上的进度数据
       const response = await userProgressService.deleteQuestionSetProgress(user.id, questionSetId);
       
       if (response.success) {
-        // 3. 从UI中移除进度卡片
+        // 5. 从UI中移除进度卡片
         setProgressStats(prevStats => prevStats.filter(stat => stat.questionSetId !== questionSetId));
         toast.success('学習進捗を削除しました');
-        console.log(`[ProfilePage] 题库进度删除成功 ${questionSetId}`);
+        console.log(`[ProfilePage] 問題集進度刪除成功 ${questionSetId}`);
       } else {
         throw new Error(response.message || '削除に失敗しました');
       }
     } catch (error: any) {
-      console.error(`[ProfilePage] 删除题库进度失败:`, error);
+      console.error(`[ProfilePage] 刪除問題集進度失敗:`, error);
       toast.error(error.message || '進捗の削除に失敗しました');
     }
   };
