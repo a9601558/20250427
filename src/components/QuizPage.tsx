@@ -22,6 +22,7 @@ import {
   CardElement, 
   useStripe, 
   useElements,
+  PaymentRequestButtonElement,
 } from '@stripe/react-stripe-js';
 
 // 从服务api中导入API_BASE_URL
