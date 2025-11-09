@@ -1,0 +1,68 @@
+/* QuizPage Animations and Styles */
+
+/* 波纹点击效果 */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 0.6s ease-out;
+}
+
+/* 轻微脉动效果 */
+@keyframes pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-scale {
+  animation: pulse-scale 1.5s ease-in-out infinite;
+}
+
+/* 点击缩放效果 */
+.scale-transition {
+  transition: transform 0.2s ease-out !important;
+}
+
+.hover-raise:hover {
+  transform: translateY(-2px);
+}
+
+.click-shrink:active {
+  transform: scale(0.95);
+}
+
+/* 自定义toast样式 */
+.Toastify__toast {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+/* 改进按钮点击和触摸体验 */
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* 修复safari移动设备上的按钮点击問題 */
+@media (hover: none) {
+  button:active {
+    transform: scale(0.95);
+  }
+}
