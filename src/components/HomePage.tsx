@@ -6,6 +6,7 @@ import apiClient from '../utils/api-client';
 import { homepageService } from '../services/api';
 import { toast } from 'react-toastify';
 import { httpRateLimiter, detectLoop, isBlocked } from '../utils/loopPrevention';
+import SEO from './SEO';
 
 import { 
   HomeContentData, 
@@ -3854,6 +3855,12 @@ const HomePage = () => {
   // 在页面内容的顶部添加一个条件渲染的通知栏
   return (
     <div className={bgClass}>
+      <SEO 
+        title="IT資格試験対策｜無料問題集・過去問｜AWS・SAP・Azure・Oracle最新問題"
+        description="MonTopiは、AWS、SAP、Azure、Oracle、CCNA、LPIC、ITパスポートなど、あらゆるIT資格試験・ベンダー資格試験の無料問題集・過去問を提供する最大級のオンライン学習プラットフォームです。最新の試験問題で効率的に資格取得を目指せます。"
+        keywords="IT資格,AWS認定,SAP資格,Azure資格,Oracle認定,CCNA,LPIC,ITパスポート,基本情報技術者,応用情報技術者,問題集,過去問,無料,試験対策,ベンダー資格,クラウド資格,最新問題,オンライン学習,資格取得,模擬試験"
+        canonical="https://montopi.com/"
+      />
       {/* 添加自定义样式 */}
       <style dangerouslySetInnerHTML={{ __html: customStyles }} />
       

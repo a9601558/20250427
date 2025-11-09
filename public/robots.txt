@@ -1,0 +1,25 @@
+# MonTopi - Robots.txt
+# IT資格試験対策問題集サイト
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /profile/
+Disallow: /payment/
+
+# Sitemap
+Sitemap: https://montopi.com/sitemap.xml
+
+# クローリング頻度
+Crawl-delay: 1
+
+# 特定のボット向け設定
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /

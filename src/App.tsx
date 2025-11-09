@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import './App.css';
 import Layout from './components/Layout';
 import HomePage from './components/HomePage';
@@ -58,6 +59,14 @@ const AuthManager: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  return (
+    <HelmetProvider>
+      <AppContent />
+    </HelmetProvider>
+  );
+};
+
+const AppContent: React.FC = () => {
   // 页面刷新防护 - 调整为更宽松的条件
   useEffect(() => {
     const refreshCount = parseInt(sessionStorage.getItem('appRefreshCount') || '0');

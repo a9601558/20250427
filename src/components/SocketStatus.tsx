@@ -7,7 +7,7 @@ const SocketStatus: React.FC = () => {
     return (
       <div className="fixed bottom-4 right-4 flex items-center px-3 py-1 bg-green-500 text-white rounded-md text-sm shadow-md">
         <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
-        Socket 接続済み
+        接続済み
       </div>
     );
   }
@@ -16,7 +16,7 @@ const SocketStatus: React.FC = () => {
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-start p-3 bg-red-100 border border-red-300 rounded-md shadow-lg">
       <div className="flex items-center">
         <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-        <span className="text-red-700 text-sm font-medium">Socket 接続失敗</span>
+        <span className="text-red-700 text-sm font-medium">接続失敗</span>
       </div>
       
       {lastError && (
@@ -29,7 +29,7 @@ const SocketStatus: React.FC = () => {
         onClick={reconnect}
         className="mt-2 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300"
       >
-        再接続中
+        再接続
       </button>
     </div>
   );

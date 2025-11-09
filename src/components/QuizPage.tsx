@@ -5,6 +5,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type React from 'react';
 import { Question, IQuestionSet } from '../types/index';
 import { useUser } from '../contexts/UserContext';
+import SEO from './SEO';
 
 import { questionSetService as questionSetApi } from '../services/api';
 import { useSocket } from '../contexts/SocketContext';
@@ -5217,10 +5218,16 @@ function QuizPage(): JSX.Element {
   // 修改渲染函数，确保PurchasePage优先显示
   return (
     <div className="min-h-screen bg-gray-50 py-8 pb-20">
+      <SEO 
+        title={questionSet ? `${questionSet.name} - 問題集 | MonTopi` : '問題集 | MonTopi'}
+        description={questionSet ? `${questionSet.name}の問題集。${questionSet.description || 'IT資格試験対策のための最新問題・過去問を提供'}` : 'IT資格試験対策のための問題集'}
+        keywords={`${questionSet?.name || 'IT資格'},問題集,過去問,試験対策,無料,オンライン学習`}
+        noindex={!questionSet?.id}
+      />
       {/* 添加StyleInjector组件 */}
       <StyleInjector />
       
-      {/* 调试工具区域 */}
+      {/* 调試工具区域 */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {/* 管理员覆盖按钮 */}
         {user?.email?.includes('@admin.') && (
