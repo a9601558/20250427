@@ -4,7 +4,7 @@
 
 GitHubリポジトリに以下の機密情報がコミットされました：
 
-- **データベースパスワード**: `zqw20011216`
+- **データベースパスワード**: `[REDACTED]`
 - **影響を受けたコミット**: `47929e3` およびそれ以前
 
 ## 🔥 緊急対応（即座に実施）
@@ -59,7 +59,7 @@ brew install bfg
 bfg --replace-text passwords.txt
 
 # passwords.txt の内容:
-# zqw20011216===>REDACTED
+# [OLD_PASSWORD]===>REDACTED
 
 # 強制プッシュ
 git reflog expire --expire=now --all

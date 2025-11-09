@@ -53,8 +53,8 @@ const ManageQuestionSets: React.FC = () => {
     if (isAdmin()) {
       loadQuestionSets();
       
-      // 设置定时刷新，每30秒更新一次题库数据
-      const intervalId = setInterval(loadQuestionSets, 30000);
+      // 設置定時更新，60秒ごとに更新（頻度を下げる）
+      const intervalId = setInterval(loadQuestionSets, 60000);
       return () => clearInterval(intervalId);
     }
   }, [isAdmin]);

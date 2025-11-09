@@ -11,7 +11,7 @@ const AboutPage: React.FC = () => {
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-5xl font-bold mb-6">MonTopi について</h1>
             <p className="text-xl mb-8 leading-relaxed">
-              モンゴル語学習を中心とした、現代的なオンライン試験練習プラットフォーム
+              日本語学習を中心とした、現代的なオンライン試験練習プラットフォーム
             </p>
             <div className="flex justify-center gap-4">
               <Link
@@ -44,7 +44,7 @@ const AboutPage: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">私たちのミッション</h2>
             <p className="text-lg text-gray-700 leading-relaxed mb-6">
-              MonTopi（モンゴル語 Topic の略）は、モンゴル語学習者が効率的に試験対策を行えるよう設計された、
+              MonTopi（日本語 Topic の略）は、日本語学習者が効率的に試験対策を行えるよう設計された、
               最先端のオンライン学習プラットフォームです。2025年に開発された本システムは、
               <span className="font-semibold text-blue-600"> AWS Cognito</span> による安全な認証、
               <span className="font-semibold text-blue-600"> React + TypeScript</span> による高速なUI、
@@ -52,7 +52,7 @@ const AboutPage: React.FC = () => {
             </p>
             <p className="text-lg text-gray-700 leading-relaxed">
               私たちは、言語学習の障壁を取り除き、誰もが質の高い学習体験を得られる世界を目指しています。
-              モンゴル語だけでなく、日本語、中国語など多言語対応のUIにより、
+              日本語だけでなく、日本語、中国語など多言語対応のUIにより、
               世界中の学習者が自分の母語で快適に学習できる環境を提供します。
             </p>
           </div>
@@ -71,7 +71,7 @@ const AboutPage: React.FC = () => {
               </div>
               <h3 className="text-xl font-semibold mb-3 text-gray-800">多言語対応</h3>
               <p className="text-gray-600">
-                モンゴル語、日本語、中国語のUI対応。母語で快適に学習できます。
+                日本語、日本語、中国語のUI対応。母語で快適に学習できます。
               </p>
             </div>
 
@@ -287,14 +287,14 @@ const AboutPage: React.FC = () => {
                 <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="w-10 h-10 text-blue-600" />
                 </div>
-                <h4 className="text-xl font-semibold mb-2">プロジェクトオーナー</h4>
+                <h4 className="text-xl font-semibold mb-2">連絡先</h4>
                 <a 
-                  href="https://github.com/a9601558" 
+                  href="https://github.com" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  @a9601558
+                  zqiwei03@gmail.com
                 </a>
               </div>
               <div className="text-center">
@@ -343,12 +343,12 @@ const AboutPage: React.FC = () => {
           <p className="text-gray-600">
             お問い合わせやご提案は{' '}
             <a 
-              href="https://github.com/a9601558/20250427/issues" 
+              href="zqiwei03@gmail.com" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
-              GitHub Issues
+              zqiwei03@gmail.com
             </a>
             {' '}からお願いします。
           </p>

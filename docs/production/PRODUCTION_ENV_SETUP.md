@@ -35,9 +35,9 @@ SYNC_DB=false
 ### 3. JWT設定
 
 ```bash
-# JWT署名用シークレットキー（強力なランダム文字列）
-JWT_SECRET=examPracticeAppSecretKey123456
-JWT_REFRESH_SECRET=examPracticeAppRefreshKey789012
+# JWT署名用シークレットキー（強力なランダム文字列を生成して使用）
+JWT_SECRET=your_jwt_secret_key_here
+JWT_REFRESH_SECRET=your_jwt_refresh_secret_key_here
 
 # トークン有効期限
 JWT_EXPIRES_IN=30d
@@ -150,8 +150,8 @@ DB_PASSWORD=your_secure_password_here
 SYNC_DB=false
 
 # JWT Configuration
-JWT_SECRET=examPracticeAppSecretKey123456
-JWT_REFRESH_SECRET=examPracticeAppRefreshKey789012
+JWT_SECRET=your_jwt_secret_key_here
+JWT_REFRESH_SECRET=your_jwt_refresh_secret_key_here
 JWT_EXPIRES_IN=30d
 JWT_REFRESH_EXPIRES_IN=7d
 

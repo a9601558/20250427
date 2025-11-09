@@ -3659,8 +3659,8 @@ const HomePage = () => {
     // Check immediately on component mount
     checkForAdminUpdates();
     
-    // Set up interval to periodically check for admin updates (much less frequently than our normal check)
-    const intervalId = setInterval(checkForAdminUpdates, 5000);
+    // Set up interval to periodically check for admin updates (reduced frequency: 30 seconds)
+    const intervalId = setInterval(checkForAdminUpdates, 30000);
     
     return () => {
       clearInterval(intervalId);

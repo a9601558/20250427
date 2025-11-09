@@ -346,10 +346,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 問題集
               </Link>
               <Link to="/mock-exam" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
-                模試
+                模試 <span className="text-xs text-gray-500">(開発中)</span>
               </Link>
               <Link to="/learning-path" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
-                学習パス
+                学習パス <span className="text-xs text-gray-500">(開発中)</span>
               </Link>
               <Link to="/blog" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
                 ブログ
@@ -380,10 +380,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       問題集
                     </Link>
                     <Link to="/mock-exam" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
-                      模試
+                      模試 <span className="text-xs text-gray-500">(開発中)</span>
                     </Link>
                     <Link to="/learning-path" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
-                      学習パス
+                      学習パス <span className="text-xs text-gray-500">(開発中)</span>
                     </Link>
                     <Link to="/blog" className="block px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 font-medium" onClick={() => setIsMobileMenuOpen(false)}>
                       ブログ

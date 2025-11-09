@@ -4,7 +4,7 @@ import App from './App'
 import './index.css'
 import './App.css'
 import 'antd/dist/reset.css'
-import { initAutoRefresh } from './utils/autoRefresh'
+// import { initAutoRefresh } from './utils/autoRefresh' // 自動リフレッシュを無効化
 import { AuthProvider } from "react-oidc-context"
 import { WebStorageStateStore } from "oidc-client-ts"
 import { installCognitoDebugger } from './utils/cognitoDebugger'
@@ -64,8 +64,9 @@ if (import.meta.env.DEV) {
   console.log("🔍 デバッグツール有効: window.cognitoDebug() で診断可能");
 }
 
-// 初始化自動刷新功能，設置為2小時（7200000毫秒）
-initAutoRefresh(7200000)
+// 自動リフレッシュ機能を無効化（頻繁なリフレッシュを防ぐ）
+// 必要に応じて、より長い間隔（例：24時間 = 86400000ms）に設定可能
+// initAutoRefresh(7200000)
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
 
