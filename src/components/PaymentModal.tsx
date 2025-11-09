@@ -69,10 +69,17 @@ const PaymentForm: React.FC<{
 
   // Apple Pay / Google Pay サポートの設定
   useEffect(() => {
+    console.log('🔍 PaymentRequest初期化開始');
+    console.log('  - stripe:', stripe ? '✅ 利用可能' : '❌ 未初期化');
+    console.log('  - amount:', amount);
+    console.log('  - clientSecret:', clientSecret ? '✅ あり' : '❌ なし');
+    
     if (!stripe || amount <= 0) {
+      console.log('⚠️ PaymentRequest初期化スキップ: stripe または amount が不正');
       return;
     }
 
+    console.log('📱 PaymentRequest作成中...');
     const pr = stripe.paymentRequest({
       country: 'JP',
       currency: 'jpy',
@@ -84,22 +91,28 @@ const PaymentForm: React.FC<{
       requestPayerEmail: true,
     });
 
+    console.log('🔍 利用可能性チェック中...');
     // 利用可能性をチェック
     pr.canMakePayment().then(result => {
-      console.log('Apple Pay / Google Pay 利用可能性:', result);
+      console.log('✨ Apple Pay / Google Pay 利用可能性チェック完了:', result);
       if (result) {
         console.log('✅ Apple Pay または Google Pay が利用可能です');
         if (result.applePay) {
-          console.log('  - Apple Pay: 利用可能');
+          console.log('  🍎 Apple Pay: 利用可能');
         }
         if (result.googlePay) {
-          console.log('  - Google Pay: 利用可能');
+          console.log('  🤖 Google Pay: 利用可能');
         }
+        console.log('💾 paymentRequestをstateに設定');
         setPaymentRequest(pr);
       } else {
         console.log('❌ Apple Pay / Google Pay は利用できません');
-        console.log('  理由: ブラウザ、デバイス、またはWalletの設定を確認してください');
+        console.log('  📱 デバイス:', navigator.userAgent);
+        console.log('  🌐 ブラウザ:', navigator.vendor);
+        console.log('  💡 ヒント: SafariまたはWallet設定を確認してください');
       }
+    }).catch(err => {
+      console.error('❌ canMakePayment エラー:', err);
     });
 
     // 支払いが承認された時の処理
@@ -143,7 +156,7 @@ const PaymentForm: React.FC<{
         setError(err.message || 'お支払い処理中にエラーが発生しました');
       }
     });
-  }, [stripe, amount, clientSecret, onSuccess]);
+  }, [stripe, amount, clientSecret, onSuccess, setError]);
 
   // 处理支付提交
   const handleSubmit = async (event: React.FormEvent) => {
@@ -200,6 +213,10 @@ const PaymentForm: React.FC<{
       setIsProcessing(false);
     }
   };
+
+  // レンダリング時のデバッグ
+  console.log('🎨 PaymentForm レンダリング');
+  console.log('  - paymentRequest:', paymentRequest ? '✅ あり（Apple Payボタンを表示）' : '❌ なし（通常カードのみ）');
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
