@@ -397,15 +397,15 @@ const PurchasePage: React.FC<{
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-            <h2 className="text-3xl font-bold text-white mb-3 text-shadow">お試し期間終了</h2>
+            <h2 className="text-3xl font-bold text-white mb-3 text-shadow">お試し期間が終了しました</h2>
             <div className="flex items-center justify-center space-x-2 mb-1">
-              <p className="text-blue-100">完了しました</p>
+              <p className="text-blue-100">お試し問題</p>
               <div className="bg-blue-900 bg-opacity-50 text-blue-200 font-mono px-3 py-1 rounded-full font-bold">
                 {trialCount} <span className="text-xs">/ {questionSet?.trialQuestions || 0}</span>
               </div>
-              <p className="text-blue-100">問のお試し問題</p>
+              <p className="text-blue-100">問を完了しました</p>
             </div>
-            <p className="text-blue-200 text-sm font-light">フルバージョンの購入またはクーポンコードで継続</p>
+            <p className="text-blue-200 text-sm font-light">フルバージョンのご購入またはクーポンコードで継続できます</p>
         </div>
         
         {/* Quiz set info */}
@@ -417,17 +417,17 @@ const PurchasePage: React.FC<{
                     <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
                     {questionSet?.title || '問題集'}
                   </h3>
-                  <p className="text-gray-300 mb-4 text-sm">{questionSet?.description || '様々な問題で知識レベル向上。'}</p>
+                  <p className="text-gray-300 mb-4 text-sm">{questionSet?.description || '様々な問題で知識レベルを向上させます。'}</p>
                 </div>
                 <div className="bg-indigo-600 bg-opacity-50 rounded-lg px-3 py-2 text-white">
-                  <span className="font-mono font-bold">{questionSet?.questionCount || '0'}</span> 問が含まれます
+                  <span className="font-mono font-bold">{questionSet?.questionCount || '0'}</span> 問を収録
                 </div>
               </div>
               
               <div className="mt-4 flex justify-between items-center">
             <div className="flex items-baseline">
                   <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet?.price || '0'}</span>
-                  <span className="text-gray-400 text-xs ml-2">一度の支払いで半年間利用可能</span>
+                  <span className="text-gray-400 text-xs ml-2">1回のお支払いで6ヶ月間利用可能</span>
             </div>
                 <div className="flex space-x-1">
                   {['安全', '高速', '効率的'].map(tag => (
@@ -591,20 +591,20 @@ const PurchasePage: React.FC<{
               </div>
             </div>
             <p className="text-xs text-gray-400 mb-2">
-          購入後、完全な問題集へのアクセスを取得、コンテンツ継続更新
+          ご購入後、すべての問題集にアクセスでき、コンテンツは随時更新されます
         </p>
             <div className="flex flex-col items-center justify-center space-y-1">
               <div className="flex items-center justify-center text-xs text-gray-500">
                 <svg className="w-4 h-4 mr-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                Stripe安全支払いでお支払いの安全を保証
+                Stripeの安全な決済システムで保護されています
               </div>
               <div className="flex items-center text-xs text-green-400">
                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                Visa、MasterCard、銀聯、JCBなど多様な支払い方法に対応
+                Visa、MasterCard、Amex、JCBなど主要カードに対応
               </div>
             </div>
           </div>
