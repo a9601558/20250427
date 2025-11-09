@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      treeshake: false, // Apple Pay コードを保持するためTree Shakingを無効化
+    }
+  },
   server: {
     port: 3000,
     proxy: {

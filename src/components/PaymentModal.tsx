@@ -3,7 +3,7 @@ import { useUser } from '../contexts/UserContext';
 import { QuestionSet } from '../types';
 import { toast } from 'react-toastify';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements, PaymentRequestButtonElement } from '@stripe/react-stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import './payment-styles.css';
@@ -28,7 +28,8 @@ const PaymentForm: React.FC<{
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
-  const [paymentRequest, setPaymentRequest] = useState<any>(null);
+  // Apple Pay state - 一旦コメントアウト
+  // const [paymentRequest, setPaymentRequest] = useState<any>(null);
 
   // 创建支付意图
   useEffect(() => {
@@ -67,98 +68,11 @@ const PaymentForm: React.FC<{
     }
   }, [amount]);
 
-  // Apple Pay / Google Pay サポートの設定
-  useEffect(() => {
-    console.log('🔍 PaymentRequest初期化開始');
-    console.log('  - stripe:', stripe ? '✅ 利用可能' : '❌ 未初期化');
-    console.log('  - amount:', amount);
-    console.log('  - clientSecret:', clientSecret ? '✅ あり' : '❌ なし');
-    
-    if (!stripe || amount <= 0) {
-      console.log('⚠️ PaymentRequest初期化スキップ: stripe または amount が不正');
-      return;
-    }
-
-    console.log('📱 PaymentRequest作成中...');
-    const pr = stripe.paymentRequest({
-      country: 'JP',
-      currency: 'jpy',
-      total: {
-        label: '問題集購入',
-        amount: Math.round(amount),
-      },
-      requestPayerName: true,
-      requestPayerEmail: true,
-    });
-
-    console.log('🔍 利用可能性チェック中...');
-    // 利用可能性をチェック
-    pr.canMakePayment().then(result => {
-      console.log('✨ Apple Pay / Google Pay 利用可能性チェック完了:', result);
-      if (result) {
-        console.log('✅ Apple Pay または Google Pay が利用可能です');
-        if (result.applePay) {
-          console.log('  🍎 Apple Pay: 利用可能');
-        }
-        if (result.googlePay) {
-          console.log('  🤖 Google Pay: 利用可能');
-        }
-        console.log('💾 paymentRequestをstateに設定');
-        setPaymentRequest(pr);
-      } else {
-        console.log('❌ Apple Pay / Google Pay は利用できません');
-        console.log('  📱 デバイス:', navigator.userAgent);
-        console.log('  🌐 ブラウザ:', navigator.vendor);
-        console.log('  💡 ヒント: SafariまたはWallet設定を確認してください');
-      }
-    }).catch(err => {
-      console.error('❌ canMakePayment エラー:', err);
-    });
-
-    // 支払いが承認された時の処理
-    pr.on('paymentmethod', async (ev) => {
-      if (!clientSecret) {
-        ev.complete('fail');
-        return;
-      }
-
-      try {
-        const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
-          clientSecret,
-          { payment_method: ev.paymentMethod.id },
-          { handleActions: false }
-        );
-
-        if (confirmError) {
-          ev.complete('fail');
-          setError(confirmError.message || 'お支払いに失敗しました');
-        } else {
-          ev.complete('success');
-          if (paymentIntent.status === 'requires_action') {
-            const { error } = await stripe.confirmCardPayment(clientSecret);
-            if (error) {
-              setError(error.message || 'お支払いに失敗しました');
-            } else {
-              onSuccess({
-                paymentIntentId: paymentIntent.id,
-                amount: amount
-              });
-            }
-          } else {
-            onSuccess({
-              paymentIntentId: paymentIntent.id,
-              amount: amount
-            });
-          }
-        }
-      } catch (err: any) {
-        ev.complete('fail');
-        setError(err.message || 'お支払い処理中にエラーが発生しました');
-      }
-    });
-  }, [stripe, amount, clientSecret, onSuccess, setError]);
-
-  // 处理支付提交
+  // Apple Pay/Google Pay - 一旦コメントアウト（Tree Shaking問題のため）
+  // useEffect(() => {
+  //   if (!stripe) return;
+  //   const pr = stripe.paymentRequest({...});
+  // }, [stripe, amount]);  // 处理支付提交
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -214,9 +128,9 @@ const PaymentForm: React.FC<{
     }
   };
 
-  // レンダリング時のデバッグ
-  console.log('🎨 PaymentForm レンダリング');
-  console.log('  - paymentRequest:', paymentRequest ? '✅ あり（Apple Payボタンを表示）' : '❌ なし（通常カードのみ）');
+  // レンダリング時のデバッグ（Apple Pay機能は一旦無効）
+  console.log('🎨 PaymentForm レンダリング - カード決済のみ');
+  // console.log('  - paymentRequest:', paymentRequest ? '✅ あり' : '❌ なし');
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -237,43 +151,13 @@ const PaymentForm: React.FC<{
         </div>
       </div>
 
-      {/* Apple Pay / Google Pay ボタン */}
-      {paymentRequest && (
-        <div className="space-y-3">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500 font-medium">エクスプレス決済</span>
-            </div>
-          </div>
-          
-          <div className="payment-request-button-container">
-            <PaymentRequestButtonElement 
-              options={{ 
-                paymentRequest,
-                style: {
-                  paymentRequestButton: {
-                    type: 'default',
-                    theme: 'dark',
-                    height: '48px',
-                  },
-                },
-              }} 
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500 font-medium">またはカードで支払う</span>
-            </div>
-          </div>
+      {/* Apple Pay - 一旦コメントアウト（Tree Shaking問題のため）
+      <div className="space-y-3">
+        <div className="payment-request-button-container">
+          <PaymentRequestButtonElement />
         </div>
-      )}
+      </div>
+      */}
 
       {/* カード入力エリア */}
       <div className="space-y-2">
