@@ -1,8 +1,13 @@
-# 考试练习应用
+# 考试练习系统 (Exam Practice System)
 
-一个帮助用户准备考试的应用程序，允许用户浏览题库、练习题目、购买题集，并跟踪学習進捗。
+一个基于 React + TypeScript + Node.js + Express + MySQL + AWS Cognito 的现代化考试练习平台。
 
-## 项目结构
+## 📚 ドキュメント
+
+- **デプロイガイド**: [`PRODUCTION_DEPLOY.md`](./PRODUCTION_DEPLOY.md) - クイックデプロイ手順
+- **詳細ドキュメント**: [`docs/`](./docs/) - 全ドキュメント索引
+
+## 项目简介
 
 ```
 .
