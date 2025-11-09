@@ -86,8 +86,19 @@ const PaymentForm: React.FC<{
 
     // 利用可能性をチェック
     pr.canMakePayment().then(result => {
+      console.log('Apple Pay / Google Pay 利用可能性:', result);
       if (result) {
+        console.log('✅ Apple Pay または Google Pay が利用可能です');
+        if (result.applePay) {
+          console.log('  - Apple Pay: 利用可能');
+        }
+        if (result.googlePay) {
+          console.log('  - Google Pay: 利用可能');
+        }
         setPaymentRequest(pr);
+      } else {
+        console.log('❌ Apple Pay / Google Pay は利用できません');
+        console.log('  理由: ブラウザ、デバイス、またはWalletの設定を確認してください');
       }
     });
 
