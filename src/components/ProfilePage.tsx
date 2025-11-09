@@ -2476,13 +2476,13 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 渲染购买内容
+  // 渲染購入内容
   const renderPurchasesContent = () => {
     if (purchasesLoading) {
       return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 text-sm">加载购买数据中...</p>
+          <p className="text-gray-500 text-sm">購入データを読み込み中...</p>
         </div>
       );
     }
@@ -2516,7 +2516,7 @@ const ProfilePage: React.FC = () => {
           <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
-          已购买的题库
+          購入済みの問題集
         </h2>
         <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {purchases.map((purchase) => (
@@ -2527,13 +2527,13 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 渲染兑换码内容
+  // 渲染引き換えコード内容
   const renderRedeemedContent = () => {
     if (redeemCodesLoading) {
       return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 text-sm">加载兑换数据中...</p>
+          <p className="text-gray-500 text-sm">引き換えデータを読み込み中...</p>
         </div>
       );
     }
@@ -2546,7 +2546,7 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">获取兑换码失败</h3>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">引き換えコードの取得に失敗しました</h3>
           <p className="text-gray-600 mb-6 max-w-md">{error}</p>
           <button
             onClick={() => {
@@ -2558,7 +2558,7 @@ const ProfilePage: React.FC = () => {
             <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            重试
+            再試行
           </button>
         </div>
       );
@@ -2572,8 +2572,8 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">引換履歴がありません。</h3>
-          <p className="text-gray-600 mb-6 max-w-md">引換コードを利用すると、完全な問題集の内容をすばやくアンロックし、より多くの学習リソースを手に入れることができます！资源！</p>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">引き換え履歴がありません</h3>
+          <p className="text-gray-600 mb-6 max-w-md">引き換えコードを利用すると、完全な問題集の内容をすばやくアンロックし、より多くの学習リソースを手に入れることができます！</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"
@@ -2604,13 +2604,13 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 渲染誤答集内容
+  // 渲染間違い問題集内容
   const renderWrongAnswersContent = () => {
     if (wrongAnswersLoading) {
       return (
         <div className="flex flex-col justify-center items-center h-64">
           <div className="w-14 h-14 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 text-sm">加载错题数据中...</p>
+          <p className="text-gray-500 text-sm">間違い問題データを読み込み中...</p>
         </div>
       );
     }
@@ -2623,8 +2623,8 @@ const ProfilePage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">暂无错题记录</h3>
-          <p className="text-gray-600 mb-6 max-w-md">間違えた問題は自動的に間違い問題集に追加されます。，继续答题积累吧！</p>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">間違えた問題はありません</h3>
+          <p className="text-gray-600 mb-6 max-w-md">間違えた問題は自動的に間違い問題集に追加されます。</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"
@@ -2632,7 +2632,7 @@ const ProfilePage: React.FC = () => {
             <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
-            开始练习
+            練習を開始
           </button>
         </div>
       );
@@ -2667,21 +2667,21 @@ const ProfilePage: React.FC = () => {
     );
   };
 
-  // 分组誤答集
+  // 分組間違い問題集
   const groupedWrongAnswers = useCallback(() => {
     const groups: { [key: string]: WrongAnswerGroup } = {};
     
     wrongAnswers.forEach(answer => {
       const setId = answer.questionSetId;
-      // 改进标题获取逻辑
-      let setTitle = '未知题库';
+      // 改良されたタイトル取得ロジック
+      let setTitle = '不明な問題集';
       
-      // 尝试从不同来源获取题库名称
+      // 異なるソースから問題集名を取得
       if (answer.questionSet?.title) {
         setTitle = answer.questionSet.title;
       } else if (typeof answer.questionSetId === 'string') {
-        // 如果没有标题但有ID，使用ID的一部分作为备选
-        setTitle = `题库 (ID: ${answer.questionSetId.substring(0, 8)}...)`;
+        // タイトルがなくIDがある場合、IDの一部を代替として使用
+        setTitle = `問題集 (ID: ${answer.questionSetId.substring(0, 8)}...)`;
       }
       
       if (!groups[setId]) {
@@ -2690,19 +2690,19 @@ const ProfilePage: React.FC = () => {
           questionSetTitle: setTitle,
           wrongAnswers: []
         };
-      } else if (setTitle !== '未知题库' && groups[setId].questionSetTitle === '未知题库') {
-        // 如果已经有分组但使用的是默认标题，且当前答案有更好的标题，则更新分组标题
+      } else if (setTitle !== '不明な問題集' && groups[setId].questionSetTitle === '不明な問題集') {
+        // すでにグループがあるがデフォルトタイトルを使用していて、現在の回答により良いタイトルがある場合、グループタイトルを更新
         groups[setId].questionSetTitle = setTitle;
       }
       
       groups[setId].wrongAnswers.push(answer);
     });
     
-    // 按错题数量降序排列
+    // 間違い問題数で降順に並べ替え
     return Object.values(groups).sort((a, b) => b.wrongAnswers.length - a.wrongAnswers.length);
   }, [wrongAnswers]);
 
-  // 删除错题
+  // 間違い問題を削除
   const handleDeleteWrongAnswer = async (id: string) => {
     try {
       const response = await wrongAnswerService.deleteWrongAnswer(id);
@@ -2719,7 +2719,7 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  // 更新错题备注
+  // 間違い問題のメモを更新
   const handleUpdateMemo = async (id: string, memo: string) => {
     try {
       const response = await wrongAnswerService.updateMemo(id, memo);
@@ -2740,19 +2740,19 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  // 更新错题练习功能
+  // 間違い問題の練習機能を更新
   const handlePracticeWrongAnswers = (questionSetId: string) => {
-    // 创建問題ID列表，用于URL参数传递
+    // 問題IDリストを作成し、URLパラメータとして渡す
     const group = groupedWrongAnswers().find(g => g.questionSetId === questionSetId);
     
     if (group && group.wrongAnswers.length > 0) {
-      // 收集错题的questionId
+      // 間違い問題のquestionIdを収集
       const wrongQuestionIds = group.wrongAnswers.map(answer => answer.questionId).join(',');
       
-      // 导航到指定题库，并传递错题ID列表和错题模式参数
+      // 指定された問題集に移動し、間違い問題IDリストとモードパラメータを渡す
       navigate(`/quiz/${questionSetId}?mode=wrong-answers&questions=${wrongQuestionIds}`);
     } else {
-      // 如果没有找到错题，使用原有的方式
+      // 間違い問題が見つからない場合は、元の方法を使用
       navigate(`/quiz/${questionSetId}?mode=wrong-answers`);
     }
   };
@@ -2788,7 +2788,7 @@ const ProfilePage: React.FC = () => {
                 {user?.username ? user.username.charAt(0).toUpperCase() : '?'}
               </div>
               <div className="ml-4">
-                <h1 className="text-2xl font-bold">{user?.username || '加载中...'}</h1>
+                <h1 className="text-2xl font-bold">{user?.username || '読み込み中...'}</h1>
                 <p className="text-blue-100">{user?.email || ''}</p>
               </div>
             </div>
