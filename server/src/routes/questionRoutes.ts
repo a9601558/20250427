@@ -8,7 +8,8 @@ import {
   getRandomQuestion,
   getQuestionCount,
   getBatchQuestionCounts,
-  batchUploadQuestions
+  batchUploadQuestions,
+  jsonUploadQuestions
 } from '../controllers/questionController';
 import { protect, admin } from '../middleware/authMiddleware';
 import { upload } from '../middleware/fileUploadMiddleware';
@@ -24,6 +25,9 @@ router.get('/random/:questionSetId', getRandomQuestion);
 
 // Batch upload route - ensure proper middleware and handling
 router.post('/batch-upload/:questionSetId', protect, admin, upload.single('file'), batchUploadQuestions);
+
+// JSON upload route - for importing complete question banks from JSON files
+router.post('/json-upload', protect, admin, upload.single('file'), jsonUploadQuestions);
 
 // 通用路由放在特殊路由后面
 router.get('/:id', getQuestionById);

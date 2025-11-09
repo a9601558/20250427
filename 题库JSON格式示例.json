@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "meta": {
+    "subject": "示例题库 - 编程基础",
+    "source": "MonTopi教育平台",
+    "createdAt": "2025-11-09",
+    "totalQuestions": 5,
+    "description": "这是一个JSON格式题库的示例文件"
+  },
+  "questions": [
+    {
+      "id": "Q-0001",
+      "type": "single",
+      "stem": "以下哪个是Python的正确注释符号？",
+      "options": [
+        "#",
+        "//",
+        "/* */",
+        "--"
+      ],
+      "answer": [0],
+      "analysis": "Python使用#作为单行注释符号",
+      "difficulty": 1,
+      "tags": ["Python", "基础语法"],
+      "chapter": "第一章"
+    },
+    {
+      "id": "Q-0002",
+      "type": "multiple",
+      "stem": "以下哪些是Python的数据类型？",
+      "options": [
+        "int（整数）",
+        "string（字符串）",
+        "boolean（布尔值）",
+        "char（字符）"
+      ],
+      "answer": [0, 1, 2],
+      "analysis": "Python有int、string、boolean等数据类型，但没有单独的char类型",
+      "difficulty": 2,
+      "tags": ["Python", "数据类型"]
+    },
+    {
+      "id": "Q-0003",
+      "type": "single",
+      "stem": "HTTP协议默认使用的端口号是多少？",
+      "options": [
+        "21",
+        "80",
+        "443",
+        "8080"
+      ],
+      "answer": [1],
+      "analysis": "HTTP协议默认使用80端口，HTTPS使用443端口",
+      "difficulty": 2,
+      "tags": ["网络", "HTTP"],
+      "chapter": null
+    },
+    {
+      "id": "Q-0004",
+      "type": "single",
+      "stem": "以下哪个SQL语句用于从数据库中检索数据？",
+      "options": [
+        "INSERT",
+        "UPDATE",
+        "SELECT",
+        "DELETE"
+      ],
+      "answer": [2],
+      "analysis": "SELECT语句用于从数据库表中检索数据",
+      "difficulty": 1,
+      "tags": ["SQL", "数据库"]
+    },
+    {
+      "id": "Q-0005",
+      "type": "multiple",
+      "stem": "以下哪些是面向对象编程的基本特性？",
+      "options": [
+        "封装（Encapsulation）",
+        "继承（Inheritance）",
+        "多态（Polymorphism）",
+        "编译（Compilation）"
+      ],
+      "answer": [0, 1, 2],
+      "analysis": "面向对象编程的三大特性是封装、继承和多态。编译是编程过程，不是OOP特性",
+      "difficulty": 3,
+      "tags": ["面向对象", "编程概念"],
+      "chapter": null
+    }
+  ]
+}

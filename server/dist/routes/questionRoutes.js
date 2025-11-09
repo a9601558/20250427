@@ -16,6 +16,8 @@ router.post('/batch-count', questionController_1.getBatchQuestionCounts); // 批
 router.get('/random/:questionSetId', questionController_1.getRandomQuestion);
 // Batch upload route - ensure proper middleware and handling
 router.post('/batch-upload/:questionSetId', authMiddleware_1.protect, authMiddleware_1.admin, fileUploadMiddleware_1.upload.single('file'), questionController_1.batchUploadQuestions);
+// JSON upload route - for importing complete question banks from JSON files
+router.post('/json-upload', authMiddleware_1.protect, authMiddleware_1.admin, fileUploadMiddleware_1.upload.single('file'), questionController_1.jsonUploadQuestions);
 // 通用路由放在特殊路由后面
 router.get('/:id', questionController_1.getQuestionById);
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionController_1.createQuestion);

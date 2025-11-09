@@ -10,6 +10,7 @@ import ManageQuestionSets from './ManageQuestionSets';
 import AdminQuestionSetInfo from './admin/AdminQuestionSetInfo';
 import AdminBatchUpload from './admin/AdminBatchUpload';
 import AdminContentManagement from './admin/AdminContentManagement';
+import AdminJSONUpload from './admin/AdminJSONUpload';
 
 enum AdminTab {
   USER_MANAGEMENT = 'userManagement',
@@ -20,6 +21,7 @@ enum AdminTab {
   CONTENT_MANAGEMENT = 'contentManagement',
   QUESTION_SET_INFO = 'questionSetInfo',
   BATCH_QUESTION_UPLOAD = 'batchQuestionUpload',
+  JSON_QUESTION_UPLOAD = 'jsonQuestionUpload',
 }
 
 const AdminPage: React.FC = () => {
@@ -97,6 +99,15 @@ const AdminPage: React.FC = () => {
                   批量题目管理
                 </button>
                 <button
+                  onClick={() => setActiveTab(AdminTab.JSON_QUESTION_UPLOAD)}
+                  className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.JSON_QUESTION_UPLOAD ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="mr-3 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  JSON题库导入
+                </button>
+                <button
                   onClick={() => setActiveTab(AdminTab.MANAGE_QUESTION_SETS)}
                   className={`w-full text-left px-3 py-2 rounded-md flex items-center ${activeTab === AdminTab.MANAGE_QUESTION_SETS ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
@@ -145,6 +156,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === AdminTab.CONTENT_MANAGEMENT && <AdminContentManagement />}
                 {activeTab === AdminTab.QUESTION_SET_INFO && <AdminQuestionSetInfo />}
                 {activeTab === AdminTab.BATCH_QUESTION_UPLOAD && <AdminBatchUpload />}
+                {activeTab === AdminTab.JSON_QUESTION_UPLOAD && <AdminJSONUpload />}
               </div>
             </div>
           </div>

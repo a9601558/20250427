@@ -542,4 +542,230 @@ export const batchUploadQuestions = async (req: Request, res: Response) => {
       error: (error as Error).message
     });
   }
+};
+
+/**
+ * @route POST /api/v1/questions/json-upload
+ * @desc Upload and import questions from JSON file format
+ * @access Admin
+ */
+export const jsonUploadQuestions = async (req: Request, res: Response) => {
+  try {
+    console.log(`[JSON-API] Received JSON upload request`);
+    console.log(`[JSON-API] Request has file:`, !!req.file);
+    
+    // 检查上传的文件
+    if (!req.file) {
+      console.log(`[JSON-API] No file uploaded in request`);
+      return res.status(400).json({ 
+        success: false, 
+        message: '没有上传文件' 
+      });
+    }
+    
+    console.log(`[JSON-API] Received file: ${req.file.originalname} size: ${req.file.size}`);
+    
+    // 获取题库数据
+    const { title, description, category, isPaid, price, trialQuestions } = req.body;
+    
+    if (!title || !description || !category) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少题库必要信息（标题、描述、分类）' 
+      });
+    }
+    
+    // 读取并解析JSON文件
+    const fs = require('fs');
+    const fileContent = fs.readFileSync(req.file.path, 'utf8');
+    
+    let jsonData: any;
+    try {
+      jsonData = JSON.parse(fileContent);
+    } catch (parseError) {
+      console.error('[JSON-API] JSON解析失败:', parseError);
+      // 清理临时文件
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+      return res.status(400).json({ 
+        success: false, 
+        message: 'JSON文件格式错误' 
+      });
+    }
+    
+    // 验证JSON结构
+    if (!jsonData.questions || !Array.isArray(jsonData.questions)) {
+      // 清理临时文件
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+      return res.status(400).json({ 
+        success: false, 
+        message: 'JSON文件格式错误：缺少questions数组' 
+      });
+    }
+    
+    console.log(`[JSON-API] JSON文件包含 ${jsonData.questions.length} 道题目`);
+    
+    // 开始事务
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // 1. 创建题库
+      const QuestionSet = sequelize.models.QuestionSet;
+      if (!QuestionSet) {
+        throw new Error('QuestionSet模型不存在');
+      }
+      
+      const newQuestionSet = await QuestionSet.create({
+        title,
+        description,
+        category,
+        isPaid: isPaid === 'true' || isPaid === true,
+        price: parseFloat(price) || 0,
+        trialQuestions: parseInt(trialQuestions) || 0,
+        questionCount: 0, // Will be updated later
+        isFeatured: false
+      }, { transaction });
+      
+      const questionSetId = (newQuestionSet as any).id;
+      console.log(`[JSON-API] 创建题库成功, ID: ${questionSetId}`);
+      
+      // 2. 导入题目
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+      
+      for (let i = 0; i < jsonData.questions.length; i++) {
+        const q = jsonData.questions[i];
+        
+        try {
+          // 验证题目数据
+          if (!q.stem || !q.options || !Array.isArray(q.options) || q.options.length < 2) {
+            failedCount++;
+            errors.push(`题目 ${q.id || i + 1}: 格式不完整（缺少题干或选项）`);
+            continue;
+          }
+          
+          if (!q.answer || !Array.isArray(q.answer) || q.answer.length === 0) {
+            failedCount++;
+            errors.push(`题目 ${q.id || i + 1}: 缺少正确答案`);
+            continue;
+          }
+          
+          // 验证答案索引是否有效
+          const invalidAnswers = q.answer.filter((idx: number) => idx < 0 || idx >= q.options.length);
+          if (invalidAnswers.length > 0) {
+            failedCount++;
+            errors.push(`题目 ${q.id || i + 1}: 答案索引无效 (${invalidAnswers.join(', ')})`);
+            continue;
+          }
+          
+          // 确定题目类型 - 只使用数据库定义的字段
+          const questionType = q.type === 'multiple' || q.answer.length > 1 ? 'multiple' : 'single';
+          
+          // 创建题目 - 只插入数据库中存在的字段
+          // Questions表字段: id, questionSetId, text, questionType, explanation, orderIndex
+          const newQuestionId = uuidv4();
+          
+          await sequelize.query(
+            `INSERT INTO questions (id, questionSetId, text, questionType, explanation, orderIndex, createdAt, updatedAt) 
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            {
+              replacements: [
+                newQuestionId,
+                questionSetId,
+                q.stem,                                    // 题干
+                questionType,                              // 题目类型 (single/multiple)
+                q.analysis || q.explanation || '无解析',   // 解析 (兼容多种字段名)
+                i                                          // 排序索引
+              ],
+              transaction
+            }
+          );
+          
+          // 创建选项 - 只插入数据库中存在的字段
+          // Options表字段: id, questionId, text, isCorrect, optionIndex
+          for (let optIdx = 0; optIdx < q.options.length; optIdx++) {
+            const optionId = uuidv4();
+            const optionLetter = String.fromCharCode(65 + optIdx); // A, B, C, D...
+            const isCorrect = q.answer.includes(optIdx);
+            
+            await sequelize.query(
+              `INSERT INTO options (id, questionId, text, isCorrect, optionIndex, createdAt, updatedAt) 
+               VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+              {
+                replacements: [
+                  optionId,
+                  newQuestionId,
+                  q.options[optIdx],      // 选项文本
+                  isCorrect ? 1 : 0,      // 是否正确
+                  optionLetter            // 选项索引 (A, B, C, D...)
+                ],
+                transaction
+              }
+            );
+          }
+          
+          successCount++;
+          
+          // 注意：JSON中的以下字段会被忽略（数据库表中不存在）：
+          // - difficulty (难度)
+          // - tags (标签)
+          // - chapter (章节)
+          // 这些字段不影响导入，只是不会被保存
+          
+        } catch (error) {
+          failedCount++;
+          const errorMessage = error instanceof Error ? error.message : '未知错误';
+          errors.push(`题目 ${q.id || i + 1}: ${errorMessage}`);
+          console.error(`[JSON-API] 处理题目 ${q.id || i + 1} 失败:`, error);
+        }
+      }
+      
+      // 更新题库的题目数量
+      await QuestionSet.update(
+        { questionCount: successCount },
+        { where: { id: questionSetId }, transaction }
+      );
+      
+      // 提交事务
+      await transaction.commit();
+      
+      // 清理临时文件
+      try {
+        fs.unlinkSync(req.file.path);
+        console.log(`[JSON-API] 清理临时文件: ${req.file.path}`);
+      } catch (cleanupError) {
+        console.error(`[JSON-API] 清理临时文件失败:`, cleanupError);
+      }
+      
+      console.log(`[JSON-API] JSON导入完成. 成功: ${successCount}, 失败: ${failedCount}`);
+      
+      return res.status(200).json({ 
+        success: true,
+        data: {
+          questionSetId,
+          success: successCount,
+          failed: failedCount,
+          errors: errors.length > 0 ? errors.slice(0, 10) : undefined // 只返回前10个错误
+        },
+        message: `题库创建成功，导入 ${successCount} 道题目${failedCount > 0 ? `，失败 ${failedCount} 道` : ''}` 
+      });
+      
+    } catch (error) {
+      // 回滚事务
+      await transaction.rollback();
+      
+      // 清理临时文件
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+      
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('[JSON-API] JSON导入失败:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'JSON导入失败',
+      error: (error as Error).message
+    });
+  }
 }; 
