@@ -3951,11 +3951,10 @@ function QuizPage(): JSX.Element {
       setQuizStatus({ ...quizStatus, quizComplete: false });
       setQuestionStartTime(Date.now());
       
-      // 使用原始問題数组重新设置問題
+      // 使用原始問題数组重新设置問題（保持原始顺序）
       if (originalQuestions && originalQuestions.length > 0) {
-        // 洗牌問題数组
-        const shuffled = [...originalQuestions].sort(() => Math.random() - 0.5);
-        setQuestions(shuffled);
+        // 不再打乱顺序，保持JSON文件中的原始顺序
+        setQuestions([...originalQuestions]);
       }
       
       // 提示用户
