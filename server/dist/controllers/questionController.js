@@ -558,13 +558,15 @@ const jsonUploadQuestions = async (req, res) => {
                 title,
                 description,
                 category,
+                icon: 'default', // 添加必需的 icon 字段
                 isPaid: isPaid === 'true' || isPaid === true,
                 price: parseFloat(price) || 0,
                 trialQuestions: parseInt(trialQuestions) || 0,
-                questionCount: 0, // Will be updated later
+                // questionCount 字段在模型中不存在，移除
                 isFeatured: false
             }, { transaction });
-            const questionSetId = newQuestionSet.id;
+            // 使用 dataValues 或 get() 方法获取实际的 ID
+            const questionSetId = newQuestionSet.get('id') || newQuestionSet.dataValues?.id || newQuestionSet.id;
             console.log(`[JSON-API] 创建题库成功, ID: ${questionSetId}`);
             // 2. 导入题目
             let successCount = 0;
