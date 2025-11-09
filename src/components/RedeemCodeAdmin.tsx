@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { toast } from 'react-toastify';
+// import { toast } from 'react-toastify'; // Toast通知已禁用
 import { redeemCodeService, questionSetService } from '../services/api';
 import { QuestionSet } from '../types';
 
@@ -106,21 +106,23 @@ const RedeemCodeAdmin: React.FC = () => {
       });
   };
   
-  // 删除兑换码
-  const handleDeleteCode = async (codeId: string) => {
+  // 删除兑换码功能（后端API未实现，暂时禁用）
+  const handleDeleteCode = async (_codeId: string) => {
+    console.warn('兑换码删除功能暂未实现');
+    // TODO: 实现后端 DELETE /redeem-codes/:id API后再启用此功能
+    /* 
     try {
-      const response = await redeemCodeService.deleteRedeemCode(codeId);
+      const response = await redeemCodeService.deleteRedeemCode(_codeId);
       
       if (response.success) {
-        setRedeemCodes(prev => prev.filter(code => code.id !== codeId));
-        /* toast.success('引き換えコードを削除しました'); */
+        setRedeemCodes(prev => prev.filter(code => code.id !== _codeId));
       } else {
         throw new Error(response.message || '引き換えコードの削除に失敗しました');
       }
     } catch (error: any) {
       console.error('引き換えコードの削除に失敗:', error);
-      /* toast.error(error.message || '引き換えコードの削除に失敗しました'); */
     }
+    */
   };
   
   // 格式化日期

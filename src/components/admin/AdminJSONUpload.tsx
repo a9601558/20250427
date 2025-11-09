@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { toast } from 'react-toastify';
+// import { toast } from 'react-toastify'; // Toast通知已禁用
 
-// Interface for JSON file metadata
-interface JSONMetadata {
-  version?: number;
-  meta?: {
-    subject?: string;
-    source?: string;
-    createdAt?: string;
-    totalQuestions?: number;
-    [key: string]: any;
-  };
-}
+// Interface for JSON file metadata (暂未使用，保留供将来扩展)
+// interface JSONMetadata {
+//   version?: number;
+//   meta?: {
+//     subject?: string;
+//     source?: string;
+//     createdAt?: string;
+//     totalQuestions?: number;
+//     [key: string]: any;
+//   };
+// }
 
 // Interface for question in JSON format
 interface JSONQuestion {
