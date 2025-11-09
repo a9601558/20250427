@@ -2668,11 +2668,16 @@ function QuizPage(): JSX.Element {
               const processedOptions = q.options.map((opt: any, index: number) => {
                 // 使用题目ID和选项索引生成固定ID
                 const optionId = opt.id || `q${q.id}-opt${index}`;
+                
+                // 检测选项文本是否已包含标签前缀（如 "A. " 或 "A："）
+                const hasLabel = /^[A-Z][.．。:：]\s/.test(opt.text);
+                
                 return {
                   id: optionId,
                   text: opt.text,
                   isCorrect: opt.isCorrect,
-                  label: getOptionLabel(index) // 添加字母标签
+                  // 优先使用原有标签，没有的情况下才添加
+                  label: hasLabel ? '' : getOptionLabel(index)
                 };
               });
               
