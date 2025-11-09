@@ -7,8 +7,12 @@ exports.constructEvent = exports.verifyPaymentIntent = exports.stripePaymentInte
 const stripe_1 = __importDefault(require("stripe"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-// Use the provided test key if environment variable is not set
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_51RHMVW4ec3wxfwe9upMBdw5Csj7TtiydSEHmDzKOJDp7HScEqZ2Qee5hRnk9p5s0Rpv6xPvp7eQJ4chu8eJRLdUj00FIxpXkhX';
+// Stripe Secret Key - 環境変数から読み込み（.envファイルに設定、絶対にコミットしない）
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+if (!STRIPE_SECRET_KEY) {
+    console.error('⚠️  STRIPE_SECRET_KEY が設定されていません。server/.envファイルを確認してください。');
+    throw new Error('Stripe Secret Key が設定されていません');
+}
 // Initialize Stripe with your secret key
 const stripe = new stripe_1.default(STRIPE_SECRET_KEY, {
     apiVersion: '2022-11-15', // Use the compatible API version

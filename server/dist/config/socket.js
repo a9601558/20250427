@@ -32,7 +32,15 @@ const initializeSocket = (server) => {
             const cognitoRegion = process.env.COGNITO_REGION || 'ap-southeast-2';
             const cognitoUserPoolId = process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_El0UTGvLD';
             const expectedIssuer = `https://cognito-idp.${cognitoRegion}.amazonaws.com/${cognitoUserPoolId}`;
+            // デバッグログ追加
+            console.log('[Socket Auth Debug] Token issuer check:', {
+                actualIssuer: payload.iss,
+                expectedIssuer: expectedIssuer,
+                cognitoRegion: cognitoRegion,
+                cognitoUserPoolId: cognitoUserPoolId
+            });
             if (payload.iss !== expectedIssuer) {
+                console.error('[Socket Auth Error] Issuer mismatch detected');
                 return reject(new Error('Token issuer does not match Cognito'));
             }
             if (payload.token_use !== 'access') {
