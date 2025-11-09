@@ -4268,17 +4268,17 @@ function QuizPage(): JSX.Element {
           }
         }
         
-        // 显示有效期信息
+        // 有効期限情報を表示
         if (expiryInfo) {
           return (
             <div className="fixed bottom-0 left-0 right-0 bg-white shadow-sm border-t border-gray-200 p-2 z-40">
               <div className="container mx-auto flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm text-gray-700">
-                    <span className="font-medium">题库有效期:</span> 
+                    <span className="font-medium">問題集の有効期限:</span> 
                     <span className="text-blue-600 font-bold mx-1">{expiryInfo.expiryDate}</span>
                     <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                      剩余 {expiryInfo.remainingDays} 天
+                      残り {expiryInfo.remainingDays} 日
                     </span>
                   </p>
                 </div>
@@ -4304,7 +4304,7 @@ function QuizPage(): JSX.Element {
                         <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                         </svg>
-                        保存进度
+                        進捗を保存
                       </>
                     )}
                   </button>
