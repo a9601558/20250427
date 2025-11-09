@@ -2,8 +2,8 @@ const amplifyConfig = {
   Auth: {
     Cognito: {
       userPoolId: 'ap-northeast-1_06Lr5s5h9',
-      userPoolClientId: '3l9nrspcr34tjjs1isupccvb4t',
-      // 指定AWS区域 - 确保与User Pool所在区域一致
+      userPoolClientId: '3tdjflgaoojolmlau5thc9lv5c', // OIDC と統一
+      // 指定AWS区域 - 确保與User Pool所在区域一致
       region: 'ap-northeast-1',
       loginWith: {
         username: true,

@@ -7,6 +7,7 @@ import 'antd/dist/reset.css'
 import { initAutoRefresh } from './utils/autoRefresh'
 import { AuthProvider } from "react-oidc-context"
 import { WebStorageStateStore } from "oidc-client-ts"
+import { installCognitoDebugger } from './utils/cognitoDebugger'
 
 
 // Cognito OIDC 配置
@@ -52,11 +53,18 @@ const cognitoAuthConfig = {
   revokeTokenTypes: ["access_token", "refresh_token"]
 }
 
-console.log("OIDC Cognito 已初始化，使用新的认证服务");
-console.log("当前环境:", import.meta.env.DEV ? "开发环境" : "生产环境");
+console.log("OIDC Cognito 已初始化，使用新的认証服务");
+console.log("当前环境:", import.meta.env.DEV ? "開発環境" : "本番環境");
 console.log("Redirect URI:", getRedirectUri());
+console.log("Client ID:", "3tdjflgaoojolmlau5thc9lv5c");
 
-// 初始化自动刷新功能，设置为2小时（7200000毫秒）
+// Cognitoデバッグツールをインストール（開発環境のみ）
+if (import.meta.env.DEV) {
+  installCognitoDebugger();
+  console.log("🔍 デバッグツール有効: window.cognitoDebug() で診断可能");
+}
+
+// 初始化自動刷新功能，設置為2小時（7200000毫秒）
 initAutoRefresh(7200000)
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
