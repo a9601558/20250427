@@ -648,11 +648,7 @@ interface StripePaymentFormProps {
 }
 
 // Initialize Stripe promise - 環境変数から読み込み
-// エラーを静かに処理し、分析機能のネットワークエラーを抑制
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY).catch(error => {
-  console.warn('Stripe initialization warning:', error);
-  return null;
-});
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Helper function to check if payment has been completed for a specific questionSetId
 const isPaymentCompleted = (questionSetId: string): boolean => {
@@ -763,10 +759,20 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
       // Show error to your customer
       // テストモードに関する情報を削除
       let errorMessage = result.error.message || 'Payment failed';
+      
+      // テストモード関連のエラーをチェック
       if (errorMessage.includes('test')) {
-        // テストモードに関する情報を削除し、一般的なエラーメッセージに置き換え
         errorMessage = 'カードが拒否されました。別のカードをお試しいただくか、カード発行会社にお問い合わせください。';
       }
+      // テストモードのpayment_intentを本番モードで使用しようとした場合
+      else if (errorMessage.includes('test mode') || errorMessage.includes('live mode key')) {
+        errorMessage = '決済情報が古くなっています。ページを更新してもう一度お試しください。';
+        // 3秒後に自動的にページをリロード
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+      }
+      
       setError(errorMessage);
     } else {
       if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {

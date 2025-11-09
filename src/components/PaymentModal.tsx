@@ -14,11 +14,7 @@ if (!STRIPE_PUBLIC_KEY) {
   console.error('VITE_STRIPE_PUBLIC_KEY が設定されていません。.envファイルを確認してください。');
 }
 
-// エラーを静かに処理し、分析機能のネットワークエラーを抑制
-const stripePromise = loadStripe(STRIPE_PUBLIC_KEY).catch(error => {
-  console.warn('Stripe initialization warning:', error);
-  return null;
-});
+const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
 
 // 支付表单组件
 const PaymentForm: React.FC<{
@@ -49,8 +45,18 @@ const PaymentForm: React.FC<{
           setClientSecret(response.data.clientSecret);
         }
       } catch (err: any) {
-        setError('お支払いの作成に失敗しました。再試行してください');
-        console.error('创建支付意图失败:', err);
+        console.error('支払いIntent作成失敗:', err);
+        
+        // テストモード/本番モード切り替え後のエラーをチェック
+        const errorMessage = err.response?.data?.error?.message || err.message || '';
+        if (errorMessage.includes('test mode') || errorMessage.includes('live mode')) {
+          setError('決済システムの設定が更新されました。ページを更新してもう一度お試しください。');
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
+        } else {
+          setError('お支払いの作成に失敗しました。再試行してください');
+        }
       }
     };
 
@@ -86,10 +92,20 @@ const PaymentForm: React.FC<{
       if (result.error) {
         // テストモードに関する情報を削除
         let errorMessage = result.error.message || 'お支払いに失敗しました';
+        
+        // テストモード関連のエラーをチェック
         if (errorMessage.includes('test') || errorMessage.includes('テスト')) {
-          // テストモードに関する情報を削除し、一般的なエラーメッセージに置き換え
           errorMessage = 'カードが拒否されました。別のカードをお試しいただくか、カード発行会社にお問い合わせください。';
         }
+        // テストモードのpayment_intentを本番モードで使用しようとした場合
+        else if (errorMessage.includes('test mode') || errorMessage.includes('live mode key')) {
+          errorMessage = '決済情報が古くなっています。ページを更新してもう一度お試しください。';
+          // 3秒後に自動的にページをリロード
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
+        }
+        
         setError(errorMessage);
       } else if (result.paymentIntent?.status === 'succeeded') {
         /* toast.success('お支払いが完了しました！'); */
