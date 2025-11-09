@@ -20,7 +20,7 @@ interface Purchase {
     username: string;
     email?: string;
   };
-  questionSet?: {
+  purchaseQuestionSet?: {
     id: string;
     title: string;
     price: number;
@@ -254,7 +254,7 @@ const AdminPurchaseManagement: React.FC = () => {
                       </td>
                       <td className="px-4 py-4">
                         <div className="text-sm text-gray-900">
-                          {purchase.questionSet?.title || '未知题库'}
+                          {purchase.purchaseQuestionSet?.title || '未知题库'}
                         </div>
                         <div className="text-xs text-gray-500">
                           ID: {purchase.questionSetId.substring(0, 8)}...

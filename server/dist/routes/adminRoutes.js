@@ -255,7 +255,7 @@ router.get('/purchases', async (req, res) => {
                 },
                 {
                     model: QuestionSet_1.default,
-                    as: 'questionSet',
+                    as: 'purchaseQuestionSet',
                     attributes: ['id', 'title', 'price']
                 }
             ],
