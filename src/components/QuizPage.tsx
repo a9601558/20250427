@@ -885,8 +885,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
                 </svg>
               </div>
               <div>
-                <h2 className="text-2xl font-bold">お支払い</h2>
-                <p className="text-slate-300 text-sm mt-1">安全な決済</p>
+                <h2 className="text-2xl font-bold text-white">お支払い</h2>
+                <p className="text-white text-sm mt-1 opacity-90">Stripeによる安全な決済 • 256bit SSL暗号化</p>
+                <p className="text-white/70 text-xs mt-1.5">クレジットカード情報は保存されません</p>
               </div>
             </div>
             <button
