@@ -9,7 +9,6 @@ lerna-debug.log*
 
 # Dependencies
 node_modules
-dist
 dist-ssr
 
 # Environment variables
@@ -28,8 +27,10 @@ dist-ssr
 *.sln
 *.sw?
 
-# Build output
-dist/
+# Build output - 但保留 dist/assets 和 dist/index.html 用于部署
+dist/*
+!dist/assets/
+!dist/index.html
 build/
 *.tsbuildinfo
 
