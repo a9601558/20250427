@@ -574,12 +574,12 @@ const PurchasePage: React.FC<{
                 
                 {/* MasterCard Icon */}
                 <div className="w-10 h-6 bg-red-50 rounded flex items-center justify-center">
-                  <span className="text-red-800 font-bold text-xs">MC</span>
+                  <span className="text-red-800 font-bold text-xs">MasterCard</span>
                 </div>
                 
                 {/* UnionPay Icon */}
                 <div className="w-10 h-6 bg-green-50 rounded flex items-center justify-center">
-                  <span className="text-green-800 font-bold text-xs">银联</span>
+                  <span className="text-green-800 font-bold text-xs">Amex</span>
                 </div>
                 
                 {/* JCB Card Icon */}
@@ -4193,11 +4193,11 @@ function QuizPage(): JSX.Element {
               </p>
             ) : (
               <p className="text-sm text-gray-700">
-                <span className="font-medium">試用モード：</span> 解答済み 
-                <span className="text-blue-600 font-bold mx-1">{answeredCount}</span> 問，
-                限制 <span className="text-blue-600 font-bold mx-1">{totalTrialQuestions}</span> 問
+                <span className="font-medium">お試しモード：</span>解答済み
+                <span className="text-blue-600 font-bold mx-1">{answeredCount}</span>問、
+                上限<span className="text-blue-600 font-bold mx-1">{totalTrialQuestions}</span>問
                 <span className="ml-2 bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                  あと {remainingTrialQuestions} 問
+                  残り{remainingTrialQuestions}問
                 </span>
               </p>
             )}
@@ -4351,13 +4351,13 @@ function QuizPage(): JSX.Element {
     if (quizStatus.error) {
       return (
         <div className="text-center py-12">
-          <div className="text-red-500 text-xl mb-4">加载失败</div>
+          <div className="text-red-500 text-xl mb-4">読み込みに失敗しました</div>
           <p className="text-gray-600 mb-6">{quizStatus.error}</p>
           <button 
             onClick={() => {window.location.reload()}}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            重试
+            再試行
           </button>
         </div>
       );
@@ -4366,8 +4366,8 @@ function QuizPage(): JSX.Element {
     if (questions.length === 0) {
       return (
         <div className="text-center py-12">
-          <div className="text-xl mb-4">没有找到問題</div>
-          <p className="text-gray-600 mb-6">该题库暂无内容或您可能没有访问权限</p>
+          <div className="text-xl mb-4">問題が見つかりません</div>
+          <p className="text-gray-600 mb-6">この問題集にはコンテンツがないか、アクセス権限がない可能性があります</p>
           <button 
             onClick={() => {navigate('/')}}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -4390,14 +4390,14 @@ function QuizPage(): JSX.Element {
         if (!questionSet) return '';
         
         if (!isPaidQuiz(questionSet)) {
-          return '免费题库';
+          return '無料問題集';
         }
         
         if (quizStatus.hasAccessToFullQuiz) {
-          return `付费题库 (已购买)`;
+          return `有料問題集（購入済み）`;
         }
         
-        return '付费题库 (未购买)';
+        return '有料問題集（未購入）';
       };
 
       return (
@@ -4429,8 +4429,8 @@ function QuizPage(): JSX.Element {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">练习完成！</h2>
-              <p className="text-gray-600 text-lg">{questionSet?.title || '未知题库'}</p>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">練習完了！</h2>
+              <p className="text-gray-600 text-lg">{questionSet?.title || '不明な問題集'}</p>
               
               {/* 题库类型和信息 */}
               <div className="mt-2 text-sm text-gray-500">
@@ -4441,38 +4441,38 @@ function QuizPage(): JSX.Element {
             {/* 统计数据卡片 */}
             <div className="grid grid-cols-2 gap-4 mb-8 md:grid-cols-4">
               <div className="bg-blue-50 rounded-lg p-4 text-center">
-                <div className="text-sm text-blue-600 mb-1">答题数</div>
+                <div className="text-sm text-blue-600 mb-1">解答数</div>
                 <div className="text-2xl font-bold text-blue-800">{answeredQuestions.length}</div>
-                <div className="text-xs text-blue-600 mt-1">共{totalCount}题</div>
+                <div className="text-xs text-blue-600 mt-1">全{totalCount}問</div>
               </div>
               
               <div className="bg-green-50 rounded-lg p-4 text-center">
-                <div className="text-sm text-green-600 mb-1">正确率</div>
+                <div className="text-sm text-green-600 mb-1">正答率</div>
                 <div className="text-2xl font-bold text-green-800">{accuracy}%</div>
-                <div className="text-xs text-green-600 mt-1">{correctCount}题正确</div>
+                <div className="text-xs text-green-600 mt-1">{correctCount}問正解</div>
               </div>
               
               <div className="bg-purple-50 rounded-lg p-4 text-center">
-                <div className="text-sm text-purple-600 mb-1">总用时</div>
+                <div className="text-sm text-purple-600 mb-1">総所要時間</div>
                 <div className="text-2xl font-bold text-purple-800">{formatTime(quizTotalTime)}</div>
-                <div className="text-xs text-purple-600 mt-1">完成所有题目</div>
+                <div className="text-xs text-purple-600 mt-1">全問完了</div>
               </div>
               
               <div className="bg-orange-50 rounded-lg p-4 text-center">
-                <div className="text-sm text-orange-600 mb-1">平均用时</div>
+                <div className="text-sm text-orange-600 mb-1">平均時間</div>
                 <div className="text-2xl font-bold text-orange-800">{formatTime(averageTimePerQuestion)}</div>
-                <div className="text-xs text-orange-600 mt-1">每题平均</div>
+                <div className="text-xs text-orange-600 mt-1">1問あたり</div>
               </div>
             </div>
             
             {/* 答题详情面板 */}
             <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">答题详情</h3>
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">解答詳細</h3>
               
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-medium text-gray-500">答对题目</div>
-                  <div className="text-sm font-medium text-green-600">{correctCount} 题</div>
+                  <div className="text-sm font-medium text-gray-500">正解した問題</div>
+                  <div className="text-sm font-medium text-green-600">{correctCount}問</div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
@@ -4484,8 +4484,8 @@ function QuizPage(): JSX.Element {
               
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-medium text-gray-500">答错题目</div>
-                  <div className="text-sm font-medium text-red-600">{totalCount - correctCount} 题</div>
+                  <div className="text-sm font-medium text-gray-500">不正解の問題</div>
+                  <div className="text-sm font-medium text-red-600">{totalCount - correctCount}問</div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
@@ -5100,7 +5100,7 @@ function QuizPage(): JSX.Element {
         
         {/* 访问权限状态显示 */}
         <div className="px-3 py-1 text-xs bg-blue-500 text-white rounded">
-          访问权限: {checkFullAccessFromAllSources() ? '✓' : '✗'}
+        アクセス権限: {checkFullAccessFromAllSources() ? '✓' : '✗'}
         </div>
       </div>
       
