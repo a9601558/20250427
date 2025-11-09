@@ -734,7 +734,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
   // Initialize Apple Pay / Google Pay Payment Request
   useEffect(() => {
-    if (!stripe) return;
+    if (!stripe || !clientSecret) return;
 
     const pr = stripe.paymentRequest({
       country: 'JP',
@@ -759,47 +759,57 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
     // Handle payment method received from Apple Pay/Google Pay
     pr.on('paymentmethod', async (ev) => {
       console.log('[StripePaymentForm] Payment method received from Apple Pay/Google Pay');
-      
-      if (!clientSecret) {
-        ev.complete('fail');
-        setError('Payment system not ready. Please try again.');
-        return;
-      }
+      console.log('[StripePaymentForm] Using clientSecret:', clientSecret);
 
-      const {error: confirmError, paymentIntent} = await stripe.confirmCardPayment(
-        clientSecret,
-        {payment_method: ev.paymentMethod.id},
-        {handleActions: false}
-      );
+      try {
+        const {error: confirmError, paymentIntent} = await stripe.confirmCardPayment(
+          clientSecret,
+          {payment_method: ev.paymentMethod.id},
+          {handleActions: false}
+        );
 
-      if (confirmError) {
-        ev.complete('fail');
-        setError(confirmError.message || 'Payment failed');
-      } else {
-        ev.complete('success');
-        if (paymentIntent.status === 'requires_action') {
-          const {error} = await stripe.confirmCardPayment(clientSecret);
-          if (error) {
-            setError(error.message || 'Payment confirmation failed');
+        if (confirmError) {
+          console.error('[StripePaymentForm] Payment error:', confirmError);
+          ev.complete('fail');
+          setError(confirmError.message || 'Payment failed');
+        } else {
+          ev.complete('success');
+          console.log('[StripePaymentForm] Payment succeeded:', paymentIntent);
+          
+          if (paymentIntent.status === 'requires_action') {
+            const {error} = await stripe.confirmCardPayment(clientSecret);
+            if (error) {
+              setError(error.message || 'Payment confirmation failed');
+            } else {
+              onSubmit({
+                paymentIntentId: paymentIntent.id,
+                paymentMethodId: paymentIntent.payment_method as string,
+                amount: amount,
+                status: 'succeeded'
+              });
+            }
           } else {
             onSubmit({
               paymentIntentId: paymentIntent.id,
-              paymentMethodId: paymentIntent.payment_method,
+              paymentMethodId: paymentIntent.payment_method as string,
               amount: amount,
               status: 'succeeded'
             });
           }
-        } else {
-          onSubmit({
-            paymentIntentId: paymentIntent.id,
-            paymentMethodId: paymentIntent.payment_method,
-            amount: amount,
-            status: 'succeeded'
-          });
         }
+      } catch (error: any) {
+        console.error('[StripePaymentForm] Exception during payment:', error);
+        ev.complete('fail');
+        setError(error.message || 'An unexpected error occurred');
       }
     });
-  }, [stripe, amount, clientSecret, onSubmit]);
+
+    // Cleanup function to prevent memory leaks
+    return () => {
+      console.log('[StripePaymentForm] Cleaning up payment request');
+      pr.off('paymentmethod');
+    };
+  }, [stripe, clientSecret, amount, onSubmit]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -862,270 +872,163 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      {/* 🎨 プレミアムヘッダー with animated gradient */}
-      <div className="relative bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-600 rounded-t-3xl p-8 mb-6 overflow-hidden">
-        {/* Animated background blobs */}
-        <div className="absolute top-0 left-0 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute top-0 right-0 w-72 h-72 bg-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000"></div>
-        
-        <div className="relative flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white bg-opacity-20 backdrop-blur-lg rounded-2xl flex items-center justify-center">
-              <svg className="w-10 h-10 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-white drop-shadow-md">セキュア決済</h2>
-              <p className="text-blue-100 text-sm font-medium">Stripe による安全な支払い処理</p>
-            </div>
-          </div>
-          <button
-            onClick={onCancel}
-            className="text-white hover:text-blue-200 transition-colors bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full p-2 backdrop-blur-sm"
-            disabled={isProcessing}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-      
-      {/* 💳 Apple Pay / Google Pay Section */}
-      {canMakePayment && paymentRequest && (
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-            <span className="text-sm font-semibold text-gray-600 px-3">エクスプレス決済</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-          </div>
-          <div className="relative group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-300"></div>
-            <div className="relative bg-white p-1 rounded-2xl">
-              <div className="bg-black rounded-xl p-4 flex items-center justify-center min-h-[56px]">
-                {/* Stripe's PaymentRequestButtonElement will render here */}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 mt-6 mb-2">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-            <span className="text-sm font-medium text-gray-500">または</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-          </div>
-        </div>
-      )}
-
-      {/* 🔒 Enhanced Security Badge */}
-      <div className="mb-6 flex items-center justify-center">
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-300"></div>
-          <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 px-6 py-3 rounded-2xl flex items-center gap-3 shadow-lg">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 p-4">
+      <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* 🎨 简约现代头部 */}
+        <div className="relative bg-gradient-to-r from-slate-900 to-slate-800 text-white px-8 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                 </svg>
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-green-800 text-lg">Stripe セキュア決済</span>
-                  <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-black rounded-full">SSL</span>
-                </div>
-                <div className="flex gap-3 text-xs text-green-700 font-semibold mt-0.5">
-                  <span className="flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    PCI DSS準拠
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    256bit暗号化
-                  </span>
-                </div>
+                <h2 className="text-2xl font-bold">お支払い</h2>
+                <p className="text-slate-300 text-sm mt-1">安全な決済</p>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* ❌ Error Message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 text-red-700 rounded-2xl flex items-start gap-3 shadow-lg">
-          <svg className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div className="flex-1">
-            <p className="font-semibold">エラーが発生しました</p>
-            <p className="text-sm mt-1">{error}</p>
-          </div>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 💳 プレミアムカード入力エリア */}
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur-lg opacity-0 group-hover:opacity-20 group-focus-within:opacity-30 transition duration-500"></div>
-          <div className="relative bg-white p-6 rounded-2xl border-3 border-gray-200 shadow-xl hover:shadow-2xl transition-shadow duration-300">
-            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-              <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
+              disabled={isProcessing}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
-              カード情報
-            </label>
-            <div className="p-5 bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border-2 border-indigo-100 focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 transition-all duration-300">
-              <CardElement
+            </button>
+          </div>
+        </div>
+      
+        
+        {/* 主要内容区域 */}
+        <div className="px-8 py-8 space-y-6">
+          {/* 🍎 Apple Pay / Google Pay - 简约设计 */}
+          {canMakePayment && paymentRequest && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200">
+                <PaymentRequestButtonElement 
+                  options={{ 
+                    paymentRequest,
+                    style: {
+                      paymentRequestButton: {
+                        type: 'buy',
+                        theme: 'light-outline',
+                        height: '48px',
+                      }
+                    }
+                  }} 
+                />
+              </div>
+              <div className="relative flex items-center">
+                <div className="flex-1 border-t border-slate-200"></div>
+                <span className="px-4 text-sm text-slate-500 font-medium">または</span>
+                <div className="flex-1 border-t border-slate-200"></div>
+              </div>
+            </div>
+          )}
+      
+          {/* ❌ Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-3">
+              <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium text-sm">{error}</span>
+            </div>
+          )}
+          {/* 💳 卡片输入 - 简约现代设计 */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-slate-700">カード情報</label>
+            <div className="bg-white rounded-xl border-2 border-slate-200 p-5 hover:border-slate-300 focus-within:border-blue-500 transition-colors">
+              <CardElement 
                 options={{
                   style: {
                     base: {
-                      fontSize: '17px',
+                      fontSize: '16px',
                       color: '#1e293b',
+                      fontWeight: '400',
                       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                      fontWeight: '500',
                       '::placeholder': {
                         color: '#94a3b8',
                       },
-                      iconColor: '#4f46e5',
                     },
                     invalid: {
                       color: '#ef4444',
-                      iconColor: '#ef4444',
                     },
                   },
                   hidePostalCode: true,
-                }}
+                }} 
               />
             </div>
             
-            {/* 🏦 カードブランドアイコン with proper colors */}
-            <div className="flex items-center justify-between mt-5 pt-4 border-t border-gray-200">
-              <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            {/* 卡片品牌和安全标识 */}
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-slate-500">
+                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                 </svg>
-                対応カード
-              </span>
-              <div className="flex items-center gap-3">
-                {/* VISA */}
-                <div className="w-14 h-9 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center shadow-md hover:scale-110 transition-transform">
-                  <span className="text-white font-black text-sm tracking-wider">VISA</span>
-                </div>
-                {/* Mastercard */}
-                <div className="w-14 h-9 bg-gradient-to-br from-red-500 to-orange-500 rounded-lg flex items-center justify-center shadow-md hover:scale-110 transition-transform">
-                  <div className="flex gap-0.5">
-                    <div className="w-3 h-3 bg-red-600 rounded-full"></div>
-                    <div className="w-3 h-3 bg-orange-400 rounded-full"></div>
-                  </div>
-                </div>
-                {/* AMEX */}
-                <div className="w-14 h-9 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-lg flex items-center justify-center shadow-md hover:scale-110 transition-transform">
-                  <span className="text-white font-black text-xs">AMEX</span>
-                </div>
-                {/* JCB */}
-                <div className="w-14 h-9 bg-gradient-to-br from-blue-800 to-green-700 rounded-lg flex items-center justify-center shadow-md hover:scale-110 transition-transform">
-                  <span className="text-white font-black text-sm">JCB</span>
+                <span className="font-medium">SSL暗号化通信</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">対応:</span>
+                <div className="flex gap-1.5">
+                  <div className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">VISA</div>
+                  <div className="bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">MC</div>
+                  <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">AMEX</div>
+                  <div className="bg-blue-700 text-white text-[10px] font-bold px-2 py-0.5 rounded">JCB</div>
                 </div>
               </div>
-            </div>
-            
-            {/* Security indicator */}
-            <div className="flex items-center gap-2 mt-3 text-xs text-gray-600">
-              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span className="font-medium">256bit SSL暗号化で保護されています</span>
             </div>
           </div>
-        </div>
-        
-        {/* 💰 プレミアム支払い概要カード */}
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-300"></div>
-          <div className="relative bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-200 shadow-xl">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              お支払い概要
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 font-medium">商品価格</span>
-                <span className="font-semibold text-gray-900 text-lg">¥{amount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 font-medium flex items-center gap-1">
-                  <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  消費税
-                </span>
-                <span className="font-semibold text-gray-900 bg-green-100 px-3 py-1 rounded-full text-xs">税込み</span>
+          
+          {/* 💰 支付摘要 - 简洁大气 */}
+          <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                <span className="text-slate-600 font-medium">購入金額</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-slate-900">¥{amount.toLocaleString()}</span>
+                  <span className="text-sm text-slate-500">JPY</span>
+                </div>
               </div>
               
-              <div className="relative mt-4">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-20"></div>
-                <div className="relative border-t-2 border-dashed border-gray-300 pt-4 flex justify-between items-center bg-white rounded-xl px-4 py-3 shadow-lg">
-                  <span className="text-lg font-black text-gray-900">お支払い合計</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 text-transparent bg-clip-text">¥{amount.toLocaleString()}</span>
-                    <span className="text-sm font-medium text-gray-500">JPY</span>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>税込み価格・安全な決済</span>
               </div>
             </div>
-            
-            <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4 pt-4 border-t border-gray-200">
-              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span className="font-medium">すべてのお取引はStripeで暗号化・保護されています</span>
-            </div>
           </div>
-        </div>
-        
-        {/* 🚀 プレミアムボタンエリア */}
-        <div className="flex gap-4 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isProcessing}
-            className="flex-1 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-100 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            キャンセル
-          </button>
           
-          {/* プレミアム支払いボタン with gradient glow */}
-          <div className="relative flex-1 group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition duration-300 animate-pulse"></div>
+          {/* 🚀 按钮区域 - 简洁现代 */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isProcessing}
+              className="px-6 py-3.5 bg-white border-2 border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 hover:border-slate-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              キャンセル
+            </button>
+            
             <button
               type="submit"
               disabled={!stripe || isProcessing || !clientSecret}
-              className="relative w-full px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 text-white rounded-xl font-black text-lg hover:from-indigo-700 hover:via-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-2xl hover:shadow-3xl transform hover:scale-[1.02] active:scale-[0.98] disabled:transform-none flex items-center justify-center gap-3"
+              className="flex-1 px-6 py-3.5 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {isProcessing ? (
                 <>
-                  <div className="relative">
-                    <div className="animate-spin rounded-full h-6 w-6 border-3 border-white border-t-transparent"></div>
-                    <div className="absolute inset-0 rounded-full bg-white blur-sm opacity-50"></div>
-                  </div>
-                  <span className="font-bold tracking-wide">処理中...</span>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  <span>処理中...</span>
                 </>
               ) : (
                 <>
-                  <svg className="w-6 h-6 drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  <span className="drop-shadow-md tracking-wide">¥{amount.toLocaleString()} を支払う</span>
-                  <svg className="w-5 h-5 drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  <span>¥{amount.toLocaleString()} を支払う</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
                 </>
               )}
