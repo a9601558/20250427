@@ -4920,7 +4920,7 @@ function QuizPage(): JSX.Element {
                     const userIdStr = user?.id ? `_${user.id}` : '';
                     const localProgressKey = `quiz_progress${userIdStr}_${questionSet.id}`;
                     
-                    console.log(`[QuizPage] 清空本地进度 - 使用键: ${localProgressKey}`);
+                    console.log(`[QuizPage] ローカル進捗をクリア - キー: ${localProgressKey}`);
                     
                     // 清除所有与进度相关的本地存储
                     localStorage.removeItem(localProgressKey);
@@ -4934,29 +4934,38 @@ function QuizPage(): JSX.Element {
                     // 清除旧格式的键（兼容性）
                     localStorage.removeItem(`quiz_progress_${questionSet.id}`);
                     
-                    // 3. 重置前端状态（按正确顺序避免状态冲突）
-                    // 首先清空已回答题目和选择状态
-                    setAnsweredQuestions([]);
+                    // 清除当前问题的临时答案（确保第一题的答案也被清除）
                     setSelectedOptions([]);
-                    setCorrectAnswers(0);
                     
-                    // 然后重置题目索引（这样useEffect执行时已回答题目列表是空的）
+                    // 3. 完全重置所有状态
+                    // 关键：先清空answeredQuestions，然后在下一个事件循环中才重置currentQuestionIndex
+                    // 这样可以确保QuestionCard的useEffect不会在answeredQuestions清空前触发
+                    
+                    // 第一步：清空答题记录和相关状态
+                    setAnsweredQuestions([]);
+                    setCorrectAnswers(0);
+                    setQuizStatus(prev => ({ ...prev, showExplanation: false, quizComplete: false }));
+                    
+                    // 重置计时器
+                    setQuizTotalTime(0);
+                    setQuizStartTime(Date.now());
+                    setQuestionStartTime(Date.now());
+                    
+                    // 重置同步状态
+                    unsyncedChangesRef.current = false;
+                    setHasUnsavedChanges(false);
+                    
+                    // 第二步：在下一个事件循环中重置题目索引
+                    // 使用 setTimeout 确保 answeredQuestions 已经清空
+                    // 此时 QuestionCard 会接收到空的 answeredQuestions，不会恢复任何答案
                     setTimeout(() => {
                       setCurrentQuestionIndex(0);
-                      setQuizStatus(prev => ({ ...prev, showExplanation: false, quizComplete: false }));
+                      // 再次确保 selectedOptions 被清空
+                      setSelectedOptions([]);
                       
-                      // 重置计时器
-                      setQuizTotalTime(0);
-                      setQuizStartTime(Date.now());
-                      setQuestionStartTime(Date.now());
-                      
-                      // 重置同步状态
-                      unsyncedChangesRef.current = false;
-                      setHasUnsavedChanges(false);
+                      console.log(`[QuizPage] 進捗データクリア完了 - 全状態リセット済み`);
+                      /* toast.success('進捗データをクリアしました'); */
                     }, 0);
-                    
-                    console.log(`[QuizPage] 进度数据清除完成`);
-                    /* toast.success('進捗データをクリアしました'); */
                   } else {
                     console.warn('[QuizPage] 清除进度失败：缺少必要的参数');
                     /* toast.error('進捗のクリアに失敗しました'); */
