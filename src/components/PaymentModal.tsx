@@ -3,7 +3,7 @@ import { useUser } from '../contexts/UserContext';
 import { QuestionSet } from '../types';
 import { toast } from 'react-toastify';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements, CardElement, useStripe, useElements, PaymentRequestButtonElement } from '@stripe/react-stripe-js';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import './payment-styles.css';
@@ -28,6 +28,7 @@ const PaymentForm: React.FC<{
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
+  const [paymentRequest, setPaymentRequest] = useState<any>(null);
 
   // 创建支付意图
   useEffect(() => {
@@ -65,6 +66,73 @@ const PaymentForm: React.FC<{
       createPaymentIntent();
     }
   }, [amount]);
+
+  // Apple Pay / Google Pay サポートの設定
+  useEffect(() => {
+    if (!stripe || amount <= 0) {
+      return;
+    }
+
+    const pr = stripe.paymentRequest({
+      country: 'JP',
+      currency: 'jpy',
+      total: {
+        label: '問題集購入',
+        amount: Math.round(amount),
+      },
+      requestPayerName: true,
+      requestPayerEmail: true,
+    });
+
+    // 利用可能性をチェック
+    pr.canMakePayment().then(result => {
+      if (result) {
+        setPaymentRequest(pr);
+      }
+    });
+
+    // 支払いが承認された時の処理
+    pr.on('paymentmethod', async (ev) => {
+      if (!clientSecret) {
+        ev.complete('fail');
+        return;
+      }
+
+      try {
+        const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
+          clientSecret,
+          { payment_method: ev.paymentMethod.id },
+          { handleActions: false }
+        );
+
+        if (confirmError) {
+          ev.complete('fail');
+          setError(confirmError.message || 'お支払いに失敗しました');
+        } else {
+          ev.complete('success');
+          if (paymentIntent.status === 'requires_action') {
+            const { error } = await stripe.confirmCardPayment(clientSecret);
+            if (error) {
+              setError(error.message || 'お支払いに失敗しました');
+            } else {
+              onSuccess({
+                paymentIntentId: paymentIntent.id,
+                amount: amount
+              });
+            }
+          } else {
+            onSuccess({
+              paymentIntentId: paymentIntent.id,
+              amount: amount
+            });
+          }
+        }
+      } catch (err: any) {
+        ev.complete('fail');
+        setError(err.message || 'お支払い処理中にエラーが発生しました');
+      }
+    });
+  }, [stripe, amount, clientSecret, onSuccess]);
 
   // 处理支付提交
   const handleSubmit = async (event: React.FormEvent) => {
@@ -140,6 +208,44 @@ const PaymentForm: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Apple Pay / Google Pay ボタン */}
+      {paymentRequest && (
+        <div className="space-y-3">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500 font-medium">エクスプレス決済</span>
+            </div>
+          </div>
+          
+          <div className="payment-request-button-container">
+            <PaymentRequestButtonElement 
+              options={{ 
+                paymentRequest,
+                style: {
+                  paymentRequestButton: {
+                    type: 'default',
+                    theme: 'dark',
+                    height: '48px',
+                  },
+                },
+              }} 
+            />
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500 font-medium">またはカードで支払う</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* カード入力エリア */}
       <div className="space-y-2">

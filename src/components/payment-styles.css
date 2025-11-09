@@ -56,4 +56,21 @@
 /* SVGアイコン自体のサイズと間隔 */
 .stripe-card-element-container .StripeElement .CardBrandIcon svg {
   margin: 0 4px !important;
-} 
+}
+
+/* Apple Pay / Google Pay ボタンのスタイル */
+.payment-request-button-container {
+  margin: 0;
+  padding: 0;
+}
+
+.payment-request-button-container .StripeElement {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.payment-request-button-container .StripeElement:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
