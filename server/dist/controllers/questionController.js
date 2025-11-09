@@ -31,6 +31,16 @@ const getQuestions = async (req, res) => {
             offset,
             order: [['orderIndex', 'ASC']]
         });
+        // 手动排序选项（确保 A, B, C, D 顺序正确）
+        if (include === 'options') {
+            questions.forEach((question) => {
+                if (question.options && Array.isArray(question.options)) {
+                    question.options.sort((a, b) => {
+                        return a.optionIndex.localeCompare(b.optionIndex);
+                    });
+                }
+            });
+        }
         console.log(`Found ${questions.length} questions with options: ${include === 'options' ? 'yes' : 'no'}`);
         if (questions.length > 0 && include === 'options') {
             console.log(`First question options count: ${questions[0].options?.length || 0}`);

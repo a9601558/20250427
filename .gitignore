@@ -1,23 +1,72 @@
-# # Logs
-# logs
-# *.log
-# npm-debug.log*
-# yarn-debug.log*
-# yarn-error.log*
-# pnpm-debug.log*
-# lerna-debug.log*
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
+# Dependencies
 node_modules
-# # *.local
+dist
+dist-ssr
 
-# # Editor directories and files
-# .vscode/*
-# !.vscode/extensions.json
-# .idea
-# .DS_Store
-# *.suo
-# *.ntvs*
-# *.njsproj
-# *.sln
-# *.sw?
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+.cache/
+
+# Archived/Backup files
+archived-docs-*/
+*.backup
+*.bak
+
+# Upload temporary files
+server/uploads/*.json
+server/uploads/*.csv
+server/uploads/*.txt
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Debug files
+debug-*.js
+debug-*.ts
+
+# Temporary scripts
+*-fix.sh
+diagnose-*.sh
+ultimate-*.sh
+quick-*.sh
+
+# Large data files (keep in docs/examples instead)
+*_完整题库_*.json
 
