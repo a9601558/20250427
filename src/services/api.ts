@@ -439,6 +439,27 @@ export const userProgressService = {
         data: [] // 返回空数组而不是 undefined
       };
     }
+  },
+
+  // 删除特定题库的所有进度记录
+  async deleteQuestionSetProgress(userId: string, questionSetId: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await apiClient.delete<ApiResponse<void>>(
+        `/user-progress/${userId}/${questionSetId}`
+      );
+      // 清除相关缓存
+      apiClient.clearCacheFor('/user-progress/stats');
+      apiClient.clearCacheFor('/user-progress/records');
+      apiClient.clearCacheFor(`/user-progress/${userId}`);
+      return response;
+    } catch (error: any) {
+      console.error('删除题库进度失败:', error);
+      return {
+        success: false,
+        message: '学習進捗の削除に失敗しました',
+        error: error.message
+      };
+    }
   }
 };
 

@@ -269,7 +269,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
 
   return (
     <div 
-      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1 border border-gray-100 relative"
+      className="group bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer transform hover:-translate-y-1 border border-gray-100 relative"
     >
       {/* 删除按钮 */}
       <button
@@ -2359,7 +2359,7 @@ const ProfilePage: React.FC = () => {
   // 添加删除进度函数
   const handleDeleteProgress = async (questionSetId: string): Promise<void> => {
     if (!user?.id) {
-      /* toast.error('まずログインしてください'); */
+      toast.error('まずログインしてください');
       return;
     }
     
@@ -2371,23 +2371,19 @@ const ProfilePage: React.FC = () => {
       localStorage.removeItem(localProgressKey);
       
       // 2. 调用API删除服务器上的进度数据
-      if (socket) {
-        // 使用socket向服务器发送删除请求
-        socket.emit('progress:delete', {
-          userId: user.id,
-          questionSetId: questionSetId
-        });
-        
+      const response = await userProgressService.deleteQuestionSetProgress(user.id, questionSetId);
+      
+      if (response.success) {
         // 3. 从UI中移除进度卡片
         setProgressStats(prevStats => prevStats.filter(stat => stat.questionSetId !== questionSetId));
-        /* toast.success('学習進捗已删除'); */
+        toast.success('学習進捗を削除しました');
         console.log(`[ProfilePage] 题库进度删除成功 ${questionSetId}`);
       } else {
-        throw new Error('网络连接失败，请刷新页面重试');
+        throw new Error(response.message || '削除に失敗しました');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[ProfilePage] 删除题库进度失败:`, error);
-      /* toast.error('删除进度失败，请重试'); */
+      toast.error(error.message || '進捗の削除に失敗しました');
     }
   };
 
