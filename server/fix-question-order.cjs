@@ -3,13 +3,14 @@
 const { Sequelize } = require('sequelize');
 
 // 创建数据库连接
+// ⚠️ 使用前に環境変数またはコマンドライン引数でパスワードを設定してください
 const sequelize = new Sequelize({
   dialect: 'mysql',
-  host: 'localhost',
-  port: 3306,
-  database: 'exam_system',
-  username: 'root',
-  password: 'zqw20011216',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  database: process.env.DB_NAME || 'exam_system',
+  username: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'your_password_here',  // 環境変数から読み込み
   logging: false
 });
 

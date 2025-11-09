@@ -26,7 +26,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=quizdb
 DB_USER=root
-DB_PASSWORD=zqw20011216
+DB_PASSWORD=your_secure_password_here  # ⚠️ 実際のパスワードに置き換えてください
 
 # データベース同期（本番環境ではfalse推奨）
 SYNC_DB=false
@@ -146,7 +146,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=quizdb
 DB_USER=root
-DB_PASSWORD=zqw20011216
+DB_PASSWORD=your_secure_password_here
 SYNC_DB=false
 
 # JWT Configuration
