@@ -574,7 +574,7 @@ const PurchasePage: React.FC<{
                 
                 {/* MasterCard Icon */}
                 <div className="w-10 h-6 bg-red-50 rounded flex items-center justify-center">
-                  <span className="text-red-800 font-bold text-xs">MasterCard</span>
+                  <span className="text-red-800 font-bold text-xs">Master</span>
                 </div>
                 
                 {/* UnionPay Icon */}
