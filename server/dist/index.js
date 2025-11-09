@@ -75,6 +75,14 @@ if (!fs_1.default.existsSync(uploadsDir)) {
     fs_1.default.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use('/uploads', express_1.default.static(uploadsDir));
+// 🎨 静的ファイル配信：Reactビルドファイル（フロントエンド）
+const distDir = path_1.default.join(__dirname, '../dist');
+console.log('Static files directory:', distDir);
+app.use(express_1.default.static(distDir, {
+    maxAge: '1d', // 1日間キャッシュ
+    etag: true,
+    lastModified: true
+}));
 // Apply rate limiters to specific routes
 app.use('/api/homepage', homepageLimiter);
 app.use('/api/question-sets', homepageLimiter);
@@ -91,6 +99,14 @@ app.use('/api/homepage', homepageRoutes_1.default);
 app.use('/api/wrong-answers', wrongAnswerRoutes_1.default);
 app.use('/api/payments', payment_1.default);
 app.use('/api/admin', adminRoutes_1.default);
+// 🎯 SPA Routing: API以外のすべてのリクエストをindex.htmlに
+app.get('*', (req, res) => {
+    // APIリクエストは除外
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ success: false, message: 'API endpoint not found' });
+    }
+    res.sendFile(path_1.default.join(distDir, 'index.html'));
+});
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
