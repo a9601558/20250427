@@ -7,9 +7,12 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 
-// Stripe公钥
-const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || 
-  'pk_test_51RHMVW4ec3wxfwe9vME773VFyquoIP1bVWbsCDZgrgerfzp8YMs0rLS4ZSleICEcIf9gmLIEftwXvPygbLp1LEkv00r5M3rCIV';
+// Stripe公開可能キー - 環境変数から読み込み（.envファイルに設定）
+const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+
+if (!STRIPE_PUBLIC_KEY) {
+  console.error('VITE_STRIPE_PUBLIC_KEY が設定されていません。.envファイルを確認してください。');
+}
 
 const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
 

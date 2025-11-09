@@ -11,10 +11,12 @@ lerna-debug.log*
 node_modules
 dist-ssr
 
-# Environment variables
+# Environment variables (機密情報を含むため絶対にコミットしない)
 .env
 .env.local
 .env.*.local
+server/.env
+server/.env.local
 
 # Editor directories and files
 .vscode/*
