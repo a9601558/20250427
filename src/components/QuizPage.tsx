@@ -648,7 +648,11 @@ interface StripePaymentFormProps {
 }
 
 // Initialize Stripe promise - 環境変数から読み込み
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+// エラーを静かに処理し、分析機能のネットワークエラーを抑制
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY).catch(error => {
+  console.warn('Stripe initialization warning:', error);
+  return null;
+});
 
 // Helper function to check if payment has been completed for a specific questionSetId
 const isPaymentCompleted = (questionSetId: string): boolean => {

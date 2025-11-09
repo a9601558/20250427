@@ -14,7 +14,11 @@ if (!STRIPE_PUBLIC_KEY) {
   console.error('VITE_STRIPE_PUBLIC_KEY が設定されていません。.envファイルを確認してください。');
 }
 
-const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
+// エラーを静かに処理し、分析機能のネットワークエラーを抑制
+const stripePromise = loadStripe(STRIPE_PUBLIC_KEY).catch(error => {
+  console.warn('Stripe initialization warning:', error);
+  return null;
+});
 
 // 支付表单组件
 const PaymentForm: React.FC<{
