@@ -337,7 +337,11 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
           model: Option,
           as: 'options'
         }]
-      }]
+      }],
+      order: [
+        [{ model: Question, as: 'questionSetQuestions' }, 'orderIndex', 'ASC'],
+        [{ model: Question, as: 'questionSetQuestions' }, { model: Option, as: 'options' }, 'optionIndex', 'ASC']
+      ]
     });
     
     if (!questionSet) {
@@ -348,7 +352,17 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
     // 直接使用 questionSet 的数据，不添加 cardImage 字段
     const questionSetData = questionSet.toJSON();
     
-    console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个問題`);
+    // 添加日志检查题目顺序
+    if (questionSetData.questionSetQuestions && questionSetData.questionSetQuestions.length > 0) {
+      console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSetData.questionSetQuestions.length} 个題目`);
+      console.log('前5道题目的orderIndex:');
+      questionSetData.questionSetQuestions.slice(0, 5).forEach((q: any, i: number) => {
+        console.log(`  ${i+1}. orderIndex=${q.orderIndex}, 题干: ${q.text?.substring(0, 40)}...`);
+      });
+    } else {
+      console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个問題`);
+    }
+    
     sendResponse(res, 200, questionSetData);
   } catch (error) {
     console.error('Get question set error:', error);
