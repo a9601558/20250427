@@ -1,5 +1,5 @@
 import React from 'react';
-import OIDCAuth from './OIDCAuth';
+import CognitoAuth from './CognitoAuth';
 
 interface AuthModalProps {
   isOpen?: boolean;
@@ -12,8 +12,8 @@ const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  // 统一使用OIDC认证
-  return <OIDCAuth isOpen={isOpen} onClose={onClose} />;
+  // Amplify直接統合を使用（Hosted UI不要）
+  return <CognitoAuth isOpen={isOpen} onClose={onClose} />;
 };
 
 export default AuthModal;
