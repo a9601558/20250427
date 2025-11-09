@@ -11,14 +11,14 @@ const AboutPage: React.FC = () => {
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-5xl font-bold mb-6">MonTopi について</h1>
             <p className="text-xl mb-8 leading-relaxed">
-              日本語学習を中心とした、現代的なオンライン試験練習プラットフォーム
+              IT資格取得をサポートする、最新のオンライン問題集プラットフォーム
             </p>
             <div className="flex justify-center gap-4">
               <Link
                 to="/question-sets"
                 className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
               >
-                題庫を探す
+                問題集を探す
               </Link>
               <a
                 href="https://github.com/a9601558/20250427"
@@ -44,16 +44,16 @@ const AboutPage: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">私たちのミッション</h2>
             <p className="text-lg text-gray-700 leading-relaxed mb-6">
-              MonTopi（日本語 Topic の略）は、日本語学習者が効率的に試験対策を行えるよう設計された、
-              最先端のオンライン学習プラットフォームです。2025年に開発された本システムは、
+              MonTopiは、IT資格取得を目指す皆様が効率的に試験対策を行えるよう設計された、
+              最新のオンライン問題集プラットフォームです。2025年に開発された本システムは、
               <span className="font-semibold text-blue-600"> AWS Cognito</span> による安全な認証、
               <span className="font-semibold text-blue-600"> React + TypeScript</span> による高速なUI、
-              そして <span className="font-semibold text-blue-600">MySQL</span> によるリライアブルなデータ管理を実現しています。
+              そして <span className="font-semibold text-blue-600">MySQL</span> による信頼性の高いデータ管理を実現しています。
             </p>
             <p className="text-lg text-gray-700 leading-relaxed">
-              私たちは、言語学習の障壁を取り除き、誰もが質の高い学習体験を得られる世界を目指しています。
-              日本語だけでなく、英語、中国語など多言語対応のUIにより、
-              世界中の学習者が自分の母語で快適に学習できる環境を提供します。
+              私たちは、IT資格試験対策の障壁を取り除き、誰もが質の高い学習体験を得られる世界を目指しています。
+              AWS、SAP、Azure、Oracle、CCNA、LPIC、ITパスポートなど、あらゆるIT資格・ベンダー資格の
+              最新問題集・過去問を提供し、効率的な資格取得をサポートします。
             </p>
           </div>
         </div>
@@ -69,9 +69,9 @@ const AboutPage: React.FC = () => {
               <div className="bg-blue-100 w-14 h-14 rounded-lg flex items-center justify-center mb-4">
                 <Globe className="w-8 h-8 text-blue-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-3 text-gray-800">多言語対応</h3>
+              <h3 className="text-xl font-semibold mb-3 text-gray-800">豊富な資格対応</h3>
               <p className="text-gray-600">
-                日本語、日本語、中国語のUI対応。母語で快適に学習できます。
+                AWS、SAP、Azure、Oracle、CCNA、LPICなど、あらゆるIT資格に対応。
               </p>
             </div>
 
@@ -113,9 +113,9 @@ const AboutPage: React.FC = () => {
               <div className="bg-red-100 w-14 h-14 rounded-lg flex items-center justify-center mb-4">
                 <BookOpen className="w-8 h-8 text-red-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-3 text-gray-800">豊富な題庫</h3>
+              <h3 className="text-xl font-semibold mb-3 text-gray-800">豊富な問題集</h3>
               <p className="text-gray-600">
-                カテゴリー別に整理された多様な問題。無料・有料題庫を選択可能。
+                資格別に整理された最新問題・過去問。無料・有料問題集を選択可能。
               </p>
             </div>
 
@@ -135,9 +135,9 @@ const AboutPage: React.FC = () => {
               <div className="bg-yellow-100 w-14 h-14 rounded-lg flex items-center justify-center mb-4">
                 <Award className="w-8 h-8 text-yellow-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-3 text-gray-800">2つの学習モード</h3>
+              <h3 className="text-xl font-semibold mb-3 text-gray-800">2つの試験モード</h3>
               <p className="text-gray-600">
-                練習モードで即座にフィードバック。試験モードで本番シミュレーション。
+                練習モードで即座にフィードバック。試験モードで本番環境シミュレーション。
               </p>
             </div>
 
@@ -277,9 +277,9 @@ const AboutPage: React.FC = () => {
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-gray-800 mb-4">オープンソースプロジェクト</h3>
               <p className="text-lg text-gray-700 leading-relaxed mb-6">
-                MonTopiは、最新の技術スタックとAIアシスタントの協力により開発されました。
-                プロジェクトはGitHubでオープンソースとして公開されており、
-                コミュニティからの貢献を歓迎しています。
+                MonTopiは、IT資格取得を目指す方々のために、最新の技術スタックとAIアシスタントの協力により開発されました。
+                AWS、SAP、Azure、Oracleなど、主要なベンダー資格の問題集を継続的に追加し、
+                学習者の皆様の資格取得をサポートしています。
               </p>
             </div>
             <div className="grid md:grid-cols-2 gap-8">
@@ -314,15 +314,15 @@ const AboutPage: React.FC = () => {
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-4xl font-bold mb-6">今すぐ始めましょう</h2>
           <p className="text-xl mb-8 leading-relaxed">
-            MonTopiで効率的な学習を体験してください。<br />
-            無料題庫から気軽にスタートできます。
+            MonTopiで効率的なIT資格試験対策を体験してください。<br />
+            無料問題集から気軽にスタートできます。
           </p>
           <div className="flex justify-center gap-4 flex-wrap">
             <Link
               to="/question-sets"
               className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-lg"
             >
-              題庫を探す
+              問題集を探す
             </Link>
             <Link
               to="/"
