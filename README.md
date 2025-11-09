@@ -617,13 +617,42 @@ npm run build
 - [Stripe](https://stripe.com/) - 決済プラットフォーム
 - [MySQL](https://www.mysql.com/) - データベース
 
-## 📞 サポート
+## � トラブルシューティング
+
+### 本番環境でのエラー対応
+
+本番サーバーでエラーが発生した場合：
+
+```bash
+# 診断スクリプトを実行
+bash diagnose-production.sh
+```
+
+**主なエラーと解決策**:
+
+1. **Socket認証エラー: "Token issuer does not match Cognito"**
+   - [`docs/production/PRODUCTION_ENV_SETUP.md`](./docs/production/PRODUCTION_ENV_SETUP.md) を参照
+   - `server/.env` でCognito設定を確認・修正
+
+2. **題庫が0件**
+   - 管理画面からJSON一括アップロード
+   - または [`docs/production/PRODUCTION_ENV_SETUP.md`](./docs/production/PRODUCTION_ENV_SETUP.md) のSQL手順
+
+3. **環境変数エラー**
+   - `.env` ファイルの設定を確認
+   - サーバー再起動: `pm2 restart montopi-server`
+
+詳細は [本番環境設定ガイド](./docs/production/PRODUCTION_ENV_SETUP.md) を参照してください。
+
+## �📞 サポート
 
 問題が発生した場合や質問がある場合は、以下の方法でご連絡ください：
 
 - **Issues**: [GitHub Issues](https://github.com/a9601558/20250427/issues)
 - **ドキュメント**: [`docs/`](./docs/) ディレクトリ
-- **Email**: （メールアドレスがあれば記載）
+  - [本番環境設定ガイド](./docs/production/PRODUCTION_ENV_SETUP.md)
+  - [クイックデプロイ](./PRODUCTION_DEPLOY.md)
+- **診断ツール**: `diagnose-production.sh`
 
 ## 🔗 関連リンク
 
