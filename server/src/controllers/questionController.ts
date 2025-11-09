@@ -664,10 +664,11 @@ export const jsonUploadQuestions = async (req: Request, res: Response) => {
           // 创建题目 - 只插入数据库中存在的字段
           // Questions表字段: id, questionSetId, text, questionType, explanation, orderIndex
           const newQuestionId = uuidv4();
+          const now = new Date();
           
           await sequelize.query(
             `INSERT INTO questions (id, questionSetId, text, questionType, explanation, orderIndex, createdAt, updatedAt) 
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             {
               replacements: [
                 newQuestionId,
@@ -675,7 +676,9 @@ export const jsonUploadQuestions = async (req: Request, res: Response) => {
                 q.stem,                                    // 题干
                 questionType,                              // 题目类型 (single/multiple)
                 q.analysis || q.explanation || '无解析',   // 解析 (兼容多种字段名)
-                i                                          // 排序索引
+                i,                                         // 排序索引
+                now,                                       // createdAt
+                now                                        // updatedAt
               ],
               transaction
             }
@@ -690,14 +693,16 @@ export const jsonUploadQuestions = async (req: Request, res: Response) => {
             
             await sequelize.query(
               `INSERT INTO options (id, questionId, text, isCorrect, optionIndex, createdAt, updatedAt) 
-               VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
               {
                 replacements: [
                   optionId,
                   newQuestionId,
                   q.options[optIdx],      // 选项文本
                   isCorrect ? 1 : 0,      // 是否正确
-                  optionLetter            // 选项索引 (A, B, C, D...)
+                  optionLetter,           // 选项索引 (A, B, C, D...)
+                  now,                    // createdAt
+                  now                     // updatedAt
                 ],
                 transaction
               }
