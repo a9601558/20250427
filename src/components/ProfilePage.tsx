@@ -2481,7 +2481,7 @@ const ProfilePage: React.FC = () => {
             </svg>
           </div>
           <h3 className="text-xl font-semibold text-gray-800 mb-2">学習の旅を始めましょう</h3>
-          <p className="text-gray-600 mb-6 max-w-md">你还没有开始答题，点击下面的按钮选择题库开始练习！</p>
+          <p className="text-gray-600 mb-6 max-w-md">まだ問題に答えていません。下のボタンをクリックして問題集を選び、練習を始めましょう！</p>
           <button
             onClick={() => navigate('/')}
             className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium py-2.5 px-5 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center"
