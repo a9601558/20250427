@@ -241,11 +241,11 @@ const PurchasePage: React.FC<{
     }));
     
     // Visual feedback
-    toast.info('支払いインターフェースを準備中...', { 
+    /* toast.info('支払いインターフェースを準備中...', { 
       autoClose: 1000,
       position: 'top-center',
       hideProgressBar: false
-    });
+    }); */
     
     // Execute callback
     try {
@@ -254,11 +254,11 @@ const PurchasePage: React.FC<{
         onPurchase();
       } else {
         console.error('[PurchasePage] onPurchase is not a function');
-        toast.error('支払機能が一時的に利用できません。しばらくしてからお試しください');
+        /* toast.error('支払機能が一時的に利用できません。しばらくしてからお試しください'); */
       }
     } catch (err) {
       console.error('[PurchasePage] Purchase callback error:', err);
-      toast.error('購入リクエストの処理中にエラーが発生しました。再試行してください');
+      /* toast.error('購入リクエストの処理中にエラーが発生しました。再試行してください'); */
     }
     
     // Reset button state after delay
@@ -291,11 +291,11 @@ const PurchasePage: React.FC<{
     }));
     
     // Visual feedback
-    toast.info('引き換えインターフェースを準備中...', { 
+    /* toast.info('引き換えインターフェースを準備中...', { 
       autoClose: 1000,
       position: 'top-center',
       hideProgressBar: false
-    });
+    }); */
     
     // Execute callback
     try {
@@ -304,11 +304,11 @@ const PurchasePage: React.FC<{
         onRedeem();
       } else {
         console.error('[PurchasePage] onRedeem is not a function');
-        toast.error('引き換え機能が一時的に利用できません。しばらくしてからお試しください');
+        /* toast.error('引き換え機能が一時的に利用できません。しばらくしてからお試しください'); */
       }
     } catch (err) {
       console.error('[PurchasePage] Redeem callback error:', err);
-      toast.error('引き換えリクエストの処理中にエラーが発生しました。再試行してください');
+      /* toast.error('引き換えリクエストの処理中にエラーが発生しました。再試行してください'); */
     }
     
     // Reset button state after delay
@@ -341,10 +341,10 @@ const PurchasePage: React.FC<{
     }));
     
     // Visual feedback
-    toast.info('ホームページに戻っています...', { 
+    /* toast.info('ホームページに戻っています...', { 
       autoClose: 1000,
       position: 'top-center'
-    });
+    }); */
     
     // Execute callback
     try {
@@ -353,7 +353,7 @@ const PurchasePage: React.FC<{
         onBack();
       } else {
         console.error('[PurchasePage] onBack is not a function');
-        toast.error('一時的に戻ることができません。ページを更新してください');
+        /* toast.error('一時的に戻ることができません。ページを更新してください'); */
       }
     } catch (err) {
       console.error('[PurchasePage] Back callback error:', err);
@@ -990,7 +990,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       saveAccessToLocalStorage(normalizedId, true);
       
       // Show success message
-      toast.success('您已成功支付此题库，无需重复支付', { autoClose: 3000 });
+      /* toast.success('您已成功支付此题库，无需重复支付', { autoClose: 3000 }); */
       
       // Close the modal
       if (typeof onSuccess === 'function') {
@@ -1028,17 +1028,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         
         if (statusResult.isPaid) {
           console.log('[PaymentModal] API直接验证此题库确实是付费题库，但本地数据有误。继续购买流程...');
-          toast.warning("检测到题库数据不一致，已修复。继续购买流程...", { autoClose: 3000 });
+          /* toast.warning("检测到题库数据不一致，已修复。继续购买流程...", { autoClose: 3000 }); */
           // 继续购买流程
         } else {
           // 提供强制购买选项
           if (confirm("この問題集は無料と表示されていますが、強制購入を試すことができます。\n\n- 「OK」をクリックして強制購入\n- 「キャンセル」で購入を中止")) {
             console.log("[PaymentModal] 用户选择强制购买，绕过免费题库检查");
-            toast.warning("您选择了强制购买模式", { autoClose: 2000 });
+            /* toast.warning("您选择了强制购买模式", { autoClose: 2000 }); */
           } else {
             console.error('[PaymentModal] API直接调用也确认这是免费题库');
             setError("服务器确认该题库为免费题库，无需购买");
-            toast.error("サーバーがこの問題集は無料であることを確認しました。購入の必要はありません");
+            /* toast.error("サーバーがこの問題集は無料であることを確認しました。購入の必要はありません"); */
             
             // 强制刷新页面以获取正确数据
             setTimeout(() => window.location.reload(), 2000);
@@ -1078,7 +1078,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     setBtnClicked(true);
     
     // 显示处理中提示
-    toast.info("正在处理您的支付请求...", { autoClose: 2000 });
+    /* toast.info("正在处理您的支付请求...", { autoClose: 2000 }); */
     
     try {
       // 标准化题库ID，避免ID不匹配問題
@@ -1116,7 +1116,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           saveAccessToLocalStorage(normalizedId, true);
           
           // 显示成功提示 - 增强版本
-          toast.success(
+          /* toast.success(
             <div className="flex flex-col">
               <div className="font-bold">支付成功！</div>
               <div className="text-sm">您已获得完整题库的访问权限</div>
@@ -1131,7 +1131,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
                 </div>
               )
             }
-          );
+          ); */
           
           // 触发购买成功事件
           window.dispatchEvent(
@@ -1180,7 +1180,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             // Save access rights and payment completion status
             saveAccessToLocalStorage(normalizedId, true);
             
-            toast.success('成功获取访问权限！您现在可以访问完整题库', { autoClose: 3000 });
+            /* toast.success('成功获取访问权限！您现在可以访问完整题库', { autoClose: 3000 }); */
             
             // 触发购买成功事件
             window.dispatchEvent(
@@ -1218,7 +1218,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           // Save access rights and payment completion status
           saveAccessToLocalStorage(normalizedId, true);
           
-          toast.success('已在本地记录购买成功，页面将在5秒后刷新', { autoClose: 4000 });
+          /* toast.success('已在本地记录购买成功，页面将在5秒后刷新', { autoClose: 4000 }); */
           
           // 触发购买成功事件
           window.dispatchEvent(
@@ -1252,7 +1252,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     } catch (error) {
       console.error('[PaymentModal] 处理购买请求时发生异常:', error);
       setError("购买请求处理失败，请稍后再试");
-      toast.error("購入リクエストの処理に失敗しました");
+      /* toast.error("購入リクエストの処理に失敗しました"); */
     } finally {
       setIsProcessing(false);
       setBtnClicked(false);
@@ -1403,7 +1403,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
         setSuccess(true);
         
         // Enhanced success message with icon
-        toast.success(
+        /* toast.success(
           <div className="flex flex-col">
             <div className="font-bold">兑换成功！</div>
             <div className="text-sm">您已获得完整题库的访问权限</div>
@@ -1418,7 +1418,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
               </div>
             )
           }
-        );
+        ); */
         
         // Wait a moment before closing modal to show success state
         setTimeout(() => {
@@ -1804,9 +1804,9 @@ function QuizPage(): JSX.Element {
         }));
         
         // Show a notification
-        toast.info('この問題集の支払いは既に完了しています', {
+        /* toast.info('この問題集の支払いは既に完了しています', {
           autoClose: 2000
-        });
+        }); */
       }
     }
   }, [questionSet, quizStatus.showPaymentModal]);
@@ -2561,7 +2561,7 @@ function QuizPage(): JSX.Element {
                   questionSetData.isPaid = true;
                   
                   // 显示警告
-                  toast.warning('检测到题库数据不一致，已自动修复', { autoClose: 3000 });
+                  /* toast.warning('检测到题库数据不一致，已自动修复', { autoClose: 3000 }); */
                 }
               }
             } catch (directApiError) {
@@ -2718,10 +2718,10 @@ function QuizPage(): JSX.Element {
             
             // 如果是试用模式，显示提示
             if (isExplicitTrialMode) {
-              toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}問`, {
+              /* toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}問`, {
                 autoClose: 5000,
                 icon: '🔍'
-              });
+              }); */
               
               // 确保购买和兑换按钮在试用模式下可用
               if (questionSetData.isPaid) {
@@ -3029,10 +3029,10 @@ function QuizPage(): JSX.Element {
         localStorage.removeItem(localProgressKey);
         
         // 通知用户
-        toast.info('题库进度已被重置', {
+        /* toast.info('题库进度已被重置', {
           position: 'top-center',
           autoClose: 3000
-        });
+        }); */
       }
     };
 
@@ -3072,10 +3072,10 @@ function QuizPage(): JSX.Element {
       saveAccessToLocalStorage(questionSet.id, true);
       
       // 显示成功消息
-      toast.success('アクセス権限が有効になりました！', {
+      /* toast.success('アクセス権限が有効になりました！', {
         position: 'top-center',
         autoClose: 2000
-      });
+      }); */
     }
   }, [user?.purchases, questionSet, checkFullAccessFromAllSources]);
   
@@ -3083,7 +3083,7 @@ function QuizPage(): JSX.Element {
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
     if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
-      toast.warning('お試し期間が終了しました。フルバージョン購入またはクーポンコードで継続してください');
+      /* toast.warning('お試し期間が終了しました。フルバージョン購入またはクーポンコードで継続してください'); */
       
       // 检查是否已完成支付，避免重复显示支付窗口
       const normalizedId = String(questionSet?.id || '').trim();
@@ -3130,9 +3130,9 @@ function QuizPage(): JSX.Element {
           }));
           
           // 显示通知
-          toast.info('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
+          /* toast.info('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
             autoClose: 2000
-          });
+          }); */
           
           // 刷新当前問題让用户继续答题
           setTimeout(() => {
@@ -3310,10 +3310,10 @@ function QuizPage(): JSX.Element {
         }, 300);
         
         // Display success message
-        toast.success('购买成功！您现在可以访问完整题库', {
+        /* toast.success('购买成功！您现在可以访问完整题库', {
           position: 'top-center',
           autoClose: 3000
-        });
+        }); */
       }
     };
 
@@ -3395,10 +3395,10 @@ function QuizPage(): JSX.Element {
         
         // Show success notification if not already shown by modal
         if (!isCurrentQuestionSet) {
-          toast.success('兑换成功！您现在可以访问完整题库', {
+          /* toast.success('兑换成功！您现在可以访问完整题库', {
             position: 'top-center',
             autoClose: 3000
-          });
+          }); */
         }
       }
     };
@@ -3449,13 +3449,13 @@ function QuizPage(): JSX.Element {
   const saveProgressManually = useCallback(async () => {
     if (!user?.id || !questionSetId) {
       console.error('[QuizPage] 保存失败：用户ID或题库ID缺失');
-      toast.error('保存に失敗しました。ログイン状態を確認してください');
+      /* toast.error('保存に失敗しました。ログイン状態を確認してください'); */
       return;
     }
     
     if (!socket) {
       console.error('[QuizPage] 保存失败：Socket连接不可用');
-      toast.error('ネットワーク接続を確認してください');
+      /* toast.error('ネットワーク接続を確認してください'); */
       return;
     }
     
@@ -3570,13 +3570,13 @@ function QuizPage(): JSX.Element {
       setTimeout(() => setShowSaveSuccess(false), 3000);
       
       // 显示成功消息
-      toast.success('進捗を保存しました');
+      /* toast.success('進捗を保存しました'); */
       
       console.log('[QuizPage] 进度数据保存完成');
     } catch (error) {
       console.error('[QuizPage] 保存进度数据异常:', error);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
-      toast.error(`保存に失敗しました: ${errorMessage}`);
+      /* toast.error(`保存に失敗しました: ${errorMessage}`); */
     } finally {
       setIsSaving(false);
     }
@@ -3794,11 +3794,11 @@ function QuizPage(): JSX.Element {
                 setQuizStatus({ ...quizStatus, showPurchasePage: true });
                 
                 // 显示提示
-                toast.info('お試しの問題数の上限に達しました。続けてご利用いただくには、フル版をご購入ください。', {
+                /* toast.info('お試しの問題数の上限に達しました。続けてご利用いただくには、フル版をご購入ください。', {
                   position: 'top-center',
                   autoClose: 5000,
                   toastId: 'answer-submit-limit'
-                });
+                }); */
               }
             }, 1500);
           }
@@ -3873,11 +3873,11 @@ function QuizPage(): JSX.Element {
       console.log(`[QuizPage] 禁止跳转到题目: ${questionIndex + 1}, 超出试用限制`);
       
       // 显示提示信息
-      toast.info(`試用モード中です。続きの問題をご利用になるには、製品版をご購入ください。`, {
+      /* toast.info(`試用モード中です。続きの問題をご利用になるには、製品版をご購入ください。`, {
         position: "top-center",
         autoClose: 5000,
         toastId: "trial-limit-jump-toast",
-      });
+      }); */
       
       // 设置试用结束状态
       setQuizStatus({ ...quizStatus, trialEnded: true });
@@ -3958,7 +3958,7 @@ function QuizPage(): JSX.Element {
       }
       
       // 提示用户
-      toast.success('进度已重置，开始新的测试！');
+      /* toast.success('进度已重置，开始新的测试！'); */
       
       // 更彻底地清除本地存储
       try {
@@ -4016,7 +4016,7 @@ function QuizPage(): JSX.Element {
           socket.once('progress:reset:result', (result) => {
             console.log('[QuizPage] 服务器进度重置结果:', result);
             if (result.success) {
-              toast.success('进度已重置');
+              /* toast.success('进度已重置'); */
               
               // 更新URL，移除lastQuestion参数
               if (questionSet) {
@@ -4053,7 +4053,7 @@ function QuizPage(): JSX.Element {
       }
     } catch (error) {
       console.error('重置测试失败:', error);
-      toast.error('テストのリセットに失敗しました。ページを更新して再試行してください');
+      /* toast.error('テストのリセットに失敗しました。ページを更新して再試行してください'); */
     } finally {
       setQuizStatus({ ...quizStatus, loading: false });
     }
@@ -4266,15 +4266,15 @@ function QuizPage(): JSX.Element {
                     }));
                     
                     // 显示通知
-                    toast.success('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
+                    /* toast.success('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
                       autoClose: 3000
-                    });
+                    }); */
                     
                     return;
                   }
                 }
                 
-                toast.info('決済を準備中です...', { autoClose: 1500 });
+                /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
                 
                 // 直接设置状态显示支付模态窗口
                 console.log('[TrialPurchaseBar] 设置showPaymentModal=true');
@@ -4315,7 +4315,7 @@ function QuizPage(): JSX.Element {
                 button.classList.add('scale-95');
                 setTimeout(() => button.classList.remove('scale-95'), 150);
                 
-                toast.info('正在准备兑换...', { autoClose: 1500 });
+                /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
                 
                 // 直接设置状态显示兑换模态窗口
                 console.log('[TrialPurchaseBar] 设置showRedeemCodeModal=true');
@@ -4605,7 +4605,7 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    toast.info('決済を準備中です...', { autoClose: 1500 });
+                    /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
                     
                     // 直接设置状态显示支付模态窗口
                     console.log('[QuizPage] 完成页面设置showPaymentModal=true');
@@ -4705,7 +4705,7 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    toast.info('決済を準備中です...', { autoClose: 1500 });
+                    /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
                     
                     // 直接设置状态显示支付模态窗口
                     console.log('[QuizPage] 顶部指示器设置showPaymentModal=true');
@@ -4740,7 +4740,7 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    toast.info('正在准备兑换...', { autoClose: 1500 });
+                    /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
                     
                     // 直接设置状态显示兑换模态窗口
                     console.log('[QuizPage] 顶部指示器设置showRedeemCodeModal=true');
@@ -4814,10 +4814,10 @@ function QuizPage(): JSX.Element {
                     }, 0);
                     
                     console.log(`[QuizPage] 进度数据清除完成`);
-                    toast.success('進捗データをクリアしました');
+                    /* toast.success('進捗データをクリアしました'); */
                   } else {
                     console.warn('[QuizPage] 清除进度失败：缺少必要的参数');
-                    toast.error('進捗のクリアに失敗しました');
+                    /* toast.error('進捗のクリアに失敗しました'); */
                   }
                 }
               }}
@@ -4955,7 +4955,7 @@ function QuizPage(): JSX.Element {
       
       try {
         // 显示处理提示
-        toast.info("正在尝试直接购买流程，绕过isPaid验证...", { autoClose: 2000 });
+        /* toast.info("正在尝试直接购买流程，绕过isPaid验证...", { autoClose: 2000 }); */
         
         // 1. 尝试强制购买API
         try {
@@ -4975,9 +4975,9 @@ function QuizPage(): JSX.Element {
           );
           
           if (response.data && response.data.success) {
-            toast.success('直接购买成功！正在更新访问权限...', {
+            /* toast.success('直接购买成功！正在更新访问权限...', {
               autoClose: 2000
-            });
+            }); */
             
             // 保存到localStorage
             saveAccessToLocalStorage(questionSetId, true);
@@ -5023,9 +5023,9 @@ function QuizPage(): JSX.Element {
           })
         );
         
-        toast.success('已在本地模拟购买成功，正在刷新页面...', {
+        /* toast.success('已在本地模拟购买成功，正在刷新页面...', {
           autoClose: 2000
-        });
+        }); */
         
         // 刷新页面以应用新状态
         setTimeout(() => {
@@ -5033,7 +5033,7 @@ function QuizPage(): JSX.Element {
         }, 2000);
       } catch (error) {
         console.error('[DirectPurchase] 直接购买错误:', error);
-        toast.error('直接購入に失敗しました。ページを更新して再試行してください');
+        /* toast.error('直接購入に失敗しました。ページを更新して再試行してください'); */
       } finally {
         setIsLoading(false);
       }
@@ -5088,7 +5088,7 @@ function QuizPage(): JSX.Element {
               const current = localStorage.getItem('admin_access_override');
               const newValue = current === 'true' ? 'false' : 'true';
               localStorage.setItem('admin_access_override', newValue);
-              toast.success(`管理员覆盖: ${newValue === 'true' ? '启用' : '禁用'}`);
+              /* toast.success(`管理员覆盖: ${newValue === 'true' ? '启用' : '禁用'}`); */
               // 强制重新检查权限
               window.location.reload();
             }}
@@ -5115,7 +5115,7 @@ function QuizPage(): JSX.Element {
           isProcessing={quizStatus.isProcessingPayment || quizStatus.isProcessingRedeem}
           onPurchase={() => {
             console.log('[QuizPage] 从PurchasePage点击购买按钮 - 时间:', new Date().toISOString());
-            toast.info('決済を準備中です...', { autoClose: 1500 });
+            /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,
@@ -5124,7 +5124,7 @@ function QuizPage(): JSX.Element {
           }}
           onRedeem={() => {
             console.log('[QuizPage] 从PurchasePage点击兑换按钮 - 时间:', new Date().toISOString());
-            toast.info('正在准备兑换...', { autoClose: 1500 });
+            /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,
@@ -5194,7 +5194,7 @@ function QuizPage(): JSX.Element {
             );
             
             // 显示成功提示
-            toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 });
+            /* toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 }); */
           }}
         />
       )}
@@ -5231,7 +5231,7 @@ function QuizPage(): JSX.Element {
             document.dispatchEvent(customEvent);
             
             // 显示成功提示
-            toast.success('兑换成功！现在可以查看完整题库', { autoClose: 3000 });
+            /* toast.success('兑换成功！现在可以查看完整题库', { autoClose: 3000 }); */
           }}
         />
       )}
