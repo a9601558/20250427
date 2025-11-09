@@ -33,7 +33,7 @@ const PaymentForm: React.FC<{
     const createPaymentIntent = async () => {
       try {
         const response = await axios.post(`${API_BASE_URL}/api/payments/create-intent`, {
-          amount: Math.round(amount * 100), // 转换为分
+          amount: Math.round(amount), // JPYは円単位そのまま（100倍しない）
           currency: 'jpy'
         }, {
           headers: {

@@ -699,7 +699,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         const response = await axios.post(
           `${API_BASE_URL}/payments/create-intent`, 
           { 
-            amount: amount * 100, // Convert to cents for Stripe  
+            amount: amount, // JPYは円単位そのまま（100倍しない）
             currency: 'jpy'
           },
           {
@@ -1108,13 +1108,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           amount: paymentData.amount
         });
         
-        // 调用购买API，发送Stripe支付数据
+        // 调用购買API、Stripe支払いデータを送信
         const purchaseResponse = await axios.post(
           `${API_BASE_URL}/payments/complete-purchase`,
           {
             questionSetId: normalizedId,
             paymentIntentId: paymentData.paymentIntentId,
-            amount: paymentData.amount * 100 // Convert to cents for backend
+            amount: paymentData.amount // JPYは円単位そのまま（100倍しない）
           },
           {
             headers: {
