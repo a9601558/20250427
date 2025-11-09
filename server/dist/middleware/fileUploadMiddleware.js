@@ -28,19 +28,21 @@ const storage = multer_1.default.diskStorage({
 });
 // File filter
 const fileFilter = (req, file, cb) => {
-    // Accept multiple file formats
+    // Accept multiple file formats: CSV, TXT, JSON
     console.log('[FileUpload] File filter checking:', file.originalname, file.mimetype);
     if (file.mimetype === 'text/csv' ||
         file.mimetype === 'text/plain' ||
+        file.mimetype === 'application/json' ||
         file.mimetype === 'application/octet-stream' ||
         file.originalname.endsWith('.csv') ||
-        file.originalname.endsWith('.txt')) {
+        file.originalname.endsWith('.txt') ||
+        file.originalname.endsWith('.json')) {
         console.log('[FileUpload] File accepted:', file.originalname);
         cb(null, true);
     }
     else {
         console.log('[FileUpload] File rejected:', file.originalname, file.mimetype);
-        cb(new Error('只支持CSV和TXT文件'));
+        cb(new Error('只支持CSV、TXT和JSON文件'));
     }
 };
 // Create the multer instance
