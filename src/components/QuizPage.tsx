@@ -757,7 +757,13 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
     if (result.error) {
       // Show error to your customer
-      setError(result.error.message || 'Payment failed');
+      // テストモードに関する情報を削除
+      let errorMessage = result.error.message || 'Payment failed';
+      if (errorMessage.includes('test')) {
+        // テストモードに関する情報を削除し、一般的なエラーメッセージに置き換え
+        errorMessage = 'カードが拒否されました。別のカードをお試しいただくか、カード発行会社にお問い合わせください。';
+      }
+      setError(errorMessage);
     } else {
       if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
         // Payment succeeded, call the onSubmit callback
@@ -834,10 +840,10 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
                 <span className="text-blue-800 font-bold text-xs">VISA</span>
               </div>
               <div className="w-10 h-6 bg-red-50 rounded flex items-center justify-center">
-                <span className="text-red-800 font-bold text-xs">MC</span>
+                <span className="text-red-800 font-bold text-xs">MasterCard</span>
               </div>
               <div className="w-10 h-6 bg-green-50 rounded flex items-center justify-center">
-                <span className="text-green-800 font-bold text-xs">银联</span>
+                <span className="text-green-800 font-bold text-xs">Amex</span>
               </div>
               <div className="w-10 h-6 bg-yellow-50 rounded flex items-center justify-center">
                 <span className="text-yellow-800 font-bold text-xs">JCB</span>
@@ -848,7 +854,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
         
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
           <div className="flex justify-between items-center text-lg">
-            <span className="text-gray-700">总金额:</span>
+            <span className="text-gray-700">総金額:</span>
             <span className="font-bold text-green-600">¥{amount.toFixed(2)}</span>
           </div>
           

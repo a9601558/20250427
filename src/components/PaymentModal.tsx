@@ -80,7 +80,13 @@ const PaymentForm: React.FC<{
       });
 
       if (result.error) {
-        setError(result.error.message || 'お支払いに失敗しました');
+        // テストモードに関する情報を削除
+        let errorMessage = result.error.message || 'お支払いに失敗しました';
+        if (errorMessage.includes('test') || errorMessage.includes('テスト')) {
+          // テストモードに関する情報を削除し、一般的なエラーメッセージに置き換え
+          errorMessage = 'カードが拒否されました。別のカードをお試しいただくか、カード発行会社にお問い合わせください。';
+        }
+        setError(errorMessage);
       } else if (result.paymentIntent?.status === 'succeeded') {
         /* toast.success('お支払いが完了しました！'); */
         onSuccess({

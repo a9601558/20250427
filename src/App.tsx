@@ -113,9 +113,6 @@ const App: React.FC = () => {
       
       if (code && state) {
         console.log('[App] 检测到OIDC认证回调');
-        toast.info('認証を処理中...', {
-          autoClose: 3000
-        });
         
         // 检查认证状态管理（更保守的检查机制）
         const checkAuthState = () => {
