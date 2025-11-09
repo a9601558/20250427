@@ -225,7 +225,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
     
     if (!cleanedId) {
       console.error('[ProfilePage] questionSetId格式异常，无法继续学习:', stats.questionSetId);
-      toast.error('問題集IDの形式が異常です。ページを更新して再試行してください');
+      /* toast.error('問題集IDの形式が異常です。ページを更新して再試行してください'); */
       return;
     }
     
@@ -260,7 +260,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ stats, onDelete }) => {
       }
     } catch (e) {
       console.error('[ProfilePage] 删除进度数据失败:', e);
-      toast.error('進行状況の削除に失敗しました。再試行してください');
+      /* toast.error('進行状況の削除に失敗しました。再試行してください'); */
     } finally {
       setIsDeleting(false);
       setShowConfirmDelete(false);
@@ -499,7 +499,7 @@ const PurchaseCard: React.FC<PurchaseCardProps> = ({ purchase }) => {
       navigate(`/quiz/${questionSet.id}`);
     } else {
       console.error('[PurchaseCard] 无法导航，题库ID不存在');
-      toast.error('問題集を開けません。IDが存在しません');
+      /* toast.error('問題集を開けません。IDが存在しません'); */
     }
   };
 
@@ -1374,7 +1374,7 @@ const ProfilePage: React.FC = () => {
               
               if (restored > 0) {
                 console.log(`[ProfilePage] 已恢复 ${restored} 条丢失的进度数据`);
-                toast.success(`${restored}件の失われた学習進捗を復元しました`);
+                /* toast.success(`${restored}件の失われた学習進捗を復元しました`); */
               }
             }
           }
@@ -1620,7 +1620,7 @@ const ProfilePage: React.FC = () => {
       }
     } catch (error) {
       console.error('[ProfilePage] 获取购买记录异常:', error);
-      toast.error('購入履歴の取得に失敗しました。ページを更新して再試行してください');
+      /* toast.error('購入履歴の取得に失敗しました。ページを更新して再試行してください'); */
     } finally {
       setPurchasesLoading(false);
     }
@@ -1716,18 +1716,18 @@ const ProfilePage: React.FC = () => {
           setRedeemCodes(processedCodes);
         } catch (dataError) {
           console.error('[ProfilePage] 处理兑换码数据时出错:', dataError);
-          toast.error('引き換えコードデータの処理に失敗しました。管理者にお問い合わせください');
+          /* toast.error('引き換えコードデータの処理に失敗しました。管理者にお問い合わせください'); */
           setRedeemCodes([]); // 设置空数组避免UI错误
         }
       } else {
         console.error('[ProfilePage] 获取兑换码数据失败:', response.message);
         setError(response.message || '获取兑换记录失败');
-        toast.error(response.message || '引き換え履歴の取得に失敗しました');
+        /* toast.error(response.message || '引き換え履歴の取得に失敗しました'); */
         setRedeemCodes([]); // 设置空数组避免UI错误
       }
     } catch (error: any) {
       console.error('[ProfilePage] 获取兑换码异常:', error);
-      toast.error('引き換え履歴の取得に失敗しました。しばらくしてから再試行してください');
+      /* toast.error('引き換え履歴の取得に失敗しました。しばらくしてから再試行してください'); */
       setRedeemCodes([]);
     } finally {
       setRedeemCodesLoading(false);
@@ -1794,7 +1794,7 @@ const ProfilePage: React.FC = () => {
         throw new Error(response.message || '获取誤答集失败');
       }
     } catch (error) {
-      toast.error('間違い問題集の取得に失敗しました');
+      /* toast.error('間違い問題集の取得に失敗しました'); */
       console.error('[ProfilePage] Error fetching wrong answers:', error);
     } finally {
       setWrongAnswersLoading(false);
@@ -1903,7 +1903,7 @@ const ProfilePage: React.FC = () => {
         if (restoredCount > 0) {
           console.log(`[ProfilePage] 已成功恢复 ${restoredCount} 条进度数据`);
           // 显示一条恢复成功的提示
-          toast.success(`已恢复${restoredCount}条学習進捗`);
+          /* toast.success(`已恢复${restoredCount}条学習進捗`); */
           
           // 刷新显示的进度数据
           fetchProgressData();
@@ -2359,7 +2359,7 @@ const ProfilePage: React.FC = () => {
   // 添加删除进度函数
   const handleDeleteProgress = async (questionSetId: string): Promise<void> => {
     if (!user?.id) {
-      toast.error('まずログインしてください');
+      /* toast.error('まずログインしてください'); */
       return;
     }
     
@@ -2380,14 +2380,14 @@ const ProfilePage: React.FC = () => {
         
         // 3. 从UI中移除进度卡片
         setProgressStats(prevStats => prevStats.filter(stat => stat.questionSetId !== questionSetId));
-        toast.success('学習進捗已删除');
+        /* toast.success('学習進捗已删除'); */
         console.log(`[ProfilePage] 题库进度删除成功 ${questionSetId}`);
       } else {
         throw new Error('网络连接失败，请刷新页面重试');
       }
     } catch (error) {
       console.error(`[ProfilePage] 删除题库进度失败:`, error);
-      toast.error('删除进度失败，请重试');
+      /* toast.error('删除进度失败，请重试'); */
     }
   };
 
@@ -2709,12 +2709,12 @@ const ProfilePage: React.FC = () => {
       
       if (response.success) {
         setWrongAnswers(prevAnswers => prevAnswers.filter(answer => answer.id !== id));
-        toast.success('删除成功');
+        /* toast.success('删除成功'); */
       } else {
         throw new Error(response.message || '删除失败');
       }
     } catch (error) {
-      toast.error('間違い問題の削除に失敗しました');
+      /* toast.error('間違い問題の削除に失敗しました'); */
       console.error('[ProfilePage] Error deleting wrong answer:', error);
     }
   };
@@ -2730,12 +2730,12 @@ const ProfilePage: React.FC = () => {
             answer.id === id ? { ...answer, memo } : answer
           )
         );
-        toast.success('更新备注成功');
+        /* toast.success('更新备注成功'); */
       } else {
         throw new Error(response.message || '更新备注失败');
       }
     } catch (error) {
-      toast.error('備考の更新に失敗しました');
+      /* toast.error('備考の更新に失敗しました'); */
       console.error('[ProfilePage] Error updating memo:', error);
     }
   };

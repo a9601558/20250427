@@ -109,7 +109,7 @@ const QuestionSetSearchPage: React.FC = () => {
       }
     } catch (error) {
       console.error('获取题库列表失败:', error);
-      toast.error('問題集リストの取得に失敗しました');
+      /* toast.error('問題集リストの取得に失敗しました'); */
     } finally {
       setLoading(false);
     }
@@ -594,7 +594,7 @@ const QuestionSetSearchPage: React.FC = () => {
           <div className="flex space-x-2">
             <button
               onClick={() => {
-                toast.info('問題集データを更新中...');
+                /* toast.info('問題集データを更新中...'); */
                 fetchQuestionSets();
               }}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"

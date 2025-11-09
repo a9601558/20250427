@@ -1104,7 +1104,7 @@ const HomePage = () => {
     // 防御性检查：确保题库数据有效
     if (!set || !set.id || !set.title) {
       console.error('[handleStartQuiz] 無効な題庫データ:', set);
-      toast.error('問題集にアクセスできません：データが無効です');
+      /* toast.error('問題集にアクセスできません：データが無効です'); */
       return;
     }
     
@@ -1911,7 +1911,7 @@ const HomePage = () => {
         clearTimeout(loadingTimeoutRef.current);
         
         // Show error message to user
-        toast.error('問題集データの取得に失敗しました。しばらくしてから再試行してください');
+        /* toast.error('問題集データの取得に失敗しました。しばらくしてから再試行してください'); */
         return questionSets;
       }
     } catch (error: any) {
@@ -1922,15 +1922,15 @@ const HomePage = () => {
       
       // 根据错误类型提供不同的错误消息
       if (error?.response?.status === 502) {
-        toast.error('サーバーが一時的に利用できません。しばらくしてから再度お試しください。', {
+        /* toast.error('サーバーが一時的に利用できません。しばらくしてから再度お試しください。', {
           toastId: 'server-502-error'
-        });
+        }); */
       } else if (error?.response?.status >= 500) {
-        toast.error('サーバーエラーが発生しました。しばらくしてから再度お試しください。', {
+        /* toast.error('サーバーエラーが発生しました。しばらくしてから再度お試しください。', {
           toastId: 'server-error'
-        });
+        }); */
       } else {
-        toast.error('問題集の取得中にエラーが発生しました。ページを更新して再試行してください');
+        /* toast.error('問題集の取得中にエラーが発生しました。ページを更新して再試行してください'); */
       }
       return questionSets;
     } finally {
@@ -2690,7 +2690,7 @@ const HomePage = () => {
       } catch (error) {
         console.error('[HomePage] 登录流程处理出错:', error);
         setLoading(false);
-        toast.error('リクエストに失敗しました。しばらくしてから再試行してください');
+        /* toast.error('リクエストに失敗しました。しばらくしてから再試行してください'); */
         
         // 清理事件监听
         window.removeEventListener('accessRights:updated', handleSyncComplete);
@@ -2990,7 +2990,7 @@ const HomePage = () => {
       fetchQuestionSets({ forceFresh: true });
       
       if (options.showNotification) {
-        toast.success('管理者から直接ホームページコンテンツが読み込まれました', { position: 'bottom-center' });
+        /* toast.success('管理者から直接ホームページコンテンツが読み込まれました', { position: 'bottom-center' }); */
       }
       
       // Dispatch event for Layout.tsx with footer text
@@ -3051,7 +3051,7 @@ const HomePage = () => {
               fetchQuestionSets({ forceFresh: true });
               
           if (options.showNotification) {
-            toast.info('ローカルキャッシュからホームページコンテンツが読み込まれました', { position: 'bottom-center' });
+            /* toast.info('ローカルキャッシュからホームページコンテンツが読み込まれました', { position: 'bottom-center' }); */
           }
           
           // Clear the force reload flag
@@ -3181,7 +3181,7 @@ const HomePage = () => {
               
               // Show notification if requested
               if (options.showNotification) {
-                toast.success('サーバーからホームページコンテンツが更新されました', { position: 'bottom-center' });
+                /* toast.success('サーバーからホームページコンテンツが更新されました', { position: 'bottom-center' }); */
               }
               
               // Clear the force reload flag after processing
@@ -3223,7 +3223,7 @@ const HomePage = () => {
                 
                 // Show notification if requested
                 if (options.showNotification) {
-                  toast.success('ホームページコンテンツが更新されました', { position: 'bottom-center' });
+                  /* toast.success('ホームページコンテンツが更新されました', { position: 'bottom-center' }); */
                 }
                 
                 // Notify Layout about the update with footer text
@@ -3244,7 +3244,7 @@ const HomePage = () => {
             setHomeContent(localContent);
             
             if (options.showNotification) {
-              toast.warning('サーバー接続に失敗しました。ローカルキャッシュの内容を使用します', { position: 'bottom-center' });
+              /* toast.warning('サーバー接続に失敗しました。ローカルキャッシュの内容を使用します', { position: 'bottom-center' }); */
             }
             
             // Default to "all" category if featuredCategories are available
@@ -3277,7 +3277,7 @@ const HomePage = () => {
           setHomeContent(localContent);
           
           if (options.showNotification) {
-            toast.warning('サーバーエラー、ローカルキャッシュの内容を使用します', { position: 'bottom-center' });
+            /* toast.warning('サーバーエラー、ローカルキャッシュの内容を使用します', { position: 'bottom-center' }); */
           }
           
           // Default to "all" category if featuredCategories are available
@@ -3313,7 +3313,7 @@ const HomePage = () => {
         setHomeContent(localContent);
         
         if (options.showNotification) {
-          toast.warning('サーバーエラー、ローカルキャッシュの内容を使用します', { position: 'bottom-center' });
+          /* toast.warning('サーバーエラー、ローカルキャッシュの内容を使用します', { position: 'bottom-center' }); */
         }
         
         // Default to "all" category if featuredCategories are available
@@ -3634,7 +3634,7 @@ const HomePage = () => {
           }
           
           // 显示通知
-          toast.info('ローカルキャッシュから最新のコンテンツが読み込まれました', { position: 'bottom-center' });
+          /* toast.info('ローカルキャッシュから最新のコンテンツが読み込まれました', { position: 'bottom-center' }); */
         }
         
         // 无论是否有本地内容，都发起网络请求确保内容最新
@@ -3673,16 +3673,16 @@ const HomePage = () => {
     
     if (questionSets.length === 0) {
       console.log('[HomePage] No question sets to refresh counts for');
-      toast.info('更新可能な問題集がありません');
+      /* toast.info('更新可能な問題集がありません'); */
       return;
     }
     
     // 显示加载中通知
-    const toastId = toast.info('問題数を更新中...', { 
+    /* const toastId = toast.info('問題数を更新中...', { 
       autoClose: false,
       closeButton: false,
       closeOnClick: false
-    });
+    }); */
     
     try {
       // 创建一个新的题库集合的副本
@@ -3731,32 +3731,32 @@ const HomePage = () => {
       if (updatedCount > 0) {
         console.log(`[HomePage] Updated question counts for ${updatedCount} question sets`);
         setQuestionSets(updatedSets);
-        toast.update(toastId, { 
+        /* toast.update(toastId, { 
           render: `${updatedCount}個の問題集の問題数を正常に更新しました`, 
           type: toast.TYPE.SUCCESS,
           autoClose: 3000,
           closeButton: true,
           closeOnClick: true
-        });
+        }); */
       } else {
         console.log('[HomePage] No question counts needed to be updated');
-        toast.update(toastId, { 
+        /* toast.update(toastId, { 
           render: 'すべての問題集の問題数は最新です', 
           type: toast.TYPE.INFO,
           autoClose: 2000,
           closeButton: true,
           closeOnClick: true
-        });
+        }); */
       }
     } catch (error) {
       console.error('[HomePage] Error refreshing question counts:', error);
-      toast.update(toastId, { 
+      /* toast.update(toastId, { 
         render: '刷新题目数量失败', 
         type: toast.TYPE.ERROR,
         autoClose: 3000,
         closeButton: true,
         closeOnClick: true
-      });
+      }); */
     }
   }, [questionSets]);
 

@@ -194,7 +194,7 @@ const QuestionCard = ({
     
     // 检查是否选择了答案
     if (selectedOptions.length === 0) {
-      toast.warning(MESSAGES.SELECT_AT_LEAST_ONE);
+      /* toast.warning(MESSAGES.SELECT_AT_LEAST_ONE); */
       return;
     }
     
@@ -253,7 +253,7 @@ const QuestionCard = ({
       }, 2500);
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
-      toast.error('答案の提出中にエラーが発生しました。再試行してください');
+      /* toast.error('答案の提出中にエラーが発生しました。再試行してください'); */
     } finally {
       // 延迟释放提交锁，防止重复点击
       setTimeout(() => {

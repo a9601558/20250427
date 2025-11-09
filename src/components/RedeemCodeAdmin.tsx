@@ -39,7 +39,7 @@ const RedeemCodeAdmin: React.FC = () => {
         }
       } catch (error) {
         console.error('データの読み込みに失敗:', error);
-        toast.error('データの読み込みに失敗しました。ページを更新して再試行してください');
+        /* toast.error('データの読み込みに失敗しました。ページを更新して再試行してください'); */
       } finally {
         setIsLoading(false);
       }
@@ -53,17 +53,17 @@ const RedeemCodeAdmin: React.FC = () => {
     e.preventDefault();
     
     if (!selectedQuestionSetId) {
-      toast.error('問題集を選択してください');
+      /* toast.error('問題集を選択してください'); */
       return;
     }
     
     if (validityDays < 1) {
-      toast.error('有効期限は最低1日必要です');
+      /* toast.error('有効期限は最低1日必要です'); */
       return;
     }
     
     if (quantity < 1 || quantity > 100) {
-      toast.error('生成数は1～100の範囲で入力してください');
+      /* toast.error('生成数は1～100の範囲で入力してください'); */
       return;
     }
     
@@ -82,13 +82,13 @@ const RedeemCodeAdmin: React.FC = () => {
         setRedeemCodes(prev => [...newCodes, ...prev]);
         setGeneratedCodes(newCodes);
         setShowGeneratedCodes(true);
-        toast.success(`${quantity}個の引き換えコードを正常に生成しました`);
+        /* toast.success(`${quantity}個の引き換えコードを正常に生成しました`); */
       } else {
         throw new Error(response.message || '引き換えコードの生成に失敗しました');
       }
     } catch (error: any) {
       console.error('引き換えコードの生成に失敗:', error);
-      toast.error(error.message || '引き換えコードの生成に失敗しました。再試行してください');
+      /* toast.error(error.message || '引き換えコードの生成に失敗しました。再試行してください'); */
     } finally {
       setIsGenerating(false);
     }
@@ -97,10 +97,12 @@ const RedeemCodeAdmin: React.FC = () => {
   // 复制兑换码到剪贴板
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-      .then(() => toast.success('クリップボードにコピーしました'))
+      .then(() => {
+        /* toast.success('クリップボードにコピーしました'); */
+      })
       .catch(err => {
         console.error('コピーに失敗:', err);
-        toast.error('コピーに失敗しました');
+        /* toast.error('コピーに失敗しました'); */
       });
   };
   
@@ -111,13 +113,13 @@ const RedeemCodeAdmin: React.FC = () => {
       
       if (response.success) {
         setRedeemCodes(prev => prev.filter(code => code.id !== codeId));
-        toast.success('引き換えコードを削除しました');
+        /* toast.success('引き換えコードを削除しました'); */
       } else {
         throw new Error(response.message || '引き換えコードの削除に失敗しました');
       }
     } catch (error: any) {
       console.error('引き換えコードの削除に失敗:', error);
-      toast.error(error.message || '引き換えコードの削除に失敗しました');
+      /* toast.error(error.message || '引き換えコードの削除に失敗しました'); */
     }
   };
   

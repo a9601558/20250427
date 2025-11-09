@@ -62,7 +62,7 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
       setAccounts(sortedAccounts);
     } catch (error) {
       console.error('[AccountSwitcher] 加载账号数据出错:', error);
-      toast.error('加载账号列表失败');
+      /* toast.error('加载账号列表失败'); */
     }
   }, [user]);
   
@@ -87,7 +87,7 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
   // 切换到选择的账号
   const handleSwitchAccount = async (userId: string) => {
     if (userId === user?.id) {
-      toast.info('您已经登录此账号');
+      /* toast.info('您已经登录此账号'); */
       return;
     }
     
@@ -95,15 +95,15 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
     try {
       const success = await switchAccount(userId);
       if (success) {
-        toast.success('账号切换成功');
+        /* toast.success('账号切换成功'); */
         loadStoredAccounts(); // 重新加载账号列表
         if (onClose) onClose();
       } else {
-        toast.error('账号切换失败，请重新登录该账号');
+        /* toast.error('账号切换失败，请重新登录该账号'); */
       }
     } catch (error) {
       console.error('[AccountSwitcher] 切换账号出错:', error);
-      toast.error('账号切换过程中发生错误');
+      /* toast.error('账号切换过程中发生错误'); */
     } finally {
       setLoading(false);
     }
@@ -137,10 +137,10 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
         localStorage.setItem('stored_accounts', JSON.stringify(updatedAccounts));
         setAccounts(updatedAccounts);
         
-        toast.success('账号数据已清除');
+        /* toast.success('账号数据已清除'); */
       } catch (error) {
         console.error('[AccountSwitcher] 清除账号数据出错:', error);
-        toast.error('清除账号数据失败');
+        /* toast.error('清除账号数据失败'); */
       }
     }
   };
@@ -170,10 +170,10 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
         localStorage.removeItem('auto_login_user');
       }
       
-      toast.success(`自动登录已${newValue ? '启用' : '禁用'}`);
+      /* toast.success(`自动登录已${newValue ? '启用' : '禁用'}`); */
     } catch (error) {
       console.error('[AccountSwitcher] 设置自动登录出错:', error);
-      toast.error('设置自动登录失败');
+      /* toast.error('设置自动登录失败'); */
     }
   };
   
@@ -192,10 +192,10 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
         localStorage.setItem(`${userPrefix}token_expiry`, expiryDate.toISOString());
       }
       
-      toast.success(`令牌过期时间已设置为${days}天`);
+      /* toast.success(`令牌过期时间已设置为${days}天`); */
     } catch (error) {
       console.error('[AccountSwitcher] 设置令牌过期时间出错:', error);
-      toast.error('设置令牌过期时间失败');
+      /* toast.error('设置令牌过期时间失败'); */
     }
   };
   

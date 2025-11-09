@@ -79,7 +79,7 @@ const PaymentForm: React.FC<{
       if (result.error) {
         setError(result.error.message || 'お支払いに失敗しました');
       } else if (result.paymentIntent?.status === 'succeeded') {
-        toast.success('お支払いが完了しました！');
+        /* toast.success('お支払いが完了しました！'); */
         onSuccess({
           paymentIntentId: result.paymentIntent.id,
           amount: amount
@@ -169,7 +169,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         );
 
         if (hasPurchased) {
-          toast.info('この問題集は既に購入済みです');
+          /* toast.info('この問題集は既に購入済みです'); */
           onSuccess({
             questionSetId: questionSet.id,
             remainingDays: 30
@@ -231,7 +231,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     } catch (error: any) {
       console.error('完成购买失败:', error);
-      toast.error('購入確認に失敗しました。カスタマーサポートにお問い合わせください');
+      /* toast.error('購入確認に失敗しました。カスタマーサポートにお問い合わせください'); */
     }
   };
 

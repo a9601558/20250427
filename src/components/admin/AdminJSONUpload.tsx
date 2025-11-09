@@ -74,7 +74,7 @@ const AdminJSONUpload: React.FC = () => {
     // 检查文件类型
     const fileType = selectedFile.name.split('.').pop()?.toLowerCase();
     if (fileType !== 'json') {
-      toast.error('只支持JSON文件格式');
+      /* toast.error('只支持JSON文件格式'); */
       e.target.value = '';
       return;
     }
@@ -107,7 +107,7 @@ const AdminJSONUpload: React.FC = () => {
           }
         }
       } catch (error) {
-        toast.error('JSON文件格式错误');
+        /* toast.error('JSON文件格式错误'); */
         console.error('JSON解析错误:', error);
         setJsonPreview(null);
       }
@@ -129,27 +129,27 @@ const AdminJSONUpload: React.FC = () => {
     
     // 验证题库数据
     if (!newQuestionSetData.title) {
-      toast.error('请输入题库标题');
+      /* toast.error('请输入题库标题'); */
       return;
     }
     
     if (!newQuestionSetData.description) {
-      toast.error('请输入题库说明');
+      /* toast.error('请输入题库说明'); */
       return;
     }
     
     if (!newQuestionSetData.category) {
-      toast.error('请输入题库分类');
+      /* toast.error('请输入题库分类'); */
       return;
     }
     
     if (!file) {
-      toast.error('请选择要上传的JSON文件');
+      /* toast.error('请选择要上传的JSON文件'); */
       return;
     }
 
     if (!jsonPreview || !jsonPreview.questions || !Array.isArray(jsonPreview.questions)) {
-      toast.error('JSON文件格式错误：缺少questions数组');
+      /* toast.error('JSON文件格式错误：缺少questions数组'); */
       return;
     }
 
@@ -212,7 +212,7 @@ const AdminJSONUpload: React.FC = () => {
       
       const typedResponse = response as any;
       if (typedResponse.success) {
-        toast.success(`题库创建成功！导入了 ${typedResponse.data?.success || 0} 道题目`);
+        /* toast.success(`题库创建成功！导入了 ${typedResponse.data?.success || 0} 道题目`); */
         setUploadResult({
           success: typedResponse.data?.success || 0,
           failed: typedResponse.data?.failed || 0,
@@ -225,11 +225,11 @@ const AdminJSONUpload: React.FC = () => {
           resetForm();
         }, 3000);
       } else {
-        toast.error(`题库创建失败: ${typedResponse.message || '未知错误'}`);
+        /* toast.error(`题库创建失败: ${typedResponse.message || '未知错误'}`); */
       }
     } catch (error) {
       console.error('JSON上传错误:', error);
-      toast.error(`上传失败: ${(error as Error).message}`);
+      /* toast.error(`上传失败: ${(error as Error).message}`); */
     } finally {
       setIsUploading(false);
     }
