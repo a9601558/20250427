@@ -393,15 +393,35 @@ npm install
 ```
 
 3. **環境変数の設定**
-```bash
-# ルートディレクトリ
-cp .env.example .env
-# .envファイルを編集
 
-# サーバーディレクトリ
+⚠️ **重要**: `.env`ファイルには機密情報（APIキー、データベースパスワード等）が含まれます。**絶対にGitにコミットしないでください**。
+
+```bash
+# フロントエンド環境変数
+cp .env.example .env
+# 以下を設定:
+# - VITE_STRIPE_PUBLIC_KEY: Stripe公開可能キー
+# - VITE_API_BASE_URL: APIのベースURL
+
+# バックエンド環境変数
 cd server
 cp .env.example .env
-# .envファイルを編集
+# 以下を設定:
+# - DB_PASSWORD: MySQLパスワード
+# - JWT_SECRET: JWT署名用シークレット
+# - STRIPE_PUBLIC_KEY: Stripe公開可能キー
+# - STRIPE_SECRET_KEY: Stripeシークレットキー（機密）
+# - COGNITO_USER_POOL_ID: AWS Cognito User Pool ID
+```
+
+📝 **Stripe設定例**:
+```bash
+# フロントエンド (.env)
+VITE_STRIPE_PUBLIC_KEY=pk_test_your_key_here
+
+# バックエンド (server/.env)
+STRIPE_PUBLIC_KEY=pk_test_your_key_here
+STRIPE_SECRET_KEY=sk_test_your_secret_key_here  # 絶対に公開しない！
 ```
 
 4. **データベースのセットアップ**
