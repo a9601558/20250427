@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -21,6 +22,8 @@ interface CacheItem {
 class ApiClient {
   private client: AxiosInstance;
   private cache: Map<string, CacheItem> = new Map();
+  private isRefreshing = false;
+  private refreshSubscribers: ((token: string) => void)[] = [];
   
   constructor(baseURL = '/api') {
     this.client = axios.create({
@@ -32,7 +35,7 @@ class ApiClient {
     });
     
     // 添加请求拦截器
-    this.client.interceptors.request.use((config) => {
+    this.client.interceptors.request.use(async (config) => {
       // 获取token并添加到请求头
       const token = localStorage.getItem('token');
       if (token) {
@@ -44,10 +47,26 @@ class ApiClient {
     // 添加响应拦截器
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
+        const originalRequest = error.config;
+        
         // 处理token过期等错误
-        if (error.response && error.response.status === 401) {
-          // 清除认证信息
+        if (error.response && error.response.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
+          // 尝试刷新token
+          try {
+            const newToken = await this.refreshToken();
+            if (newToken) {
+              // 更新请求头并重试
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return this.client(originalRequest);
+            }
+          } catch (refreshError) {
+            console.error('[ApiClient] Token刷新失败:', refreshError);
+          }
+          
+          // 刷新失败，清除认证信息
           localStorage.removeItem('token');
           localStorage.removeItem('activeUserId');
           
@@ -64,6 +83,47 @@ class ApiClient {
     
     // 定期清理过期缓存
     setInterval(() => this.cleanExpiredCache(), 60000); // 每分钟清理一次
+  }
+  
+  // 刷新token
+  private async refreshToken(): Promise<string | null> {
+    if (this.isRefreshing) {
+      // 如果正在刷新，等待刷新完成
+      return new Promise((resolve) => {
+        this.refreshSubscribers.push((token: string) => {
+          resolve(token);
+        });
+      });
+    }
+    
+    this.isRefreshing = true;
+    
+    try {
+      console.log('[ApiClient] 开始刷新token...');
+      
+      // 使用Amplify刷新session
+      const session = await fetchAuthSession({ forceRefresh: true });
+      const newToken = session.tokens?.accessToken?.toString();
+      
+      if (newToken) {
+        console.log('[ApiClient] Token刷新成功');
+        localStorage.setItem('token', newToken);
+        
+        // 通知所有等待的请求
+        this.refreshSubscribers.forEach(callback => callback(newToken));
+        this.refreshSubscribers = [];
+        
+        return newToken;
+      }
+      
+      console.warn('[ApiClient] Token刷新失败: 未获取到新token');
+      return null;
+    } catch (error) {
+      console.error('[ApiClient] Token刷新异常:', error);
+      return null;
+    } finally {
+      this.isRefreshing = false;
+    }
   }
   
   // 生成缓存键
