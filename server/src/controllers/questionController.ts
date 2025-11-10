@@ -36,7 +36,10 @@ export const getQuestions = async (req: Request, res: Response) => {
       questions.forEach((question: any) => {
         if (question.options && Array.isArray(question.options)) {
           question.options.sort((a: any, b: any) => {
-            return a.optionIndex.localeCompare(b.optionIndex);
+            // 安全处理 optionIndex 可能为 undefined 的情况
+            const indexA = a.optionIndex || '';
+            const indexB = b.optionIndex || '';
+            return indexA.localeCompare(indexB);
           });
         }
       });
