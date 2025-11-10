@@ -36,6 +36,11 @@ WrongAnswer.init({
     questionId: {
         type: sequelize_1.DataTypes.UUID,
         allowNull: false,
+        // 不设置外键引用，允许保存已删除问题的错题记录
+        // references: {
+        //   model: 'questions',
+        //   key: 'id'
+        // }
     },
     questionSetId: {
         type: sequelize_1.DataTypes.UUID,

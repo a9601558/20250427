@@ -55,6 +55,11 @@ WrongAnswer.init(
     questionId: {
       type: DataTypes.UUID,
       allowNull: false,
+      // 不设置外键引用，允许保存已删除问题的错题记录
+      // references: {
+      //   model: 'questions',
+      //   key: 'id'
+      // }
     },
     questionSetId: {
       type: DataTypes.UUID,

@@ -106,9 +106,35 @@ const saveWrongAnswer = async (req, res) => {
     }
     catch (error) {
         console.error('保存错题失败:', error);
+        console.error('错误详情:', {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            sqlMessage: error.sqlMessage,
+            sql: error.sql,
+            parameters: error.parameters,
+            stack: error.stack
+        });
+        // 根据错误类型返回更具体的错误信息
+        let errorMessage = '服务器错误，无法保存错题';
+        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+            errorMessage = '问题ID不存在，无法保存错题';
+            console.error('[WrongAnswer] 外键约束失败 - questionId不存在:', error.parameters?.[2]);
+        }
+        else if (error.name === 'SequelizeUniqueConstraintError') {
+            errorMessage = '该错题记录已存在';
+        }
+        else if (error.name === 'SequelizeValidationError') {
+            errorMessage = '错题数据验证失败';
+        }
         res.status(500).json({
             success: false,
-            message: '服务器错误，无法保存错题'
+            message: errorMessage,
+            debug: process.env.NODE_ENV === 'development' ? {
+                error: error.message,
+                code: error.code
+            } : undefined
         });
     }
 };
