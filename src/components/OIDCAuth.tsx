@@ -22,7 +22,6 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
         sub: auth.user.profile.sub
       });
       
-      /* toast.success('ログインが成功しました！'); */
       onClose();
     }
   }, [auth.isAuthenticated, auth.user, onClose]);
@@ -65,15 +64,11 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
           console.warn('[OIDCAuth] 清理存储时出错:', cleanupError);
         }
         
-        /* toast.warning('認証状態がリセットされました。再度ログインしてください。', {
-          toastId: 'oidc-state-reset'
-        }); */
         return;
       }
       
       // 其他错误的处理
-      /* toast.error(`認証エラー: ${auth.error.message}`); */
-    }
+      }
   }, [auth.error]);
 
   const handleSignIn = async () => {
@@ -102,8 +97,7 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
       await auth.signinRedirect();
     } catch (error) {
       console.error('[OIDCAuth] サインイン失敗:', error);
-      /* toast.error('サインインに失敗しました。再試行してください。'); */
-    } finally {
+      } finally {
       setIsLoading(false);
     }
   };
@@ -118,8 +112,7 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
       window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
     } catch (error) {
       console.error('[OIDCAuth] サインアウト失敗:', error);
-      /* toast.error('サインアウトに失敗しました。'); */
-    }
+      }
   };
 
   // 加载状态
@@ -282,8 +275,6 @@ const OIDCAuth: React.FC<OIDCAuthProps> = ({ isOpen = true, onClose }) => {
                         }
                       });
                       console.log('[OIDCAuth] 手動で認証状態をクリアしました');
-                      /* toast.success('認証状態をリセットしました。再度お試しください。'); */
-                      
                       // 刷新页面以重新初始化OIDC
                       setTimeout(() => {
                         window.location.reload();

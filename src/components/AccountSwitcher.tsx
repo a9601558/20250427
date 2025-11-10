@@ -62,8 +62,7 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
       setAccounts(sortedAccounts);
     } catch (error) {
       console.error('[AccountSwitcher] アカウントデータの読み込みエラー:', error);
-      /* toast.error('アカウントリストの読み込みに失敗しました'); */
-    }
+      }
   }, [user]);
   
   // トークン有効期限設定を読み込み
@@ -87,7 +86,6 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
   // 選択したアカウントに切り替え
   const handleSwitchAccount = async (userId: string) => {
     if (userId === user?.id) {
-      /* toast.info('すでにこのアカウントでログインしています'); */
       return;
     }
     
@@ -95,16 +93,13 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
     try {
       const success = await switchAccount(userId);
       if (success) {
-        /* toast.success('アカウントの切り替えに成功しました'); */
         loadStoredAccounts(); // 重新加载账号列表
         if (onClose) onClose();
       } else {
-        /* toast.error('アカウントの切り替えに失敗しました。再度ログインしてください'); */
-      }
+        }
     } catch (error) {
       console.error('[AccountSwitcher] アカウント切り替えエラー:', error);
-      /* toast.error('アカウント切り替え中にエラーが発生しました'); */
-    } finally {
+      } finally {
       setLoading(false);
     }
   };
@@ -137,11 +132,9 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
         localStorage.setItem('stored_accounts', JSON.stringify(updatedAccounts));
         setAccounts(updatedAccounts);
         
-        /* toast.success('アカウントデータをクリアしました'); */
-      } catch (error) {
+        } catch (error) {
         console.error('[AccountSwitcher] アカウントデータのクリアエラー:', error);
-        /* toast.error('アカウントデータのクリアに失敗しました'); */
-      }
+        }
     }
   };
   
@@ -170,11 +163,9 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
         localStorage.removeItem('auto_login_user');
       }
       
-      /* toast.success(`自動ログインを${newValue ? '有効' : '無効'}にしました`); */
-    } catch (error) {
+      } catch (error) {
       console.error('[AccountSwitcher] 自動ログイン設定エラー:', error);
-      /* toast.error('自動ログインの設定に失敗しました'); */
-    }
+      }
   };
   
   // トークンの有効期限を設定
@@ -192,11 +183,9 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ onClose }) => {
         localStorage.setItem(`${userPrefix}token_expiry`, expiryDate.toISOString());
       }
       
-      /* toast.success(`トークンの有効期限を${days}日に設定しました`); */
-    } catch (error) {
+      } catch (error) {
       console.error('[AccountSwitcher] トークン有効期限設定エラー:', error);
-      /* toast.error('トークンの有効期限設定に失敗しました'); */
-    }
+      }
   };
   
   // 最終ログイン時刻をフォーマット

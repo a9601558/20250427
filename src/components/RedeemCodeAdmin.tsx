@@ -39,8 +39,7 @@ const RedeemCodeAdmin: React.FC = () => {
         }
       } catch (error) {
         console.error('データの読み込みに失敗:', error);
-        /* toast.error('データの読み込みに失敗しました。ページを更新して再試行してください'); */
-      } finally {
+        } finally {
         setIsLoading(false);
       }
     };
@@ -53,17 +52,14 @@ const RedeemCodeAdmin: React.FC = () => {
     e.preventDefault();
     
     if (!selectedQuestionSetId) {
-      /* toast.error('問題集を選択してください'); */
       return;
     }
     
     if (validityDays < 1) {
-      /* toast.error('有効期限は最低1日必要です'); */
       return;
     }
     
     if (quantity < 1 || quantity > 100) {
-      /* toast.error('生成数は1～100の範囲で入力してください'); */
       return;
     }
     
@@ -82,14 +78,12 @@ const RedeemCodeAdmin: React.FC = () => {
         setRedeemCodes(prev => [...newCodes, ...prev]);
         setGeneratedCodes(newCodes);
         setShowGeneratedCodes(true);
-        /* toast.success(`${quantity}個の引き換えコードを正常に生成しました`); */
-      } else {
+        } else {
         throw new Error(response.message || '引き換えコードの生成に失敗しました');
       }
     } catch (error: any) {
       console.error('引き換えコードの生成に失敗:', error);
-      /* toast.error(error.message || '引き換えコードの生成に失敗しました。再試行してください'); */
-    } finally {
+      } finally {
       setIsGenerating(false);
     }
   };
@@ -98,12 +92,10 @@ const RedeemCodeAdmin: React.FC = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
       .then(() => {
-        /* toast.success('クリップボードにコピーしました'); */
-      })
+        })
       .catch(err => {
         console.error('コピーに失敗:', err);
-        /* toast.error('コピーに失敗しました'); */
-      });
+        });
   };
   
   // 删除兑换码功能（后端API未实现，暂时禁用）
