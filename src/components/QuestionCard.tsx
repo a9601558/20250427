@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Question } from '../types';
-import { toast } from 'react-toastify';
 import { useUser } from '../contexts/UserContext';
 
 interface QuestionCardProps {
@@ -194,6 +193,7 @@ const QuestionCard = ({
     
     // 检查是否选择了答案
     if (selectedOptions.length === 0) {
+      /* toast.warning(MESSAGES.SELECT_AT_LEAST_ONE); */
       return;
     }
     
@@ -213,12 +213,6 @@ const QuestionCard = ({
         isCorrect,
         isShowing: true,
         timestamp: Date.now()
-      });
-      
-      // 显示答题结果提示
-      toast(isCorrect ? MESSAGES.CORRECT_ANSWER : MESSAGES.WRONG_ANSWER, {
-        type: isCorrect ? 'success' : 'error',
-        autoClose: 3000
       });
       
       // 本地存储答题记录
@@ -252,7 +246,8 @@ const QuestionCard = ({
       }, 2500);
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
-      } finally {
+      /* toast.error('答案の提出中にエラーが発生しました。再試行してください'); */
+    } finally {
       // 延迟释放提交锁，防止重复点击
       setTimeout(() => {
         setIsSubmitting(false);
@@ -412,14 +407,14 @@ const QuestionCard = ({
 
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-      {/* 题目头部 */}
-      <div className="flex justify-between items-start mb-6">
-        <div className="flex items-center">
-          <div className="bg-blue-100 text-blue-800 font-medium px-3 py-1 rounded-full text-sm mr-3">
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
+      {/* 题目头部 - モバイル最適化 */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-6">
+        <div className="flex items-center flex-wrap gap-2">
+          <div className="bg-blue-100 text-blue-800 font-medium px-3 py-1.5 rounded-full text-sm sm:text-base">
             {questionNumber} / {totalQuestions}
           </div>
-          <div className={`px-2 py-0.5 rounded-full text-xs ${
+          <div className={`px-2.5 py-1 rounded-full text-xs sm:text-sm ${
             question.questionType === 'single' 
               ? 'bg-green-100 text-green-800'
               : 'bg-purple-100 text-purple-800'
@@ -430,7 +425,7 @@ const QuestionCard = ({
         
         {/* 试用状态标签 */}
         {isPaid && (
-          <div className={`px-2 py-0.5 rounded-full text-xs ${
+          <div className={`px-2.5 py-1 rounded-full text-xs sm:text-sm ${
             hasFullAccess 
               ? 'bg-green-100 text-green-800' 
               : trialLimitReached 
@@ -447,23 +442,23 @@ const QuestionCard = ({
         )}
       </div>
 
-      {/* 题目内容 */}
+      {/* 题目内容 - モバイル向けフォントサイズと行間を改善 */}
       <div className="mb-6">
-        <h3 className="text-lg font-medium text-gray-800 mb-2">{question.question || question.text}</h3>
+        <h3 className="text-base sm:text-lg font-medium text-gray-800 mb-3 leading-relaxed sm:leading-normal">{question.question || question.text}</h3>
       </div>
 
-      {/* 选项列表 */}
+      {/* 选项列表 - モバイル最適化: タッチターゲット拡大、読みやすさ改善 */}
       <div className="space-y-3 mb-6">
         {question.options.map((option, index) => (
           <div
             key={option.id}
-            className={`p-3 border rounded-lg cursor-pointer transition-colors ${getOptionClass(option)}`}
+            className={`min-h-[44px] p-4 border rounded-lg cursor-pointer transition-colors ${getOptionClass(option)}`}
             onClick={() => handleOptionClick(option.id)}
             role="button"
             tabIndex={0}
           >
             <div className="flex items-start">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center border mr-3 flex-shrink-0 ${
+              <div className={`w-7 h-7 sm:w-6 sm:h-6 rounded-full flex items-center justify-center border mr-3 flex-shrink-0 ${
                 selectedOptions.includes(option.id) 
                   ? 'bg-blue-500 border-blue-500 text-white' 
                   : 'border-gray-300'
@@ -472,7 +467,7 @@ const QuestionCard = ({
                   {String.fromCharCode(65 + index)}
                 </span>
               </div>
-              <div className="text-gray-700">
+              <div className="text-gray-700 text-base leading-relaxed">
                 {option.text}
               </div>
             </div>
@@ -497,33 +492,33 @@ const QuestionCard = ({
         </div>
       )}
       
-      {/* 解析显示 */}
+      {/* 解析显示 - モバイル最適化: フォントサイズと行間改善 */}
       {showExplanation && question.explanation && (
         <div className="mb-6 animate-fadeIn">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h4 className="font-semibold text-yellow-800 mb-2 flex items-center">
-              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h4 className="font-semibold text-yellow-800 mb-3 flex items-center text-base">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               解説
             </h4>
-            <div className="text-yellow-700 text-sm" dangerouslySetInnerHTML={{__html: question.explanation}} />
+            <div className="text-yellow-700 text-sm sm:text-base leading-relaxed" dangerouslySetInnerHTML={{__html: question.explanation}} />
           </div>
         </div>
       )}
       
-      {/* 答题/下一题按钮 */}
+      {/* 答题/下一题按钮 - モバイル最適化 */}
       <div className="mt-6">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmitting}
-          className={`w-full px-4 py-3 rounded-lg text-white font-medium flex items-center justify-center ${
+          className={`w-full min-h-[48px] px-5 py-3.5 rounded-lg text-white text-base font-medium flex items-center justify-center transition-all ${
             (selectedOptions.length === 0 && !isSubmitted) || isSubmitting
               ? 'bg-gray-400 cursor-not-allowed'
               : isSubmitted
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-blue-600 hover:bg-blue-700'
+                ? 'bg-green-600 hover:bg-green-700 active:bg-green-800'
+                : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
           }`}
         >
           {isSubmitting && (
