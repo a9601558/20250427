@@ -51,21 +51,28 @@ const updateQuestionsLogic = async (questionSetId, questions) => {
                 explanation: explanation,
                 orderIndex: i
             }, { transaction });
-            console.log(`创建的问题ID: ${newQuestion.id}`);
-            // 添加选项
+            // デバッグ: newQuestionオブジェクト全体を確認
+            const createdId = newQuestion.get('id') || newQuestion.id || questionId;
+            console.log(`创建的问题ID (multiple checks):`, {
+                'newQuestion.id': newQuestion.id,
+                'newQuestion.get("id")': newQuestion.get('id'),
+                'questionId': questionId,
+                'final': createdId
+            });
+            // 添加选项 - 使用createdIdを確実に取得
             if (questionData.options && Array.isArray(questionData.options)) {
                 const optionsData = questionData.options.map((option, optionIndex) => {
                     // 直接使用前端已处理好的isCorrect字段
                     const isCorrect = option.isCorrect || false;
                     return {
-                        questionId: newQuestion.id,
+                        questionId: createdId,
                         text: option.text !== undefined ? option.text : `選択肢 ${optionIndex + 1}`,
                         isCorrect: isCorrect,
                         optionIndex: option.optionIndex || String.fromCharCode(65 + optionIndex) // A, B, C, D...
                     };
                 });
                 console.log(`准备创建选项，数据:`, JSON.stringify(optionsData, null, 2));
-                console.log(`问题ID: ${newQuestion.id}, 选项数据中的questionId:`, optionsData.map((opt) => opt.questionId));
+                console.log(`问题ID: ${createdId}, 选项数据中的questionId:`, optionsData.map((opt) => opt.questionId));
                 // 验证每个选项都有questionId
                 const missingQuestionId = optionsData.filter((opt) => !opt.questionId);
                 if (missingQuestionId.length > 0) {

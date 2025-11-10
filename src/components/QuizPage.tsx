@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import type React from 'react';
 import { Question, IQuestionSet } from '../types/index';
+import './QuizPage.css';
 import { useUser } from '../contexts/UserContext';
 import SEO from './SEO';
 
@@ -79,9 +80,9 @@ const AnswerCard: React.FC<{
         </div>
       </div>
       
-      {/* 题目状态指示器 - 使用更美观的网格布局，全部显示无需分页 */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-100">
-        <div className="grid grid-cols-5 gap-0.5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
+      {/* 题目状态指示器 - モバイル最適化: タッチサイズ拡大、間隔改善 */}
+      <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-4 border border-gray-100">
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 sm:gap-1.5 md:grid-cols-10 lg:grid-cols-12">
           {/* 显示所有题目状态按钮，无需分页 */}
           {Array.from({length: totalQuestions}).map((_, questionIndex) => {
             const answered = answeredQuestions.find(q => q.questionIndex === questionIndex);
@@ -93,8 +94,8 @@ const AnswerCard: React.FC<{
             const canAccess = !isInTrialMode || questionIndex < trialLimit || isActive;
             const isDisabled = !canAccess;
           
-            // 计算样式类
-            let buttonClass = "relative flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium shadow-sm transition-all";
+            // 计算样式类 - モバイル向けタッチターゲット拡大
+            let buttonClass = "relative flex items-center justify-center min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 md:h-9 md:w-9 rounded-lg text-sm font-medium shadow-sm transition-all";
             
             if (isActive) {
               buttonClass += " bg-blue-500 text-white scale-105 shadow-md";
@@ -188,10 +189,6 @@ const AnswerCard: React.FC<{
   );
 };
 
-
-
-
-
 // 添加 ProgressData 接口定义
 interface ProgressData {
   lastQuestionIndex?: number;
@@ -228,9 +225,11 @@ const PurchasePage: React.FC<{
     e.stopPropagation();
     e.preventDefault();
     
+    // console.log('[PurchasePage] Purchase button clicked at:', new Date().toISOString());
     
     // Don't proceed if already processing or clicked
     if (isProcessing || btnStates.purchase.clicked) {
+      // console.log('[PurchasePage] Ignoring click - isProcessing:', isProcessing, 'clicked:', btnStates.purchase.clicked);
       return;
     }
     
@@ -240,17 +239,19 @@ const PurchasePage: React.FC<{
       purchase: { clicked: true }
     }));
     
-    // Visual feedback
     
     // Execute callback
     try {
+      // console.log('[PurchasePage] Calling onPurchase callback');
       if (typeof onPurchase === 'function') {
         onPurchase();
       } else {
         console.error('[PurchasePage] onPurchase is not a function');
+        /* toast.error('支払機能が一時的に利用できません。しばらくしてからお試しください'); */
       }
     } catch (err) {
       console.error('[PurchasePage] Purchase callback error:', err);
+      /* toast.error('購入リクエストの処理中にエラーが発生しました。再試行してください'); */
     }
     
     // Reset button state after delay
@@ -268,9 +269,11 @@ const PurchasePage: React.FC<{
     e.stopPropagation();
     e.preventDefault();
     
+    // console.log('[PurchasePage] Redeem button clicked at:', new Date().toISOString());
     
     // Don't proceed if already processing or clicked
     if (isProcessing || btnStates.redeem.clicked) {
+      // console.log('[PurchasePage] Ignoring click - isProcessing:', isProcessing, 'clicked:', btnStates.redeem.clicked);
       return;
     }
     
@@ -280,17 +283,19 @@ const PurchasePage: React.FC<{
       redeem: { clicked: true }
     }));
     
-    // Visual feedback
     
     // Execute callback
     try {
+      // console.log('[PurchasePage] Calling onRedeem callback');
       if (typeof onRedeem === 'function') {
         onRedeem();
       } else {
         console.error('[PurchasePage] onRedeem is not a function');
+        /* toast.error('引き換え機能が一時的に利用できません。しばらくしてからお試しください'); */
       }
     } catch (err) {
       console.error('[PurchasePage] Redeem callback error:', err);
+      /* toast.error('引き換えリクエストの処理中にエラーが発生しました。再試行してください'); */
     }
     
     // Reset button state after delay
@@ -308,9 +313,11 @@ const PurchasePage: React.FC<{
     e.stopPropagation();
     e.preventDefault();
     
+    // console.log('[PurchasePage] Back button clicked at:', new Date().toISOString());
     
     // Don't proceed if already processing or clicked
     if (isProcessing || btnStates.back.clicked) {
+      // console.log('[PurchasePage] Ignoring click - isProcessing:', isProcessing, 'clicked:', btnStates.back.clicked);
       return;
     }
     
@@ -320,14 +327,15 @@ const PurchasePage: React.FC<{
       back: { clicked: true }
     }));
     
-    // Visual feedback
     
     // Execute callback
     try {
+      // console.log('[PurchasePage] Calling onBack callback');
       if (typeof onBack === 'function') {
         onBack();
       } else {
         console.error('[PurchasePage] onBack is not a function');
+        /* toast.error('一時的に戻ることができません。ページを更新してください'); */
       }
     } catch (err) {
       console.error('[PurchasePage] Back callback error:', err);
@@ -343,10 +351,10 @@ const PurchasePage: React.FC<{
   };
   
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 to-indigo-900 bg-opacity-95 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="max-w-lg w-full mx-auto overflow-hidden">
-        {/* 主卡片 - 采用玻璃态设计 */}
-        <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-2xl shadow-2xl border border-white border-opacity-20 p-8 relative overflow-hidden">
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 to-indigo-900 bg-opacity-95 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm overflow-y-auto">
+      <div className="max-w-lg w-full mx-auto overflow-hidden my-auto">
+        {/* 主卡片 - モバイル最適化: スクロール対応、パディング調整 */}
+        <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg rounded-2xl shadow-2xl border border-white border-opacity-20 p-5 sm:p-8 relative overflow-hidden">
           {/* 装饰元素 - 半透明圆形 */}
           <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-blue-500 bg-opacity-20 filter blur-2xl"></div>
           <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-purple-500 bg-opacity-20 filter blur-2xl"></div>
@@ -362,46 +370,46 @@ const PurchasePage: React.FC<{
           </div>
         )}
         
-        {/* Title and info */}
-          <div className="text-center mb-8 relative z-10">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg mb-5 transform -rotate-6">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        {/* Title and info - モバイル最適化 */}
+          <div className="text-center mb-6 sm:mb-8 relative z-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg mb-4 sm:mb-5 transform -rotate-6">
+              <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-            <h2 className="text-3xl font-bold text-white mb-3 text-shadow">お試し期間が終了しました</h2>
-            <div className="flex items-center justify-center space-x-2 mb-1">
-              <p className="text-blue-100">お試し問題</p>
-              <div className="bg-blue-900 bg-opacity-50 text-blue-200 font-mono px-3 py-1 rounded-full font-bold">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3 text-shadow px-2">お試し期間が終了しました</h2>
+            <div className="flex items-center justify-center flex-wrap gap-1 sm:gap-2 mb-1 px-2">
+              <p className="text-blue-100 text-sm sm:text-base">お試し問題</p>
+              <div className="bg-blue-900 bg-opacity-50 text-blue-200 font-mono px-2 sm:px-3 py-1 rounded-full font-bold text-sm sm:text-base">
                 {trialCount} <span className="text-xs">/ {questionSet?.trialQuestions || 0}</span>
               </div>
-              <p className="text-blue-100">問を完了しました</p>
+              <p className="text-blue-100 text-sm sm:text-base">問を完了しました</p>
             </div>
-            <p className="text-blue-200 text-sm font-light">フルバージョンのご購入またはクーポンコードで継続できます</p>
+            <p className="text-blue-200 text-xs sm:text-sm font-light px-4">フルバージョンのご購入またはクーポンコードで継続できます</p>
         </div>
         
-        {/* Quiz set info */}
-          <div className="mb-8 relative z-10">
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 border border-gray-700 shadow-inner transform transition-transform hover:scale-[1.01] cursor-default">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2 flex items-center">
-                    <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                    {questionSet?.title || '問題集'}
+        {/* Quiz set info - モバイル最適化 */}
+          <div className="mb-6 sm:mb-8 relative z-10">
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 sm:p-6 border border-gray-700 shadow-inner transform transition-transform hover:scale-[1.01] cursor-default">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                <div className="flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-2 flex items-center">
+                    <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse flex-shrink-0"></span>
+                    <span className="line-clamp-2">{questionSet?.title || '問題集'}</span>
                   </h3>
-                  <p className="text-gray-300 mb-4 text-sm">{questionSet?.description || '様々な問題で知識レベルを向上させます。'}</p>
+                  <p className="text-gray-300 mb-3 sm:mb-4 text-xs sm:text-sm line-clamp-2">{questionSet?.description || '様々な問題で知識レベルを向上させます。'}</p>
                 </div>
-                <div className="bg-indigo-600 bg-opacity-50 rounded-lg px-3 py-2 text-white">
-                  <span className="font-mono font-bold">{questionSet?.questionCount || '0'}</span> 問を収録
+                <div className="bg-indigo-600 bg-opacity-50 rounded-lg px-3 py-2 text-white whitespace-nowrap self-start">
+                  <span className="font-mono font-bold text-sm sm:text-base">{questionSet?.questionCount || '0'}</span> 問を収録
                 </div>
               </div>
               
-              <div className="mt-4 flex justify-between items-center">
-            <div className="flex items-baseline">
-                  <span className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet?.price || '0'}</span>
-                  <span className="text-gray-400 text-xs ml-2">1回のお支払いで6ヶ月間利用可能</span>
+              <div className="mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-baseline">
+                  <span className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">¥{questionSet?.price || '0'}</span>
+                  <span className="text-gray-400 text-xs sm:ml-2 mt-1 sm:mt-0">1回のお支払いで6ヶ月間利用可能</span>
             </div>
-                <div className="flex space-x-1">
+                <div className="flex flex-wrap gap-1">
                   {['安全', '高速', '効率的'].map(tag => (
                     <span key={tag} className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
                       {tag}
@@ -412,19 +420,19 @@ const PurchasePage: React.FC<{
           </div>
         </div>
         
-        {/* Action buttons */}
-          <div className="space-y-4 mb-6 relative z-10">
+        {/* Action buttons - モバイル最適化 */}
+          <div className="space-y-3 sm:space-y-4 mb-6 relative z-10">
           {/* Purchase button */}
           <button 
             onClick={handlePurchaseClick}
             type="button" 
             className={`
-                w-full py-4 relative overflow-hidden group
+                w-full min-h-[48px] py-3.5 sm:py-4 relative overflow-hidden group
               ${btnStates.purchase.clicked 
                 ? 'bg-blue-800 transform scale-[0.98] shadow-inner' 
                   : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 transform hover:-translate-y-0.5'
               } 
-                text-white rounded-xl font-medium transition-all duration-200 
+                text-white rounded-xl text-base font-medium transition-all duration-200 
                 flex items-center justify-center shadow-lg hover:shadow-xl 
               disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
@@ -472,9 +480,9 @@ const PurchasePage: React.FC<{
           </button>
           
           {/* Divider */}
-            <div className="flex items-center my-4">
+            <div className="flex items-center my-3 sm:my-4">
               <div className="flex-grow h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent opacity-20"></div>
-              <span className="mx-4 text-sm text-gray-300">または</span>
+              <span className="mx-3 sm:mx-4 text-xs sm:text-sm text-gray-300">または</span>
               <div className="flex-grow h-px bg-gradient-to-r from-transparent via-gray-400 to-transparent opacity-20"></div>
           </div>
           
@@ -483,12 +491,12 @@ const PurchasePage: React.FC<{
             onClick={handleRedeemClick}
             type="button" 
             className={`
-                w-full py-4 relative overflow-hidden group
+                w-full min-h-[48px] py-3.5 sm:py-4 relative overflow-hidden group
               ${btnStates.redeem.clicked 
                   ? 'bg-green-900 text-green-100 transform scale-[0.98] shadow-inner' 
                   : 'bg-transparent text-green-300 transform hover:-translate-y-0.5'
               } 
-                border-2 border-green-500 rounded-xl font-medium transition-all duration-200 
+                border-2 border-green-500 rounded-xl text-base font-medium transition-all duration-200 
               flex items-center justify-center shadow-sm hover:shadow-md
               disabled:opacity-70 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed
               focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2
@@ -537,32 +545,32 @@ const PurchasePage: React.FC<{
           </button>
         </div>
         
-        {/* Footer info - Enhanced with credit card options and security message */}
+        {/* Footer info - モバイル最適化 */}
           <div className="text-center relative z-10">
-            <div className="flex items-center justify-center mb-3 space-x-2">
-              <div className="flex items-center space-x-2 bg-gray-800 bg-opacity-50 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-center mb-3">
+              <div className="flex items-center flex-wrap gap-2 bg-gray-800 bg-opacity-50 rounded-lg px-2 sm:px-3 py-2 justify-center">
                 {/* Visa Card Icon */}
-                <div className="w-10 h-6 bg-blue-50 rounded flex items-center justify-center">
-                  <span className="text-blue-800 font-bold text-xs">VISA</span>
+                <div className="w-8 h-5 sm:w-10 sm:h-6 bg-blue-50 rounded flex items-center justify-center">
+                  <span className="text-blue-800 font-bold text-[10px] sm:text-xs">VISA</span>
                 </div>
                 
                 {/* MasterCard Icon */}
-                <div className="w-10 h-6 bg-red-50 rounded flex items-center justify-center">
-                  <span className="text-red-800 font-bold text-xs">Master</span>
+                <div className="w-8 h-5 sm:w-10 sm:h-6 bg-red-50 rounded flex items-center justify-center">
+                  <span className="text-red-800 font-bold text-[10px] sm:text-xs">Master</span>
                 </div>
                 
                 {/* UnionPay Icon */}
-                <div className="w-10 h-6 bg-green-50 rounded flex items-center justify-center">
-                  <span className="text-green-800 font-bold text-xs">Amex</span>
+                <div className="w-8 h-5 sm:w-10 sm:h-6 bg-green-50 rounded flex items-center justify-center">
+                  <span className="text-green-800 font-bold text-[10px] sm:text-xs">Amex</span>
                 </div>
                 
                 {/* JCB Card Icon */}
-                <div className="w-10 h-6 bg-yellow-50 rounded flex items-center justify-center">
-                  <span className="text-yellow-800 font-bold text-xs">JCB</span>
+                <div className="w-8 h-5 sm:w-10 sm:h-6 bg-yellow-50 rounded flex items-center justify-center">
+                  <span className="text-yellow-800 font-bold text-[10px] sm:text-xs">JCB</span>
                 </div>
               </div>
             </div>
-            <p className="text-xs text-gray-400 mb-2">
+            <p className="text-xs text-gray-400 mb-2 px-4">
           ご購入後、すべての問題集にアクセスでき、コンテンツは随時更新されます
         </p>
             <div className="flex flex-col items-center justify-center space-y-1">
@@ -724,6 +732,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
     // Check if Apple Pay / Google Pay is available
     pr.canMakePayment().then((result) => {
       if (result) {
+        // console.log('[StripePaymentForm] Apple Pay/Google Pay available:', result);
         setPaymentRequest(pr);
         setCanMakePayment(true);
       }
@@ -731,6 +740,8 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
     // Handle payment method received from Apple Pay/Google Pay
     pr.on('paymentmethod', async (ev) => {
+      // console.log('[StripePaymentForm] Payment method received from Apple Pay/Google Pay');
+      // console.log('[StripePaymentForm] Using clientSecret:', clientSecret);
 
       try {
         const {error: confirmError, paymentIntent} = await stripe.confirmCardPayment(
@@ -745,6 +756,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
           setError(confirmError.message || 'Payment failed');
         } else {
           ev.complete('success');
+          // console.log('[StripePaymentForm] Payment succeeded:', paymentIntent);
           
           if (paymentIntent.status === 'requires_action') {
             const {error} = await stripe.confirmCardPayment(clientSecret);
@@ -776,6 +788,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ amount, onSubmit,
 
     // Cleanup function to prevent memory leaks
     return () => {
+      // console.log('[StripePaymentForm] Cleaning up payment request');
       pr.off('paymentmethod');
     };
   }, [stripe, clientSecret, amount, onSubmit]);
@@ -1027,6 +1040,59 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     }
   }, [isOpen]);
   
+  // 添加一个本地的saveAccessToLocalStorage函数
+  const saveAccessToLocalStorage = (questionSetId: string, hasAccess: boolean) => {
+    if (!questionSetId) return;
+    
+    try {
+      const normalizedId = String(questionSetId).trim();
+      // console.log(`[PaymentModal] 保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+      
+      // 获取当前访问权限列表
+      const accessRightsStr = localStorage.getItem('quizAccessRights');
+      let accessRights: Record<string, boolean | number> = {};
+      
+      if (accessRightsStr) {
+        try {
+          const parsed = JSON.parse(accessRightsStr);
+          if (parsed && typeof parsed === 'object') {
+            accessRights = parsed;
+          } else {
+            console.error('[PaymentModal] 访问权限记录格式错误，重新创建');
+          }
+        } catch (e) {
+          console.error('[PaymentModal] 解析访问权限记录失败，将创建新记录', e);
+        }
+      }
+      
+      // 更新访问权限 - 使用精确ID匹配
+      accessRights[normalizedId] = hasAccess;
+      
+      // 同时保存支付完成状态，确保不再显示支付窗口
+      if (hasAccess) {
+        accessRights[`${normalizedId}_paid`] = true;
+        
+        // Save a separate direct flag for payment completion
+        const paymentCompletedKey = `quiz_payment_completed_${normalizedId}`;
+        localStorage.setItem(paymentCompletedKey, 'true');
+        // console.log(`[PaymentModal] 保存支付完成标记: ${paymentCompletedKey}`);
+      }
+      
+      // 记录修改时间，便于后续清理过期数据
+      const timestamp = Date.now();
+      const accessRightsWithMeta = {
+        ...accessRights,
+        [`${normalizedId}_timestamp`]: timestamp
+      };
+      
+      // 保存回localStorage
+      localStorage.setItem('quizAccessRights', JSON.stringify(accessRightsWithMeta));
+      // console.log(`[PaymentModal] 保存済み题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+    } catch (e) {
+      console.error('[PaymentModal] 保存访问权限失败', e);
+    }
+  };
+  
   const initiatePayment = async (e: React.MouseEvent) => {
     // Prevent event bubbling
     e.stopPropagation();
@@ -1040,11 +1106,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     // Check if payment is already completed
     const normalizedId = String(questionSet.id).trim();
     if (isPaymentCompleted(normalizedId)) {
-      console.log(`[PaymentModal] 检测到题库 ${normalizedId} 已完成支付，不再显示支付表单`);
+      // console.log(`[PaymentModal] 检测到题库 ${normalizedId} 已完成支付，不再显示支付表单`);
       
       // Update access rights for consistency
+      saveAccessToLocalStorage(normalizedId, true);
       
       // Show success message
+      /* toast.success('您已成功支付此题库，无需重复支付', { autoClose: 3000 }); */
       
       // Close the modal
       if (typeof onSuccess === 'function') {
@@ -1056,10 +1124,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       }
       return;
     }
-    
-    // 增强日志，添加完整的调试信息
-    console.log(`[PaymentModal] 购买操作开始，题库ID: ${questionSet.id}, 価格: ${questionSet.price}`);
-    
+       
     // 启用调试模式检查题库状态，打印更多信息
     const isPaid = isPaidQuiz(questionSet, true);
     
@@ -1068,6 +1133,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     const forceBuy = urlParams.get('forceBuy') === 'true' || urlParams.get('debug') === 'true';
     
     if (forceBuy) {
+      // console.log('[PaymentModal] 检测到强制购买模式，尝试绕过isPaid验证直接购买');
       // 继续购买流程，不检查isPaid
     }
     // 使用通用的isPaidQuiz函数检查题库付费状态
@@ -1076,16 +1142,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       
       // 尝试直接从API重新验证题库状态
       try {
+        // console.log(`[PaymentModal] 尝试绕过缓存，直接验证题库付费状态...`);
         const statusResult = await validatePaidQuizStatus(String(questionSet.id));
         
         if (statusResult.isPaid) {
+          // console.log('[PaymentModal] API直接验证此题库确实是付费题库，但本地数据有误。继续购买流程...');
+          /* toast.warning("检测到题库数据不一致，已修复。继续购买流程...", { autoClose: 3000 }); */
           // 继续购买流程
         } else {
           // 提供强制购买选项
           if (confirm("この問題集は無料と表示されていますが、強制購入を試すことができます。\n\n- 「OK」をクリックして強制購入\n- 「キャンセル」で購入を中止")) {
+            // console.log("[PaymentModal] 用户选择强制购买，绕过免费题库检查");
+            /* toast.warning("您选择了强制购买模式", { autoClose: 2000 }); */
           } else {
             console.error('[PaymentModal] API直接调用也确认这是免费题库');
             setError("服务器确认该题库为免费题库，无需购买");
+            /* toast.error("サーバーがこの問題集は無料であることを確認しました。購入の必要はありません"); */
             
             // 强制刷新页面以获取正确数据
             setTimeout(() => window.location.reload(), 2000);
@@ -1099,6 +1171,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         console.error('[PaymentModal] 直接API调用失败:', apiError);
         // 询问是否继续购买
         if (confirm("无法验证题库状态。您希望继续尝试购买吗？")) {
+          // console.log("[PaymentModal] 用户选择继续购买，尽管验证失败");
         } else {
           setError("購入をキャンセルしました");
           setIsProcessing(false);
@@ -1110,6 +1183,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     
     // Don't proceed if already processing
     if (isProcessing || btnClicked) {
+      // console.log('[PaymentModal] Ignoring click - already processing');
       return;
     }
     
@@ -1123,6 +1197,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     setBtnClicked(true);
     
     // 显示处理中提示
+    /* toast.info("正在处理您的支付请求...", { autoClose: 2000 }); */
     
     try {
       // 标准化题库ID，避免ID不匹配問題
@@ -1130,11 +1205,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       
       // 尝试使用直接购买接口
       try {
-        console.log('[PaymentModal] 使用的支付数据:', {
-          paymentIntentId: paymentData.paymentIntentId,
-          amount: paymentData.amount
-        });
-        
+
         // 调用购買API、Stripe支払いデータを送信
         const purchaseResponse = await axios.post(
           `${API_BASE_URL}/payments/complete-purchase`,
@@ -1153,10 +1224,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         if (purchaseResponse.data && purchaseResponse.data.success) {
           const purchaseResult = purchaseResponse.data.data;
           
+          // console.log('[PaymentModal] 购买成功：', purchaseResult);
           
           // Save access rights and payment completion status
-          
-          // 显示成功提示 - 增强版本
+          saveAccessToLocalStorage(normalizedId, true);
           
           // 触发购买成功事件
           window.dispatchEvent(
@@ -1190,6 +1261,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         
         // 尝试备选方案 - 使用update-access
         try {
+          // console.log('[PaymentModal] 尝试使用update-access作为备选方案');
           
           // 调用update-access接口
           const accessUpdateResponse = await axios.post(
@@ -1198,10 +1270,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
           );
           
+          // console.log('[PaymentModal] 访问权限更新响应:', accessUpdateResponse.data);
           
           if (accessUpdateResponse.data && accessUpdateResponse.data.success) {
             // Save access rights and payment completion status
+            saveAccessToLocalStorage(normalizedId, true);
             
+            /* toast.success('成功获取访问权限！您现在可以访问完整题库', { autoClose: 3000 }); */
             
             // 触发购买成功事件
             window.dispatchEvent(
@@ -1234,9 +1309,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         
         // 如果所有API调用都失败，尝试一种本地模拟
         try {
+          // console.log('[PaymentModal] 所有API调用失败，尝试本地模拟购买成功');
           
           // Save access rights and payment completion status
+          saveAccessToLocalStorage(normalizedId, true);
           
+          /* toast.success('已在本地记录购买成功，页面将在5秒后刷新', { autoClose: 4000 }); */
           
           // 触发购买成功事件
           window.dispatchEvent(
@@ -1270,6 +1348,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     } catch (error) {
       console.error('[PaymentModal] 处理购买请求时发生异常:', error);
       setError("购买请求处理失败，请稍后再试");
+      /* toast.error("購入リクエストの処理に失敗しました"); */
     } finally {
       setIsProcessing(false);
       setBtnClicked(false);
@@ -1283,9 +1362,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     }
     
     if (isProcessing) {
+      // console.log('[PaymentModal] Cannot close while processing payment');
       return;
     }
     
+    // console.log('[PaymentModal] Closing modal');
     onClose();
   };
   
@@ -1397,6 +1478,7 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
     
     // Don't proceed if already processing
     if (isProcessing) {
+      // console.log('[RedeemCodeModal] Ignoring submission - already processing');
       return;
     }
     
@@ -1404,17 +1486,18 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
     setError(null);
     
     try {
-      console.log(`[RedeemCodeModal] Attempting to redeem code "${code}" for quiz set ${questionSet.id}`);
+      // console.log(`[RedeemCodeModal] Attempting to redeem code "${code}" for quiz set ${questionSet.id}`);
       
       // Call redeem API - fix parameter count to match API
       const response = await redeemCodeService.redeemCode(code.trim());
       
+      // console.log(`[RedeemCodeModal] Redeem API response:`, response);
       
       if (response.success) {
         // Success - show notification
+        // console.log('[RedeemCodeModal] Code redemption successful');
         setSuccess(true);
-        
-        // Enhanced success message with icon
+      
         
         // Wait a moment before closing modal to show success state
         setTimeout(() => {
@@ -1440,9 +1523,11 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
     e.preventDefault();
     
     if (isProcessing) {
+      // console.log('[RedeemCodeModal] Cannot close while processing');
       return;
     }
     
+    // console.log('[RedeemCodeModal] Closing modal');
     onClose();
   };
   
@@ -1543,93 +1628,8 @@ const RedeemCodeModal: React.FC<RedeemCodeModalProps> = ({ questionSet, onClose,
   );
 };
 
-// 添加波纹效果动画的StyleInjector组件
-const StyleInjector = () => {
-  useEffect(() => {
-    // 创建style元素
-    const style = document.createElement('style');
-    style.innerHTML = `
-      /* 波纹点击效果 */
-      @keyframes ripple {
-        0% {
-          transform: scale(0);
-          opacity: 0.5;
-        }
-        100% {
-          transform: scale(4);
-          opacity: 0;
-        }
-      }
-      
-      .animate-ripple {
-        animation: ripple 0.6s ease-out;
-      }
-      
-      /* 轻微脉动效果 */
-      @keyframes pulse-scale {
-        0%, 100% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.05);
-        }
-      }
-      
-      .animate-pulse-scale {
-        animation: pulse-scale 1.5s ease-in-out infinite;
-      }
-      
-      /* 点击缩放效果 */
-      .scale-transition {
-        transition: transform 0.2s ease-out !important;
-      }
-      
-      .hover-raise:hover {
-        transform: translateY(-2px);
-      }
-      
-      .click-shrink:active {
-        transform: scale(0.95);
-      }
-      
-      /* 自定义toast样式 */
-      .Toastify__toast {
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-      
-      .Toastify__toast--info {
-        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-      }
-      
-      /* 改进按钮点击和触摸体验 */
-      button {
-        -webkit-tap-highlight-color: transparent;
-        touch-action: manipulation;
-        user-select: none;
-      }
-      
-      /* 修复safari移动设备上的按钮点击問題 */
-      @media (hover: none) {
-        button:active {
-          transform: scale(0.95);
-        }
-      }
-    `;
-    
-    // 添加到文档头部
-    document.head.appendChild(style);
-    
-    // 清理函数
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-  
-  return null;
-};
-
 // IQuestionSet接口已从types/index.ts导入，无需重复定义
+
 // 验证questionSetId的函数，但不直接清理
 const validateQuestionSetId = (questionSetId: string | undefined): boolean => {
   if (!questionSetId) return false;
@@ -1676,11 +1676,6 @@ const extractValidUuid = (questionSetId: string): string | null => {
   return null;
 };
 
-// 验证questionSetId的函数，但不直接清理
-
-
-
-
 function QuizPage(): JSX.Element {
   const { questionSetId: rawQuestionSetId } = useParams<{ questionSetId: string }>();
   const navigate = useNavigate();
@@ -1717,6 +1712,7 @@ function QuizPage(): JSX.Element {
     isTimerActive: boolean;
     isProcessingPayment: boolean; // 添加支付处理状态 
     isProcessingRedeem: boolean;  // 添加兑换处理状态
+    autoAdvanceOnCorrect: boolean; // 正解時に自動的に次の問題へ進む
   }>({
     loading: true,
     error: null,
@@ -1736,6 +1732,7 @@ function QuizPage(): JSX.Element {
     isTimerActive: false,
     isProcessingPayment: false, // 初始化为false
     isProcessingRedeem: false,  // 初始化为false
+    autoAdvanceOnCorrect: false, // デフォルトはオフ
   });
   
   // 保留独立的数据状态，因为这些需要频繁单独更新且不适合合并到对象中
@@ -1778,7 +1775,7 @@ function QuizPage(): JSX.Element {
         } else {
           setSelectedOptions([selectedOption]);
         }
-        console.log(`[QuizPage] 恢复第${currentQuestionIndex + 1}题的选择状态:`, selectedOption);
+        // console.log(`[QuizPage] 恢复第${currentQuestionIndex + 1}题的选择状态:`, selectedOption);
       } else {
         // 清空未答题目的选择状态
         setSelectedOptions([]);
@@ -1794,7 +1791,7 @@ function QuizPage(): JSX.Element {
     if (questionSet && quizStatus.showPaymentModal) {
       const normalizedId = String(questionSet.id).trim();
       if (isPaymentCompleted(normalizedId)) {
-        console.log(`[QuizPage] 已检测到题库 ${normalizedId} 支付完成，不再显示支付窗口`);
+        // console.log(`[QuizPage] 已检测到题库 ${normalizedId} 支付完成，不再显示支付窗口`);
         setQuizStatus(prev => ({
           ...prev,
           showPaymentModal: false,
@@ -1802,6 +1799,9 @@ function QuizPage(): JSX.Element {
         }));
         
         // Show a notification
+        /* toast.info('この問題集の支払いは既に完了しています', {
+          autoClose: 2000
+        }); */
       }
     }
   }, [questionSet, quizStatus.showPaymentModal]);
@@ -1810,6 +1810,7 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     // 清除可能有問題的权限缓存数据
     try {
+      // console.log('[QuizPage] 应用启动，清除可能有問題的权限缓存');
       
       // 获取所有本地存储的access rights
       const accessRightsStr = localStorage.getItem('quizAccessRights');
@@ -1855,6 +1856,7 @@ function QuizPage(): JSX.Element {
       // 优先尝试第二部分（题库ID）
       const secondPart = parts[1];
       if (secondPart && uuidRegex.test(secondPart)) {
+        // console.log('[QuizPage] 成功提取题库ID（第二部分）:', secondPart);
         return secondPart;
       }
       
@@ -1876,7 +1878,7 @@ function QuizPage(): JSX.Element {
     
     try {
       const normalizedId = String(questionSetId).trim();
-      console.log(`[QuizPage] 保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+      // console.log(`[QuizPage] 保存题库 ${normalizedId} 的访问权限: ${hasAccess}`);
       
       // 获取当前访问权限列表
       const accessRightsStr = localStorage.getItem('quizAccessRights');
@@ -1912,7 +1914,7 @@ function QuizPage(): JSX.Element {
       
       // 保存回localStorage
       localStorage.setItem('quizAccessRights', JSON.stringify(accessRightsWithMeta));
-      console.log(`[QuizPage] 保存済み题库 ${normalizedId} 的访问权限: ${hasAccess}`);
+      // console.log(`[QuizPage] 保存済み题库 ${normalizedId} 的访问权限: ${hasAccess}`);
       
       // 记录检查日志，便于调试
       const accessLog = localStorage.getItem('accessRightsLog') || '[]';
@@ -1940,7 +1942,7 @@ function QuizPage(): JSX.Element {
     
     try {
       const normalizedId = String(questionSetId).trim();
-      console.log(`[QuizPage] 获取题库 ${normalizedId} 的访问权限`);
+      // console.log(`[QuizPage] 获取题库 ${normalizedId} 的访问权限`);
       
       const accessRightsStr = localStorage.getItem('quizAccessRights');
       if (!accessRightsStr) return false;
@@ -1948,7 +1950,7 @@ function QuizPage(): JSX.Element {
       const accessRights = JSON.parse(accessRightsStr) as AccessRights;
       const hasAccess = !!accessRights[normalizedId];
       
-      console.log(`[QuizPage] 题库 ${normalizedId} 的本地存储访问权限: ${hasAccess}`);
+      // console.log(`[QuizPage] 题库 ${normalizedId} 的本地存储访问权限: ${hasAccess}`);
       return hasAccess;
     } catch (e) {
       console.error('[QuizPage] 获取访问权限失败', e);
@@ -1959,7 +1961,7 @@ function QuizPage(): JSX.Element {
   // 完全重写检查权限函数，修复ID匹配和权限检查逻辑
   const checkFullAccessFromAllSources = useCallback(() => {
     if (!questionSet || !questionSet.id) {
-      console.log('[QuizPage] 检查访问权限：无题库或题库ID无效，返回false', { questionSet: !!questionSet, questionSetId: questionSet?.id });
+      // console.log('[QuizPage] 检查访问权限：无题库或题库ID无效，返回false', { questionSet: !!questionSet, questionSetId: questionSet?.id });
       return false;
     }
     
@@ -1972,22 +1974,24 @@ function QuizPage(): JSX.Element {
     
     // 使用清理后的ID进行权限检查
     const questionSetIdForCheck = cleanedId;
-    console.log(`[QuizPage] 检查题库ID "${questionSetIdForCheck}" 的访问权限 (原始ID: "${questionSet.id}")`);
+    // console.log(`[QuizPage] 检查题库ID "${questionSetIdForCheck}" 的访问权限 (原始ID: "${questionSet.id}")`);
     
     // 步骤0：管理员覆盖功能（严格验证）
     const adminOverride = localStorage.getItem('admin_access_override');
     if (adminOverride === 'true' && user?.email?.includes('@admin.') && user?.isAdmin === true) {
+      // console.log(`[QuizPage] 管理员覆盖访问权限激活 (已验证管理员身份)`);
       return true;
     }
     
     // 步骤1：免费题库检查（最高优先级）
     if (!isPaidQuiz(questionSet)) {
+      // console.log('[QuizPage] 免费题库，直接返回true');
       return true;
     }
     
     // 步骤2：检查用户购买记录
     if (user && user.purchases && Array.isArray(user.purchases)) {
-      console.log(`[QuizPage] 检查用户购买记录，共${user.purchases.length}条`);
+      // console.log(`[QuizPage] 检查用户购买记录，共${user.purchases.length}条`);
       
       // 严格匹配购买记录中的题库ID
       const purchase = user.purchases.find(p => {
@@ -1999,7 +2003,7 @@ function QuizPage(): JSX.Element {
         const isExactMatch = purchaseId === questionSetIdForCheck;
         
         if (isExactMatch) {
-          console.log(`[QuizPage] 找到购买记录匹配: ID=${p.id}, 状态=${p.status}`);
+          // console.log(`[QuizPage] 找到购买记录匹配: ID=${p.id}, 状态=${p.status}`);
         }
         
         return isExactMatch;
@@ -2033,27 +2037,26 @@ function QuizPage(): JSX.Element {
         
         // 优先检查服务器返回的hasAccess字段（如果存在）
         if (purchase.hasAccess !== undefined) {
-          console.log(`[QuizPage] 使用服务器返回的hasAccess字段: ${purchase.hasAccess}`);
+          // console.log(`[QuizPage] 使用服务器返回的hasAccess字段: ${purchase.hasAccess}`);
           
           // 详细的调试信息
-          console.log(`[QuizPage] 购买记录详细检查:`, {
-            purchaseId: purchase.id,
-            purchaseStatus: purchase.status,
-            expiryDateRaw: purchase.expiryDate,
-            serverHasAccess: purchase.hasAccess,
-            serverRemainingDays: purchase.remainingDays,
-            isActive,
-            finalResult: purchase.hasAccess && isActive
-          });
+          // console.log(`[QuizPage] 购买记录详细检查:`, {
+          //   purchaseId: purchase.id,
+          //   purchaseStatus: purchase.status,
+          //   expiryDateRaw: purchase.expiryDate,
+          //   serverHasAccess: purchase.hasAccess,
+          //   serverRemainingDays: purchase.remainingDays,
+          //   isActive,
+          //   finalResult: purchase.hasAccess && isActive
+          // });
           
           const purchaseHasAccess = purchase.hasAccess && isActive;
-          console.log(`[QuizPage] 购买记录检查: 服务器hasAccess=${purchase.hasAccess}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
+          // console.log(`[QuizPage] 购买记录检查: 服务器hasAccess=${purchase.hasAccess}, 状态有效=${isActive}, 最终结果=${purchaseHasAccess}`);
           
           if (purchaseHasAccess) {
             return true;
           }
         } else {
-          // 如果服务器没有返回hasAccess，使用严格的客户端逻辑
           
           // 严格的客户端逻辑：必须同时满足状态为active且未过期
           if (isActive && expiryDate) {
@@ -2066,16 +2069,7 @@ function QuizPage(): JSX.Element {
                                    purchase.type === 'redeem' || 
                                    purchase.method === 'redeem';
             
-            // 添加详细的购买记录字段调试信息
-            console.log(`[QuizPage] 购买记录字段检查:`, {
-              paymentMethod: purchase.paymentMethod,
-              type: purchase.type,
-              method: purchase.method,
-              isRedeemPurchase: isRedeemPurchase,
-              purchaseKeys: Object.keys(purchase)
-            });
-            
-            // 补充检查：通过本地兑换记录和用户兑换码记录来识别兑换购买
+            // 补充检查：通过本地兑换记録和用户兑换码记录来识别兑换购买
             const isRedeemedLocally = (() => {
               try {
                 const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
@@ -2093,13 +2087,7 @@ function QuizPage(): JSX.Element {
             
             // 综合判断是否为兑换购买
             const isActualRedeemPurchase = isRedeemPurchase || isRedeemedLocally || hasUserRedeemCode;
-            
-            console.log(`[QuizPage] 兑换码识别综合检查:`, {
-              isRedeemPurchase,
-              isRedeemedLocally,
-              hasUserRedeemCode,
-              isActualRedeemPurchase
-            });
+          
             
             let purchaseHasAccess: boolean;
             
@@ -2107,7 +2095,7 @@ function QuizPage(): JSX.Element {
             if (isActualRedeemPurchase) {
               // 对于兑换码购买，只要状态为 active 就认为有效，不严格检查过期时间
               purchaseHasAccess = purchase.status === 'active';
-              console.log(`[QuizPage] 兑换码购买检查（宽松规则）: 状态=${purchase.status}, 结果=${purchaseHasAccess}`);
+              // console.log(`[QuizPage] 兑换码购买检查（宽松规则）: 状态=${purchase.status}, 结果=${purchaseHasAccess}`);
             } else {
               // 检查是否有其他可能标识兑换的字段
               const possibleRedeemIndicators = [
@@ -2122,43 +2110,31 @@ function QuizPage(): JSX.Element {
               if (possibleRedeemIndicators.length > 0) {
                 // 如果有其他兑换标识，使用宽松规则
                 purchaseHasAccess = purchase.status === 'active';
-                console.log(`[QuizPage] 疑似兑换购买（宽松规则）: 状态=${purchase.status}, 标识数量=${possibleRedeemIndicators.length}, 结果=${purchaseHasAccess}`);
+                // console.log(`[QuizPage] 疑似兑换购买（宽松规则）: 状态=${purchase.status}, 标识数量=${possibleRedeemIndicators.length}, 结果=${purchaseHasAccess}`);
               } else {
                 // 对于常规购买，使用严格的过期时间检查
                 purchaseHasAccess = purchase.status === 'active' && remainingDays > 0;
-                console.log(`[QuizPage] 常规购买检查（严格规则）: 状态=${purchase.status}, 剩余天数=${remainingDays}, 结果=${purchaseHasAccess}`);
+                // console.log(`[QuizPage] 常规购买检查（严格规则）: 状态=${purchase.status}, 剩余天数=${remainingDays}, 结果=${purchaseHasAccess}`);
               }
             }
-            
-            console.log(`[QuizPage] 购买记录详细检查 (严格逻辑):`, {
-              purchaseId: purchase.id,
-              purchaseStatus: purchase.status,
-              expiryDateRaw: purchase.expiryDate,
-              expiryDateParsed: expiryDate,
-              currentTime: now,
-              remainingDays: remainingDays,
-              isActive: purchase.status === 'active',
-              isNotExpired: remainingDays > 0,
-              finalResult: purchaseHasAccess
-            });
-            
-            console.log(`[QuizPage] 购买记录检查: 状态=active=${purchase.status === 'active'}, 剩余天数=${remainingDays}, 最终结果=${purchaseHasAccess}`);
-            
+
             if (purchaseHasAccess) {
               return true;
             }
           } else if (!expiryDate) {
             // 如果没有过期时间，且状态为active，视为永久有效（但这种情况应该很少见）
             const purchaseHasAccess = purchase.status === 'active';
-            console.log(`[QuizPage] 购买记录无过期时间，状态检查: ${purchaseHasAccess}`);
+            // console.log(`[QuizPage] 购买记录无过期时间，状态检查: ${purchaseHasAccess}`);
             
             if (purchaseHasAccess) {
               return true;
             }
           } else {
+            // console.log(`[QuizPage] 购买记录状态无效或已过期，拒绝访问`);
           }
         }
       } else {
+        // console.log(`[QuizPage] 未找到匹配的购买记录`);
       }
     }
     
@@ -2172,10 +2148,11 @@ function QuizPage(): JSX.Element {
           // 只检查完全匹配，不再支持部分匹配
           const isRedeemed = redeemedIds.some(id => String(id || '').trim() === questionSetId);
           
-          console.log(`[QuizPage] 本地兑换记录检查: ${isRedeemed}`);
+          // console.log(`[QuizPage] 本地兑换记录检查: ${isRedeemed}`);
           
           if (isRedeemed) {
             // 宽松验证：对于本地已记录的兑换记录，采用更宽松的检查规则
+            // console.log(`[QuizPage] 发现本地兑换记录，开始宽松验证`);
             
             // 首先检查用户是否有此题库的兑换记录
             const hasAnyRedeemCode = user?.redeemCodes?.some(code => {
@@ -2189,6 +2166,7 @@ function QuizPage(): JSX.Element {
                 
                 // 宽松检查：如果没有明确的过期时间，默认认为有效
                 if (!code.expiryDate && !code.usedAt) {
+                  // console.log(`[QuizPage] 兑换记录无时效限制，默认有效`);
                   return true;
                 }
                 
@@ -2198,7 +2176,7 @@ function QuizPage(): JSX.Element {
                   const now = new Date();
                   const isExpired = expiryDate <= now;
                   
-                  console.log(`[QuizPage] 兑换记录时效检查: 过期时间=${code.expiryDate}, 当前时间=${now.toISOString()}, 已过期=${isExpired}`);
+                  // console.log(`[QuizPage] 兑换记录时效检查: 过期时间=${code.expiryDate}, 当前时间=${now.toISOString()}, 已过期=${isExpired}`);
                   
                   return !isExpired;
                 }
@@ -2210,7 +2188,7 @@ function QuizPage(): JSX.Element {
                   const now = new Date();
                   const isExpired = expiryDate <= now;
                   
-                  console.log(`[QuizPage] 兑换记录有效期检查: 使用时间=${code.usedAt}, 有效天数=${code.validityDays}, 已过期=${isExpired}`);
+                  // console.log(`[QuizPage] 兑换记录有效期检查: 使用时间=${code.usedAt}, 有效天数=${code.validityDays}, 已过期=${isExpired}`);
                   
                   return !isExpired;
                 }
@@ -2221,6 +2199,7 @@ function QuizPage(): JSX.Element {
               });
               
               if (hasValidRedeemCode) {
+                // console.log(`[QuizPage] 兑换记录验证通过，仍然有效`);
                 return true;
               } else {
                 console.warn(`[QuizPage] 兑换记录已过期但用户有兑换记录，给予访问权限`);
@@ -2248,6 +2227,7 @@ function QuizPage(): JSX.Element {
         
         // 确保只检查精确匹配的权限
         if (accessRights && accessRights[questionSetIdForCheck] === true) {
+          // console.log(`[QuizPage] 本地访问权限记录存在，需要验证有效性`);
           
           // 额外验证：检查本地权限记录是否基于有效的购买记录
           const hasValidPurchase = user?.purchases?.some(p => {
@@ -2262,6 +2242,7 @@ function QuizPage(): JSX.Element {
           });
           
           if (hasValidPurchase) {
+            // console.log(`[QuizPage] 本地访问权限验证通过，基于有效购买记录`);
             return true;
           } else {
             console.warn(`[QuizPage] 本地访问权限记录无效，清除过期记录`);
@@ -2277,11 +2258,12 @@ function QuizPage(): JSX.Element {
     
     // 步骤5：检查其他状态变量
     if (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed) {
-      console.log(`[QuizPage] 内部状态检查: hasAccessToFullQuiz=${quizStatus.hasAccessToFullQuiz}, hasRedeemed=${quizStatus.hasRedeemed}`);
+      // console.log(`[QuizPage] 内部状态检查: hasAccessToFullQuiz=${quizStatus.hasAccessToFullQuiz}, hasRedeemed=${quizStatus.hasRedeemed}`);
       return true;
     }
     
     // 步骤6：如果所有检查都未通过，返回false
+    // console.log(`[QuizPage] 所有权限检查均未通过，返回false`);
     return false;
   }, [questionSet, user, quizStatus.hasAccessToFullQuiz, quizStatus.hasRedeemed]);
 
@@ -2289,10 +2271,11 @@ function QuizPage(): JSX.Element {
   const checkAccess = async () => {
     if (!questionSet) return;
     
-    console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限`);
+    // console.log(`[checkAccess] 开始检查题库 ${questionSet.id} 的访问权限`);
     
     // 免费题库直接授权
     if (!isPaidQuiz(questionSet)) {
+      // console.log(`[checkAccess] 免费题库，直接授予访问权限`);
       setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       saveAccessToLocalStorage(questionSet.id, true);
       setQuizStatus({ ...quizStatus, trialEnded: false });
@@ -2305,10 +2288,11 @@ function QuizPage(): JSX.Element {
     
     // 重新全面检查权限
     const hasFullAccess = checkFullAccessFromAllSources();
-    console.log(`[checkAccess] 重新检查权限: ${hasFullAccess}`);
+    // console.log(`[checkAccess] 重新检查权限: ${hasFullAccess}`);
     
     // 根据检查结果一次性更新所有相关状态
     if (hasFullAccess) {
+      // console.log(`[checkAccess] 用户有访问权限，保存到本地缓存并重置试用结束状态`);
       saveAccessToLocalStorage(questionSet.id, true);
       
       // 一次性更新所有状态，避免竞争条件
@@ -2319,6 +2303,7 @@ function QuizPage(): JSX.Element {
         showPurchasePage: false
       }));
     } else {
+      // console.log(`[checkAccess] 用户无访问权限，设置基础试用状态`);
       saveAccessToLocalStorage(questionSet.id, false);
       
       // 只设置基础状态，试用结束状态由答题时动态检查
@@ -2347,13 +2332,14 @@ function QuizPage(): JSX.Element {
   
   // 在获取题库数据后检查访问权限，并在用户状态变化时重新检查 (优化：移除answeredQuestions.length避免频繁触发)
   useEffect(() => {
-    console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${quizStatus.hasRedeemed}`);
+    // console.log(`[useEffect] 触发checkAccess重新检查, 用户ID: ${user?.id}, 题库ID: ${questionSet?.id}, 已兑换: ${quizStatus.hasRedeemed}`);
     if (user && user.purchases) {
-      console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
+      // console.log(`[useEffect] 当前用户购买记录数量: ${user.purchases.length}`);
     }
     
     // 确保页面加载时不会显示购买弹窗
     if (questionSet && !isPaidQuiz(questionSet)) {
+      // console.log(`[useEffect] 检测到免费题库，确保不会显示购买弹窗`);
       setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       setQuizStatus({ ...quizStatus, trialEnded: false });
       setQuizStatus({ ...quizStatus, showPurchasePage: false });
@@ -2367,10 +2353,11 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     if (!questionSet) return;
     
-    console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}, 试用题目数: ${questionSet.trialQuestions}`);
+    // console.log(`[QuizPage] 检查是否试用结束，总答题数: ${answeredQuestions.length}, 试用题目数: ${questionSet.trialQuestions}`);
     
     // 如果是免费题库，永远不会试用结束
     if (!isPaidQuiz(questionSet)) {
+      // console.log(`[QuizPage] 免费题库不存在试用结束概念`);
       if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
       if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
       return;
@@ -2381,6 +2368,7 @@ function QuizPage(): JSX.Element {
     
     // 如果用户有访问权限，确保状态一致性
     if (hasFullAccess) {
+      // console.log(`[QuizPage] 用户有完整访问权限，确保不显示试用结束/购买页面`);
       if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
       if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
@@ -2388,6 +2376,7 @@ function QuizPage(): JSX.Element {
     }
     
     // 到这里说明：付费题库 + 用户无完整访问权限
+    // console.log(`[QuizPage] 用户对付费题库无完整访问权限，检查试用状态`);
     if (quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
     
     // 确定试用题目数量
@@ -2395,13 +2384,14 @@ function QuizPage(): JSX.Element {
     
     // 如果试用题目数为0，直接标记为试用结束
     if (trialQuestionsCount <= 0) {
+      // console.log(`[QuizPage] 付费题库无试用题或试用题为0，直接标记试用结束`);
       if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
       return;
     }
     
     // 检查已答题数是否达到试用限制
     const isTrialLimitReached = answeredQuestions.length >= trialQuestionsCount;
-    console.log(`[QuizPage] 试用状态检查: 已答题数=${answeredQuestions.length}, 试用题数=${trialQuestionsCount}, 达到限制=${isTrialLimitReached}`);
+    // console.log(`[QuizPage] 试用状态检查: 已答题数=${answeredQuestions.length}, 试用题数=${trialQuestionsCount}, 达到限制=${isTrialLimitReached}`);
     
     // 更新试用结束状态
     if (isTrialLimitReached) {
@@ -2446,28 +2436,19 @@ function QuizPage(): JSX.Element {
         // 这样可以确保向后兼容性
         const isExplicitTrialMode = mode === 'trial' || urlParams.get('trial') === 'true';
         
-        // 增强调试日志
-        console.log('[QuizPage] URL 参数解析:', {
-          fullUrl: window.location.href,
-          search: window.location.search,
-          mode,
-          trialLimitParam,
-          specificQuestions,
-          lastQuestionParam, // 记录解析出的 lastQuestion 参数
-          isExplicitTrialMode,
-          rawParams: Array.from(urlParams.entries())
-        });
         
         // 获取题库详情 - 先尝试原始ID，失败时尝试清理后的ID
         let response;
         let actualQuestionSetId = questionSetId;
         
         try {
+          // console.log('[QuizPage] 尝试使用原始ID获取题库:', questionSetId);
           response = await questionSetApi.getQuestionSetById(questionSetId);
         } catch (error) {
           console.warn('[QuizPage] 原始ID获取失败，尝试使用清理后的ID');
-          const cleanedId = validateAndCleanQuestionSetId(questionSetId);
+          const cleanedId = extractValidUuid(questionSetId);
           if (cleanedId && cleanedId !== questionSetId) {
+            // console.log('[QuizPage] 使用清理后的ID重试:', cleanedId);
             response = await questionSetApi.getQuestionSetById(cleanedId);
             actualQuestionSetId = cleanedId; // 记录实际使用的ID
           } else {
@@ -2504,6 +2485,7 @@ function QuizPage(): JSX.Element {
           
           // 如果缓存API返回的是付费题库，但缓存isPaid标识可能存在問題，直接从API获取
           if (!cachedIsPaid && questionSetData.price > 0) {
+            // console.log('[QuizPage] 检测到潜在的题库数据不一致：価格 > 0 但 isPaid 不为真，尝试直接调用 API');
             
             try {
               // 直接从API获取最新数据，绕过可能的缓存
@@ -2526,11 +2508,13 @@ function QuizPage(): JSX.Element {
                 
                 // 如果直接API显示这是付费题库，更新本地数据
                 if (directIsPaid) {
+                  // console.log('[QuizPage] 直接API调用显示此题库为付费题库，更新本地数据');
                   
                   // 更新questionSetData
                   questionSetData.isPaid = true;
                   
                   // 显示警告
+                  /* toast.warning('检测到题库数据不一致，已自动修复', { autoClose: 3000 }); */
                 }
               }
             } catch (directApiError) {
@@ -2556,7 +2540,7 @@ function QuizPage(): JSX.Element {
             } else {
               determinedTrialCount = 3; // 显式试用模式下，若无有效正数限制，则默认为3题
             }
-            console.log(`[QuizPage] 显式试用模式，试用题数: ${determinedTrialCount}`);
+            // console.log(`[QuizPage] 显式试用模式，试用题数: ${determinedTrialCount}`);
           } else {
             // 非显式试用模式 (直接访问 /quiz/:id)
             if (trialQuestionsFromApi !== undefined && trialQuestionsFromApi !== null && trialQuestionsFromApi >= 0) {
@@ -2569,7 +2553,7 @@ function QuizPage(): JSX.Element {
               
               determinedTrialCount = finalIsPaid ? 1 : 0;
             }
-            console.log(`[QuizPage] 非显式试用模式，试用题数: ${determinedTrialCount}`);
+            // console.log(`[QuizPage] 非显式试用模式，试用题数: ${determinedTrialCount}`);
           }
           
           // 确保 determinedTrialCount 不为负
@@ -2581,12 +2565,13 @@ function QuizPage(): JSX.Element {
           // 最终确认付费状态
           const finalIsPaid = directApiData ? isPaidQuiz(directApiData) : isPaidQuiz(questionSetData);
           
-          console.log(`[QuizPage] 题库数据处理: isPaid=${finalIsPaid}, trialQuestions=${determinedTrialCount}`);
+          // console.log(`[QuizPage] 题库数据处理: isPaid=${finalIsPaid}, trialQuestions=${determinedTrialCount}`);
           
           setQuestionSet(questionSetData);
           
           // 免费题库直接授予访问权限，不显示购买页面
           if (!finalIsPaid) {
+            // console.log(`[QuizPage] 免费题库，授予访问权限`);
             setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
             setQuizStatus({ ...quizStatus, trialEnded: false });
             setQuizStatus({ ...quizStatus, showPurchasePage: false });
@@ -2595,7 +2580,7 @@ function QuizPage(): JSX.Element {
           
           // 修改试用模式初始化逻辑
           if (isExplicitTrialMode) {
-            console.log(`[QuizPage] 初始化试用模式，限制题目数: ${determinedTrialCount}`);
+            // console.log(`[QuizPage] 初始化试用模式，限制题目数: ${determinedTrialCount}`);
             
             // 设置试用模式状态，但不触发购买提示
             if (finalIsPaid) {
@@ -2622,6 +2607,7 @@ function QuizPage(): JSX.Element {
           // 使用题库中包含的题目数据
           const questionsData = getQuestions(response.data);
           if (questionsData.length > 0) {
+            // console.log("获取到题目:", questionsData.length);
             
             // 处理题目选项并设置数据
             const processedQuestions = questionsData.map((q: any) => {
@@ -2663,6 +2649,7 @@ function QuizPage(): JSX.Element {
             
             // 如果是错题练习模式且指定了問題ID，则筛选题目
             if (mode === 'wrong-answers' && specificQuestions) {
+              // console.log('[QuizPage] 错题练习模式，筛选指定题目');
               const questionIds = specificQuestions.split(',');
               
               // 只保留指定ID的题目
@@ -2671,10 +2658,11 @@ function QuizPage(): JSX.Element {
               );
               
               if (filteredQuestions.length > 0) {
-                console.log(`[QuizPage] 筛选后的题目数量: ${filteredQuestions.length}`);
+                // console.log(`[QuizPage] 筛选后的题目数量: ${filteredQuestions.length}`);
                 setQuestions(filteredQuestions);
               } else {
                 // 如果筛选后没有题目，使用全部题目
+                // console.log('[QuizPage] 未找到指定题目，使用全部题目');
                 setQuestions(processedQuestions);
               }
             } else {
@@ -2683,9 +2671,14 @@ function QuizPage(): JSX.Element {
             
             // 如果是试用模式，显示提示
             if (isExplicitTrialMode) {
+              /* toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}問`, {
+                autoClose: 5000,
+                icon: '🔍'
+              }); */
               
               // 确保购买和兑换按钮在试用模式下可用
               if (questionSetData.isPaid) {
+                // console.log('[QuizPage] 试用付费题库，设置相关状态');
                 // 根据URL参数设置状态以确保试用功能正常
                 setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
                 setQuizStatus({ ...quizStatus, hasRedeemed: false });
@@ -2708,7 +2701,7 @@ function QuizPage(): JSX.Element {
               if (lastQuestionParam !== null) {
                 const lastQuestionIndex = parseInt(lastQuestionParam, 10);
                 if (!isNaN(lastQuestionIndex) && lastQuestionIndex >= 0 && lastQuestionIndex < processedQuestions.length) {
-                  console.log(`[QuizPage] 从URL参数 lastQuestion 获取起始题目: ${lastQuestionIndex + 1}`);
+                  // console.log(`[QuizPage] 从URL参数 lastQuestion 获取起始题目: ${lastQuestionIndex + 1}`);
                   setCurrentQuestionIndex(lastQuestionIndex);
                   
                   // 如果同时有本地进度，只用其回答记录，不使用其索引信息
@@ -2726,6 +2719,7 @@ function QuizPage(): JSX.Element {
                             selectedOption: q.selectedOption || ''
                           }));
                         
+                        // console.log('[QuizPage] 将URL索引与本地回答记录合并:', validAnsweredQuestions.length, '問');
                         setAnsweredQuestions(validAnsweredQuestions);
                         
                         // 计算正确答题数
@@ -2745,6 +2739,7 @@ function QuizPage(): JSX.Element {
               
               if (savedProgressStr) {
                 const savedProgress = JSON.parse(savedProgressStr);
+                // console.log('[QuizPage] 找到本地保存的进度:', savedProgress);
                 
                 // 确认进度数据有效且不超过24小时
                 const lastUpdated = new Date(savedProgress.lastUpdated || 0);
@@ -2776,7 +2771,7 @@ function QuizPage(): JSX.Element {
                     }
                   }
                   
-                  console.log(`[QuizPage] 从本地进度恢复: 从第${startIndex + 1}题开始`);
+                  // console.log(`[QuizPage] 从本地进度恢复: 从第${startIndex + 1}题开始`);
                   setCurrentQuestionIndex(startIndex);
                   
                   // 恢复已回答問題列表
@@ -2789,6 +2784,7 @@ function QuizPage(): JSX.Element {
                       selectedOption: q.selectedOption || ''
                     }));
                   
+                  // console.log('[QuizPage] 恢复已回答問題列表:', validAnsweredQuestions.length, '問');
                   setAnsweredQuestions(validAnsweredQuestions);
                   
                   // 计算正确答题数
@@ -2797,18 +2793,21 @@ function QuizPage(): JSX.Element {
                   
                   // 从本地存储恢复后，仍需请求服务器进度
                   if (socket && user?.id) {
+                    // console.log('[QuizPage] 恢复本地进度后，请求服务器进度以确保最新');
                     socket.emit('progress:get', {
                       userId: user.id,
                       questionSetId
                     });
                   }
                 } else {
+                  // console.log('[QuizPage] 本地进度已过期或无效，使用新进度');
                   // 没有有效的本地进度时，从第一题开始并请求服务器进度
                   setCurrentQuestionIndex(0);
                   setAnsweredQuestions([]);
                   setCorrectAnswers(0);
                   
                   if (socket && user?.id) {
+                    // console.log('[QuizPage] 请求服务器进度数据');
                     socket.emit('progress:get', {
                       userId: user.id,
                       questionSetId
@@ -2816,12 +2815,14 @@ function QuizPage(): JSX.Element {
                   }
                 }
               } else {
+                // console.log('[QuizPage] 未找到本地保存的进度');
                 // 没有本地进度时，从第一题开始并请求服务器进度
                 setCurrentQuestionIndex(0);
                 setAnsweredQuestions([]);
                 setCorrectAnswers(0);
                 
                 if (socket && user?.id) {
+                  // console.log('[QuizPage] 请求服务器进度数据');
                   socket.emit('progress:get', {
                     userId: user.id,
                     questionSetId
@@ -2856,13 +2857,14 @@ function QuizPage(): JSX.Element {
   // 在题库加载完成后进行权限同步检查
   useEffect(() => {
     if (questionSet && !quizStatus.loading) {
+      // console.log(`[QuizPage] 题库加载完成，开始权限同步检查`);
       
       // 实时检查用户的真实访问权限
       const hasRealAccess = checkFullAccessFromAllSources();
       
       // 如果实际权限与状态不一致，进行同步
       if (hasRealAccess !== quizStatus.hasAccessToFullQuiz) {
-        console.log(`[QuizPage] 发现权限状态不一致: 实际权限=${hasRealAccess}, 状态权限=${quizStatus.hasAccessToFullQuiz}`);
+        // console.log(`[QuizPage] 发现权限状态不一致: 实际权限=${hasRealAccess}, 状态权限=${quizStatus.hasAccessToFullQuiz}`);
         
         setQuizStatus(prev => ({
           ...prev,
@@ -2874,8 +2876,9 @@ function QuizPage(): JSX.Element {
         // 更新本地存储
         saveAccessToLocalStorage(questionSet.id, hasRealAccess);
         
-        console.log(`[QuizPage] 权限状态已同步: ${hasRealAccess}`);
+        // console.log(`[QuizPage] 权限状态已同步: ${hasRealAccess}`);
       } else {
+        // console.log(`[QuizPage] 权限状态一致，无需同步`);
       }
     }
   }, [questionSet, quizStatus.loading, quizStatus.hasAccessToFullQuiz, checkFullAccessFromAllSources]);
@@ -2891,6 +2894,7 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     if (questionSet?.id) {
       const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
+      // console.log(`[QuizPage] 检查localStorage存储的已兑换题库IDs:`, redeemedQuestionSetIds);
       
       if (redeemedQuestionSetIds) {
         try {
@@ -2898,28 +2902,31 @@ function QuizPage(): JSX.Element {
           
           // 标准化当前题库ID
           const normalizedCurrentId = String(questionSet.id).trim();
-          console.log(`[QuizPage] 当前题库ID (标准化): "${normalizedCurrentId}"`);
+          // console.log(`[QuizPage] 当前题库ID (标准化): "${normalizedCurrentId}"`);
           
           // 检查是否已兑换，使用一致的ID格式比较
           if (Array.isArray(redeemedIds)) {
             // 输出所有已兑换ID，以便调试
+            // console.log(`[QuizPage] 所有已兑换题库IDs:`, redeemedIds);
             
             // 将所有ID标准化后再比较
             const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedCurrentId);
-            console.log(`[QuizPage] 题库 ${normalizedCurrentId} 是否已兑换: ${isRedeemed}`);
+            // console.log(`[QuizPage] 题库 ${normalizedCurrentId} 是否已兑换: ${isRedeemed}`);
             
             if (isRedeemed) {
-              console.log(`[QuizPage] 检测到题库 ${normalizedCurrentId} 已兑换记录，启用完整访问权限`);
+              // console.log(`[QuizPage] 检测到题库 ${normalizedCurrentId} 已兑换记录，启用完整访问权限`);
               setQuizStatus({ ...quizStatus, hasRedeemed: true });
               setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
               setQuizStatus({ ...quizStatus, trialEnded: false });
             }
           } else {
+            // console.log(`[QuizPage] localStorage中的redeemedQuestionSetIds不是数组:`, redeemedIds);
           }
         } catch (e) {
           console.error('解析已兑换题库ID列表失败', e);
         }
       } else {
+        // console.log(`[QuizPage] localStorage中未找到已兑换题库记录`);
       }
     }
   }, [questionSet?.id]);
@@ -2931,6 +2938,7 @@ function QuizPage(): JSX.Element {
     const handleProgressData = (data: ProgressData) => {
       // 智能处理进度数据，避免覆盖更新的本地状态
       if (data && data.answeredQuestions) {
+        // console.log('[QuizPage] 收到服务器进度数据:', data.answeredQuestions.length, '道已答题');
         
         // 只有在本地没有进度或服务器进度更新时才覆盖
         if (answeredQuestions.length === 0 || 
@@ -2945,15 +2953,19 @@ function QuizPage(): JSX.Element {
             setCurrentQuestionIndex(data.lastQuestionIndex);
           }
           
+          // console.log('[QuizPage] 已从服务器恢复进度状态');
         } else {
+          // console.log('[QuizPage] 本地状态更新，忽略服务器进度');
         }
       }
     };
 
     // 添加进度删除事件处理
     const handleProgressDelete = (data: {questionSetId: string}) => {
+      // console.log('[QuizPage] 收到progress:delete事件:', data);
       if (data.questionSetId === questionSetId) {
         // 如果删除的是当前题库的进度，重置本地状态
+        // console.log('[QuizPage] 当前题库进度被删除，重置状态');
         setAnsweredQuestions([]);
         setCurrentQuestionIndex(0);
         setCorrectAnswers(0);
@@ -2970,6 +2982,10 @@ function QuizPage(): JSX.Element {
         localStorage.removeItem(localProgressKey);
         
         // 通知用户
+        /* toast.info('题库进度已被重置', {
+          position: 'top-center',
+          autoClose: 3000
+        }); */
       }
     };
 
@@ -2988,12 +3004,14 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     if (!questionSet || !user) return;
     
+    // console.log(`[QuizPage] 监听到用户购买记录变化，重新同步权限`);
     
     // 重新检查权限
     const hasRealAccess = checkFullAccessFromAllSources();
     
     // 如果获得了访问权限，立即更新状态
     if (hasRealAccess && !quizStatus.hasAccessToFullQuiz) {
+      // console.log(`[QuizPage] 检测到新的访问权限，更新状态`);
       
       setQuizStatus(prev => ({
         ...prev,
@@ -3007,6 +3025,10 @@ function QuizPage(): JSX.Element {
       saveAccessToLocalStorage(questionSet.id, true);
       
       // 显示成功消息
+      /* toast.success('アクセス権限が有効になりました！', {
+        position: 'top-center',
+        autoClose: 2000
+      }); */
     }
   }, [user?.purchases, questionSet, checkFullAccessFromAllSources]);
   
@@ -3014,14 +3036,44 @@ function QuizPage(): JSX.Element {
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
     if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
+      /* toast.warning('お試し期間が終了しました。フルバージョン購入またはクーポンコードで継続してください'); */
       
       // 检查是否已完成支付，避免重复显示支付窗口
       const normalizedId = String(questionSet?.id || '').trim();
       if (normalizedId) {
         // 本地检查支付状态函数
+        const checkLocalPaymentStatus = (qsId: string): boolean => {
+          try {
+            // 检查直接支付完成标志
+            const paymentCompletedKey = `quiz_payment_completed_${qsId}`;
+            const directFlag = localStorage.getItem(paymentCompletedKey);
+            if (directFlag === 'true') return true;
+            
+            // 检查访问权限记录
+            const accessRightsStr = localStorage.getItem('quizAccessRights');
+            if (accessRightsStr) {
+              try {
+                const accessRights = JSON.parse(accessRightsStr);
+                if (accessRights && typeof accessRights === 'object') {
+                  // 检查特定的_paid标志
+                  if (accessRights[`${qsId}_paid`] === true) {
+                    return true;
+                  }
+                }
+              } catch (e) {
+                console.error('[checkLocalPaymentStatus] 解析访问权限失败:', e);
+              }
+            }
+            
+            return false;
+          } catch (e) {
+            console.error('[checkLocalPaymentStatus] 检查支付状态失败:', e);
+            return false;
+          }
+        };
         
-        if (isPaymentCompleted(normalizedId)) {
-          console.log(`[handleOptionSelect] 检测到题库 ${normalizedId} 已完成支付，不再显示支付窗口`);
+        if (checkLocalPaymentStatus(normalizedId)) {
+          // console.log(`[handleOptionSelect] 检测到题库 ${normalizedId} 已完成支付，不再显示支付窗口`);
           
           // 更新状态为已购买
           setQuizStatus(prev => ({
@@ -3031,6 +3083,9 @@ function QuizPage(): JSX.Element {
           }));
           
           // 显示通知
+          /* toast.info('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
+            autoClose: 2000
+          }); */
           
           // 刷新当前問題让用户继续答题
           setTimeout(() => {
@@ -3063,7 +3118,7 @@ function QuizPage(): JSX.Element {
   
   // 保存已兑换的题库ID到localStorage
   const saveRedeemedQuestionSetId = (questionSetId: string) => {
-    console.log(`[QuizPage] 保存已兑换题库ID: ${questionSetId}`);
+    // console.log(`[QuizPage] 保存已兑换题库ID: ${questionSetId}`);
     
     if (!questionSetId) {
       console.error('[QuizPage] 无法保存空的题库ID');
@@ -3072,17 +3127,18 @@ function QuizPage(): JSX.Element {
     
     try {
       const normalizedId = String(questionSetId).trim();
-      console.log(`[QuizPage] 规范化题库ID: ${normalizedId}`);
+      // console.log(`[QuizPage] 规范化题库ID: ${normalizedId}`);
       
       // 获取现有的已兑换题库IDs
       const redeemedQuestionSetIds = localStorage.getItem('redeemedQuestionSetIds');
-      console.log(`[QuizPage] 现有的已兑换题库IDs: ${redeemedQuestionSetIds}`);
+      // console.log(`[QuizPage] 现有的已兑换题库IDs: ${redeemedQuestionSetIds}`);
       
       let newList = '';
       
       if (redeemedQuestionSetIds) {
         try {
           const parsed = JSON.parse(redeemedQuestionSetIds);
+          // console.log(`[QuizPage] 解析的已兑换题库IDs:`, parsed);
           
           // 检查是否已存在
           if (Array.isArray(parsed) && !parsed.includes(normalizedId)) {
@@ -3101,6 +3157,7 @@ function QuizPage(): JSX.Element {
         newList = JSON.stringify([normalizedId]);
       }
       
+      // console.log(`[QuizPage] 保存新的已兑换题库IDs列表:`, newList);
       localStorage.setItem('redeemedQuestionSetIds', newList);
     } catch (error) {
       console.error('[QuizPage] 保存已兑换题库ID失败:', error);
@@ -3116,9 +3173,9 @@ function QuizPage(): JSX.Element {
       questionSetId: string;
       hasAccess: boolean;
     }) => {
-      console.log(`[Socket事件] 收到访问权限更新: questionSetId=${data.questionSetId}, hasAccess=${data.hasAccess}`);
+      // console.log(`[Socket事件] 收到访问权限更新: questionSetId=${data.questionSetId}, hasAccess=${data.hasAccess}`);
       if (data.questionSetId === questionSet.id) {
-        console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}`);
+        // console.log(`[Socket事件] 设置题库访问权限为: ${data.hasAccess}`);
         setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: data.hasAccess });
         
         // 权限开启后，同时确保试用结束状态重置
@@ -3137,17 +3194,18 @@ function QuizPage(): JSX.Element {
       expiryDate: string;
     }) => {
       // Log using consistent naming and formatting
-      console.log(`[QuizPage] Purchase success event received: questionSetId=${data.questionSetId}, currentId=${questionSet?.id}`);
+      // console.log(`[QuizPage] Purchase success event received: questionSetId=${data.questionSetId}, currentId=${questionSet?.id}`);
       
       // Normalize IDs for reliable comparison
       const receivedId = String(data.questionSetId || '').trim();
       const currentId = String(questionSet?.id || '').trim();
       const isMatch = receivedId === currentId;
       
-      console.log(`[QuizPage] ID comparison: received=${receivedId}, current=${currentId}, match=${isMatch}`);
+      // console.log(`[QuizPage] ID comparison: received=${receivedId}, current=${currentId}, match=${isMatch}`);
       
       // Process matching events or events with no specific ID
       if (isMatch || !currentId) {
+        // console.log(`[QuizPage] Updating access rights for this question set`);
         
         // Update all relevant states in a single operation to prevent UI flickers
         setQuizStatus(prev => ({
@@ -3166,7 +3224,7 @@ function QuizPage(): JSX.Element {
           // Store that payment is completed for this question set
           const paymentKey = `quiz_payment_completed_${receivedId}`;
           localStorage.setItem(paymentKey, 'true');
-          console.log(`[QuizPage] Saved payment completion status to localStorage: ${paymentKey}`);
+          // console.log(`[QuizPage] Saved payment completion status to localStorage: ${paymentKey}`);
         } catch (e) {
           console.error('[QuizPage] Error saving payment completion status:', e);
         }
@@ -3188,6 +3246,7 @@ function QuizPage(): JSX.Element {
               }
             );
             
+            // console.log('[QuizPage] 访问权限更新响应:', accessUpdateResponse.data);
           } catch (updateError) {
             console.error('[QuizPage] 访问权限更新请求失败:', updateError);
             // 失败后不再重试，但确保本地仍被标记为已购买
@@ -3199,13 +3258,14 @@ function QuizPage(): JSX.Element {
         
         // Force check access after a short delay to ensure server sync
         setTimeout(() => {
+          // console.log(`[QuizPage] Performing delayed access check after purchase`);
           checkAccess();
         }, 300);
         
-        // Display success message
       }
     };
 
+    // console.log(`[Socket] 注册题库访问和购买事件监听`);
     socket.on('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
     socket.on('purchase:success', handlePurchaseSuccess);
     
@@ -3220,6 +3280,7 @@ function QuizPage(): JSX.Element {
     document.addEventListener('purchase:success', handleDocumentPurchaseSuccess);
 
     return () => {
+      // console.log(`[Socket] 移除事件监听`);
       socket.off('questionSet:accessUpdate', handleQuestionSetAccessUpdate);
       socket.off('purchase:success', handlePurchaseSuccess);
       document.removeEventListener('purchase:success', handleDocumentPurchaseSuccess);
@@ -3229,6 +3290,7 @@ function QuizPage(): JSX.Element {
   // 监听兑换码成功事件
   useEffect(() => {
     const handleRedeemSuccess = (e: Event) => {
+      // console.log(`[QuizPage] Redeem success event received`);
       const customEvent = e as CustomEvent;
       
       // Extract and normalize data from event
@@ -3240,15 +3302,16 @@ function QuizPage(): JSX.Element {
       const isCurrentQuestionSet = effectiveId === currentId;
       const forceRefresh = !!eventDetail.forceRefresh;
       
-      console.log(`[QuizPage] Redeem event details:`, {
-        receivedId: effectiveId,
-        currentId,
-        isMatch: isCurrentQuestionSet,
-        forceRefresh
-      });
+      // console.log(`[QuizPage] Redeem event details:`, {
+      //   receivedId: effectiveId,
+      //   currentId,
+      //   isMatch: isCurrentQuestionSet,
+      //   forceRefresh
+      // });
       
       // Update if it matches current question set or has forceRefresh flag
       if (isCurrentQuestionSet || forceRefresh || !currentId) {
+        // console.log(`[QuizPage] Updating access rights after redemption`);
         
         // Update all relevant states in a single operation to prevent UI flickers
         setQuizStatus(prev => ({
@@ -3274,12 +3337,11 @@ function QuizPage(): JSX.Element {
         
         // Force access check to ensure data consistency
         setTimeout(() => {
+          // console.log(`[QuizPage] Performing delayed access check after redemption`);
           checkAccess();
         }, 300);
         
-        // Show success notification if not already shown by modal
-        if (!isCurrentQuestionSet) {
-        }
+        
       }
     };
     
@@ -3295,6 +3357,7 @@ function QuizPage(): JSX.Element {
   useEffect(() => {
     const handleWrongAnswerSave = (e: Event) => {
       const customEvent = e as CustomEvent;
+      // console.log('[QuizPage] 接收到错题保存事件:', customEvent.detail);
       
       if (!customEvent.detail || !user?.id) {
         console.warn('[QuizPage] 错题保存事件缺少必要数据或用户未登录');
@@ -3306,6 +3369,7 @@ function QuizPage(): JSX.Element {
         try {
           const response = await wrongAnswerService.saveWrongAnswer(customEvent.detail);
           if (response.success) {
+            // console.log('[QuizPage] 错题保存成功:', response);
           } else {
             console.error('[QuizPage] 错题保存失败:', response.message);
           }
@@ -3327,25 +3391,27 @@ function QuizPage(): JSX.Element {
   const saveProgressManually = useCallback(async () => {
     if (!user?.id || !questionSetId) {
       console.error('[QuizPage] 保存失败：用户ID或题库ID缺失');
+      /* toast.error('保存に失敗しました。ログイン状態を確認してください'); */
       return;
     }
     
     if (!socket) {
       console.error('[QuizPage] 保存失败：Socket连接不可用');
+      /* toast.error('ネットワーク接続を確認してください'); */
       return;
     }
     
     setIsSaving(true);
     
     try {
-      console.log('[QuizPage] 开始手动保存进度数据', {
-        userId: user.id,
-        questionSetId,
-        currentQuestionIndex,
-        answeredQuestionsCount: answeredQuestions.length,
-        correctAnswers,
-        quizTotalTime
-      });
+      // console.log('[QuizPage] 开始手动保存进度数据', {
+      //   userId: user.id,
+      //   questionSetId,
+      //   currentQuestionIndex,
+      //   answeredQuestionsCount: answeredQuestions.length,
+      //   correctAnswers,
+      //   quizTotalTime
+      // });
       
       // 确保我们获取的是最新状态 - 重新获取当前题目的选择状态
       let currentAnsweredQuestions = [...answeredQuestions];
@@ -3377,6 +3443,7 @@ function QuizPage(): JSX.Element {
           currentAnsweredQuestions.push(currentAnswer);
         }
         
+        // console.log('[QuizPage] 包含当前题目选择状态到保存数据中');
       }
       
       // 重新计算正确答案数
@@ -3392,6 +3459,7 @@ function QuizPage(): JSX.Element {
         timestamp: new Date().toISOString()
       };
       
+      // console.log('[QuizPage] 发送进度数据到服务器:', progressBundle);
       
       // 通过socket将打包的进度数据同步到服务器
       socket.emit('progress:update', progressBundle);
@@ -3404,6 +3472,7 @@ function QuizPage(): JSX.Element {
         
         const handleSaveResponse = (response: {success: boolean, error?: string}) => {
           clearTimeout(timeout);
+          // console.log('[QuizPage] 收到服务器保存响应:', response);
           if (response.success) {
             resolve();
           } else {
@@ -3428,6 +3497,7 @@ function QuizPage(): JSX.Element {
           lastUpdated: new Date().toISOString()
         };
         localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
+        // console.log('[QuizPage] 本地进度存储已更新');
       } catch (e) {
         console.error('[QuizPage] 保存本地进度失败:', e);
         // 本地存储失败不应该影响整体保存成功
@@ -3442,10 +3512,13 @@ function QuizPage(): JSX.Element {
       setTimeout(() => setShowSaveSuccess(false), 3000);
       
       // 显示成功消息
+      /* toast.success('進捗を保存しました'); */
       
+      // console.log('[QuizPage] 进度数据保存完成');
     } catch (error) {
       console.error('[QuizPage] 保存进度数据异常:', error);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
+      /* toast.error(`保存に失敗しました: ${errorMessage}`); */
     } finally {
       setIsSaving(false);
     }
@@ -3458,7 +3531,7 @@ function QuizPage(): JSX.Element {
     question: Question,
     questionIndex: number
   ) => {
-    console.log(`[QuizPage] handleAnswerSubmit: 开始处理答案提交 - 题目ID=${question.id}, 索引=${questionIndex}`);
+    // console.log(`[QuizPage] handleAnswerSubmit: 开始处理答案提交 - 题目ID=${question.id}, 索引=${questionIndex}`);
     
     try {
       if (!questionSetId || !question.id) {
@@ -3516,7 +3589,7 @@ function QuizPage(): JSX.Element {
         // 保存到本地存储以支持离线场景
         try {
           localStorage.setItem(localProgressKey, JSON.stringify(localProgressUpdate));
-          console.log(`[QuizPage] 已更新本地进度存储，包含${updatedAnsweredQuestions.length}道已答题目`);
+          // console.log(`[QuizPage] 已更新本地进度存储，包含${updatedAnsweredQuestions.length}道已答题目`);
         } catch (e) {
           console.error('[QuizPage] 保存本地进度失败:', e);
         }
@@ -3531,12 +3604,13 @@ function QuizPage(): JSX.Element {
         if (!hasRealTimeAccess && !quizStatus.hasRedeemed) {
           const isTrialEnded = questionSet.trialQuestions && updatedAnsweredQuestions.length >= questionSet.trialQuestions;
           if (isTrialEnded) {
-            console.log(`[handleAnswerSubmit] 试用结束: 已答题=${updatedAnsweredQuestions.length}, 试用限制=${questionSet.trialQuestions}`);
+            // console.log(`[handleAnswerSubmit] 试用结束: 已答题=${updatedAnsweredQuestions.length}, 试用限制=${questionSet.trialQuestions}`);
             setQuizStatus(prev => ({ ...prev, trialEnded: true }));
           }
         }
       }
 
+      // console.log('[QuizPage] 答案提交处理完成');
     } catch (error) {
       console.error('[QuizPage] 提交答案出错:', error);
     }
@@ -3562,6 +3636,7 @@ function QuizPage(): JSX.Element {
     
     // 如果用户有完整访问权限或已兑换，则没有试用限制
     if (hasRealTimeAccess || quizStatus.hasRedeemed) {
+      // console.log(`[isTrialLimitReached] 用户有访问权限或已兑换，无试用限制`);
       return false;
     }
     
@@ -3569,7 +3644,7 @@ function QuizPage(): JSX.Element {
     const trialLimit = questionSet?.trialQuestions || 0;
     const limitReached = answeredQuestions.length >= trialLimit;
     
-    console.log(`[isTrialLimitReached] 试用状态: 已答题=${answeredQuestions.length}, 限制=${trialLimit}, 达到限制=${limitReached}, 有访问权限=${hasRealTimeAccess}`);
+    // console.log(`[isTrialLimitReached] 试用状态: 已答题=${answeredQuestions.length}, 限制=${trialLimit}, 达到限制=${limitReached}, 有访问权限=${hasRealTimeAccess}`);
     
     return limitReached;
   }, [questionSet, quizStatus.hasRedeemed, answeredQuestions.length, checkFullAccessFromAllSources]);
@@ -3599,14 +3674,14 @@ function QuizPage(): JSX.Element {
     
     // 超出试用数量的题目不能访问
     if (answeredQuestions.length >= trialLimit) {
-      console.log(`[canAccessQuestion] 无法访問題目 ${questionIndex + 1}：已达到试用限制 ${answeredQuestions.length}/${trialLimit}`);
+      // console.log(`[canAccessQuestion] 无法访問題目 ${questionIndex + 1}：已达到试用限制 ${answeredQuestions.length}/${trialLimit}`);
       return false;
     }
     
     // 检查目标题目索引是否在试用范围内
     const isWithinTrialLimit = questionIndex < trialLimit;
     if (!isWithinTrialLimit) {
-      console.log(`[canAccessQuestion] 无法访問題目 ${questionIndex + 1}：超出试用范围（试用范围：1-${trialLimit}题）`);
+      // console.log(`[canAccessQuestion] 无法访問題目 ${questionIndex + 1}：超出试用范围（试用范围：1-${trialLimit}题）`);
       return false;
     }
     
@@ -3615,11 +3690,12 @@ function QuizPage(): JSX.Element {
   
   // 修改处理答案提交的函数，确保模态窗口显示
   const handleAnswerSubmitAdapter = useCallback((isCorrect: boolean, selectedOption: string | string[]) => {
-    console.log(`[QuizPage] handleAnswerSubmitAdapter 被调用 - isCorrect=${isCorrect}`);
+    // console.log(`[QuizPage] handleAnswerSubmitAdapter 被调用 - isCorrect=${isCorrect}`);
     
     // 使用集中的访问权限检查
     const hasFullAccess = checkFullAccessFromAllSources();
     if (hasFullAccess) {
+      // console.log('[QuizPage] 用户有完整访问权限，允许提交答案');
       // 确保状态一致性
       if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
       if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
@@ -3641,23 +3717,25 @@ function QuizPage(): JSX.Element {
           
           const trialLimit = questionSet?.trialQuestions || 0;
           
-          console.log('[QuizPage] 答题后试用限制检查:', {
-            currentAnswered: answeredQuestions.length,
-            willBeAnswered: willBeAnsweredCount,
-            trialLimit: trialLimit
-          });
           
-          // 如果答题后将达到试用限制
+          // 如果答题后将達到試用限制
           if (questionSet?.isPaid && !hasFullAccess && willBeAnsweredCount >= trialLimit) {
+            // console.log('[QuizPage] 答题将达到试用限制，准备显示购买窗口');
             
             // 延迟显示购买窗口，给用户时间查看答案
             setTimeout(() => {
               // 再次检查确认状态没有变化
               if (!checkFullAccessFromAllSources()) {
+                // console.log('[QuizPage] 确认用户仍无访问权限，显示购买窗口');
                 setQuizStatus({ ...quizStatus, trialEnded: true });
                 setQuizStatus({ ...quizStatus, showPurchasePage: true });
                 
                 // 显示提示
+                /* toast.info('お試しの問題数の上限に達しました。続けてご利用いただくには、フル版をご購入ください。', {
+                  position: 'top-center',
+                  autoClose: 5000,
+                  toastId: 'answer-submit-limit'
+                }); */
               }
             }, 1500);
           }
@@ -3683,17 +3761,20 @@ function QuizPage(): JSX.Element {
   
   // 修改下一题逻辑，确保顺畅过渡而不检查权限
   const handleNextQuestion = useCallback(() => {
+    // console.log('[QuizPage] handleNextQuestion 被调用 - 准备跳转到下一题');
     
     // 如果已经是最后一题，标记为完成
     if (currentQuestionIndex === questions.length - 1) {
+      // console.log('[QuizPage] 当前是最后一题，将标记为完成');
       setQuizStatus({ ...quizStatus, quizComplete: true });
+      // console.log('[QuizPage] 答题已完成');
       return;
     }
     
     try {
       // 跳转到下一题
       const nextQuestionIndex = currentQuestionIndex + 1;
-      console.log(`[QuizPage] 跳转到下一题: ${nextQuestionIndex + 1}`);
+      // console.log(`[QuizPage] 跳转到下一题: ${nextQuestionIndex + 1}`);
       setCurrentQuestionIndex(nextQuestionIndex);
       setSelectedOptions([]);
       setQuestionStartTime(Date.now());
@@ -3710,6 +3791,7 @@ function QuizPage(): JSX.Element {
   const handleJumpToQuestion = useCallback((questionIndex: number) => {
     // 阻止在提交过程中或完成状态下跳转
     if (isSubmittingRef.current || quizStatus.quizComplete) {
+      // console.log('[QuizPage] 无法跳转：正在提交答案或已完成问答');
       return;
     }
     
@@ -3721,13 +3803,11 @@ function QuizPage(): JSX.Element {
     
     // 使用集中的访问控制函数
     if (canAccessQuestion(questionIndex)) {
-      console.log(`[QuizPage] 允许跳转到题目: ${questionIndex + 1}`);
+      // console.log(`[QuizPage] 允许跳转到题目: ${questionIndex + 1}`);
       setCurrentQuestionIndex(questionIndex);
       setQuestionStartTime(Date.now()); // 重置计时器
     } else {
-      console.log(`[QuizPage] 禁止跳转到题目: ${questionIndex + 1}, 超出试用限制`);
-      
-      // 显示提示信息
+
       
       // 设置试用结束状态
       setQuizStatus({ ...quizStatus, trialEnded: true });
@@ -3808,16 +3888,19 @@ function QuizPage(): JSX.Element {
       }
       
       // 提示用户
+      /* toast.success('进度已重置，开始新的测试！'); */
       
       // 更彻底地清除本地存储
       try {
         // 1. 清除sessionStorage中的标记
         if (questionSet) {
+          // console.log(`[QuizPage] 清除sessionStorage中的完成标记`);
           sessionStorage.removeItem(`quiz_completed_${questionSet.id}`);
           // 设置重置标记
           sessionStorage.setItem('quiz_reset_required', 'true');
           
           // 2. 清除localStorage中可能的进度缓存（使用一致的键格式）
+          // console.log(`[QuizPage] 清除localStorage中的进度缓存`);
           
           // 使用与其他功能一致的localStorage键格式
           const userIdStr = user?.id ? `_${user.id}` : '';
@@ -3831,6 +3914,7 @@ function QuizPage(): JSX.Element {
             `answered_questions_${questionSet.id}`
           ];
           
+          // console.log(`[QuizPage] 清除键列表:`, possibleKeys);
           
           possibleKeys.forEach(key => {
             localStorage.removeItem(key);
@@ -3856,10 +3940,13 @@ function QuizPage(): JSX.Element {
             questionSetId: questionSet.id
           });
           
+          // console.log('[QuizPage] 已发送进度重置请求到服务器');
           
           // 等待响应
           socket.once('progress:reset:result', (result) => {
+            // console.log('[QuizPage] 服务器进度重置结果:', result);
             if (result.success) {
+              /* toast.success('进度已重置'); */
               
               // 更新URL，移除lastQuestion参数
               if (questionSet) {
@@ -3896,6 +3983,7 @@ function QuizPage(): JSX.Element {
       }
     } catch (error) {
       console.error('重置测试失败:', error);
+      /* toast.error('テストのリセットに失敗しました。ページを更新して再試行してください'); */
     } finally {
       setQuizStatus({ ...quizStatus, loading: false });
     }
@@ -4050,9 +4138,11 @@ function QuizPage(): JSX.Element {
                 // 阻止事件冒泡
                 e.stopPropagation();
                 
+                // console.log('[TrialPurchaseBar] 点击购买按钮 - 当前时间:', new Date().toISOString());
                 
                 // 防止重复处理
                 if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) {
+                  // console.log('[TrialPurchaseBar] 忽略点击 - isProcessingPayment:', quizStatus.isProcessingPayment, 'showPaymentModal:', quizStatus.showPaymentModal);
                   return;
                 }
                 
@@ -4065,9 +4155,38 @@ function QuizPage(): JSX.Element {
                 const normalizedId = String(questionSet?.id || '').trim();
                 if (normalizedId) {
                   // 本地检查支付状态函数
+                  const checkLocalPaymentStatus = (qsId: string): boolean => {
+                    try {
+                      // 检查直接支付完成标志
+                      const paymentCompletedKey = `quiz_payment_completed_${qsId}`;
+                      const directFlag = localStorage.getItem(paymentCompletedKey);
+                      if (directFlag === 'true') return true;
+                      
+                      // 检查访问权限记录
+                      const accessRightsStr = localStorage.getItem('quizAccessRights');
+                      if (accessRightsStr) {
+                        try {
+                          const accessRights = JSON.parse(accessRightsStr);
+                          if (accessRights && typeof accessRights === 'object') {
+                            // 检查特定的_paid标志
+                            if (accessRights[`${qsId}_paid`] === true) {
+                              return true;
+                            }
+                          }
+                        } catch (e) {
+                          console.error('[TrialPurchaseBar] 解析访问权限失败:', e);
+                        }
+                      }
+                      
+                      return false;
+                    } catch (e) {
+                      console.error('[TrialPurchaseBar] 检查支付状态失败:', e);
+                      return false;
+                    }
+                  };
                   
-                  if (isPaymentCompleted(normalizedId)) {
-                    console.log(`[TrialPurchaseBar] 检测到题库 ${normalizedId} 已完成支付，不再显示支付窗口`);
+                  if (checkLocalPaymentStatus(normalizedId)) {
+                    // console.log(`[TrialPurchaseBar] 检测到题库 ${normalizedId} 已完成支付，不再显示支付窗口`);
                     
                     // 更新状态为已购买
                     setQuizStatus(prev => ({
@@ -4077,13 +4196,18 @@ function QuizPage(): JSX.Element {
                     }));
                     
                     // 显示通知
+                    /* toast.success('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
+                      autoClose: 3000
+                    }); */
                     
                     return;
                   }
                 }
                 
+                /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
                 
                 // 直接设置状态显示支付模态窗口
+                // console.log('[TrialPurchaseBar] 设置showPaymentModal=true');
                 setQuizStatus(prev => ({
                   ...prev,
                   showPaymentModal: true
@@ -4108,9 +4232,11 @@ function QuizPage(): JSX.Element {
                 // 阻止事件冒泡
                 e.stopPropagation();
                 
+                // console.log('[TrialPurchaseBar] 点击兑换按钮 - 当前时间:', new Date().toISOString());
                 
                 // 防止重复处理
                 if (quizStatus.isProcessingRedeem || quizStatus.showRedeemCodeModal) {
+                  // console.log('[TrialPurchaseBar] 忽略点击 - isProcessingRedeem:', quizStatus.isProcessingRedeem, 'showRedeemCodeModal:', quizStatus.showRedeemCodeModal);
                   return;
                 }
                 
@@ -4119,8 +4245,10 @@ function QuizPage(): JSX.Element {
                 button.classList.add('scale-95');
                 setTimeout(() => button.classList.remove('scale-95'), 150);
                 
+                /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
                 
                 // 直接设置状态显示兑换模态窗口
+                // console.log('[TrialPurchaseBar] 设置showRedeemCodeModal=true');
                 setQuizStatus(prev => ({
                   ...prev,
                   showRedeemCodeModal: true
@@ -4204,20 +4332,21 @@ function QuizPage(): JSX.Element {
 
       return (
         <div className="max-w-4xl mx-auto">
-          {/* 顶部导航栏 */}
-          <div className="flex justify-between items-center mb-6">
+          {/* 顶部导航栏 - モバイル最適化: タッチターゲット拡大 */}
+          <div className="flex justify-between items-center mb-6 gap-2">
             <button 
               onClick={handleNavigateHome} 
-              className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
+              className="min-h-[44px] text-blue-600 hover:text-blue-800 flex items-center text-sm sm:text-base px-2 py-2 rounded-lg hover:bg-blue-50 transition-colors"
             >
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-5 h-5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              ホームに戻る
+              <span className="hidden sm:inline">ホームに戻る</span>
+              <span className="sm:hidden">戻る</span>
             </button>
                   
                   <div className="flex items-center">
-              <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg text-sm">
+              <div className="bg-indigo-100 text-indigo-800 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium line-clamp-1">
                 {questionSet?.title || '完成练习'}
               </div>
             </div>
@@ -4240,18 +4369,18 @@ function QuizPage(): JSX.Element {
               </div>
             </div>
             
-            {/* 统计数据卡片 */}
-            <div className="grid grid-cols-2 gap-4 mb-8 md:grid-cols-4">
-              <div className="bg-blue-50 rounded-lg p-4 text-center">
-                <div className="text-sm text-blue-600 mb-1">解答数</div>
-                <div className="text-2xl font-bold text-blue-800">{answeredQuestions.length}</div>
-                <div className="text-xs text-blue-600 mt-1">全{totalCount}問</div>
+            {/* 统计数据卡片 - モバイル最適化: パディング、フォントサイズ調整 */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-8 md:grid-cols-4">
+              <div className="bg-blue-50 rounded-lg p-4 sm:p-5 text-center">
+                <div className="text-sm sm:text-base text-blue-600 mb-1">解答数</div>
+                <div className="text-2xl sm:text-3xl font-bold text-blue-800">{answeredQuestions.length}</div>
+                <div className="text-xs sm:text-sm text-blue-600 mt-1">全{totalCount}問</div>
               </div>
               
-              <div className="bg-green-50 rounded-lg p-4 text-center">
-                <div className="text-sm text-green-600 mb-1">正答率</div>
-                <div className="text-2xl font-bold text-green-800">{accuracy}%</div>
-                <div className="text-xs text-green-600 mt-1">{correctCount}問正解</div>
+              <div className="bg-green-50 rounded-lg p-4 sm:p-5 text-center">
+                <div className="text-sm sm:text-base text-green-600 mb-1">正答率</div>
+                <div className="text-2xl sm:text-3xl font-bold text-green-800">{accuracy}%</div>
+                <div className="text-xs sm:text-sm text-green-600 mt-1">{correctCount}問正解</div>
               </div>
               
               <div className="bg-purple-50 rounded-lg p-4 text-center">
@@ -4365,13 +4494,13 @@ function QuizPage(): JSX.Element {
               </details>
             </div>
             
-            {/* 操作按钮 */}
-            <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3 justify-center">
+            {/* 操作按钮 - モバイル最適化: タッチターゲット44px以上、スペース改善 */}
+            <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-3 justify-center">
               <button 
                 onClick={handleResetQuiz} 
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center"
+                className="min-h-[44px] px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center text-base font-medium"
               >
-                <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 重新开始
@@ -4379,24 +4508,26 @@ function QuizPage(): JSX.Element {
               
               <button 
                 onClick={handleNavigateHome} 
-                className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition flex items-center justify-center"
+                className="min-h-[44px] px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition flex items-center justify-center text-base font-medium"
               >
-                <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
                 ホームに戻る
               </button>
               
-              {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 */}
+              {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 - モバイル最適化 */}
               {questionSet && isPaidQuiz(questionSet) && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
                 <button
                   onClick={(e) => {
                     // 阻止事件冒泡
                     e.stopPropagation();
                     
+                    // console.log('[QuizPage] 完成页面点击购买按钮 - 当前时间:', new Date().toISOString());
                     
                     // 防止重复处理
                     if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) {
+                      // console.log('[QuizPage] 完成页面忽略点击 - isProcessingPayment:', quizStatus.isProcessingPayment, 'showPaymentModal:', quizStatus.showPaymentModal);
                       return;
                     }
                     
@@ -4405,15 +4536,17 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
+                    /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
                     
                     // 直接设置状态显示支付模态窗口
+                    // console.log('[QuizPage] 完成页面设置showPaymentModal=true');
                     setQuizStatus(prev => ({
                       ...prev,
                       showPaymentModal: true
                     }));
                   }}
                   type="button"
-                  className="mt-4 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 flex items-center justify-center"
+                  className="w-full min-h-[44px] mt-4 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg text-base font-medium shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 flex items-center justify-center"
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -4490,9 +4623,11 @@ function QuizPage(): JSX.Element {
                     // 阻止事件冒泡
                     e.stopPropagation();
                     
+                    // console.log('[QuizPage] 顶部指示器点击购买按钮 - 当前时间:', new Date().toISOString());
                     
                     // 防止重复处理
                     if (quizStatus.isProcessingPayment || quizStatus.showPaymentModal) {
+                      // console.log('[QuizPage] 顶部指示器忽略点击 - isProcessingPayment:', quizStatus.isProcessingPayment, 'showPaymentModal:', quizStatus.showPaymentModal);
                       return;
                     }
                     
@@ -4503,6 +4638,7 @@ function QuizPage(): JSX.Element {
                     
                     
                     // 直接设置状态显示支付模态窗口
+                    // console.log('[QuizPage] 顶部指示器设置showPaymentModal=true');
                     setQuizStatus(prev => ({
                       ...prev,
                       showPaymentModal: true
@@ -4521,9 +4657,11 @@ function QuizPage(): JSX.Element {
                     // 阻止事件冒泡
                     e.stopPropagation();
                     
+                    // console.log('[QuizPage] 顶部指示器点击兑换按钮 - 当前时间:', new Date().toISOString());
                     
                     // 防止重复处理
                     if (quizStatus.isProcessingRedeem || quizStatus.showRedeemCodeModal) {
+                      // console.log('[QuizPage] 顶部指示器忽略点击 - isProcessingRedeem:', quizStatus.isProcessingRedeem, 'showRedeemCodeModal:', quizStatus.showRedeemCodeModal);
                       return;
                     }
                     
@@ -4532,8 +4670,10 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
+                    /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
                     
                     // 直接设置状态显示兑换模态窗口
+                    // console.log('[QuizPage] 顶部指示器设置showRedeemCodeModal=true');
                     setQuizStatus(prev => ({
                       ...prev,
                       showRedeemCodeModal: true
@@ -4556,7 +4696,7 @@ function QuizPage(): JSX.Element {
                 if (confirm('現在の回答進行状況をクリアしますか？これにより、すべての回答記録がリセットされ、サーバーからも削除されます。')) {
                   // 清空本地和服务器的进度数据
                   if (questionSet && user?.id && socket) {
-                    console.log(`[QuizPage] 开始清除进度数据 - 题库ID: ${questionSet.id}`);
+                    // console.log(`[QuizPage] 开始清除进度数据 - 题库ID: ${questionSet.id}`);
                     
                     // 1. 先清除服务器端进度
                     socket.emit('progress:delete', {
@@ -4568,7 +4708,7 @@ function QuizPage(): JSX.Element {
                     const userIdStr = user?.id ? `_${user.id}` : '';
                     const localProgressKey = `quiz_progress${userIdStr}_${questionSet.id}`;
                     
-                    console.log(`[QuizPage] ローカル進捗をクリア - キー: ${localProgressKey}`);
+                    // console.log(`[QuizPage] ローカル進捗をクリア - キー: ${localProgressKey}`);
                     
                     // 清除所有与进度相关的本地存储
                     localStorage.removeItem(localProgressKey);
@@ -4611,9 +4751,12 @@ function QuizPage(): JSX.Element {
                       // 再次确保 selectedOptions 被清空
                       setSelectedOptions([]);
                       
+                      // console.log(`[QuizPage] 進捗データクリア完了 - 全状態リセット済み`);
+                      /* toast.success('進捗データをクリアしました'); */
                     }, 0);
                   } else {
                     console.warn('[QuizPage] 清除进度失败：缺少必要的参数');
+                    /* toast.error('進捗のクリアに失敗しました'); */
                   }
                 }
               }}
@@ -4641,6 +4784,44 @@ function QuizPage(): JSX.Element {
           </div>
         </div>
         
+        {/* 自動遷移トグルボタン - モバイル最適化 */}
+        <div className="bg-white rounded-xl shadow-md p-4 mb-4">
+          <button
+            onClick={() => {
+              setQuizStatus(prev => ({
+                ...prev,
+                autoAdvanceOnCorrect: !prev.autoAdvanceOnCorrect
+              }));
+            }}
+            className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center">
+              <svg 
+                className={`w-5 h-5 mr-2 transition-colors ${quizStatus.autoAdvanceOnCorrect ? 'text-green-600' : 'text-gray-400'}`} 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              <span className="text-sm sm:text-base font-medium text-gray-700">
+                正解時に自動的に次へ進む
+              </span>
+            </div>
+            <div 
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                quizStatus.autoAdvanceOnCorrect ? 'bg-green-600' : 'bg-gray-300'
+              }`}
+            >
+              <span 
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  quizStatus.autoAdvanceOnCorrect ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </div>
+          </button>
+        </div>
+        
         {/* 题目卡片 */}
         {questions.length > 0 && currentQuestionIndex < questions.length && (
           <QuestionCard
@@ -4651,13 +4832,14 @@ function QuizPage(): JSX.Element {
             onNext={handleNextQuestion}
             onJumpToQuestion={handleJumpToQuestion}
             isPaid={questionSet?.isPaid}
-            hasFullAccess={quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed} // 使用实际访问权限状态
+            hasFullAccess={quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed} // 使用实际访问权限状態
             questionSetId={questionSetId || ''}
             isLast={currentQuestionIndex === questions.length - 1}
             trialQuestions={questionSet?.trialQuestions}
             isSubmittingAnswer={false}
-            trialLimitReached={isTrialLimitReached()} // 使用实际的试用限制状态
-            userAnsweredQuestion={answeredQuestions.find(a => a.questionIndex === currentQuestionIndex)} // 传递当前题目的已答状态
+            trialLimitReached={isTrialLimitReached()} // 使用实际的试用限制状態
+            userAnsweredQuestion={answeredQuestions.find(a => a.questionIndex === currentQuestionIndex)} // 传递当前题目的已答状態
+            autoAdvanceOnCorrect={quizStatus.autoAdvanceOnCorrect} // 正解時の自動遷移設定を渡す
           />
         )}
         
@@ -4688,7 +4870,7 @@ function QuizPage(): JSX.Element {
     // 如果没有题库，不做任何处理
     if (!questionSet) return;
     
-    console.log(`[QuizPage] 试用限制状态检查 - 已答题:${answeredQuestions.length}, 限制:${questionSet.trialQuestions}, 已达限制:${isTrialLimitReached()}`);
+    // console.log(`[QuizPage] 试用限制状态检查 - 已答题:${answeredQuestions.length}, 限制:${questionSet.trialQuestions}, 已达限制:${isTrialLimitReached()}`);
     
     // 如果是免费题库，永远不显示购买页面
     if (!isPaidQuiz(questionSet)) {
@@ -4712,8 +4894,10 @@ function QuizPage(): JSX.Element {
       // **** 修改：只有当没有其他模态窗口处于活跃状态时才显示购买页面 ****
       if (quizStatus.trialEnded && !quizStatus.showPurchasePage 
           && !quizStatus.showPaymentModal && !quizStatus.showRedeemCodeModal) {
+        // console.log('[QuizPage Trial Effect] 试用已结束且没有其他模态窗口活跃，显示购买页面');
         setQuizStatus({ ...quizStatus, showPurchasePage: true });
       } else if (quizStatus.trialEnded && !quizStatus.showPurchasePage) {
+        // console.log('[QuizPage Trial Effect] 试用已结束，但已有其他模态窗口活跃或即将打开');
       }
     } else {
       // 未达到限制时，确保状态正确
@@ -4721,6 +4905,7 @@ function QuizPage(): JSX.Element {
       
       // 仅当没有其他模态窗口活跃时，隐藏购买页面
       if (quizStatus.showPurchasePage && !quizStatus.showPaymentModal && !quizStatus.showRedeemCodeModal) {
+        // console.log('[QuizPage Trial Effect] 未达到试用限制，隐藏购买页面');
         setQuizStatus({ ...quizStatus, showPurchasePage: false });
       }
     }
@@ -4748,6 +4933,7 @@ function QuizPage(): JSX.Element {
       
       try {
         // 显示处理提示
+        /* toast.info("正在尝试直接购买流程，绕过isPaid验证...", { autoClose: 2000 }); */
         
         // 1. 尝试强制购买API
         try {
@@ -4767,6 +4953,9 @@ function QuizPage(): JSX.Element {
           );
           
           if (response.data && response.data.success) {
+            /* toast.success('直接购买成功！正在更新访问权限...', {
+              autoClose: 2000
+            }); */
             
             // 保存到localStorage
             saveAccessToLocalStorage(questionSetId, true);
@@ -4796,6 +4985,7 @@ function QuizPage(): JSX.Element {
         }
         
         // 2. 如果API失败，使用本地模拟购买成功
+        // console.log('[DirectPurchase] 尝试本地模拟购买成功');
         
         // 保存到localStorage
         saveAccessToLocalStorage(questionSetId, true);
@@ -4811,6 +5001,9 @@ function QuizPage(): JSX.Element {
           })
         );
         
+        /* toast.success('已在本地模拟购买成功，正在刷新页面...', {
+          autoClose: 2000
+        }); */
         
         // 刷新页面以应用新状态
         setTimeout(() => {
@@ -4818,6 +5011,7 @@ function QuizPage(): JSX.Element {
         }, 2000);
       } catch (error) {
         console.error('[DirectPurchase] 直接购买错误:', error);
+        /* toast.error('直接購入に失敗しました。ページを更新して再試行してください'); */
       } finally {
         setIsLoading(false);
       }
@@ -4866,8 +5060,6 @@ function QuizPage(): JSX.Element {
         keywords={`${questionSet?.name || 'IT資格'},問題集,過去問,試験対策,無料,オンライン学習`}
         noindex={!questionSet?.id}
       />
-      {/* 添加StyleInjector组件 */}
-      <StyleInjector />
       
       {/* 调試工具区域 */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
@@ -4878,6 +5070,7 @@ function QuizPage(): JSX.Element {
               const current = localStorage.getItem('admin_access_override');
               const newValue = current === 'true' ? 'false' : 'true';
               localStorage.setItem('admin_access_override', newValue);
+              /* toast.success(`管理员覆盖: ${newValue === 'true' ? '启用' : '禁用'}`); */
               // 强制重新检查权限
               window.location.reload();
             }}
@@ -4903,6 +5096,8 @@ function QuizPage(): JSX.Element {
           trialCount={answeredQuestions.length}
           isProcessing={quizStatus.isProcessingPayment || quizStatus.isProcessingRedeem}
           onPurchase={() => {
+            // console.log('[QuizPage] 从PurchasePage点击购买按钮 - 时间:', new Date().toISOString());
+            /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,
@@ -4910,6 +5105,8 @@ function QuizPage(): JSX.Element {
               }));
           }}
           onRedeem={() => {
+            // console.log('[QuizPage] 从PurchasePage点击兑换按钮 - 时间:', new Date().toISOString());
+            /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,
@@ -4917,6 +5114,7 @@ function QuizPage(): JSX.Element {
               }));
           }}
           onBack={() => {
+            // console.log('[QuizPage] 从PurchasePage点击返回按钮');
             // 首先更新状态，然后再导航
             setQuizStatus(prev => ({
               ...prev,
@@ -4952,6 +5150,7 @@ function QuizPage(): JSX.Element {
             price: typeof questionSet.price === 'number' ? questionSet.price : parseFloat(String(questionSet.price || 0))
           }}
           onClose={() => {
+            // console.log('[QuizPage] 关闭支付模态窗口');
             setQuizStatus(prev => ({
               ...prev,
               showPaymentModal: false,
@@ -4960,6 +5159,7 @@ function QuizPage(): JSX.Element {
             }));
           }}
           onSuccess={(data) => {
+            // console.log('[QuizPage] 支付成功，触发自定义事件', data);
             // 关闭支付模态窗口
             setQuizStatus(prev => ({
               ...prev,
@@ -4976,6 +5176,7 @@ function QuizPage(): JSX.Element {
             );
             
             // 显示成功提示
+            /* toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 }); */
           }}
         />
       )}
@@ -4985,6 +5186,7 @@ function QuizPage(): JSX.Element {
         <RedeemCodeModal
           questionSet={questionSet}
           onClose={() => {
+            // console.log('[QuizPage] 关闭兑换码模态窗口');
             setQuizStatus(prev => ({
               ...prev,
               showRedeemCodeModal: false,
@@ -4993,6 +5195,7 @@ function QuizPage(): JSX.Element {
             }));
           }}
           onRedeemSuccess={() => {
+            // console.log('[QuizPage] 兑换成功，更新状态');
             // 关闭兑换模态窗口
             setQuizStatus(prev => ({
               ...prev,
@@ -5010,6 +5213,7 @@ function QuizPage(): JSX.Element {
             document.dispatchEvent(customEvent);
             
             // 显示成功提示
+            /* toast.success('兑换成功！现在可以查看完整题库', { autoClose: 3000 }); */
           }}
         />
       )}
