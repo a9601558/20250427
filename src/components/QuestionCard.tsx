@@ -142,8 +142,12 @@ const QuestionCard = ({
       // 单选题: 直接设置为当前选择
       setSelectedOptions([optionId]);
       
-      // 单选题自动提交答案，增强用户体验 (可选功能)
-      // handleSubmit();
+      // 单选题点击后立即判断答案
+      setTimeout(() => {
+        // 使用 setTimeout 确保状态更新后再提交
+        const tempSelectedOptions = [optionId];
+        submitAnswerImmediately(tempSelectedOptions);
+      }, 100);
     } else {
       // 多选题: 切换选中状态
       if (selectedOptions.includes(optionId)) {
@@ -152,6 +156,96 @@ const QuestionCard = ({
         setSelectedOptions([...selectedOptions, optionId]);
       }
     }
+  };
+  
+  // 立即提交答案（用于点击选项后自动判断）
+  const submitAnswerImmediately = (optionsToSubmit: string[]) => {
+    // 防止重复提交
+    if (isSubmitting || isSubmitted) {
+      return;
+    }
+    
+    // 设置提交中状态
+    setIsSubmitting(true);
+    
+    try {
+      // 判断答案是否正确
+      const isCorrect = question.questionType === 'single' 
+        ? optionsToSubmit[0] === question.options.find(opt => opt.isCorrect)?.id
+        : checkIsCorrect();
+      
+      // 更新UI状态
+      setIsSubmitted(true);
+      setShowExplanation(true);
+      
+      // 设置提交结果，用于显示动画和反馈
+      setSubmissionResult({
+        isCorrect,
+        isShowing: true,
+        timestamp: Date.now()
+      });
+      
+      // 本地存储答题记录
+      const storageKey = `quiz_answer_${questionSetId}_${question.id}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        selectedOptions: optionsToSubmit,
+        isCorrect,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // 调用父组件回调，传递结果
+      if (onAnswerSubmitted) {
+        if (question.questionType === 'single') {
+          onAnswerSubmitted(isCorrect, optionsToSubmit[0]);
+        } else {
+          onAnswerSubmitted(isCorrect, optionsToSubmit);
+        }
+      }
+      
+      // 如果答错，记录错题
+      if (!isCorrect) {
+        saveWrongAnswerWithOptions(optionsToSubmit);
+      }
+      
+      // 延迟隐藏提交结果
+      setTimeout(() => {
+        setSubmissionResult(prev => ({
+          ...prev,
+          isShowing: false
+        }));
+      }, 2500);
+    } catch (error) {
+      console.error('[QuestionCard] 提交答案出错:', error);
+    } finally {
+      // 延迟释放提交锁，防止重复点击
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 500);
+    }
+  };
+  
+  // 保存错题（带自定义选项参数）
+  const saveWrongAnswerWithOptions = (customSelectedOptions: string[]) => {
+    const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
+      detail: {
+        questionId: question.id,
+        questionSetId: questionSetId,
+        question: question.question || question.text,
+        questionType: question.questionType,
+        options: question.options,
+        selectedOption: question.questionType === 'single' ? customSelectedOptions[0] : undefined,
+        selectedOptions: question.questionType === 'multiple' ? customSelectedOptions : undefined,
+        correctOption: question.questionType === 'single' 
+          ? question.options.find(opt => opt.isCorrect)?.id 
+          : undefined,
+        correctOptions: question.questionType === 'multiple'
+          ? question.options.filter(opt => opt.isCorrect).map(opt => opt.id)
+          : undefined,
+        explanation: question.explanation
+      }
+    });
+    
+    window.dispatchEvent(wrongAnswerEvent);
   };
 
   // 处理下一题
@@ -509,40 +603,55 @@ const QuestionCard = ({
       
       {/* 答题/下一题按钮 - モバイル最適化 */}
       <div className="mt-6">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmitting}
-          className={`w-full min-h-[48px] px-5 py-3.5 rounded-lg text-white text-base font-medium flex items-center justify-center transition-all ${
-            (selectedOptions.length === 0 && !isSubmitted) || isSubmitting
-              ? 'bg-gray-400 cursor-not-allowed'
-              : isSubmitted
-                ? 'bg-green-600 hover:bg-green-700 active:bg-green-800'
-                : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-          }`}
-        >
-          {isSubmitting && (
-            <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        {/* 单选题：点击选项后自动判断，只显示"下一题"按钮 */}
+        {question.questionType === 'single' && isSubmitted ? (
+          <button
+            type="button"
+            onClick={handleNext}
+            className="w-full min-h-[48px] px-5 py-3.5 rounded-lg text-white text-base font-medium flex items-center justify-center transition-all bg-green-600 hover:bg-green-700 active:bg-green-800"
+          >
+            <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-          )}
-          {isSubmitted ? (
-            <>
-              <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            {questionNumber >= totalQuestions ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
+          </button>
+        ) : question.questionType === 'multiple' ? (
+          /* 多选题：保留"送信"按钮 */
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={(selectedOptions.length === 0 && !isSubmitted) || isSubmitting}
+            className={`w-full min-h-[48px] px-5 py-3.5 rounded-lg text-white text-base font-medium flex items-center justify-center transition-all ${
+              (selectedOptions.length === 0 && !isSubmitted) || isSubmitting
+                ? 'bg-gray-400 cursor-not-allowed'
+                : isSubmitted
+                  ? 'bg-green-600 hover:bg-green-700 active:bg-green-800'
+                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+            }`}
+          >
+            {isSubmitting && (
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              {questionNumber >= totalQuestions ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              {MESSAGES.SUBMIT_ANSWER}
-            </>
-          )}
-        </button>
+            )}
+            {isSubmitted ? (
+              <>
+                <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                {questionNumber >= totalQuestions ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {MESSAGES.SUBMIT_ANSWER}
+              </>
+            )}
+          </button>
+        ) : null}
       </div>
       
       {/* 题目导航：上下题切换区域 */}
