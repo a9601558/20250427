@@ -538,6 +538,8 @@ const QuestionCard = ({
               : 'bg-purple-100 text-purple-800'
           }`}>
             {question.questionType === 'single' ? '単一選択' : '複数選択'}
+            {/* 调试信息 */}
+            <span className="ml-2 text-xs">({question.questionType})</span>
           </div>
         </div>
         
