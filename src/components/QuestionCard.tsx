@@ -76,8 +76,20 @@ const QuestionCard = ({
   // 为键盘导航跟踪当前选项
   const { user } = useUser();
   
-  // 当用户已回答过该問題时，加载已选答案
+  // 当题目改变时，重置所有状态（关键：防止状态污染）
   useEffect(() => {
+    // 重置所有状态
+    setSelectedOptions([]);
+    setIsSubmitted(false);
+    setShowExplanation(false);
+    setIsSubmitting(false);
+    setSubmissionResult({
+      isCorrect: false,
+      isShowing: false,
+      timestamp: 0
+    });
+    
+    // 如果用户已回答过该题目，加载已选答案
     if (userAnsweredQuestion) {
       setIsSubmitted(true);
       
@@ -90,7 +102,7 @@ const QuestionCard = ({
       
       setShowExplanation(true);
     }
-  }, [userAnsweredQuestion]);
+  }, [question.id, userAnsweredQuestion]);
 
   // 清除本地数据
   useEffect(() => {
@@ -546,7 +558,9 @@ const QuestionCard = ({
         {question.options.map((option, index) => (
           <div
             key={option.id}
-            className={`min-h-[44px] p-4 border rounded-lg cursor-pointer transition-colors ${getOptionClass(option)}`}
+            className={`min-h-[44px] p-4 border rounded-lg transition-colors ${
+              isSubmitted || isSubmitting ? 'cursor-default' : 'cursor-pointer'
+            } ${getOptionClass(option)}`}
             onClick={() => handleOptionClick(option.id)}
             role="button"
             tabIndex={0}
