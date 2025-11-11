@@ -6,10 +6,8 @@ interface QuestionCardProps {
   question: Question;
   onAnswerSubmitted?: (isCorrect: boolean, selectedOption: string | string[]) => void;
   onNext?: () => void;
-  isSubmittingAnswer?: boolean;
   questionNumber?: number;
   totalQuestions?: number;
-  quizTitle?: string;
   userAnsweredQuestion?: { 
     index: number; 
     isCorrect: boolean; 
@@ -24,18 +22,9 @@ interface QuestionCardProps {
   autoAdvanceOnCorrect?: boolean; // 正解時に自動的に次へ進むかどうか
 }
 
-// 提示语精简：提取为常量，便于后期i18n多语言
+// 提示语常量
 const MESSAGES = {
   SUBMIT_ANSWER: '回答を送信',
-  SELECT_ONE_OPTION: '選択肢を一つ選んでください',
-  SUBMIT_ALL_OPTIONS: 'すべての選択肢を送信',
-  SELECT_AT_LEAST_ONE: '少なくとも一つの選択肢を選んでください',
-  CORRECT_ANSWER: '正解です！',
-  WRONG_ANSWER: '不正解です！',
-  CORRECT_ANSWER_IS: '正解は',
-  SHOW_EXPLANATION: '解説を見る',
-  HIDE_EXPLANATION: '解説を隠す',
-  ANALYSIS: '解説：',
   NEXT_QUESTION: '次の問題',
   COMPLETE_EXERCISE: '練習を完了'
 };
@@ -59,12 +48,9 @@ const QuestionCard = ({
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
-  let timeoutId: NodeJS.Timeout | undefined;
-  
-  // 防止重复提交的ref - 减少使用引用，改为状态，便于用户操作
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // 添加提交结果状态
+  // 提交结果动画状态
   const [submissionResult, setSubmissionResult] = useState<{
     isCorrect: boolean;
     isShowing: boolean;
@@ -75,7 +61,6 @@ const QuestionCard = ({
     timestamp: 0
   });
   
-  // 为键盘导航跟踪当前选项
   const { user } = useUser();
   
   // 当题目改变时，重置所有状态（关键：防止状态污染）
@@ -105,16 +90,6 @@ const QuestionCard = ({
       setShowExplanation(true);
     }
   }, [question.id, userAnsweredQuestion]);
-
-  // 清除本地数据
-  useEffect(() => {
-    return () => {
-      // 组件卸载时清理
-      setSelectedOptions([]);
-      setIsSubmitted(false);
-      setShowExplanation(false);
-    };
-  }, []);
 
   // 判断答案是否正确
   const checkIsCorrect = (): boolean => {
@@ -313,7 +288,6 @@ const QuestionCard = ({
     
     // 检查是否选择了答案
     if (selectedOptions.length === 0) {
-      /* toast.warning(MESSAGES.SELECT_AT_LEAST_ONE); */
       return;
     }
     
@@ -366,7 +340,6 @@ const QuestionCard = ({
       }, 2500);
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
-      /* toast.error('答案の提出中にエラーが発生しました。再試行してください'); */
     } finally {
       // 延迟释放提交锁，防止重复点击
       setTimeout(() => {
@@ -469,15 +442,6 @@ const QuestionCard = ({
 
 
 
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
-
   // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
   const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
     try {
@@ -540,8 +504,6 @@ const QuestionCard = ({
               : 'bg-purple-100 text-purple-800'
           }`}>
             {question.questionType === 'single' ? '単一選択' : '複数選択'}
-            {/* 调试信息 */}
-            <span className="ml-2 text-xs">({question.questionType})</span>
           </div>
         </div>
         
