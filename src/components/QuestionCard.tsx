@@ -221,7 +221,7 @@ const QuestionCard = ({
         saveWrongAnswerWithOptions(optionsToSubmit);
       }
       
-      // 单选题：如果答对且开启了自动进入下一题，2秒后自动进入下一题
+      // 单选题：如果答对且开启了自动进入下一题，1秒后自动进入下一题
       if (question.questionType === 'single' && isCorrect && autoAdvanceOnCorrect) {
         setTimeout(() => {
           setSubmissionResult(prev => ({
@@ -230,7 +230,7 @@ const QuestionCard = ({
           }));
           // 自动进入下一题
           handleNext();
-        }, 2000);
+        }, 1000);
       } else {
         // 答错、多选题或未开启自动进入：正常显示结果动画
         setTimeout(() => {
