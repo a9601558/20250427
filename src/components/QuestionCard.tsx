@@ -21,6 +21,7 @@ interface QuestionCardProps {
   trialQuestions?: number;
   questionSetId: string;
   trialLimitReached?: boolean;
+  autoAdvanceOnCorrect?: boolean; // 正解時に自動的に次へ進むかどうか
 }
 
 // 提示语精简：提取为常量，便于后期i18n多语言
@@ -51,7 +52,8 @@ const QuestionCard = ({
   hasFullAccess = false,
   trialQuestions = 0,
   questionSetId,
-  trialLimitReached = false
+  trialLimitReached = false,
+  autoAdvanceOnCorrect = false // 默认关闭自动进入下一题
 }: QuestionCardProps) => {
   // 状态管理
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -219,8 +221,8 @@ const QuestionCard = ({
         saveWrongAnswerWithOptions(optionsToSubmit);
       }
       
-      // 单选题：如果答对，2秒后自动进入下一题
-      if (question.questionType === 'single' && isCorrect) {
+      // 单选题：如果答对且开启了自动进入下一题，2秒后自动进入下一题
+      if (question.questionType === 'single' && isCorrect && autoAdvanceOnCorrect) {
         setTimeout(() => {
           setSubmissionResult(prev => ({
             ...prev,
@@ -230,7 +232,7 @@ const QuestionCard = ({
           handleNext();
         }, 2000);
       } else {
-        // 答错或多选题：正常显示结果动画
+        // 答错、多选题或未开启自动进入：正常显示结果动画
         setTimeout(() => {
           setSubmissionResult(prev => ({
             ...prev,
