@@ -33,6 +33,9 @@ import { API_BASE_URL } from '../services/api';
 // 导入paymentUtils中的函数
 import { isPaidQuiz, validatePaidQuizStatus } from '../utils/paymentUtils';
 
+// 导入智能刷新功能
+import { resetActivityTime } from '../utils/autoRefresh';
+
 // 定义答题记录类型
 interface AnsweredQuestion {
   index: number;
@@ -1785,6 +1788,29 @@ function QuizPage(): JSX.Element {
       setQuestionStartTime(Date.now());
     }
   }, [currentQuestionIndex, answeredQuestions, questions.length]);
+
+  // 追踪答题活动，防止页面在答题时自动刷新
+  useEffect(() => {
+    // 答题时重置活动时间
+    const handleQuizActivity = () => {
+      resetActivityTime();
+    };
+    
+    // 监听答题相关事件
+    window.addEventListener('click', handleQuizActivity);
+    window.addEventListener('touchstart', handleQuizActivity);
+    window.addEventListener('keydown', handleQuizActivity);
+    
+    // 每次切换题目时也重置活动时间
+    resetActivityTime();
+    console.log('[QuizPage] 答题活动追踪已启动，防止答题期间页面刷新');
+    
+    return () => {
+      window.removeEventListener('click', handleQuizActivity);
+      window.removeEventListener('touchstart', handleQuizActivity);
+      window.removeEventListener('keydown', handleQuizActivity);
+    };
+  }, [currentQuestionIndex]);
 
   // 添加支付检查effect，确保支付完成后不再显示支付弹窗
   useEffect(() => {
