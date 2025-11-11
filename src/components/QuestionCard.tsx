@@ -94,26 +94,20 @@ const QuestionCard = ({
   // 判断答案是否正确
   const checkIsCorrect = (): boolean => {
     if (question.questionType === 'single') {
-      // 单选题: 检查选择的答案是否正确
       const correctOption = question.options.find(opt => opt.isCorrect);
       return selectedOptions[0] === correctOption?.id;
     } else {
-      // 多选题: 检查是否所有正确答案都选中，且没有选错
+      // 多选题：检查所有正确答案都选中且没有选错
       const correctOptionIds = question.options
         .filter(opt => opt.isCorrect)
         .map(opt => opt.id);
       
-      // 检查所有正确答案是否都被选中
       const allCorrectSelected = correctOptionIds.every(id => 
         selectedOptions.includes(id)
       );
-      
-      // 检查是否有选择错误的答案
       const noIncorrectSelected = selectedOptions.every(id => 
         correctOptionIds.includes(id)
       );
-      
-      // 检查选择数量是否一致
       const countMatch = correctOptionIds.length === selectedOptions.length;
       
       return allCorrectSelected && noIncorrectSelected && countMatch;
@@ -122,23 +116,18 @@ const QuestionCard = ({
 
   // 处理选项点击
   const handleOptionClick = (optionId: string) => {
-    // 如果已提交答案，不允许更改选择
     if (isSubmitted || isSubmitting) {
       return;
     }
     
     if (question.questionType === 'single') {
-      // 单选题: 直接设置为当前选择
       setSelectedOptions([optionId]);
-      
-      // 单选题点击后立即判断答案
+      // 单选题立即提交
       setTimeout(() => {
-        // 使用 setTimeout 确保状态更新后再提交
-        const tempSelectedOptions = [optionId];
-        submitAnswerImmediately(tempSelectedOptions);
+        submitAnswerImmediately([optionId]);
       }, 100);
     } else {
-      // 多选题: 切换选中状态
+      // 多选题切换选中状态
       if (selectedOptions.includes(optionId)) {
         setSelectedOptions(selectedOptions.filter(id => id !== optionId));
       } else {
@@ -147,27 +136,21 @@ const QuestionCard = ({
     }
   };
   
-  // 立即提交答案（用于点击选项后自动判断）
+  // 立即提交答案
   const submitAnswerImmediately = (optionsToSubmit: string[]) => {
-    // 防止重复提交
-    if (isSubmitting || isSubmitted) {
-      return;
-    }
+    if (isSubmitting || isSubmitted) return;
     
-    // 设置提交中状态
     setIsSubmitting(true);
     
     try {
-      // 判断答案是否正确
       const isCorrect = question.questionType === 'single' 
         ? optionsToSubmit[0] === question.options.find(opt => opt.isCorrect)?.id
         : checkIsCorrect();
       
-      // 更新UI状态
       setIsSubmitted(true);
       setShowExplanation(true);
       
-      // 设置提交结果，用于显示动画和反馈
+      // 显示动画反馈
       setSubmissionResult({
         isCorrect,
         isShowing: true,
@@ -193,40 +176,32 @@ const QuestionCard = ({
       
       // 如果答错，记录错题
       if (!isCorrect) {
-        saveWrongAnswerWithOptions(optionsToSubmit);
+        saveWrongAnswer(optionsToSubmit);
       }
       
-      // 单选题：如果答对且开启了自动进入下一题，1秒后自动进入下一题
+      // 单选题答对且开启自动进入：1秒后自动跳转
       if (question.questionType === 'single' && isCorrect && autoAdvanceOnCorrect) {
         setTimeout(() => {
-          setSubmissionResult(prev => ({
-            ...prev,
-            isShowing: false
-          }));
-          // 自动进入下一题
+          setSubmissionResult(prev => ({ ...prev, isShowing: false }));
           handleNext();
         }, 1000);
       } else {
-        // 答错、多选题或未开启自动进入：正常显示结果动画
+        // 其他情况：显示结果动画
         setTimeout(() => {
-          setSubmissionResult(prev => ({
-            ...prev,
-            isShowing: false
-          }));
+          setSubmissionResult(prev => ({ ...prev, isShowing: false }));
         }, 2500);
       }
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
     } finally {
-      // 延迟释放提交锁，防止重复点击
-      setTimeout(() => {
-        setIsSubmitting(false);
-      }, 500);
+      setTimeout(() => setIsSubmitting(false), 500);
     }
   };
   
-  // 保存错题（带自定义选项参数）
-  const saveWrongAnswerWithOptions = (customSelectedOptions: string[]) => {
+  // 保存错题
+  const saveWrongAnswer = (customSelectedOptions?: string[]) => {
+    const optionsToSave = customSelectedOptions || selectedOptions;
+    
     const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
       detail: {
         questionId: question.id,
@@ -234,8 +209,8 @@ const QuestionCard = ({
         question: question.question || question.text,
         questionType: question.questionType,
         options: question.options,
-        selectedOption: question.questionType === 'single' ? customSelectedOptions[0] : undefined,
-        selectedOptions: question.questionType === 'multiple' ? customSelectedOptions : undefined,
+        selectedOption: question.questionType === 'single' ? optionsToSave[0] : undefined,
+        selectedOptions: question.questionType === 'multiple' ? optionsToSave : undefined,
         correctOption: question.questionType === 'single' 
           ? question.options.find(opt => opt.isCorrect)?.id 
           : undefined,
@@ -267,42 +242,29 @@ const QuestionCard = ({
     }
   };
 
-  // 提交答案处理函数 - 简化版本，更加流畅
+  // 提交答案（多选题使用）
   const handleSubmit = (e?: React.MouseEvent<HTMLButtonElement>) => {
-    // 阻止表单提交默认行为
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     
-    // 如果已提交并显示解析，点击"下一题"
     if (isSubmitted && showExplanation) {
       handleNext();
       return;
     }
     
-    // 防止重复提交
-    if (isSubmitting) {
-      return;
-    }
+    if (isSubmitting || selectedOptions.length === 0) return;
     
-    // 检查是否选择了答案
-    if (selectedOptions.length === 0) {
-      return;
-    }
-    
-    // 设置提交中状态
     setIsSubmitting(true);
     
     try {
-      // 判断答案是否正确
       const isCorrect = checkIsCorrect();
       
-      // 更新UI状态
       setIsSubmitted(true);
       setShowExplanation(true);
       
-      // 设置提交结果，用于显示动画和反馈
+      // 显示动画反馈
       setSubmissionResult({
         isCorrect,
         isShowing: true,
@@ -341,90 +303,52 @@ const QuestionCard = ({
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
     } finally {
-      // 延迟释放提交锁，防止重复点击
-      setTimeout(() => {
-        setIsSubmitting(false);
-      }, 500);
+      setTimeout(() => setIsSubmitting(false), 500);
     }
   };
 
-  // 保存错题函数
-  const saveWrongAnswer = () => {
-    const wrongAnswerEvent = new CustomEvent('wrongAnswer:save', {
-      detail: {
-        questionId: question.id,
-        questionSetId: questionSetId,
-        question: question.question || question.text,
-        questionType: question.questionType,
-        options: question.options,
-        selectedOption: question.questionType === 'single' ? selectedOptions[0] : undefined,
-        selectedOptions: question.questionType === 'multiple' ? selectedOptions : undefined,
-        correctOption: question.questionType === 'single' 
-          ? question.options.find(opt => opt.isCorrect)?.id 
-          : undefined,
-        correctOptions: question.questionType === 'multiple'
-          ? question.options.filter(opt => opt.isCorrect).map(opt => opt.id)
-          : undefined,
-        explanation: question.explanation
-      }
-    });
-    
-    window.dispatchEvent(wrongAnswerEvent);
-  };
-
-  // 获取选项样式类
+  // 获取选项样式
   const getOptionClass = (option: any) => {
-    // 试用限制时禁用选项
     if (isPaid && !hasFullAccess && trialLimitReached) {
       return 'border-gray-300 bg-gray-50 opacity-60 pointer-events-none';
     }
     
-    // 未提交答案时的样式
     if (!showExplanation) {
       return selectedOptions.includes(option.id)
         ? 'border-blue-300 bg-blue-50'
         : 'border-gray-300 bg-white hover:bg-gray-50';
     }
     
-    // 已提交后的样式
     if (option.isCorrect) {
-      return 'border-green-500 bg-green-50 text-green-700'; // 正确答案
+      return 'border-green-500 bg-green-50 text-green-700';
     } else if (selectedOptions.includes(option.id)) {
-      return 'border-red-500 bg-red-50 text-red-700'; // 错误答案
+      return 'border-red-500 bg-red-50 text-red-700';
     } else {
-      return 'border-gray-300 bg-gray-50 opacity-60'; // 未选答案
+      return 'border-gray-300 bg-gray-50 opacity-60';
     }
   };
 
-  // Add a useEffect to handle cross-device access synchronization
+  // 跨设备访问权限同步
   useEffect(() => {
     if (!user?.id || !questionSetId) return;
     
     const handleAccessRightsUpdate = (event: Event) => {
       const customEvent = event as CustomEvent;
-      
-      // If the event is for the current user, recheck local access status
       if (customEvent.detail?.userId === user.id) {
-        // Refresh local access status
         const hasLocalAccess = checkLocalRedeemedStatus(questionSetId) || 
                               checkLocalAccessRights(questionSetId);
-                              
         console.log(`[QuestionCard] Access rights updated for ${questionSetId}, local access: ${hasLocalAccess}`);
       }
     };
     
     window.addEventListener('accessRights:updated', handleAccessRightsUpdate);
-    
-    return () => {
-      window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
-    };
+    return () => window.removeEventListener('accessRights:updated', handleAccessRightsUpdate);
   }, [user?.id, questionSetId]);
 
-  // Add event listener for trial ended event
+  // 试用结束事件监听
   useEffect(() => {
     const handleTrialEnded = () => {
       console.log('[QuestionCard] Detected trial ended event');
-      // This helps coordinate with QuizPage to show purchase dialog
       if (isPaid && !hasFullAccess) {
         setIsSubmitted(false);
         setShowExplanation(false);
@@ -438,11 +362,7 @@ const QuestionCard = ({
     };
   }, [isPaid, hasFullAccess]);
 
-
-
-
-
-  // 添加一个函数检查本地存储的兑换状态，确保跨设备兑换信息一致
+  // 检查兑换状态
   const checkLocalRedeemedStatus = (questionSetId: string): boolean => {
     try {
       const redeemedStr = localStorage.getItem('redeemedQuestionSetIds');
@@ -451,19 +371,14 @@ const QuestionCard = ({
       const redeemedIds = JSON.parse(redeemedStr);
       if (!Array.isArray(redeemedIds)) return false;
       
-      // 标准化ID
       const targetId = String(questionSetId).trim();
       
-      // 使用更宽松的匹配逻辑检查兑换记录
       return redeemedIds.some(id => {
         const redeemedId = String(id || '').trim();
-        // 精确匹配
         const exactMatch = redeemedId === targetId;
-        // 部分匹配 - 处理ID可能带前缀或后缀的情况
         const partialMatch = (redeemedId.includes(targetId) || targetId.includes(redeemedId)) 
           && Math.abs(redeemedId.length - targetId.length) <= 3
           && redeemedId.length > 5 && targetId.length > 5;
-          
         return exactMatch || partialMatch;
       });
     } catch (e) {
@@ -472,12 +387,11 @@ const QuestionCard = ({
     }
   };
   
-  // 检查access权限
+  // 检查访问权限
   const checkLocalAccessRights = (questionSetId: string): boolean => {
     try {
       const accessRightsStr = localStorage.getItem('quizAccessRights');
       if (!accessRightsStr) return false;
-      
       const accessRights = JSON.parse(accessRightsStr);
       return !!accessRights[questionSetId];
     } catch (e) {
@@ -485,10 +399,6 @@ const QuestionCard = ({
       return false;
     }
   };
-  
-
-
-
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
