@@ -603,19 +603,21 @@ const QuestionCard = ({
       
       {/* 答题/下一题按钮 - モバイル最適化 */}
       <div className="mt-6">
-        {/* 单选题：点击选项后自动判断，只显示"下一题"按钮 */}
-        {question.questionType === 'single' && isSubmitted ? (
-          <button
-            type="button"
-            onClick={handleNext}
-            className="w-full min-h-[48px] px-5 py-3.5 rounded-lg text-white text-base font-medium flex items-center justify-center transition-all bg-green-600 hover:bg-green-700 active:bg-green-800"
-          >
-            <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-            {questionNumber >= totalQuestions ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
-          </button>
-        ) : question.questionType === 'multiple' ? (
+        {question.questionType === 'single' ? (
+          /* 单选题：只在已提交后显示"下一题"按钮 */
+          isSubmitted ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              className="w-full min-h-[48px] px-5 py-3.5 rounded-lg text-white text-base font-medium flex items-center justify-center transition-all bg-green-600 hover:bg-green-700 active:bg-green-800"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              {questionNumber >= totalQuestions ? MESSAGES.COMPLETE_EXERCISE : MESSAGES.NEXT_QUESTION}
+            </button>
+          ) : null
+        ) : (
           /* 多选题：保留"送信"按钮 */
           <button
             type="button"
@@ -651,7 +653,7 @@ const QuestionCard = ({
               </>
             )}
           </button>
-        ) : null}
+        )}
       </div>
       
       {/* 题目导航：上下题切换区域 */}
