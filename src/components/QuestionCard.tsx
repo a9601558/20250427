@@ -219,13 +219,25 @@ const QuestionCard = ({
         saveWrongAnswerWithOptions(optionsToSubmit);
       }
       
-      // 延迟隐藏提交结果
-      setTimeout(() => {
-        setSubmissionResult(prev => ({
-          ...prev,
-          isShowing: false
-        }));
-      }, 2500);
+      // 单选题：如果答对，2秒后自动进入下一题
+      if (question.questionType === 'single' && isCorrect) {
+        setTimeout(() => {
+          setSubmissionResult(prev => ({
+            ...prev,
+            isShowing: false
+          }));
+          // 自动进入下一题
+          handleNext();
+        }, 2000);
+      } else {
+        // 答错或多选题：正常显示结果动画
+        setTimeout(() => {
+          setSubmissionResult(prev => ({
+            ...prev,
+            isShowing: false
+          }));
+        }, 2500);
+      }
     } catch (error) {
       console.error('[QuestionCard] 提交答案出错:', error);
     } finally {
