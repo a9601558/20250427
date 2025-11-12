@@ -2169,10 +2169,13 @@ function QuizPage(): JSX.Element {
     
     // 免费题库直接授权
     if (!isPaidQuiz(questionSet)) {
-      setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
+      setQuizStatus(prev => ({
+        ...prev,
+        hasAccessToFullQuiz: true,
+        trialEnded: false,
+        showPurchasePage: false
+      }));
       saveAccessToLocalStorage(questionSet.id, true);
-      setQuizStatus({ ...quizStatus, trialEnded: false });
-      setQuizStatus({ ...quizStatus, showPurchasePage: false });
       return;
     }
     
@@ -2227,9 +2230,12 @@ function QuizPage(): JSX.Element {
     
     // 确保页面加载时不会显示购买弹窗
     if (questionSet && !isPaidQuiz(questionSet)) {
-      setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-      setQuizStatus({ ...quizStatus, trialEnded: false });
-      setQuizStatus({ ...quizStatus, showPurchasePage: false });
+      setQuizStatus(prev => ({
+        ...prev,
+        hasAccessToFullQuiz: true,
+        trialEnded: false,
+        showPurchasePage: false
+      }));
       saveAccessToLocalStorage(questionSet.id, true);
     }
     
@@ -2302,8 +2308,7 @@ function QuizPage(): JSX.Element {
     // 保持原始ID格式，不更新URL
     
     const fetchQuestionSet = async () => {
-      setQuizStatus({ ...quizStatus, loading: true });
-      setQuizStatus({ ...quizStatus, error: null });
+      setQuizStatus(prev => ({ ...prev, loading: true, error: null }));
       
       try {
         // 解析URL参数
@@ -2445,9 +2450,12 @@ function QuizPage(): JSX.Element {
           
           // 免费题库直接授予访问权限，不显示购买页面
           if (!finalIsPaid) {
-            setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-            setQuizStatus({ ...quizStatus, trialEnded: false });
-            setQuizStatus({ ...quizStatus, showPurchasePage: false });
+            setQuizStatus(prev => ({
+              ...prev,
+              hasAccessToFullQuiz: true,
+              trialEnded: false,
+              showPurchasePage: false
+            }));
             saveAccessToLocalStorage(questionSetData.id, true);
           }
           
@@ -2456,12 +2464,14 @@ function QuizPage(): JSX.Element {
             
             // 设置试用模式状态，但不触发购买提示
             if (finalIsPaid) {
-              setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
-              setQuizStatus({ ...quizStatus, hasRedeemed: false });
-              // 重要：确保刚进入时不会显示试用结束状态
-              setQuizStatus({ ...quizStatus, trialEnded: false });
-              setQuizStatus({ ...quizStatus, showPaymentModal: false }); 
-              setQuizStatus({ ...quizStatus, showPurchasePage: false }); // 确保不立即显示购买页面
+              setQuizStatus(prev => ({
+                ...prev,
+                hasAccessToFullQuiz: false,
+                hasRedeemed: false,
+                trialEnded: false,
+                showPaymentModal: false,
+                showPurchasePage: false
+              }));
               
               // 更新文档标题
               document.title = `${questionSetData.title} (试用模式) - 答题系统`;
@@ -2557,11 +2567,12 @@ function QuizPage(): JSX.Element {
               
               // 确保购买和兑换按钮在试用模式下可用
               if (questionSetData.isPaid) {
-                // 根据URL参数设置状态以确保试用功能正常
-                setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
-                setQuizStatus({ ...quizStatus, hasRedeemed: false });
-                // 清除试用结束状态，允许用户开始试用
-                setQuizStatus({ ...quizStatus, trialEnded: false });
+                setQuizStatus(prev => ({
+                  ...prev,
+                  hasAccessToFullQuiz: false,
+                  hasRedeemed: false,
+                  trialEnded: false
+                }));
               }
             }
             
