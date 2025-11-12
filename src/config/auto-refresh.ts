@@ -13,6 +13,9 @@ let lastActivityTime = Date.now();
 // 刷新定时器
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+// 答题活动追踪
+let isQuizActive = false;
+
 /**
  * 初始化页面自动刷新功能
  * @param customInterval 可选的自定义刷新间隔（毫秒）
@@ -38,6 +41,16 @@ export const initAutoRefresh = (customInterval?: number): void => {
     const now = Date.now();
     const timeSinceLastActivity = now - lastActivityTime;
     
+    // 🔒 答题保护：如果正在答题，绝不刷新
+    if (isQuizActive) {
+      console.log('用户活跃中，答题保护已启用，跳过刷新检查');
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      refreshTimer = setTimeout(checkAndRefresh, 60000);
+      return;
+    }
+    
     if (timeSinceLastActivity >= interval) {
       console.log(`页面已无活动 ${timeSinceLastActivity/1000} 秒，准备刷新`);
       // 页面刷新前执行一些清理工作
@@ -47,7 +60,8 @@ export const initAutoRefresh = (customInterval?: number): void => {
       window.location.reload();
     } else {
       // 尚未达到刷新条件，继续检查
-      console.log(`页面活动检测: 上次活动距今 ${Math.round(timeSinceLastActivity/1000)} 秒，${Math.round((interval - timeSinceLastActivity)/1000)} 秒后可能刷新`);
+      const secondsUntilRefresh = Math.round((interval - timeSinceLastActivity)/1000);
+      console.log(`用户活跃中，${secondsUntilRefresh} 秒后再次检查`);
       
       // 再次设置定时器
       if (refreshTimer) {
@@ -82,7 +96,36 @@ export const stopAutoRefresh = (): void => {
   console.log('自动刷新功能已停止');
 };
 
+/**
+ * 标记答题活动开始（防止答题期间刷新页面）
+ */
+export const trackQuizActivity = (): void => {
+  isQuizActive = true;
+  lastActivityTime = Date.now(); // 重置活动时间
+  console.log('[AutoRefresh] 答题活动追踪已启动，防止答题期间页面刷新');
+};
+
+/**
+ * 标记答题活动结束
+ */
+export const stopQuizActivity = (): void => {
+  isQuizActive = false;
+  lastActivityTime = Date.now(); // 重置活动时间
+  console.log('[AutoRefresh] 答题活动已结束，恢复正常刷新检查');
+};
+
+/**
+ * 手动重置活动时间（用于关键操作）
+ */
+export const resetActivityTime = (): void => {
+  lastActivityTime = Date.now();
+  console.log('[AutoRefresh] 活动时间已手动重置');
+};
+
 export default {
   initAutoRefresh,
-  stopAutoRefresh
+  stopAutoRefresh,
+  trackQuizActivity,
+  stopQuizActivity,
+  resetActivityTime
 }; 

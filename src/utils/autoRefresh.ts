@@ -10,6 +10,7 @@
 let lastActivityTime = Date.now();
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 let activityListeners: Array<() => void> = [];
+let isQuizActive = false; // 答题保护标志
 
 // 更新最后活动时间
 const updateActivity = () => {
@@ -21,6 +22,13 @@ const updateActivity = () => {
 const checkAndRefresh = (maxInactiveTime: number) => {
   const now = Date.now();
   const timeSinceLastActivity = now - lastActivityTime;
+  
+  // 🔒 答题保护：如果正在答题，跳过刷新
+  if (isQuizActive) {
+    console.log('[AutoRefresh] 答题保护启用中，跳过刷新检查');
+    refreshTimer = setTimeout(() => checkAndRefresh(maxInactiveTime), 60000);
+    return;
+  }
   
   if (timeSinceLastActivity >= maxInactiveTime) {
     console.log(`[AutoRefresh] 用户已无活动 ${Math.round(timeSinceLastActivity / 1000)} 秒，执行刷新`);
@@ -81,4 +89,22 @@ export const stopAutoRefresh = () => {
 export const resetActivityTime = () => {
   lastActivityTime = Date.now();
   console.log('[AutoRefresh] 活动时间已手动重置');
+};
+
+/**
+ * 启动答题保护（防止答题期间刷新页面）
+ */
+export const trackQuizActivity = () => {
+  isQuizActive = true;
+  lastActivityTime = Date.now();
+  console.log('[AutoRefresh] 答题活动追踪已启动，防止答题期间页面刷新');
+};
+
+/**
+ * 停止答题保护
+ */
+export const stopQuizActivity = () => {
+  isQuizActive = false;
+  lastActivityTime = Date.now();
+  console.log('[AutoRefresh] 答题活动已结束，恢复正常刷新检查');
 };

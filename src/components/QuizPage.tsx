@@ -30,6 +30,7 @@ import {
 import { API_BASE_URL } from '../services/api';
 import { isPaidQuiz, validatePaidQuizStatus } from '../utils/paymentUtils';
 import { resetActivityTime } from '../utils/autoRefresh';
+import { trackQuizActivity, stopQuizActivity } from '../utils/autoRefresh';
 
 interface AnsweredQuestion {
   index: number;
@@ -1690,6 +1691,10 @@ function QuizPage(): JSX.Element {
 
   // 追踪答题活动，防止页面在答题时自动刷新
   useEffect(() => {
+    // 🔒 启动答题保护
+    trackQuizActivity();
+    console.log('[QuizPage] 答题活动追踪已启动，防止答题期间页面刷新');
+    
     // 答题时重置活动时间
     const handleQuizActivity = () => {
       resetActivityTime();
@@ -1704,6 +1709,10 @@ function QuizPage(): JSX.Element {
     resetActivityTime();
     
     return () => {
+      // 🔓 离开答题页面时停止保护
+      stopQuizActivity();
+      console.log('[QuizPage] 答题活动追踪已停止');
+      
       window.removeEventListener('click', handleQuizActivity);
       window.removeEventListener('touchstart', handleQuizActivity);
       window.removeEventListener('keydown', handleQuizActivity);
