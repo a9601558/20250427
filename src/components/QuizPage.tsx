@@ -1226,8 +1226,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
           // Save access rights and payment completion status
           saveAccessToLocalStorage(normalizedId, true);
           
-          /* toast.success('已在本地记录购买成功，页面将在5秒后刷新', { autoClose: 4000 }); */
-          
           // 触发购买成功事件
           window.dispatchEvent(
             new CustomEvent('purchase:success', {
@@ -1260,7 +1258,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     } catch (error) {
       console.error('[PaymentModal] 处理购买请求时发生异常:', error);
       setError("购买请求处理失败，请稍后再试");
-      /* toast.error("購入リクエストの処理に失敗しました"); */
     } finally {
       setIsProcessing(false);
       setBtnClicked(false);
@@ -1725,9 +1722,6 @@ function QuizPage(): JSX.Element {
         }));
         
         // Show a notification
-        /* toast.info('この問題集の支払いは既に完了しています', {
-          autoClose: 2000
-        }); */
       }
     }
   }, [questionSet, quizStatus.showPaymentModal]);
@@ -2414,7 +2408,6 @@ function QuizPage(): JSX.Element {
                   questionSetData.isPaid = true;
                   
                   // 显示警告
-                  /* toast.warning('检测到题库数据不一致，已自动修复', { autoClose: 3000 }); */
                 }
               }
             } catch (directApiError) {
@@ -2581,10 +2574,6 @@ function QuizPage(): JSX.Element {
             
             // 如果是试用模式，显示提示
             if (isExplicitTrialMode) {
-              /* toast.info(`您正在试用模式下答题，可以答${determinedTrialCount}問`, {
-                autoClose: 5000,
-                icon: '🔍'
-              }); */
               
               // 确保购买和兑换按钮在试用模式下可用
               if (questionSetData.isPaid) {
@@ -2879,10 +2868,6 @@ function QuizPage(): JSX.Element {
         localStorage.removeItem(localProgressKey);
         
         // 通知用户
-        /* toast.info('题库进度已被重置', {
-          position: 'top-center',
-          autoClose: 3000
-        }); */
       }
     };
 
@@ -2920,10 +2905,6 @@ function QuizPage(): JSX.Element {
       saveAccessToLocalStorage(questionSet.id, true);
       
       // 显示成功消息
-      /* toast.success('アクセス権限が有効になりました！', {
-        position: 'top-center',
-        autoClose: 2000
-      }); */
     }
   }, [user?.purchases, questionSet, checkFullAccessFromAllSources]);
   
@@ -2931,7 +2912,6 @@ function QuizPage(): JSX.Element {
   const handleOptionSelect = (optionId: string) => {
     // 如果试用已结束且没有购买，不允许继续答题
     if (quizStatus.trialEnded && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed) {
-      /* toast.warning('お試し期間が終了しました。フルバージョン購入またはクーポンコードで継続してください'); */
       
       // 检查是否已完成支付，避免重复显示支付窗口
       const normalizedId = String(questionSet?.id || '').trim();
@@ -2977,9 +2957,6 @@ function QuizPage(): JSX.Element {
           }));
           
           // 显示通知
-          /* toast.info('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
-            autoClose: 2000
-          }); */
           
           // 刷新当前問題让用户继续答题
           setTimeout(() => {
@@ -3266,13 +3243,11 @@ function QuizPage(): JSX.Element {
   const saveProgressManually = useCallback(async () => {
     if (!user?.id || !questionSetId) {
       console.error('[QuizPage] 保存失败：用户ID或题库ID缺失');
-      /* toast.error('保存に失敗しました。ログイン状態を確認してください'); */
       return;
     }
     
     if (!socket) {
       console.error('[QuizPage] 保存失败：Socket连接不可用');
-      /* toast.error('ネットワーク接続を確認してください'); */
       return;
     }
     
@@ -3382,12 +3357,10 @@ function QuizPage(): JSX.Element {
       setTimeout(() => setShowSaveSuccess(false), 3000);
       
       // 显示成功消息
-      /* toast.success('進捗を保存しました'); */
       
     } catch (error) {
       console.error('[QuizPage] 保存进度数据异常:', error);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
-      /* toast.error(`保存に失敗しました: ${errorMessage}`); */
     } finally {
       setIsSaving(false);
     }
@@ -3609,11 +3582,6 @@ function QuizPage(): JSX.Element {
                 }));
                 
                 // 显示提示
-                /* toast.info('お試しの問題数の上限に達しました。続けてご利用いただくには、フル版をご購入ください。', {
-                  position: 'top-center',
-                  autoClose: 5000,
-                  toastId: 'answer-submit-limit'
-                }); */
               }
             }, 1500);
           }
@@ -3757,9 +3725,6 @@ function QuizPage(): JSX.Element {
         setQuestions([...originalQuestions]);
       }
       
-      // 提示用户
-      /* toast.success('进度已重置，开始新的测试！'); */
-      
       // 更彻底地清除本地存储
       try {
         // 1. 清除sessionStorage中的标记
@@ -3811,7 +3776,6 @@ function QuizPage(): JSX.Element {
           // 等待响应
           socket.once('progress:reset:result', (result) => {
             if (result.success) {
-              /* toast.success('进度已重置'); */
               
               // 更新URL，移除lastQuestion参数
               if (questionSet) {
@@ -3848,7 +3812,6 @@ function QuizPage(): JSX.Element {
       }
     } catch (error) {
       console.error('重置测试失败:', error);
-      /* toast.error('テストのリセットに失敗しました。ページを更新して再試行してください'); */
     } finally {
       setQuizStatus(prev => ({ ...prev, loading: false }));
     }
@@ -4058,15 +4021,10 @@ function QuizPage(): JSX.Element {
                     }));
                     
                     // 显示通知
-                    /* toast.success('この問題集の支払いは既に完了しています。重複して支払う必要はありません。', {
-                      autoClose: 3000
-                    }); */
                     
                     return;
                   }
                 }
-                
-                /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
                 
                 // 直接设置状态显示支付模态窗口
                 setQuizStatus(prev => ({
@@ -4103,8 +4061,6 @@ function QuizPage(): JSX.Element {
                 const button = e.currentTarget;
                 button.classList.add('scale-95');
                 setTimeout(() => button.classList.remove('scale-95'), 150);
-                
-                /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
                 
                 // 直接设置状态显示兑换模态窗口
                 setQuizStatus(prev => ({
@@ -4392,8 +4348,6 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
-                    
                     // 直接设置状态显示支付模态窗口
                     setQuizStatus(prev => ({
                       ...prev,
@@ -4520,7 +4474,6 @@ function QuizPage(): JSX.Element {
                     button.classList.add('scale-95');
                     setTimeout(() => button.classList.remove('scale-95'), 150);
                     
-                    /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
                     
                     // 直接设置状态显示兑换模态窗口
                     setQuizStatus(prev => ({
@@ -4597,12 +4550,9 @@ function QuizPage(): JSX.Element {
                       setCurrentQuestionIndex(0);
                       // 再次确保 selectedOptions 被清空
                       setSelectedOptions([]);
-                      
-                      /* toast.success('進捗データをクリアしました'); */
                     }, 0);
                   } else {
                     console.warn('[QuizPage] 清除进度失败：缺少必要的参数');
-                    /* toast.error('進捗のクリアに失敗しました'); */
                   }
                 }
               }}
@@ -4855,7 +4805,6 @@ function QuizPage(): JSX.Element {
       
       try {
         // 显示处理提示
-        /* toast.info("正在尝试直接购买流程，绕过isPaid验证...", { autoClose: 2000 }); */
         
         // 1. 尝试强制购买API
         try {
@@ -4875,9 +4824,6 @@ function QuizPage(): JSX.Element {
           );
           
           if (response.data && response.data.success) {
-            /* toast.success('直接购买成功！正在更新访问权限...', {
-              autoClose: 2000
-            }); */
             
             // 保存到localStorage
             saveAccessToLocalStorage(questionSetId, true);
@@ -4922,17 +4868,12 @@ function QuizPage(): JSX.Element {
           })
         );
         
-        /* toast.success('已在本地模拟购买成功，正在刷新页面...', {
-          autoClose: 2000
-        }); */
-        
         // 刷新页面以应用新状态
         setTimeout(() => {
           window.location.href = `/quiz/${questionSetId}?forceBuy=true&t=${Date.now()}`;
         }, 2000);
       } catch (error) {
         console.error('[DirectPurchase] 直接购买错误:', error);
-        /* toast.error('直接購入に失敗しました。ページを更新して再試行してください'); */
       } finally {
         setIsLoading(false);
       }
@@ -4991,7 +4932,6 @@ function QuizPage(): JSX.Element {
               const current = localStorage.getItem('admin_access_override');
               const newValue = current === 'true' ? 'false' : 'true';
               localStorage.setItem('admin_access_override', newValue);
-              /* toast.success(`管理员覆盖: ${newValue === 'true' ? '启用' : '禁用'}`); */
               // 强制重新检查权限
               window.location.reload();
             }}
@@ -5017,7 +4957,6 @@ function QuizPage(): JSX.Element {
           trialCount={answeredQuestions.length}
           isProcessing={quizStatus.isProcessingPayment || quizStatus.isProcessingRedeem}
           onPurchase={() => {
-            /* toast.info('決済を準備中です...', { autoClose: 1500 }); */
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,
@@ -5025,7 +4964,6 @@ function QuizPage(): JSX.Element {
               }));
           }}
           onRedeem={() => {
-            /* toast.info('正在准备兑换...', { autoClose: 1500 }); */
               setQuizStatus(prev => ({
                 ...prev,
               showPurchasePage: false,
@@ -5092,7 +5030,6 @@ function QuizPage(): JSX.Element {
             );
             
             // 显示成功提示
-            /* toast.success('购买成功！现在可以查看完整题库', { autoClose: 3000 }); */
           }}
         />
       )}
@@ -5127,7 +5064,6 @@ function QuizPage(): JSX.Element {
             document.dispatchEvent(customEvent);
             
             // 显示成功提示
-            /* toast.success('兑换成功！现在可以查看完整题库', { autoClose: 3000 }); */
           }}
         />
       )}
