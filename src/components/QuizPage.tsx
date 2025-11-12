@@ -1049,9 +1049,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
       // Update access rights for consistency
       saveAccessToLocalStorage(normalizedId, true);
       
-      // Show success message
-      /* toast.success('您已成功支付此题库，无需重复支付', { autoClose: 3000 }); */
-      
       // Close the modal
       if (typeof onSuccess === 'function') {
         onSuccess({
@@ -1082,18 +1079,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
         const statusResult = await validatePaidQuizStatus(String(questionSet.id));
         
         if (statusResult.isPaid) {
-          /* toast.warning("检测到题库数据不一致，已修复。继续购买流程...", { autoClose: 3000 }); */
-          // 继续购买流程
         } else {
-          // 提供强制购买选项
           if (confirm("この問題集は無料と表示されていますが、強制購入を試すことができます。\n\n- 「OK」をクリックして強制購入\n- 「キャンセル」で購入を中止")) {
-            /* toast.warning("您选择了强制购买模式", { autoClose: 2000 }); */
           } else {
-            console.error('[PaymentModal] API直接调用也确认这是免费题库');
+            console.error('[PaymentModal] API直接調用也确认这是免费题库');
             setError("服务器确认该题库为免费题库，无需购买");
-            /* toast.error("サーバーがこの問題集は無料であることを確認しました。購入の必要はありません"); */
             
-            // 强制刷新页面以获取正确数据
             setTimeout(() => window.location.reload(), 2000);
             
             setIsProcessing(false);
@@ -1128,11 +1119,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
     setError(null);
     setBtnClicked(true);
     
-    // 显示处理中提示
-    /* toast.info("正在处理您的支付请求...", { autoClose: 2000 }); */
-    
     try {
-      // 标准化题库ID，避免ID不匹配問題
       const normalizedId = String(questionSet!.id).trim();
       
       // 尝试使用直接购买接口
@@ -1205,9 +1192,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ questionSet, onClose, onSuc
             // Save access rights and payment completion status
             saveAccessToLocalStorage(normalizedId, true);
             
-            /* toast.success('成功获取访问权限！您现在可以访问完整题库', { autoClose: 3000 }); */
-            
-            // 触发购买成功事件
             window.dispatchEvent(
               new CustomEvent('purchase:success', {
                 detail: {
@@ -1721,7 +1705,6 @@ function QuizPage(): JSX.Element {
     
     // 每次切换题目时也重置活动时间
     resetActivityTime();
-    console.log('[QuizPage] 答题活动追踪已启动，防止答题期间页面刷新');
     
     return () => {
       window.removeEventListener('click', handleQuizActivity);
