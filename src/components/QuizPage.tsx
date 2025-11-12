@@ -2789,7 +2789,7 @@ function QuizPage(): JSX.Element {
       } else {
       }
     }
-  }, [questionSet, quizStatus.loading, quizStatus.hasAccessToFullQuiz, checkFullAccessFromAllSources]);
+  }, [questionSet, quizStatus.loading, quizStatus.hasAccessToFullQuiz, checkFullAccessFromAllSources, saveAccessToLocalStorage]);
   
   // 在加载完题目数据后设置questionStartTime
   useEffect(() => {
@@ -3632,11 +3632,7 @@ function QuizPage(): JSX.Element {
     handleAnswerSubmit, 
     questionSet, 
     answeredQuestions, 
-    checkFullAccessFromAllSources,
-    quizStatus.hasAccessToFullQuiz,
-    setQuizStatus,
-    setAnsweredQuestions,
-    quizStatus.trialEnded
+    checkFullAccessFromAllSources
   ]);
   
   // 修改下一题逻辑，确保顺畅过渡而不检查权限
@@ -3694,11 +3690,9 @@ function QuizPage(): JSX.Element {
     questions.length, 
     quizStatus.quizComplete, 
     canAccessQuestion,
-    setQuizStatus,
     setAnsweredQuestions,
     setSelectedOptions,
-    setQuestionStartTime,
-    setQuizStatus
+    setQuestionStartTime
   ]);
 
   // 格式化时间显示函数
@@ -4849,11 +4843,7 @@ function QuizPage(): JSX.Element {
     quizStatus.hasAccessToFullQuiz, 
     quizStatus.hasRedeemed,
     checkFullAccessFromAllSources,
-    isTrialLimitReached,
-    quizStatus.trialEnded,
-    quizStatus.showPurchasePage,
-    quizStatus.showPaymentModal,  // 添加依赖项
-    quizStatus.showRedeemCodeModal  // 添加依赖项
+    isTrialLimitReached
   ]);
   
   // 在渲染函数前添加DirectPurchaseDebugButton组件
