@@ -1630,9 +1630,10 @@ function QuizPage(): JSX.Element {
     showWrongAnswers: boolean;
     quizComplete: boolean;
     isTimerActive: boolean;
-    isProcessingPayment: boolean; // 添加支付处理状态 
-    isProcessingRedeem: boolean;  // 添加兑换处理状态
-    autoAdvanceOnCorrect: boolean; // 正解時に自動的に次の問題へ進む
+    isProcessingPayment: boolean;
+    isProcessingRedeem: boolean;
+    autoAdvanceOnCorrect: boolean;
+    isRandomMode: boolean;
   }>({
     loading: true,
     error: null,
@@ -1650,9 +1651,10 @@ function QuizPage(): JSX.Element {
     showWrongAnswers: false,
     quizComplete: false,
     isTimerActive: false,
-    isProcessingPayment: false, // 初始化为false
-    isProcessingRedeem: false,  // 初始化为false
-    autoAdvanceOnCorrect: false, // デフォルトはオフ
+    isProcessingPayment: false,
+    isProcessingRedeem: false,
+    autoAdvanceOnCorrect: false,
+    isRandomMode: false,
   });
   
   // 保留独立的数据状态，因为这些需要频繁单独更新且不适合合并到对象中
@@ -2543,13 +2545,24 @@ function QuizPage(): JSX.Element {
               );
               
               if (filteredQuestions.length > 0) {
-                setQuestions(filteredQuestions);
+                // 根据随机模式决定是否打乱
+                const finalQuestions = quizStatus.isRandomMode 
+                  ? shuffleQuestions(filteredQuestions) 
+                  : filteredQuestions;
+                setQuestions(finalQuestions);
               } else {
                 // 如果筛选后没有题目，使用全部题目
-                setQuestions(processedQuestions);
+                const finalQuestions = quizStatus.isRandomMode 
+                  ? shuffleQuestions(processedQuestions) 
+                  : processedQuestions;
+                setQuestions(finalQuestions);
               }
             } else {
-              setQuestions(processedQuestions);
+              // 根据随机模式决定是否打乱
+              const finalQuestions = quizStatus.isRandomMode 
+                ? shuffleQuestions(processedQuestions) 
+                : processedQuestions;
+              setQuestions(finalQuestions);
             }
             
             // 如果是试用模式，显示提示
@@ -2724,7 +2737,7 @@ function QuizPage(): JSX.Element {
     };
     
     fetchQuestionSet();
-  }, [questionSetId, socket, user]);
+  }, [questionSetId, socket, user, quizStatus.isRandomMode, shuffleQuestions]);
   
   // 在题库加载完成后进行权限同步检查
   useEffect(() => {
@@ -3350,7 +3363,16 @@ function QuizPage(): JSX.Element {
     }
   }, [user?.id, questionSetId, socket, currentQuestionIndex, answeredQuestions, selectedOptions, questions, quizTotalTime, correctAnswers]);
   
-  // 修改handleAnswerSubmit函数，不再自动同步，移除阻塞行为
+  // Fisher-Yates打乱算法
+  const shuffleQuestions = useCallback((questionsArray: Question[]): Question[] => {
+    const shuffled = [...questionsArray];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }, []);
+  
   const handleAnswerSubmit = useCallback(async (
     selectedOption: string | string[], 
     isCorrect: boolean, 
@@ -4569,7 +4591,8 @@ function QuizPage(): JSX.Element {
         </div>
         
         {/* 自動遷移トグルボタン - モバイル最適化 */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-4">
+        <div className="bg-white rounded-xl shadow-md p-4 mb-4 space-y-2">
+          {/* 自动前进开关 */}
           <button
             onClick={() => {
               setQuizStatus(prev => ({
@@ -4600,6 +4623,58 @@ function QuizPage(): JSX.Element {
               <span 
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                   quizStatus.autoAdvanceOnCorrect ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </div>
+          </button>
+          
+          {/* 随机模式开关 */}
+          <button
+            onClick={() => {
+              const newRandomMode = !quizStatus.isRandomMode;
+              setQuizStatus(prev => ({
+                ...prev,
+                isRandomMode: newRandomMode
+              }));
+              
+              // 切换随机模式时重新排列题目
+              if (newRandomMode) {
+                const shuffled = shuffleQuestions(originalQuestions);
+                setQuestions(shuffled);
+                setCurrentQuestionIndex(0);
+                setAnsweredQuestions([]);
+                setCorrectAnswers(0);
+              } else {
+                // 恢复原始顺序
+                setQuestions(originalQuestions);
+                setCurrentQuestionIndex(0);
+                setAnsweredQuestions([]);
+                setCorrectAnswers(0);
+              }
+            }}
+            className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center">
+              <svg 
+                className={`w-5 h-5 mr-2 transition-colors ${quizStatus.isRandomMode ? 'text-purple-600' : 'text-gray-400'}`} 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              <span className="text-sm sm:text-base font-medium text-gray-700">
+                ランダム出題モード
+              </span>
+            </div>
+            <div 
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                quizStatus.isRandomMode ? 'bg-purple-600' : 'bg-gray-300'
+              }`}
+            >
+              <span 
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  quizStatus.isRandomMode ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </div>
