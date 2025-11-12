@@ -12,11 +12,10 @@ import { installCognitoDebugger } from './utils/cognitoDebugger'
 
 // Cognito OIDC 配置
 const getRedirectUri = () => {
-  // 在开发环境中使用端口3000，在生产环境中使用montopi.com域名
   if (import.meta.env.DEV) {
-    return "http://localhost:3000"; // 使用Vite配置的端口3000
+    return "http://localhost:3000";
   }
-  return "https://montopi.com"; // 使用AWS Cognito中配置的生产域名
+  return "https://montopi.com";
 };
 
 const cognitoAuthConfig = {
@@ -26,50 +25,35 @@ const cognitoAuthConfig = {
   response_type: "code",
   scope: "email openid phone",
   post_logout_redirect_uri: getRedirectUri(),
-  // 优化登录体验参数
   extraQueryParams: {
     response_mode: "query",
     ui_locales: "ja"
   },
-  // 优化token管理
   automaticSilentRenew: true,
   includeIdTokenInSilentRenew: true,
-  // 优化存储配置，避免状态丢失
   userStore: new WebStorageStateStore({ 
     store: window.localStorage,
     prefix: "oidc.user."
   }),
   stateStore: new WebStorageStateStore({ 
-    store: window.localStorage, // 改用localStorage以避免会话丢失
+    store: window.localStorage,
     prefix: "oidc.state." 
   }),
-  // 启用完整用户信息加载
   loadUserInfo: true,
-  // 优化超时和会话设置
-  silentRequestTimeout: 15000,
+  silentRequestTimeout: 30000,
   monitorSession: true,
-  checkSessionInterval: 5000,
-  // 启用更详细的日志
+  checkSessionInterval: 10000,
   revokeTokenTypes: ["access_token", "refresh_token"]
 }
 
-console.log("OIDC Cognito 已初始化，使用新的认証服务");
-console.log("当前环境:", import.meta.env.DEV ? "開発環境" : "本番環境");
-console.log("Redirect URI:", getRedirectUri());
-console.log("Client ID:", "3tdjflgaoojolmlau5thc9lv5c");
-
-// Cognitoデバッグツールをインストール（開発環境のみ）
 if (import.meta.env.DEV) {
   installCognitoDebugger();
-  console.log("🔍 デバッグツール有効: window.cognitoDebug() で診断可能");
 }
 
-// 自動リフレッシュ：2時間（7200000ms）無操作で自動ページ更新
 initAutoRefresh(7200000)
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
 
-// 使用 AuthProvider 包装应用
 root.render(
   <React.StrictMode>
     <AuthProvider {...cognitoAuthConfig}>
