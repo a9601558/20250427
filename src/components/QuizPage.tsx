@@ -2249,8 +2249,11 @@ function QuizPage(): JSX.Element {
     
     // 如果是免费题库，永远不会试用结束
     if (!isPaidQuiz(questionSet)) {
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
+      setQuizStatus(prev => ({
+        ...prev,
+        trialEnded: false,
+        showPurchasePage: false
+      }));
       return;
     }
     
@@ -2259,21 +2262,30 @@ function QuizPage(): JSX.Element {
     
     // 如果用户有访问权限，确保状态一致性
     if (hasFullAccess) {
-      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
+      setQuizStatus(prev => ({
+        ...prev,
+        hasAccessToFullQuiz: true,
+        trialEnded: false,
+        showPurchasePage: false
+      }));
       return;
     }
     
     // 到这里说明：付费题库 + 用户无完整访问权限
-    if (quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: false });
+    setQuizStatus(prev => ({
+      ...prev,
+      hasAccessToFullQuiz: false
+    }));
     
     // 确定试用题目数量
     const trialQuestionsCount = questionSet.trialQuestions || 0;
     
     // 如果试用题目数为0，直接标记为试用结束
     if (trialQuestionsCount <= 0) {
-      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
+      setQuizStatus(prev => ({
+        ...prev,
+        trialEnded: true
+      }));
       return;
     }
     
@@ -2282,9 +2294,15 @@ function QuizPage(): JSX.Element {
     
     // 更新试用结束状态
     if (isTrialLimitReached) {
-      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
+      setQuizStatus(prev => ({
+        ...prev,
+        trialEnded: true
+      }));
     } else {
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus(prev => ({
+        ...prev,
+        trialEnded: false
+      }));
     }
   }, [
     questionSet, 
@@ -2406,7 +2424,10 @@ function QuizPage(): JSX.Element {
           }
           
           // 更新明确的试用模式状态
-          setQuizStatus({ ...quizStatus, isInTrialMode: isExplicitTrialMode });
+          setQuizStatus(prev => ({
+            ...prev,
+            isInTrialMode: isExplicitTrialMode
+          }));
           
           // 改进对试用题目数量的确定逻辑
           const trialQuestionsFromApi = directApiData?.trialQuestions || response.data.trialQuestions;
@@ -2717,16 +2738,28 @@ function QuizPage(): JSX.Element {
             }
           } else {
             console.error("题库中没有题目");
-            setQuizStatus({ ...quizStatus, error: 'この問題集には問題が含まれていません' });
+            setQuizStatus(prev => ({
+              ...prev,
+              error: 'この問題集には問題が含まれていません'
+            }));
           }
         } else {
-          setQuizStatus({ ...quizStatus, error: '无法加载题库数据' });
+          setQuizStatus(prev => ({
+            ...prev,
+            error: '无法加载题库数据'
+          }));
         }
       } catch (error) {
         console.error('获取题库详情失败:', error);
-        setQuizStatus({ ...quizStatus, error: '获取题库数据失败' });
+        setQuizStatus(prev => ({
+          ...prev,
+          error: '获取题库数据失败'
+        }));
       } finally {
-        setQuizStatus({ ...quizStatus, loading: false });
+        setQuizStatus(prev => ({
+          ...prev,
+          loading: false
+        }));
       }
     };
     
@@ -2785,9 +2818,12 @@ function QuizPage(): JSX.Element {
             const isRedeemed = redeemedIds.some(id => String(id).trim() === normalizedCurrentId);
             
             if (isRedeemed) {
-              setQuizStatus({ ...quizStatus, hasRedeemed: true });
-              setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-              setQuizStatus({ ...quizStatus, trialEnded: false });
+              setQuizStatus(prev => ({
+                ...prev,
+                hasRedeemed: true,
+                hasAccessToFullQuiz: true,
+                trialEnded: false
+              }));
             }
           } else {
           }
@@ -2954,15 +2990,13 @@ function QuizPage(): JSX.Element {
           }, 100);
           
           return;
-        }
       }
-      
-      // 如果未完成支付，则显示支付窗口
-      setQuizStatus({ ...quizStatus, showPaymentModal: true });
-      return;
     }
     
-    const currentQuestion = questions[currentQuestionIndex];
+    // 如果未完成支付，则显示支付窗口
+    setQuizStatus(prev => ({ ...prev, showPaymentModal: true }));
+    return;
+  }    const currentQuestion = questions[currentQuestionIndex];
     
     if (currentQuestion.questionType === 'single') {
       setSelectedOptions([optionId]);
@@ -3029,13 +3063,17 @@ function QuizPage(): JSX.Element {
       hasAccess: boolean;
     }) => {
       if (data.questionSetId === questionSet.id) {
-        setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: data.hasAccess });
-        
-        // 权限开启后，同时确保试用结束状态重置
         if (data.hasAccess) {
-          setQuizStatus({ ...quizStatus, trialEnded: false });
+          // 权限开启后，同时确保试用结束状态重置
+          setQuizStatus(prev => ({
+            ...prev,
+            hasAccessToFullQuiz: true,
+            trialEnded: false
+          }));
           // 更新本地缓存
           saveAccessToLocalStorage(questionSet.id, true);
+        } else {
+          setQuizStatus(prev => ({ ...prev, hasAccessToFullQuiz: false }));
         }
       }
     };
@@ -3529,8 +3567,17 @@ function QuizPage(): JSX.Element {
     const hasFullAccess = checkFullAccessFromAllSources();
     if (hasFullAccess) {
       // 确保状态一致性
-      if (!quizStatus.hasAccessToFullQuiz) setQuizStatus({ ...quizStatus, hasAccessToFullQuiz: true });
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus(prev => {
+        const needsUpdate = !prev.hasAccessToFullQuiz || prev.trialEnded;
+        if (needsUpdate) {
+          return {
+            ...prev,
+            hasAccessToFullQuiz: true,
+            trialEnded: false
+          };
+        }
+        return prev;
+      });
     }
     
     // 获取当前問題
@@ -3557,8 +3604,11 @@ function QuizPage(): JSX.Element {
             setTimeout(() => {
               // 再次检查确认状态没有变化
               if (!checkFullAccessFromAllSources()) {
-                setQuizStatus({ ...quizStatus, trialEnded: true });
-                setQuizStatus({ ...quizStatus, showPurchasePage: true });
+                setQuizStatus(prev => ({
+                  ...prev,
+                  trialEnded: true,
+                  showPurchasePage: true
+                }));
                 
                 // 显示提示
                 /* toast.info('お試しの問題数の上限に達しました。続けてご利用いただくには、フル版をご購入ください。', {
@@ -3594,7 +3644,7 @@ function QuizPage(): JSX.Element {
     
     // 如果已经是最后一题，标记为完成
     if (currentQuestionIndex === questions.length - 1) {
-      setQuizStatus({ ...quizStatus, quizComplete: true });
+      setQuizStatus(prev => ({ ...prev, quizComplete: true }));
       return;
     }
     
@@ -3633,11 +3683,12 @@ function QuizPage(): JSX.Element {
     } else {
 
       
-      // 设置试用结束状态
-      setQuizStatus({ ...quizStatus, trialEnded: true });
-      
-      // 显示购买页面
-      setQuizStatus({ ...quizStatus, showPurchasePage: true });
+      // 设置试用结束状态并显示购买页面
+      setQuizStatus(prev => ({
+        ...prev,
+        trialEnded: true,
+        showPurchasePage: true
+      }));
     }
   }, [
     questions.length, 
@@ -3677,7 +3728,7 @@ function QuizPage(): JSX.Element {
   // 确保handleResetQuiz也同步进度
   const handleResetQuiz = useCallback(async () => {
     try {
-      setQuizStatus({ ...quizStatus, loading: true });
+      setQuizStatus(prev => ({ ...prev, loading: true }));
       
       // 清除任何现有的定时器
       if (timeoutId.current) {
@@ -3691,19 +3742,22 @@ function QuizPage(): JSX.Element {
         unsyncedChangesRef.current = false;
       }
       
-      // 重置计时器
-      setQuizTotalTime(0);
-      setQuizStartTime(Date.now());
-      setQuizStatus({ ...quizStatus, isTimerActive: true });
-      
       // 重置所有状态
       setCurrentQuestionIndex(0);
       setSelectedOptions([]);
-      setQuizStatus({ ...quizStatus, showExplanation: false });
       setAnsweredQuestions([]);
       setCorrectAnswers(0);
-      setQuizStatus({ ...quizStatus, quizComplete: false });
       setQuestionStartTime(Date.now());
+      
+      // 重置计时器和其他quiz状态
+      setQuizTotalTime(0);
+      setQuizStartTime(Date.now());
+      setQuizStatus(prev => ({
+        ...prev,
+        isTimerActive: true,
+        showExplanation: false,
+        quizComplete: false
+      }));
       
       // 使用原始問題数组重新设置問題（保持原始顺序）
       if (originalQuestions && originalQuestions.length > 0) {
@@ -3787,7 +3841,7 @@ function QuizPage(): JSX.Element {
         } catch (error) {
           console.error('重置进度失败:', error);
           // 显示友好的错误提示
-          setQuizStatus({ ...quizStatus, error: '重置进度失败，请尝试重新加载页面' });
+          setQuizStatus(prev => ({ ...prev, error: '重置进度失败，请尝试重新加载页面' }));
           
           // 出错时也强制刷新页面
           setTimeout(() => {
@@ -3804,7 +3858,7 @@ function QuizPage(): JSX.Element {
       console.error('重置测试失败:', error);
       /* toast.error('テストのリセットに失敗しました。ページを更新して再試行してください'); */
     } finally {
-      setQuizStatus({ ...quizStatus, loading: false });
+      setQuizStatus(prev => ({ ...prev, loading: false }));
     }
   }, [
     questionSet, 
@@ -4726,37 +4780,68 @@ function QuizPage(): JSX.Element {
     
     // 如果是免费题库，永远不显示购买页面
     if (!isPaidQuiz(questionSet)) {
-      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus(prev => {
+        if (prev.showPurchasePage || prev.trialEnded) {
+          return {
+            ...prev,
+            showPurchasePage: false,
+            trialEnded: false
+          };
+        }
+        return prev;
+      });
       return;
     }
     
     // 如果用户有完整访问权限，不显示购买页面
     if (quizStatus.hasAccessToFullQuiz || quizStatus.hasRedeemed || checkFullAccessFromAllSources()) {
-      if (quizStatus.showPurchasePage) setQuizStatus({ ...quizStatus, showPurchasePage: false });
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
+      setQuizStatus(prev => {
+        if (prev.showPurchasePage || prev.trialEnded) {
+          return {
+            ...prev,
+            showPurchasePage: false,
+            trialEnded: false
+          };
+        }
+        return prev;
+      });
       return;
     }
     
     // 如果已达到试用限制，显示试用结束状态
     if (isTrialLimitReached()) {
-      if (!quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: true });
-      
-      // 仅当试用已结束且还未显示购买页面时，显示购买页面
-      // **** 修改：只有当没有其他模态窗口处于活跃状态时才显示购买页面 ****
-      if (quizStatus.trialEnded && !quizStatus.showPurchasePage 
-          && !quizStatus.showPaymentModal && !quizStatus.showRedeemCodeModal) {
-        setQuizStatus({ ...quizStatus, showPurchasePage: true });
-      } else if (quizStatus.trialEnded && !quizStatus.showPurchasePage) {
-      }
+      setQuizStatus(prev => {
+        const updates: Partial<typeof prev> = {};
+        
+        if (!prev.trialEnded) {
+          updates.trialEnded = true;
+        }
+        
+        // 仅当试用已结束且还未显示购买页面时，显示购买页面
+        // **** 修改：只有当没有其他模态窗口处于活跃状态时才显示购买页面 ****
+        if (prev.trialEnded && !prev.showPurchasePage 
+            && !prev.showPaymentModal && !prev.showRedeemCodeModal) {
+          updates.showPurchasePage = true;
+        }
+        
+        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+      });
     } else {
       // 未达到限制时，确保状态正确
-      if (quizStatus.trialEnded) setQuizStatus({ ...quizStatus, trialEnded: false });
-      
-      // 仅当没有其他模态窗口活跃时，隐藏购买页面
-      if (quizStatus.showPurchasePage && !quizStatus.showPaymentModal && !quizStatus.showRedeemCodeModal) {
-        setQuizStatus({ ...quizStatus, showPurchasePage: false });
-      }
+      setQuizStatus(prev => {
+        const updates: Partial<typeof prev> = {};
+        
+        if (prev.trialEnded) {
+          updates.trialEnded = false;
+        }
+        
+        // 仅当没有其他模态窗口活跃时，隐藏购买页面
+        if (prev.showPurchasePage && !prev.showPaymentModal && !prev.showRedeemCodeModal) {
+          updates.showPurchasePage = false;
+        }
+        
+        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+      });
     }
   }, [
     questionSet, 
