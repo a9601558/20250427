@@ -2737,7 +2737,7 @@ function QuizPage(): JSX.Element {
     };
     
     fetchQuestionSet();
-  }, [questionSetId, socket, user, quizStatus.isRandomMode, shuffleQuestions]);
+  }, [questionSetId, socket, user]);
   
   // 在题库加载完成后进行权限同步检查
   useEffect(() => {
