@@ -4,10 +4,69 @@
 
 **修复时间**: 2025-04-27  
 **严重程度**: 🔴 Critical  
-**影响范围**: 5个API端点 + 前端验证  
+**影响范围**: 5个API端点 + 前端验证 + 可选认证  
 **提交记录**: 
 - `edd8103` - 初始修复（题库API + 前端验证）
 - `c4c9430` - 完善修复（4个API端点 + 过期验证）
+- `d05d12f` - **已购买用户访问修复**（可选认证中间件）
+
+---
+
+## ⚠️ 重要修复：已购买用户访问问题
+
+### 问题描述
+**症状**: 已购买用户访问付费题库时，仍然只能看到试用题目（例如5题）
+
+**根本原因**:
+1. `getQuestionSetById` API 没有使用认证中间件
+2. 即使用户已登录并发送了token，后端也无法获取 `req.user.id`
+3. 权限检查逻辑中 `userId` 为 `undefined`，被当作未登录用户处理
+4. 导致所有用户（包括已购买）都只能看到试用题目
+
+**影响范围**: ❌ 所有已购买用户无法访问完整题库
+
+### 解决方案：可选认证中间件
+
+创建 `optionalAuth` 中间件，实现以下逻辑：
+
+```typescript
+export const optionalAuth = async (req, res, next) => {
+  // 1. 检查是否有Authorization header
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // 没有token → 作为未登录用户继续
+    return next();
+  }
+  
+  // 2. 有token → 尝试验证
+  try {
+    const payload = await verifyCognitoToken(token);
+    const user = await User.findOne({ where: { id: payload.sub } });
+    
+    // 附加用户信息到请求
+    req.user = user;
+    next();
+    
+  } catch (error) {
+    // token无效 → 作为未登录用户继续（不阻止请求）
+    next();
+  }
+};
+```
+
+**关键特性**:
+- ✅ 支持未登录访问（试用功能）
+- ✅ 识别已登录用户（购买验证）
+- ✅ Token失败不阻止请求
+- ✅ 与现有 `protect` 中间件共存
+
+### 更新的路由配置
+
+| 路由 | 原中间件 | 新中间件 | 原因 |
+|------|---------|---------|------|
+| `GET /api/v1/question-sets/:id` | 无 | `optionalAuth` | 需要识别已登录用户 |
+| `GET /api/v1/questions?questionSetId=xxx` | 无 | `optionalAuth` | 需要权限验证 |
+| `GET /api/v1/questions/:id` | 无 | `optionalAuth` | 需要权限验证 |
+| `GET /api/v1/questions/random/:id` | 无 | `optionalAuth` | 需要权限验证 |
 
 ---
 
