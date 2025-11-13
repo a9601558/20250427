@@ -369,7 +369,9 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
       console.log(`🔍 付费题库访问检查 - 题库ID: ${req.params.id}, 用户ID: ${userId || '未登录'}`);
       
       if (userId) {
-        // 检查是否有有效购买记录
+        const now = new Date();
+        
+        // 检查是否有有效购买记录（包含过期时间检查）
         const validPurchase = await Purchase.findOne({
           where: {
             userId,
@@ -378,7 +380,14 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
           }
         });
         
-        // 检查是否使用了有效兑换码
+        // 检查购买是否过期
+        const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+        
+        if (validPurchase && !hasPurchaseAccess) {
+          console.log(`⏰ 购买记录已过期 - 购买日期: ${validPurchase.purchaseDate}, 过期日期: ${validPurchase.expiryDate}`);
+        }
+        
+        // 检查是否使用了有效兑换码（包含过期时间检查）
         const validRedeemCode = await RedeemCode.findOne({
           where: {
             questionSetId: req.params.id,
@@ -387,13 +396,22 @@ export const getQuestionSetById = async (req: Request, res: Response) => {
           }
         });
         
-        if (validPurchase || validRedeemCode) {
+        // 检查兑换码是否过期
+        const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+        
+        if (validRedeemCode && !hasRedeemAccess) {
+          console.log(`⏰ 兑换码已过期 - 兑换时间: ${validRedeemCode.usedAt}, 过期日期: ${validRedeemCode.expiryDate}`);
+        }
+        
+        if (hasPurchaseAccess || hasRedeemAccess) {
           hasFullAccess = true;
-          console.log(`✅ 用户已购买或使用兑换码，允许完整访问`);
+          const accessType = hasPurchaseAccess ? '购买' : '兑换码';
+          const expiryDate = hasPurchaseAccess ? validPurchase!.expiryDate : validRedeemCode!.expiryDate;
+          console.log(`✅ 用户已${accessType}，允许完整访问（有效期至: ${expiryDate}）`);
         } else {
           hasFullAccess = false;
           allowedQuestionCount = questionSetData.trialQuestions || 0;
-          console.log(`⚠️ 用户未购买，仅允许试用 ${allowedQuestionCount} 道题目`);
+          console.log(`⚠️ 用户未购买或访问已过期，仅允许试用 ${allowedQuestionCount} 道题目`);
         }
       } else {
         // 未登录用户只能试用

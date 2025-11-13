@@ -17,11 +17,21 @@
 用户请求 → 后端权限检查 → 题目数量限制 → 前端二重验证 → 用户接收
          ↓                ↓              ↓
     Purchase/RedeemCode  只返回允许数量   前端截断验证
+    + 过期时间检查       + 4个API端点防护
 ```
 
 ### 1️⃣ 后端API权限检查
 
+#### A. 题库API (`getQuestionSetById`)
+
 **文件**: `server/src/controllers/questionSetController.ts`
+
+**关键修复**:
+1. ✅ **购买状态检查** - 查询 `Purchase` 表
+2. ✅ **兑换码检查** - 查询 `RedeemCode` 表
+3. ✅ **过期时间验证** - 检查 `expiryDate` 是否过期
+4. ✅ **题目截断** - 未购买用户只返回 `trialQuestions` 数量
+5. ✅ **权限标识** - 返回 `hasFullAccess` 和 `allowedQuestionCount`
 
 **修改内容**:
 ```typescript
@@ -33,7 +43,9 @@ if (questionSetData.isPaid) {
   const userId = (req as any).user?.id;
   
   if (userId) {
-    // 检查购买记录
+    const now = new Date();
+    
+    // 检查购买记录（含过期时间）
     const validPurchase = await Purchase.findOne({
       where: {
         userId,
@@ -42,7 +54,9 @@ if (questionSetData.isPaid) {
       }
     });
     
-    // 检查兑换码
+    const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+    
+    // 检查兑换码（含过期时间）
     const validRedeemCode = await RedeemCode.findOne({
       where: {
         questionSetId: req.params.id,
@@ -51,7 +65,11 @@ if (questionSetData.isPaid) {
       }
     });
     
-    if (!validPurchase && !validRedeemCode) {
+    const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+    
+    if (hasPurchaseAccess || hasRedeemAccess) {
+      hasFullAccess = true;
+    } else {
       hasFullAccess = false;
       allowedQuestionCount = questionSetData.trialQuestions || 0;
     }
@@ -75,12 +93,63 @@ const responseData = {
 };
 ```
 
+#### B. 题目列表API (`getQuestions`)
+
+**文件**: `server/src/controllers/questionController.ts`
+
+**新增安全检查**:
+```typescript
+// 在 /api/v1/questions?questionSetId=xxx 中添加
+if (questionSetId) {
+  const questionSet = await QuestionSet.findByPk(String(questionSetId));
+  
+  if (questionSet?.isPaid) {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(403).json({
+        success: false,
+        message: '访问付费题库需要登录'
+      });
+    }
+    
+    // 检查购买记录和兑换码（含过期验证）
+    // ...同上
+    
+    if (!hasPurchaseAccess && !hasRedeemAccess) {
+      return res.status(403).json({
+        success: false,
+        message: '您没有访问此付费题库的权限'
+      });
+    }
+  }
+}
+```
+
+#### C. 随机题目API (`getRandomQuestion`)
+
+**路由**: `GET /api/v1/questions/random/:questionSetId`
+
+**修复**: 添加与题目列表API相同的权限检查逻辑
+
+#### D. 单题目API (`getQuestionById`)
+
+**路由**: `GET /api/v1/questions/:id`
+
+**修复**: 
+1. 先查询题目所属的 `questionSetId`
+2. 检查该题库是否付费
+3. 验证用户权限（购买/兑换码 + 过期时间）
+
 **关键日志**:
 ```
 🔍 付费题库访问检查 - 题库ID: xxx, 用户ID: xxx (或'未登录')
-✅ 用户已购买或使用兑换码，允许完整访问
-⚠️ 用户未购买，仅允许试用 N 道题目
+⏰ 购买记录已过期 - 购买日期: xxx, 过期日期: xxx
+⏰ 兑换码已过期 - 兑换时间: xxx, 过期日期: xxx
+✅ 用户已购买，允许完整访问（有效期至: xxx）
+✅ 用户已兑换码，允许完整访问（有效期至: xxx）
+⚠️ 用户未购买或访问已过期，仅允许试用 N 道题目
 🔒 题目已截断：原 100 题 → 返回 3 题
+🔒 [Questions API] 拒绝访问付费题库 xxx - 用户 xxx 无权限
 ```
 
 ### 2️⃣ TypeScript类型定义
@@ -266,10 +335,16 @@ if (questionsData.length > 0) {
 ### ✅ 后端防护
 - [x] Purchase表查询验证
 - [x] RedeemCode表查询验证
+- [x] **过期时间检查** (Purchase.expiryDate & RedeemCode.expiryDate)
 - [x] 未购买用户题目截断
 - [x] hasFullAccess标识返回
 - [x] allowedQuestionCount返回
 - [x] 详细安全日志记录
+- [x] **4个API端点全面防护**:
+  - [x] `/api/v1/question-sets/:id` - 题库详情API
+  - [x] `/api/v1/questions?questionSetId=xxx` - 题目列表API
+  - [x] `/api/v1/questions/random/:questionSetId` - 随机题目API
+  - [x] `/api/v1/questions/:id` - 单题目API
 
 ### ✅ 前端防护
 - [x] API响应hasFullAccess检查
@@ -335,14 +410,16 @@ if (questionsData.length > 0) {
 
 ## 相关文件
 
-- `server/src/controllers/questionSetController.ts` - 后端权限检查
+- `server/src/controllers/questionSetController.ts` - 题库API权限检查（含过期验证）
+- `server/src/controllers/questionController.ts` - 题目API权限检查（4个端点）
 - `src/components/QuizPage.tsx` - 前端二重验证
 - `src/types.ts` - TypeScript类型定义
-- `server/src/models/Purchase.ts` - 购买记录模型
-- `server/src/models/RedeemCode.ts` - 兑换码模型
+- `server/src/models/Purchase.ts` - 购买记录模型（expiryDate字段）
+- `server/src/models/RedeemCode.ts` - 兑换码模型（expiryDate字段）
 
 ---
 
 **修复日期**: 2025-04-27  
 **影响版本**: ver8  
-**安全等级**: Critical 🔴
+**安全等级**: Critical 🔴  
+**修复范围**: 5个API端点 + 前端验证 + 过期时间检查

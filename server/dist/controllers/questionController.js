@@ -10,15 +10,65 @@ const Option_1 = __importDefault(require("../models/Option"));
 const sequelize_1 = require("sequelize");
 const database_1 = __importDefault(require("../config/database"));
 const uuid_1 = require("uuid");
+const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
+const Purchase_1 = __importDefault(require("../models/Purchase"));
+const RedeemCode_1 = __importDefault(require("../models/RedeemCode"));
 /**
  * @route GET /api/v1/questions
- * @access Public
+ * @access Public (但受权限限制)
  */
 const getQuestions = async (req, res) => {
     try {
         const { questionSetId, page = 1, limit = 10, include } = req.query;
         const offset = (Number(page) - 1) * Number(limit);
         const where = questionSetId ? { questionSetId: String(questionSetId) } : {};
+        // 🔒 安全检查：如果查询特定题库，需要验证权限
+        if (questionSetId) {
+            const questionSet = await QuestionSet_1.default.findByPk(String(questionSetId));
+            if (!questionSet) {
+                return res.status(404).json({
+                    success: false,
+                    message: '题库不存在'
+                });
+            }
+            // 如果是付费题库，检查用户权限
+            if (questionSet.isPaid) {
+                const userId = req.user?.id;
+                if (!userId) {
+                    return res.status(403).json({
+                        success: false,
+                        message: '访问付费题库需要登录'
+                    });
+                }
+                const now = new Date();
+                // 检查购买记录
+                const validPurchase = await Purchase_1.default.findOne({
+                    where: {
+                        userId,
+                        questionSetId: String(questionSetId),
+                        status: 'completed'
+                    }
+                });
+                const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+                // 检查兑换码
+                const validRedeemCode = await RedeemCode_1.default.findOne({
+                    where: {
+                        questionSetId: String(questionSetId),
+                        usedBy: userId,
+                        isUsed: true
+                    }
+                });
+                const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+                if (!hasPurchaseAccess && !hasRedeemAccess) {
+                    console.log(`🔒 [Questions API] 拒绝访问付费题库 ${questionSetId} - 用户 ${userId} 无权限`);
+                    return res.status(403).json({
+                        success: false,
+                        message: '您没有访问此付费题库的权限，请购买或使用兑换码'
+                    });
+                }
+                console.log(`✅ [Questions API] 允许访问付费题库 ${questionSetId} - 用户 ${userId}`);
+            }
+        }
         const includeOptions = include === 'options' ? [{
                 model: Option_1.default,
                 as: 'options',
@@ -66,13 +116,53 @@ const getQuestions = async (req, res) => {
 exports.getQuestions = getQuestions;
 /**
  * @route GET /api/v1/questions/:id
- * @access Public
+ * @access Public (但受权限限制)
  */
 const getQuestionById = async (req, res) => {
     try {
         const question = await Question_1.default.findByPk(req.params.id);
         if (!question) {
             return (0, responseUtils_1.sendError)(res, 404, '問題不存在');
+        }
+        // 🔒 安全检查：验证用户对该题目所属题库的访问权限
+        const questionSet = await QuestionSet_1.default.findByPk(question.questionSetId);
+        if (!questionSet) {
+            return (0, responseUtils_1.sendError)(res, 404, '题库不存在');
+        }
+        if (questionSet.isPaid) {
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: '访问付费题库需要登录'
+                });
+            }
+            const now = new Date();
+            // 检查购买记录
+            const validPurchase = await Purchase_1.default.findOne({
+                where: {
+                    userId,
+                    questionSetId: question.questionSetId,
+                    status: 'completed'
+                }
+            });
+            const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+            // 检查兑换码
+            const validRedeemCode = await RedeemCode_1.default.findOne({
+                where: {
+                    questionSetId: question.questionSetId,
+                    usedBy: userId,
+                    isUsed: true
+                }
+            });
+            const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+            if (!hasPurchaseAccess && !hasRedeemAccess) {
+                console.log(`🔒 [Question By ID API] 拒绝访问付费题目 ${req.params.id} - 用户 ${userId} 无权限`);
+                return res.status(403).json({
+                    success: false,
+                    message: '您没有访问此付费题库的权限，请购买或使用兑换码'
+                });
+            }
         }
         (0, responseUtils_1.sendResponse)(res, 200, '获取問題成功', question);
     }
@@ -156,6 +246,46 @@ const getRandomQuestion = async (req, res) => {
         const { questionSetId } = req.query;
         if (!questionSetId) {
             return (0, responseUtils_1.sendError)(res, 400, '缺少問題集ID');
+        }
+        // 🔒 安全检查：验证用户对该题库的访问权限
+        const questionSet = await QuestionSet_1.default.findByPk(String(questionSetId));
+        if (!questionSet) {
+            return (0, responseUtils_1.sendError)(res, 404, '题库不存在');
+        }
+        if (questionSet.isPaid) {
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: '访问付费题库需要登录'
+                });
+            }
+            const now = new Date();
+            // 检查购买记录
+            const validPurchase = await Purchase_1.default.findOne({
+                where: {
+                    userId,
+                    questionSetId: String(questionSetId),
+                    status: 'completed'
+                }
+            });
+            const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+            // 检查兑换码
+            const validRedeemCode = await RedeemCode_1.default.findOne({
+                where: {
+                    questionSetId: String(questionSetId),
+                    usedBy: userId,
+                    isUsed: true
+                }
+            });
+            const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+            if (!hasPurchaseAccess && !hasRedeemAccess) {
+                console.log(`🔒 [Random Question API] 拒绝访问付费题库 ${questionSetId} - 用户 ${userId} 无权限`);
+                return res.status(403).json({
+                    success: false,
+                    message: '您没有访问此付费题库的权限，请购买或使用兑换码'
+                });
+            }
         }
         const count = await Question_1.default.count({ where: { questionSetId: String(questionSetId) } });
         if (count === 0) {

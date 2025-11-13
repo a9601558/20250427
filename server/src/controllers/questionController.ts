@@ -5,10 +5,13 @@ import Option from '../models/Option';
 import { QueryTypes } from 'sequelize';
 import sequelize from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
+import QuestionSet from '../models/QuestionSet';
+import Purchase from '../models/Purchase';
+import RedeemCode from '../models/RedeemCode';
 
 /**
  * @route GET /api/v1/questions
- * @access Public
+ * @access Public (但受权限限制)
  */
 export const getQuestions = async (req: Request, res: Response) => {
   try {
@@ -16,6 +19,64 @@ export const getQuestions = async (req: Request, res: Response) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const where = questionSetId ? { questionSetId: String(questionSetId) } : {};
+
+    // 🔒 安全检查：如果查询特定题库，需要验证权限
+    if (questionSetId) {
+      const questionSet = await QuestionSet.findByPk(String(questionSetId));
+      
+      if (!questionSet) {
+        return res.status(404).json({
+          success: false,
+          message: '题库不存在'
+        });
+      }
+      
+      // 如果是付费题库，检查用户权限
+      if (questionSet.isPaid) {
+        const userId = (req as any).user?.id;
+        
+        if (!userId) {
+          return res.status(403).json({
+            success: false,
+            message: '访问付费题库需要登录'
+          });
+        }
+        
+        const now = new Date();
+        
+        // 检查购买记录
+        const validPurchase = await Purchase.findOne({
+          where: {
+            userId,
+            questionSetId: String(questionSetId),
+            status: 'completed'
+          }
+        });
+        
+        const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+        
+        // 检查兑换码
+        const validRedeemCode = await RedeemCode.findOne({
+          where: {
+            questionSetId: String(questionSetId),
+            usedBy: userId,
+            isUsed: true
+          }
+        });
+        
+        const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+        
+        if (!hasPurchaseAccess && !hasRedeemAccess) {
+          console.log(`🔒 [Questions API] 拒绝访问付费题库 ${questionSetId} - 用户 ${userId} 无权限`);
+          return res.status(403).json({
+            success: false,
+            message: '您没有访问此付费题库的权限，请购买或使用兑换码'
+          });
+        }
+        
+        console.log(`✅ [Questions API] 允许访问付费题库 ${questionSetId} - 用户 ${userId}`);
+      }
+    }
 
     const includeOptions = include === 'options' ? [{
       model: Option,
@@ -67,7 +128,7 @@ export const getQuestions = async (req: Request, res: Response) => {
 
 /**
  * @route GET /api/v1/questions/:id
- * @access Public
+ * @access Public (但受权限限制)
  */
 export const getQuestionById = async (req: Request, res: Response) => {
   try {
@@ -75,6 +136,57 @@ export const getQuestionById = async (req: Request, res: Response) => {
     if (!question) {
       return sendError(res, 404, '問題不存在');
     }
+    
+    // 🔒 安全检查：验证用户对该题目所属题库的访问权限
+    const questionSet = await QuestionSet.findByPk(question.questionSetId);
+    
+    if (!questionSet) {
+      return sendError(res, 404, '题库不存在');
+    }
+    
+    if (questionSet.isPaid) {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        return res.status(403).json({
+          success: false,
+          message: '访问付费题库需要登录'
+        });
+      }
+      
+      const now = new Date();
+      
+      // 检查购买记录
+      const validPurchase = await Purchase.findOne({
+        where: {
+          userId,
+          questionSetId: question.questionSetId,
+          status: 'completed'
+        }
+      });
+      
+      const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+      
+      // 检查兑换码
+      const validRedeemCode = await RedeemCode.findOne({
+        where: {
+          questionSetId: question.questionSetId,
+          usedBy: userId,
+          isUsed: true
+        }
+      });
+      
+      const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+      
+      if (!hasPurchaseAccess && !hasRedeemAccess) {
+        console.log(`🔒 [Question By ID API] 拒绝访问付费题目 ${req.params.id} - 用户 ${userId} 无权限`);
+        return res.status(403).json({
+          success: false,
+          message: '您没有访问此付费题库的权限，请购买或使用兑换码'
+        });
+      }
+    }
+    
     sendResponse(res, 200, '获取問題成功', question);
   } catch (error) {
     sendError(res, 500, '获取問題失败', error);
@@ -159,6 +271,56 @@ export const getRandomQuestion = async (req: Request, res: Response) => {
     const { questionSetId } = req.query;
     if (!questionSetId) {
       return sendError(res, 400, '缺少問題集ID');
+    }
+
+    // 🔒 安全检查：验证用户对该题库的访问权限
+    const questionSet = await QuestionSet.findByPk(String(questionSetId));
+    
+    if (!questionSet) {
+      return sendError(res, 404, '题库不存在');
+    }
+    
+    if (questionSet.isPaid) {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        return res.status(403).json({
+          success: false,
+          message: '访问付费题库需要登录'
+        });
+      }
+      
+      const now = new Date();
+      
+      // 检查购买记录
+      const validPurchase = await Purchase.findOne({
+        where: {
+          userId,
+          questionSetId: String(questionSetId),
+          status: 'completed'
+        }
+      });
+      
+      const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+      
+      // 检查兑换码
+      const validRedeemCode = await RedeemCode.findOne({
+        where: {
+          questionSetId: String(questionSetId),
+          usedBy: userId,
+          isUsed: true
+        }
+      });
+      
+      const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+      
+      if (!hasPurchaseAccess && !hasRedeemAccess) {
+        console.log(`🔒 [Random Question API] 拒绝访问付费题库 ${questionSetId} - 用户 ${userId} 无权限`);
+        return res.status(403).json({
+          success: false,
+          message: '您没有访问此付费题库的权限，请购买或使用兑换码'
+        });
+      }
     }
 
     const count = await Question.count({ where: { questionSetId: String(questionSetId) } });
