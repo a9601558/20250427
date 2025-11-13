@@ -12,9 +12,13 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-16+-339933.svg)](https://nodejs.org/)
 
-[デモ](https://your-demo-url.com) • [ドキュメント](./docs/) • [デプロイガイド](./PRODUCTION_DEPLOY.md)
+[デモ](https://your-demo-url.com) • [📚 完全文档索引](./docs/DOCUMENTATION_INDEX.md) • [🚀 部署指南](./docs/deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
 
 </div>
+
+---
+
+> **📚 查找文档？** 请访问 **[完整文档索引](./docs/DOCUMENTATION_INDEX.md)** 快速找到您需要的文档
 
 ---
 
