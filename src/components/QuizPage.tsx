@@ -2380,7 +2380,7 @@ function QuizPage(): JSX.Element {
             featuredCategory: response.data.featuredCategory,
             hasAccess: false,
             trialQuestions: 0, // 先初始化为0，后面再设置
-            questionCount: getQuestions(response.data).length,
+            questionCount: response.data.questionCount || getQuestions(response.data).length,  // 優先使用後端返回的完整題目数
             createdAt: new Date(),
             updatedAt: new Date()
           };

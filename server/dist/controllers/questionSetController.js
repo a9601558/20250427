@@ -255,9 +255,11 @@ const getQuestionSetById = async (req, res) => {
         }
         // 直接使用 questionSet 的数据，不添加 cardImage 字段
         const questionSetData = questionSet.toJSON();
+        // 保存完整題目数（在截断前）
+        const totalQuestionCount = questionSetData.questionSetQuestions?.length || 0;
         // 🔒 安全检查：如果是付费题库，检查用户购买状态
         let hasFullAccess = true;
-        let allowedQuestionCount = questionSetData.questionSetQuestions?.length || 0;
+        let allowedQuestionCount = totalQuestionCount;
         if (questionSetData.isPaid) {
             // 获取当前用户ID (可能未登录)
             const userId = req.user?.id;
@@ -338,7 +340,8 @@ const getQuestionSetById = async (req, res) => {
         const responseData = {
             ...questionSetData,
             hasFullAccess,
-            allowedQuestionCount
+            allowedQuestionCount,
+            questionCount: totalQuestionCount // 完整題目数（試用モードでも返す）
         };
         // 添加日志检查题目顺序
         if (responseData.questionSetQuestions && responseData.questionSetQuestions.length > 0) {
