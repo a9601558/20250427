@@ -14,6 +14,20 @@ const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Purchase_1 = __importDefault(require("../models/Purchase"));
 const RedeemCode_1 = __importDefault(require("../models/RedeemCode"));
 /**
+ * 检查购买或兑换码是否有效（含过期时间检查）
+ * 如果没有expiryDate字段，视为永久有效
+ */
+const hasValidAccess = (record) => {
+    if (!record)
+        return false;
+    if (!record.expiryDate) {
+        // 没有过期日期，视为永久有效
+        return true;
+    }
+    const now = new Date();
+    return new Date(record.expiryDate) > now;
+};
+/**
  * @route GET /api/v1/questions
  * @access Public (但受权限限制)
  */
@@ -49,7 +63,7 @@ const getQuestions = async (req, res) => {
                         status: 'completed'
                     }
                 });
-                const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+                const hasPurchaseAccess = hasValidAccess(validPurchase);
                 // 检查兑换码
                 const validRedeemCode = await RedeemCode_1.default.findOne({
                     where: {
@@ -58,7 +72,7 @@ const getQuestions = async (req, res) => {
                         isUsed: true
                     }
                 });
-                const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+                const hasRedeemAccess = hasValidAccess(validRedeemCode);
                 if (!hasPurchaseAccess && !hasRedeemAccess) {
                     console.log(`🔒 [Questions API] 拒绝访问付费题库 ${questionSetId} - 用户 ${userId} 无权限`);
                     return res.status(403).json({
@@ -146,7 +160,7 @@ const getQuestionById = async (req, res) => {
                     status: 'completed'
                 }
             });
-            const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+            const hasPurchaseAccess = hasValidAccess(validPurchase);
             // 检查兑换码
             const validRedeemCode = await RedeemCode_1.default.findOne({
                 where: {
@@ -155,7 +169,7 @@ const getQuestionById = async (req, res) => {
                     isUsed: true
                 }
             });
-            const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+            const hasRedeemAccess = hasValidAccess(validRedeemCode);
             if (!hasPurchaseAccess && !hasRedeemAccess) {
                 console.log(`🔒 [Question By ID API] 拒绝访问付费题目 ${req.params.id} - 用户 ${userId} 无权限`);
                 return res.status(403).json({
@@ -269,7 +283,7 @@ const getRandomQuestion = async (req, res) => {
                     status: 'completed'
                 }
             });
-            const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
+            const hasPurchaseAccess = hasValidAccess(validPurchase);
             // 检查兑换码
             const validRedeemCode = await RedeemCode_1.default.findOne({
                 where: {
@@ -278,7 +292,7 @@ const getRandomQuestion = async (req, res) => {
                     isUsed: true
                 }
             });
-            const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
+            const hasRedeemAccess = hasValidAccess(validRedeemCode);
             if (!hasPurchaseAccess && !hasRedeemAccess) {
                 console.log(`🔒 [Random Question API] 拒绝访问付费题库 ${questionSetId} - 用户 ${userId} 无权限`);
                 return res.status(403).json({

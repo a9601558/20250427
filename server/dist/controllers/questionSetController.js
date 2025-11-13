@@ -273,9 +273,19 @@ const getQuestionSetById = async (req, res) => {
                     }
                 });
                 // 检查购买是否过期
-                const hasPurchaseAccess = validPurchase && new Date(validPurchase.expiryDate) > now;
-                if (validPurchase && !hasPurchaseAccess) {
-                    console.log(`⏰ 购买记录已过期 - 购买日期: ${validPurchase.purchaseDate}, 过期日期: ${validPurchase.expiryDate}`);
+                let hasPurchaseAccess = false;
+                if (validPurchase) {
+                    if (!validPurchase.expiryDate) {
+                        // 如果没有过期日期，视为永久有效
+                        console.log(`✅ 购买记录无过期日期，视为永久有效`);
+                        hasPurchaseAccess = true;
+                    }
+                    else {
+                        hasPurchaseAccess = new Date(validPurchase.expiryDate) > now;
+                        if (!hasPurchaseAccess) {
+                            console.log(`⏰ 购买记录已过期 - 购买日期: ${validPurchase.purchaseDate}, 过期日期: ${validPurchase.expiryDate}`);
+                        }
+                    }
                 }
                 // 检查是否使用了有效兑换码（包含过期时间检查）
                 const validRedeemCode = await RedeemCode_1.default.findOne({
@@ -286,9 +296,19 @@ const getQuestionSetById = async (req, res) => {
                     }
                 });
                 // 检查兑换码是否过期
-                const hasRedeemAccess = validRedeemCode && new Date(validRedeemCode.expiryDate) > now;
-                if (validRedeemCode && !hasRedeemAccess) {
-                    console.log(`⏰ 兑换码已过期 - 兑换时间: ${validRedeemCode.usedAt}, 过期日期: ${validRedeemCode.expiryDate}`);
+                let hasRedeemAccess = false;
+                if (validRedeemCode) {
+                    if (!validRedeemCode.expiryDate) {
+                        // 如果没有过期日期，视为永久有效
+                        console.log(`✅ 兑换码无过期日期，视为永久有效`);
+                        hasRedeemAccess = true;
+                    }
+                    else {
+                        hasRedeemAccess = new Date(validRedeemCode.expiryDate) > now;
+                        if (!hasRedeemAccess) {
+                            console.log(`⏰ 兑换码已过期 - 兑换时间: ${validRedeemCode.usedAt}, 过期日期: ${validRedeemCode.expiryDate}`);
+                        }
+                    }
                 }
                 if (hasPurchaseAccess || hasRedeemAccess) {
                     hasFullAccess = true;
