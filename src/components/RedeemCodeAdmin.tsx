@@ -52,19 +52,23 @@ const RedeemCodeAdmin: React.FC = () => {
     e.preventDefault();
     
     if (!selectedQuestionSetId) {
+      console.warn('[RedeemCodeAdmin] 未选择题库');
       return;
     }
     
     if (validityDays < 1) {
+      console.warn('[RedeemCodeAdmin] 有効期限が無効:', validityDays);
       return;
     }
     
     if (quantity < 1 || quantity > 100) {
+      console.warn('[RedeemCodeAdmin] 生成数量が無効:', quantity);
       return;
     }
     
     try {
       setIsGenerating(true);
+      console.log('[RedeemCodeAdmin] 兑换码生成開始:', { selectedQuestionSetId, validityDays, quantity });
       
       const response = await redeemCodeService.generateRedeemCodes(
         selectedQuestionSetId,
@@ -72,18 +76,26 @@ const RedeemCodeAdmin: React.FC = () => {
         quantity
       );
       
+      console.log('[RedeemCodeAdmin] API响应:', response);
+      
       if (response.success && response.data) {
-        // 更新兑换码列表
+        // 🚀 即座更新：新生成的兑换码を直接リストの先頭に追加
         const newCodes = response.data as any[];
-        setRedeemCodes(prev => [...newCodes, ...prev]);
+        console.log('[RedeemCodeAdmin] 新生成的兑换码数量:', newCodes.length);
+        setRedeemCodes(prev => {
+          const updated = [...newCodes, ...prev];
+          console.log('[RedeemCodeAdmin] 更新后的列表总数:', updated.length);
+          return updated;
+        });
         setGeneratedCodes(newCodes);
         setShowGeneratedCodes(true);
-        } else {
+        console.log('[RedeemCodeAdmin] ✅ 兑换码列表已即时更新');
+      } else {
         throw new Error(response.message || '引き換えコードの生成に失敗しました');
       }
     } catch (error: any) {
-      console.error('引き換えコードの生成に失敗:', error);
-      } finally {
+      console.error('[RedeemCodeAdmin] 引き換えコードの生成に失敗:', error);
+    } finally {
       setIsGenerating(false);
     }
   };

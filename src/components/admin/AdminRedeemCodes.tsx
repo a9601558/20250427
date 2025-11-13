@@ -148,10 +148,18 @@ const AdminRedeemCodes: React.FC = () => {
         throw new Error(result.message || '生成兑换码失败');
       }
       
-      const updatedCodes = await getRedeemCodes();
-      setRedeemCodes(updatedCodes);
-      
-      setStatusMessage(`成功生成 ${codeCount} 个兑换码`);
+      // 🚀 即座更新：新生成的兑换码を直接リストの先頭に追加
+      if (result.codes && Array.isArray(result.codes) && result.codes.length > 0) {
+        console.log('[AdminRedeemCodes] 新生成的兑换码:', result.codes);
+        setRedeemCodes(prev => [...result.codes!, ...prev]);
+        setStatusMessage(`成功生成 ${codeCount} 个兑换码（已即时更新）`);
+      } else {
+        // フォールバック：APIから全データを再取得
+        console.log('[AdminRedeemCodes] 使用フォールバック方式更新列表');
+        const updatedCodes = await getRedeemCodes();
+        setRedeemCodes(updatedCodes);
+        setStatusMessage(`成功生成 ${codeCount} 个兑换码`);
+      }
     } catch (error: any) {
       console.error('生成兑换码失败:', error);
       setStatusMessage(error.message || '生成兑换码失败，请重试');
