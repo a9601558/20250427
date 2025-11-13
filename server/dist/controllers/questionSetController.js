@@ -264,6 +264,16 @@ const getQuestionSetById = async (req, res) => {
             console.log(`🔍 付费题库访问检查 - 题库ID: ${req.params.id}, 用户ID: ${userId || '未登录'}`);
             if (userId) {
                 const now = new Date();
+                // 辅助函数：检查记录是否有有效访问权限
+                const hasValidAccess = (record) => {
+                    if (!record)
+                        return false;
+                    // 如果expiryDate为null或undefined，视为永久有效
+                    if (!record.expiryDate)
+                        return true;
+                    // 否则检查是否过期
+                    return new Date(record.expiryDate) > now;
+                };
                 // 检查是否有有效购买记录（包含过期时间检查）
                 const validPurchase = await Purchase_1.default.findOne({
                     where: {
@@ -272,20 +282,12 @@ const getQuestionSetById = async (req, res) => {
                         status: 'completed'
                     }
                 });
-                // 检查购买是否过期
-                let hasPurchaseAccess = false;
-                if (validPurchase) {
-                    if (!validPurchase.expiryDate) {
-                        // 如果没有过期日期，视为永久有效
-                        console.log(`✅ 购买记录无过期日期，视为永久有效`);
-                        hasPurchaseAccess = true;
-                    }
-                    else {
-                        hasPurchaseAccess = new Date(validPurchase.expiryDate) > now;
-                        if (!hasPurchaseAccess) {
-                            console.log(`⏰ 购买记录已过期 - 购买日期: ${validPurchase.purchaseDate}, 过期日期: ${validPurchase.expiryDate}`);
-                        }
-                    }
+                const hasPurchaseAccess = hasValidAccess(validPurchase);
+                if (validPurchase && !hasPurchaseAccess) {
+                    console.log(`⏰ 购买记录已过期 - 购买日期: ${validPurchase.purchaseDate}, 过期日期: ${validPurchase.expiryDate}`);
+                }
+                else if (validPurchase && !validPurchase.expiryDate) {
+                    console.log(`✅ 购买记录无过期日期，视为永久有效`);
                 }
                 // 检查是否使用了有效兑换码（包含过期时间检查）
                 const validRedeemCode = await RedeemCode_1.default.findOne({
@@ -295,25 +297,19 @@ const getQuestionSetById = async (req, res) => {
                         isUsed: true
                     }
                 });
-                // 检查兑换码是否过期
-                let hasRedeemAccess = false;
-                if (validRedeemCode) {
-                    if (!validRedeemCode.expiryDate) {
-                        // 如果没有过期日期，视为永久有效
-                        console.log(`✅ 兑换码无过期日期，视为永久有效`);
-                        hasRedeemAccess = true;
-                    }
-                    else {
-                        hasRedeemAccess = new Date(validRedeemCode.expiryDate) > now;
-                        if (!hasRedeemAccess) {
-                            console.log(`⏰ 兑换码已过期 - 兑换时间: ${validRedeemCode.usedAt}, 过期日期: ${validRedeemCode.expiryDate}`);
-                        }
-                    }
+                const hasRedeemAccess = hasValidAccess(validRedeemCode);
+                if (validRedeemCode && !hasRedeemAccess) {
+                    console.log(`⏰ 兑换码已过期 - 兑换时间: ${validRedeemCode.usedAt}, 过期日期: ${validRedeemCode.expiryDate}`);
+                }
+                else if (validRedeemCode && !validRedeemCode.expiryDate) {
+                    console.log(`✅ 兑换码无过期日期，视为永久有效`);
                 }
                 if (hasPurchaseAccess || hasRedeemAccess) {
                     hasFullAccess = true;
                     const accessType = hasPurchaseAccess ? '购买' : '兑换码';
-                    const expiryDate = hasPurchaseAccess ? validPurchase.expiryDate : validRedeemCode.expiryDate;
+                    const expiryDate = hasPurchaseAccess
+                        ? (validPurchase.expiryDate || '永久')
+                        : (validRedeemCode.expiryDate || '永久');
                     console.log(`✅ 用户已${accessType}，允许完整访问（有效期至: ${expiryDate}）`);
                 }
                 else {

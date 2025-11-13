@@ -14,16 +14,17 @@ const QuestionSet_1 = __importDefault(require("../models/QuestionSet"));
 const Purchase_1 = __importDefault(require("../models/Purchase"));
 const RedeemCode_1 = __importDefault(require("../models/RedeemCode"));
 /**
- * 检查购买或兑换码是否有效（含过期时间检查）
- * 如果没有expiryDate字段，视为永久有效
+ * 辅助函数：检查记录是否有有效访问权限
+ * @param record Purchase或RedeemCode记录
+ * @returns 是否有有效访问权限
  */
 const hasValidAccess = (record) => {
     if (!record)
         return false;
-    if (!record.expiryDate) {
-        // 没有过期日期，视为永久有效
+    // 如果expiryDate为null或undefined，视为永久有效
+    if (!record.expiryDate)
         return true;
-    }
+    // 否则检查是否过期
     const now = new Date();
     return new Date(record.expiryDate) > now;
 };
@@ -54,7 +55,6 @@ const getQuestions = async (req, res) => {
                         message: '访问付费题库需要登录'
                     });
                 }
-                const now = new Date();
                 // 检查购买记录
                 const validPurchase = await Purchase_1.default.findOne({
                     where: {
@@ -151,7 +151,6 @@ const getQuestionById = async (req, res) => {
                     message: '访问付费题库需要登录'
                 });
             }
-            const now = new Date();
             // 检查购买记录
             const validPurchase = await Purchase_1.default.findOne({
                 where: {
@@ -274,7 +273,6 @@ const getRandomQuestion = async (req, res) => {
                     message: '访问付费题库需要登录'
                 });
             }
-            const now = new Date();
             // 检查购买记录
             const validPurchase = await Purchase_1.default.findOne({
                 where: {
