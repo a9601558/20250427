@@ -41,7 +41,7 @@ router.put('/:id/questions', authMiddleware_1.protect, authMiddleware_1.admin, q
 router.patch('/:id/featured', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.setFeaturedQuestionSet);
 // Base routes
 router.post('/', authMiddleware_1.protect, authMiddleware_1.admin, questionSetController_1.createQuestionSet);
-router.get('/:id', questionSetController_1.getQuestionSetById);
+router.get('/:id', authMiddleware_1.optionalAuth, questionSetController_1.getQuestionSetById); // 使用可选认证
 // 按分类获取题库
 router.get('/by-category/:category', questionSetController_1.getQuestionSetsByCategory);
 // 添加测试路由，确认POST请求能够正常工作

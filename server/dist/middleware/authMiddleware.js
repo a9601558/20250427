@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.admin = exports.protect = void 0;
+exports.optionalAuth = exports.admin = exports.protect = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 // Function to verify AWS Cognito JWT token (production ready)
@@ -187,6 +187,73 @@ const admin = (req, res, next) => {
     }
 };
 exports.admin = admin;
+/**
+ * Optional authentication middleware
+ * 如果请求包含token，则验证并附加用户信息
+ * 如果没有token，则继续处理（req.user为undefined）
+ * 用于需要支持未登录访问但同时要识别已登录用户的API
+ */
+const optionalAuth = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        // 如果没有Authorization header，直接继续（作为未登录用户）
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('[OptionalAuth] 未提供token，作为未登录用户处理');
+            return next();
+        }
+        const token = authHeader.substring(7);
+        console.log('[OptionalAuth] 检测到token，尝试验证');
+        try {
+            // 验证token
+            const payload = await verifyCognitoToken(token);
+            // 查找或创建用户（使用id字段，因为User模型的主键id存储Cognito sub）
+            let user = await User_1.default.findOne({
+                where: { id: payload.sub }
+            });
+            if (!user) {
+                console.log('[OptionalAuth] 用户不存在，创建新用户:', payload.sub);
+                const username = payload.preferred_username || payload.username || payload.email?.split('@')[0] || payload.sub;
+                const email = payload.email || `${payload.sub}@cognito.local`;
+                user = await User_1.default.create({
+                    id: payload.sub,
+                    username: username,
+                    email: email,
+                    password: 'COGNITO_AUTH',
+                    isAdmin: false,
+                    lastLoginAt: new Date()
+                });
+            }
+            else {
+                // 更新最后登录时间
+                const cognitoEmail = payload.email;
+                if (cognitoEmail && user.email !== cognitoEmail) {
+                    await user.update({
+                        email: cognitoEmail,
+                        lastLoginAt: new Date()
+                    });
+                }
+                else {
+                    await user.update({ lastLoginAt: new Date() });
+                }
+            }
+            // 附加用户信息到请求
+            req.cognitoUser = payload;
+            req.user = user;
+            console.log('[OptionalAuth] 认证成功，用户ID:', user.id);
+        }
+        catch (verifyError) {
+            // token验证失败，但不阻止请求，仅记录日志
+            console.log('[OptionalAuth] Token验证失败，作为未登录用户处理:', verifyError.message);
+        }
+        next();
+    }
+    catch (error) {
+        // 出错时也不阻止请求
+        console.error('[OptionalAuth] 可选认证错误:', error.message);
+        next();
+    }
+};
+exports.optionalAuth = optionalAuth;
 /*
  * Required environment variables:
  * - COGNITO_REGION: AWS Cognito region (e.g., 'ap-southeast-2')

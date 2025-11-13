@@ -13,7 +13,7 @@ import {
   updateQuestionSetQuestions
 } from '../controllers/questionSetController';
 import { upload, uploadQuestionSetFile } from '../controllers/questionsUploadController';
-import { protect, admin } from '../middleware/authMiddleware';
+import { protect, admin, optionalAuth } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
@@ -57,7 +57,7 @@ router.patch('/:id/featured', protect, admin, setFeaturedQuestionSet);
 
 // Base routes
 router.post('/', protect, admin, createQuestionSet);
-router.get('/:id', getQuestionSetById);
+router.get('/:id', optionalAuth, getQuestionSetById);  // 使用可选认证
 
 // 按分类获取题库
 router.get('/by-category/:category', getQuestionSetsByCategory);

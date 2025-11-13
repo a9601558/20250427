@@ -11,17 +11,17 @@ import {
   batchUploadQuestions,
   jsonUploadQuestions
 } from '../controllers/questionController';
-import { protect, admin } from '../middleware/authMiddleware';
+import { protect, admin, optionalAuth } from '../middleware/authMiddleware';
 import { upload } from '../middleware/fileUploadMiddleware';
 
 const router = express.Router();
 
-// 题目相关路由
-router.get('/', getQuestions);
+// 题目相关路由（需要权限检查的使用optionalAuth）
+router.get('/', optionalAuth, getQuestions);  // 可选认证
 // 特殊路由放在通用路由前面
 router.get('/count/:questionSetId', getQuestionCount);
 router.post('/batch-count', getBatchQuestionCounts);  // 批量查询题目数量
-router.get('/random/:questionSetId', getRandomQuestion);
+router.get('/random/:questionSetId', optionalAuth, getRandomQuestion);  // 可选认证
 
 // Batch upload route - ensure proper middleware and handling
 router.post('/batch-upload/:questionSetId', protect, admin, upload.single('file'), batchUploadQuestions);
@@ -30,7 +30,7 @@ router.post('/batch-upload/:questionSetId', protect, admin, upload.single('file'
 router.post('/json-upload', protect, admin, upload.single('file'), jsonUploadQuestions);
 
 // 通用路由放在特殊路由后面
-router.get('/:id', getQuestionById);
+router.get('/:id', optionalAuth, getQuestionById);  // 可选认证
 router.post('/', protect, admin, createQuestion);
 router.put('/:id', protect, admin, updateQuestion);
 router.delete('/:id', protect, admin, deleteQuestion);
