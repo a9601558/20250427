@@ -4250,11 +4250,11 @@ function QuizPage(): JSX.Element {
               </div>
             </div>
             
-            {/* 题目列表（折叠状态） */}
+            {/* 問題リスト（折りたたみ状態） */}
             <div className="mb-8">
               <details className="bg-gray-50 rounded-lg p-4">
                 <summary className="font-medium text-gray-700 cursor-pointer">
-                  题目答题情况详情 ({answeredQuestions.length}题)
+                  問題の解答状況詳細 ({answeredQuestions.length}問)
                 </summary>
                 <div className="mt-4 space-y-3">
                   {answeredQuestions.map((answer, index) => {
@@ -4279,31 +4279,31 @@ function QuizPage(): JSX.Element {
                             </div>
                           </div>
                           <div className={`text-xs px-2 py-0.5 rounded-full ${answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                            {answer.isCorrect ? '正确' : '错误'}
+                            {answer.isCorrect ? '正解' : '不正解'}
                           </div>
                         </div>
-                        {/* 添加选择的答案和正确答案显示 */}
+                        {/* 選択した回答と正解の表示 */}
                         <div className="mt-2 text-xs">
                           {answer.selectedOption && (
                             <div className="text-gray-600">
-                              已选答案: {Array.isArray(answer.selectedOption) 
+                              選択した回答: {Array.isArray(answer.selectedOption) 
                                 ? answer.selectedOption.map(opt => {
                                     const option = question.options.find(o => o.id === opt);
-                                    return option ? option.text : '未知选项';
+                                    return option ? option.text : '不明な選択肢';
                                   }).join(', ')
                                 : (() => {
                                     const option = question.options.find(o => o.id === answer.selectedOption);
-                                    return option ? option.text : '未知选项';
+                                    return option ? option.text : '不明な選択肢';
                                   })()
                               }
                             </div>
                           )}
                           {!answer.isCorrect && (
                             <div className="text-green-600 mt-1">
-                              正确答案: {question.questionType === 'single'
+                              正解: {question.questionType === 'single'
                                 ? (() => {
                                     const correctOption = question.options.find(o => o.isCorrect);
-                                    return correctOption ? correctOption.text : '未知';
+                                    return correctOption ? correctOption.text : '不明';
                                   })()
                                 : question.options.filter(o => o.isCorrect).map(o => o.text).join(', ')
                               }
@@ -4326,7 +4326,7 @@ function QuizPage(): JSX.Element {
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                重新开始
+                最初からやり直す
               </button>
               
               <button 
@@ -4339,11 +4339,11 @@ function QuizPage(): JSX.Element {
                 ホームに戻る
               </button>
               
-              {/* 使用hasAccessToFullQuiz来判断是否显示购买按钮 - モバイル最適化 */}
+              {/* hasAccessToFullQuizで購入ボタンの表示を判断 - モバイル最適化 */}
               {questionSet && isPaidQuiz(questionSet) && !quizStatus.hasAccessToFullQuiz && !quizStatus.hasRedeemed && (
                 <button
                   onClick={(e) => {
-                    // 阻止事件冒泡
+                    // イベントバブリングを防止
                     e.stopPropagation();
                     
                     
