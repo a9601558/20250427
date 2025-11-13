@@ -3685,9 +3685,10 @@ function QuizPage(): JSX.Element {
       return;
     }
     
-    // 安全检查：确保题目索引有效
-    if (questionIndex < 0 || questionIndex >= questions.length) {
-      console.error(`[QuizPage] 无效题目索引: ${questionIndex}, 最大索引: ${questions.length - 1}`);
+    // 安全检查：确保题目索引有效（使用完整题目数而不是试用题目数）
+    const totalQuestions = questionSet?.questionCount || questions.length;
+    if (questionIndex < 0 || questionIndex >= totalQuestions) {
+      console.error(`[QuizPage] 无效题目索引: ${questionIndex}, 最大索引: ${totalQuestions - 1}`);
       return;
     }
     
@@ -3706,6 +3707,7 @@ function QuizPage(): JSX.Element {
       }));
     }
   }, [
+    questionSet?.questionCount,
     questions.length, 
     quizStatus.quizComplete, 
     canAccessQuestion,
@@ -4747,7 +4749,7 @@ function QuizPage(): JSX.Element {
         
         {/* 答题卡 */}
         <AnswerCard
-          totalQuestions={questions.length}
+          totalQuestions={questionSet?.questionCount || questions.length}
           answeredQuestions={answeredQuestions}
           currentIndex={currentQuestionIndex}
           trialLimit={questionSet?.trialQuestions}
