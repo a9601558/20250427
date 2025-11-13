@@ -2756,8 +2756,14 @@ function QuizPage(): JSX.Element {
       } finally {
         setQuizStatus(prev => ({
           ...prev,
-          loading: false
+          loading: false,
+          isTimerActive: true  // 开始计时
         }));
+        
+        // 设置开始时间
+        if (quizStartTime === 0) {
+          setQuizStartTime(Date.now());
+        }
       }
     };
     
@@ -2793,6 +2799,30 @@ function QuizPage(): JSX.Element {
       setQuestionStartTime(Date.now());
     }
   }, [questions, quizStatus.loading]);
+
+  // 添加计时器更新逻辑
+  useEffect(() => {
+    // 只有在有题目且计时器激活时才运行
+    if (questions.length === 0 || !quizStatus.isTimerActive || quizStatus.quizComplete) {
+      return;
+    }
+
+    // 如果还没有开始时间，设置开始时间
+    if (quizStartTime === 0) {
+      setQuizStartTime(Date.now());
+    }
+
+    // 每秒更新一次总时间
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - quizStartTime) / 1000); // 转换为秒
+      setQuizTotalTime(elapsed);
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [questions.length, quizStatus.isTimerActive, quizStatus.quizComplete, quizStartTime]);
 
   // 检查 localStorage 中是否有已兑换记录
   useEffect(() => {
