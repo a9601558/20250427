@@ -255,18 +255,74 @@ const getQuestionSetById = async (req, res) => {
         }
         // 直接使用 questionSet 的数据，不添加 cardImage 字段
         const questionSetData = questionSet.toJSON();
+        // 🔒 安全检查：如果是付费题库，检查用户购买状态
+        let hasFullAccess = true;
+        let allowedQuestionCount = questionSetData.questionSetQuestions?.length || 0;
+        if (questionSetData.isPaid) {
+            // 获取当前用户ID (可能未登录)
+            const userId = req.user?.id;
+            console.log(`🔍 付费题库访问检查 - 题库ID: ${req.params.id}, 用户ID: ${userId || '未登录'}`);
+            if (userId) {
+                // 检查是否有有效购买记录
+                const validPurchase = await Purchase_1.default.findOne({
+                    where: {
+                        userId,
+                        questionSetId: req.params.id,
+                        status: 'completed'
+                    }
+                });
+                // 检查是否使用了有效兑换码
+                const validRedeemCode = await RedeemCode_1.default.findOne({
+                    where: {
+                        questionSetId: req.params.id,
+                        usedBy: userId,
+                        isUsed: true
+                    }
+                });
+                if (validPurchase || validRedeemCode) {
+                    hasFullAccess = true;
+                    console.log(`✅ 用户已购买或使用兑换码，允许完整访问`);
+                }
+                else {
+                    hasFullAccess = false;
+                    allowedQuestionCount = questionSetData.trialQuestions || 0;
+                    console.log(`⚠️ 用户未购买，仅允许试用 ${allowedQuestionCount} 道题目`);
+                }
+            }
+            else {
+                // 未登录用户只能试用
+                hasFullAccess = false;
+                allowedQuestionCount = questionSetData.trialQuestions || 0;
+                console.log(`⚠️ 未登录用户，仅允许试用 ${allowedQuestionCount} 道题目`);
+            }
+            // 🔒 关键安全措施：如果没有完整访问权限，只返回试用题目
+            if (!hasFullAccess && questionSetData.questionSetQuestions) {
+                const originalCount = questionSetData.questionSetQuestions.length;
+                questionSetData.questionSetQuestions = questionSetData.questionSetQuestions.slice(0, allowedQuestionCount);
+                console.log(`🔒 题目已截断：原 ${originalCount} 题 → 返回 ${questionSetData.questionSetQuestions.length} 题`);
+            }
+        }
+        else {
+            console.log(`✅ 免费题库，允许完整访问`);
+        }
+        // 添加权限信息到返回数据
+        const responseData = {
+            ...questionSetData,
+            hasFullAccess,
+            allowedQuestionCount
+        };
         // 添加日志检查题目顺序
-        if (questionSetData.questionSetQuestions && questionSetData.questionSetQuestions.length > 0) {
-            console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSetData.questionSetQuestions.length} 个題目`);
+        if (responseData.questionSetQuestions && responseData.questionSetQuestions.length > 0) {
+            console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${responseData.questionSetQuestions.length} 个題目 (完整访问: ${hasFullAccess})`);
             console.log('前5道题目的orderIndex:');
-            questionSetData.questionSetQuestions.slice(0, 5).forEach((q, i) => {
+            responseData.questionSetQuestions.slice(0, 5).forEach((q, i) => {
                 console.log(`  ${i + 1}. orderIndex=${q.orderIndex}, 题干: ${q.text?.substring(0, 40)}...`);
             });
         }
         else {
-            console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${questionSet.questionSetQuestions?.length || 0} 个問題`);
+            console.log(`题库获取成功，ID: ${questionSet.id}，包含 ${responseData.questionSetQuestions?.length || 0} 个問題 (完整访问: ${hasFullAccess})`);
         }
-        sendResponse(res, 200, questionSetData);
+        sendResponse(res, 200, responseData);
     }
     catch (error) {
         console.error('Get question set error:', error);

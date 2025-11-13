@@ -80,6 +80,9 @@ export interface QuestionSet {
   remainingDays?: number | null;
   questionCount?: number;
   cardImage?: string; // URL for the question set card image
+  // 🔒 Security properties (从后端API返回)
+  hasFullAccess?: boolean; // 用户是否有完整访问权限（已购买或使用兑换码）
+  allowedQuestionCount?: number; // 允许访问的题目数量（试用模式下限制）
 }
 
 export type QuestionType = 'single' | 'multiple';

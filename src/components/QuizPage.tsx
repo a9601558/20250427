@@ -2513,8 +2513,22 @@ function QuizPage(): JSX.Element {
           const questionsData = getQuestions(response.data);
           if (questionsData.length > 0) {
             
+            // 🔒 前端安全检查：二重验证题目数量
+            const hasFullAccess = response.data.hasFullAccess ?? true; // 默认为true兼容旧数据
+            const allowedQuestionCount = response.data.allowedQuestionCount ?? questionsData.length;
+            
+            console.log(`🔍 前端安全检查 - hasFullAccess: ${hasFullAccess}, allowedCount: ${allowedQuestionCount}, actualCount: ${questionsData.length}`);
+            
+            // 如果没有完整权限且后端返回的题目数超过允许数量，前端也进行截断
+            let finalQuestionsData = questionsData;
+            if (!hasFullAccess && questionsData.length > allowedQuestionCount) {
+              console.warn(`⚠️ 前端检测到题目数量异常：返回 ${questionsData.length} 题，但只允许 ${allowedQuestionCount} 题`);
+              finalQuestionsData = questionsData.slice(0, allowedQuestionCount);
+              console.log(`🔒 前端已截断题目：${questionsData.length} → ${finalQuestionsData.length}`);
+            }
+            
             // 处理题目选项并设置数据
-            const processedQuestions = questionsData.map((q: any) => {
+            const processedQuestions = finalQuestionsData.map((q: any) => {
               // 确保选项存在
               if (!q.options || !Array.isArray(q.options)) {
                 console.warn("题目缺少选项:", q.id);
